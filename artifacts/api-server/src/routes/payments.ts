@@ -1,0 +1,121 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
+import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
+import { requireBusiness } from "../middlewares/auth";
+
+const router = Router();
+router.use(requireBusiness);
+
+router.get("/", async (req, res) => {
+  try {
+    const { type, partyId, fromDate, toDate, page = "1", limit = "20" } = req.query;
+    const businessId = req.user!.businessId!;
+    const conditions: any[] = [eq(paymentsTable.businessId, businessId)];
+    if (type) conditions.push(eq(paymentsTable.type, type as "receipt" | "payment"));
+    if (partyId) conditions.push(eq(paymentsTable.partyId, Number(partyId)));
+    if (fromDate) conditions.push(gte(paymentsTable.date, String(fromDate)));
+    if (toDate) conditions.push(lte(paymentsTable.date, String(toDate)));
+    const payments = await db.select({
+      id: paymentsTable.id, paymentNumber: paymentsTable.paymentNumber, type: paymentsTable.type,
+      date: paymentsTable.date, partyId: paymentsTable.partyId, partyName: partiesTable.name,
+      amount: paymentsTable.amount, paymentMode: paymentsTable.paymentMode,
+      isOnAccount: paymentsTable.isOnAccount, notes: paymentsTable.notes, createdAt: paymentsTable.createdAt,
+    }).from(paymentsTable).leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
+      .where(and(...conditions)).orderBy(desc(paymentsTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(paymentsTable).where(and(...conditions));
+    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric), 0)` }).from(paymentsTable).where(and(...conditions));
+    const data = payments.map(p => ({ ...p, amount: Number(p.amount) }));
+    res.json({ data, total: Number(total), page: Number(page), limit: Number(limit), totalAmount: Number(totalAmount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { type, date, partyId, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations } = req.body;
+    const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
+    const paymentNumber = `${type === "receipt" ? "REC" : "PAY"}-${String(Number(cnt) + 1).padStart(4, "0")}`;
+    const [payment] = await db.insert(paymentsTable).values({
+      businessId, paymentNumber, type, date, partyId: Number(partyId),
+      amount: String(amount), paymentMode, referenceNumber, notes,
+      isOnAccount: isOnAccount || false,
+    }).returning();
+    if (!isOnAccount && allocations && allocations.length > 0) {
+      for (const alloc of allocations) {
+        await db.insert(paymentAllocationsTable).values({ paymentId: payment.id, voucherId: alloc.voucherId, allocatedAmount: String(alloc.allocatedAmount) });
+        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` }).from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
+        const totalPaid = Number(currentPaid[0]?.paid || 0);
+        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        if (voucher) {
+          const grandTotal = Number(voucher.grandTotal);
+          const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
+          await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
+        }
+      }
+    }
+    res.status(201).json({ ...payment, amount: Number(payment.amount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/outstanding", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { partyId, type } = req.query;
+    if (!partyId) { res.status(400).json({ error: "partyId required" }); return; }
+    const voucherTypes = type === "receivable" ? ["sales_invoice"] : type === "payable" ? ["purchase_bill"] : ["sales_invoice", "purchase_bill"];
+    const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, Number(partyId)) });
+    const vouchers = await db.select().from(vouchersTable).where(and(
+      eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, Number(partyId)),
+      sql`${vouchersTable.voucherType} = ANY(${sql.raw(`ARRAY['${voucherTypes.join("','")}']::voucher_type[]`)})`
+    ));
+    const outstanding = vouchers.filter(v => v.status !== "paid" && v.status !== "cancelled").map(v => ({
+      voucherId: v.id, voucherNumber: v.voucherNumber, date: v.date,
+      originalAmount: Number(v.grandTotal), paidAmount: Number(v.paidAmount || 0),
+      balanceDue: Number(v.grandTotal) - Number(v.paidAmount || 0), daysOverdue: 0,
+    }));
+    const totalOutstanding = outstanding.reduce((s, b) => s + b.balanceDue, 0);
+    res.json({ party, totalOutstanding, bills: outstanding });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const payment = await db.query.paymentsTable.findFirst({ where: and(eq(paymentsTable.id, Number(req.params.id)), eq(paymentsTable.businessId, businessId)) });
+    if (!payment) { res.status(404).json({ error: "Not Found" }); return; }
+    const allocations = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, payment.id));
+    const allocWithVouchers = await Promise.all(allocations.map(async a => {
+      const v = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, a.voucherId) });
+      return { voucherId: a.voucherId, voucherNumber: v?.voucherNumber, voucherDate: v?.date, voucherAmount: Number(v?.grandTotal), allocatedAmount: Number(a.allocatedAmount) };
+    }));
+    const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, payment.partyId) });
+    res.json({ ...payment, amount: Number(payment.amount), partyName: party?.name, allocations: allocWithVouchers });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, Number(req.params.id)));
+    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, Number(req.params.id)), eq(paymentsTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+export default router;

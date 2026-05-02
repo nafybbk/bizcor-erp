@@ -1,0 +1,233 @@
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import Layout from "@/components/Layout";
+
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import Dashboard from "@/pages/Dashboard";
+
+import InvoiceList from "@/pages/sales/InvoiceList";
+import InvoiceCreate from "@/pages/sales/InvoiceCreate";
+import CreditNoteList from "@/pages/sales/CreditNoteList";
+import CreditNoteCreate from "@/pages/sales/CreditNoteCreate";
+
+import BillList from "@/pages/purchases/BillList";
+import BillCreate from "@/pages/purchases/BillCreate";
+import DebitNoteList from "@/pages/purchases/DebitNoteList";
+import DebitNoteCreate from "@/pages/purchases/DebitNoteCreate";
+
+import VoucherView from "@/pages/VoucherView";
+import PaymentsList from "@/pages/payments/PaymentsList";
+import PaymentCreate from "@/pages/payments/PaymentCreate";
+import Outstanding from "@/pages/payments/Outstanding";
+
+import Inventory from "@/pages/Inventory";
+
+import PartyLedger from "@/pages/accounting/PartyLedger";
+import TrialBalance from "@/pages/accounting/TrialBalance";
+import Receivables from "@/pages/accounting/Receivables";
+import Payables from "@/pages/accounting/Payables";
+
+import GSTR1 from "@/pages/gst/GSTR1";
+import GSTR3B from "@/pages/gst/GSTR3B";
+
+import Parties from "@/pages/masters/Parties";
+import Items from "@/pages/masters/Items";
+import Units from "@/pages/masters/Units";
+import HsnCodes from "@/pages/masters/HsnCodes";
+import TaxRates from "@/pages/masters/TaxRates";
+
+import BusinessSettings from "@/pages/settings/BusinessSettings";
+import Users from "@/pages/settings/Users";
+
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminBusinesses from "@/pages/admin/AdminBusinesses";
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
+});
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const [location] = useLocation();
+  if (!user) return <Redirect to="/login" />;
+  return <Layout>{children}</Layout>;
+}
+
+function AppRoutes() {
+  const { user, isSuperAdmin } = useAuth();
+
+  return (
+    <Switch>
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+
+      <Route path="/">
+        <ProtectedRoute>
+          {isSuperAdmin() ? <AdminDashboard /> : <Dashboard />}
+        </ProtectedRoute>
+      </Route>
+
+      {/* Sales */}
+      <Route path="/sales/invoices">
+        <ProtectedRoute><InvoiceList /></ProtectedRoute>
+      </Route>
+      <Route path="/sales/invoices/new">
+        <ProtectedRoute><InvoiceCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/sales/invoices/:id">
+        {(params) => (
+          <ProtectedRoute>
+            <VoucherView voucherType="sales/invoices" listHref="/sales/invoices" />
+          </ProtectedRoute>
+        )}
+      </Route>
+      <Route path="/sales/credit-notes">
+        <ProtectedRoute><CreditNoteList /></ProtectedRoute>
+      </Route>
+      <Route path="/sales/credit-notes/new">
+        <ProtectedRoute><CreditNoteCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/sales/credit-notes/:id">
+        {() => (
+          <ProtectedRoute>
+            <VoucherView voucherType="sales/credit-notes" listHref="/sales/credit-notes" />
+          </ProtectedRoute>
+        )}
+      </Route>
+
+      {/* Purchases */}
+      <Route path="/purchases/bills">
+        <ProtectedRoute><BillList /></ProtectedRoute>
+      </Route>
+      <Route path="/purchases/bills/new">
+        <ProtectedRoute><BillCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/purchases/bills/:id">
+        {() => (
+          <ProtectedRoute>
+            <VoucherView voucherType="purchases/bills" listHref="/purchases/bills" />
+          </ProtectedRoute>
+        )}
+      </Route>
+      <Route path="/purchases/debit-notes">
+        <ProtectedRoute><DebitNoteList /></ProtectedRoute>
+      </Route>
+      <Route path="/purchases/debit-notes/new">
+        <ProtectedRoute><DebitNoteCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/purchases/debit-notes/:id">
+        {() => (
+          <ProtectedRoute>
+            <VoucherView voucherType="purchases/debit-notes" listHref="/purchases/debit-notes" />
+          </ProtectedRoute>
+        )}
+      </Route>
+
+      {/* Payments */}
+      <Route path="/payments/receipts">
+        <ProtectedRoute><PaymentsList type="receipt" /></ProtectedRoute>
+      </Route>
+      <Route path="/payments/receipts/new">
+        <ProtectedRoute><PaymentCreate type="receipt" /></ProtectedRoute>
+      </Route>
+      <Route path="/payments/payments">
+        <ProtectedRoute><PaymentsList type="payment" /></ProtectedRoute>
+      </Route>
+      <Route path="/payments/payments/new">
+        <ProtectedRoute><PaymentCreate type="payment" /></ProtectedRoute>
+      </Route>
+      <Route path="/payments/outstanding">
+        <ProtectedRoute><Outstanding /></ProtectedRoute>
+      </Route>
+
+      {/* Inventory */}
+      <Route path="/inventory">
+        <ProtectedRoute><Inventory /></ProtectedRoute>
+      </Route>
+
+      {/* Accounting */}
+      <Route path="/accounting/ledger">
+        <ProtectedRoute><PartyLedger /></ProtectedRoute>
+      </Route>
+      <Route path="/accounting/trial-balance">
+        <ProtectedRoute><TrialBalance /></ProtectedRoute>
+      </Route>
+      <Route path="/accounting/receivables">
+        <ProtectedRoute><Receivables /></ProtectedRoute>
+      </Route>
+      <Route path="/accounting/payables">
+        <ProtectedRoute><Payables /></ProtectedRoute>
+      </Route>
+
+      {/* GST */}
+      <Route path="/gst/gstr1">
+        <ProtectedRoute><GSTR1 /></ProtectedRoute>
+      </Route>
+      <Route path="/gst/gstr3b">
+        <ProtectedRoute><GSTR3B /></ProtectedRoute>
+      </Route>
+
+      {/* Masters */}
+      <Route path="/masters/parties">
+        <ProtectedRoute><Parties /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/items">
+        <ProtectedRoute><Items /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/units">
+        <ProtectedRoute><Units /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/hsn">
+        <ProtectedRoute><HsnCodes /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/tax-rates">
+        <ProtectedRoute><TaxRates /></ProtectedRoute>
+      </Route>
+
+      {/* Settings */}
+      <Route path="/settings/business">
+        <ProtectedRoute><BusinessSettings /></ProtectedRoute>
+      </Route>
+      <Route path="/settings/users">
+        <ProtectedRoute><Users /></ProtectedRoute>
+      </Route>
+
+      {/* Super Admin */}
+      <Route path="/admin/businesses">
+        <ProtectedRoute><AdminBusinesses /></ProtectedRoute>
+      </Route>
+
+      <Route>
+        <ProtectedRoute>
+          <div className="flex items-center justify-center h-64 text-gray-400">
+            <div className="text-center">
+              <div className="text-4xl mb-3">404</div>
+              <div className="font-medium">Page not found</div>
+            </div>
+          </div>
+        </ProtectedRoute>
+      </Route>
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AppRoutes />
+          </WouterRouter>
+          <Toaster />
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
