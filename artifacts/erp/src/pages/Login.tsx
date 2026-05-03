@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Building2, Eye, EyeOff, Loader2, Search, ChevronRight, Headphones } from "lucide-react";
+import { Eye, EyeOff, Loader2, Search, ChevronRight, Headphones } from "lucide-react";
+import { BizCorLogo } from "@/components/BizCorLogo";
 
 const SAVED_CODE_KEY = "erp_last_business_code";
 
@@ -97,11 +98,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <Building2 className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">{appName}</h1>
-          <p className="text-gray-500 mt-1">Indian Business ERP</p>
+          <BizCorLogo size="lg" />
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">

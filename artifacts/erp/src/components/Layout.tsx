@@ -10,6 +10,7 @@ import {
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
   UserCircle, CloudOff, Ticket,
 } from "lucide-react";
+import { BizCorIcon } from "@/components/BizCorLogo";
 
 interface NavItem {
   label: string;
@@ -221,12 +222,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <a className="block p-4 border-b border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer group">
             <div className="flex items-center gap-2.5">
               {/* Logo or icon */}
-              <div className="w-8 h-8 flex-shrink-0 rounded-lg overflow-hidden bg-blue-600 flex items-center justify-center">
-                {bizLogo
-                  ? <img src={bizLogo} alt="Logo" className="w-full h-full object-contain" />
-                  : <Building2 className="w-4 h-4 text-white" />
-                }
-              </div>
+              {bizLogo
+                ? <div className="w-8 h-8 flex-shrink-0 rounded-lg overflow-hidden bg-blue-600 flex items-center justify-center">
+                    <img src={bizLogo} alt="Logo" className="w-full h-full object-contain" />
+                  </div>
+                : <BizCorIcon size={32} />
+              }
               <div className="min-w-0 flex-1">
                 <div className="text-white font-bold text-sm leading-tight truncate">{softwareName}</div>
                 {business && <div className="text-slate-400 text-xs truncate group-hover:text-blue-400">{business.name}</div>}
