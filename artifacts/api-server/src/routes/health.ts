@@ -10,13 +10,20 @@ router.get("/healthz", (_req, res) => {
 
 router.get("/db-test", async (_req, res) => {
   try {
-    const { db } = await import("@workspace/db");
-    const { sql } = await import("drizzle-orm");
-    const result = await db.execute(sql`SELECT 1 as ping`);
-    res.json({ db: "ok", result: result.rows });
+    const { pool } = await import("@workspace/db");
+    const client = await pool.connect();
+    const result = await client.query("SELECT 1 as ping");
+    client.release();
+    res.json({ db: "ok", row: result.rows[0] });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    res.status(500).json({ db: "error", message: msg });
+    const e = err as Record<string, unknown>;
+    res.status(500).json({
+      db: "error",
+      message: e.message,
+      code: e.code,
+      detail: e.detail,
+      cause: e.cause ? String(e.cause) : undefined,
+    });
   }
 });
 
