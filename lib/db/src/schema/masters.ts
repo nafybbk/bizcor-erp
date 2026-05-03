@@ -14,6 +14,7 @@ export const unitsTable = pgTable("units", {
   businessId: integer("business_id").notNull().references(() => businessesTable.id),
   name: text("name").notNull(),
   symbol: text("symbol").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -31,6 +32,7 @@ export const taxRatesTable = pgTable("tax_rates", {
   businessId: integer("business_id").notNull().references(() => businessesTable.id),
   name: text("name").notNull(),
   rate: numeric("rate", { precision: 5, scale: 2 }).notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
