@@ -1,8 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, partiesTable, itemsTable, paymentsTable, licenseVouchersTable } from "@workspace/db";
-import { eq, count, sql, ilike, and } from "drizzle-orm";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, partiesTable, itemsTable, paymentsTable, licenseVouchersTable, loginLogsTable } from "@workspace/db";
+import { eq, count, sql, ilike, and, desc, gte } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -523,6 +523,38 @@ router.post("/create-super-admin", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const [admin] = await db.insert(superAdminsTable).values({ name, email, passwordHash }).returning();
     res.status(201).json({ id: admin.id, name: admin.name, email: admin.email });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Login Activity & Active Users ────────────────────────────────────────────
+
+router.get("/login-logs", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string || "200"), 500);
+    const logs = await db.select().from(loginLogsTable)
+      .orderBy(desc(loginLogsTable.createdAt))
+      .limit(limit);
+    res.json(logs);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/active-users", async (req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const users = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        role: usersTable.role,
+        lastSeenAt: usersTable.lastSeenAt,
+        businessName: businessesTable.name,
+        businessCode: businessesTable.businessCode,
+      })
+      .from(usersTable)
+      .leftJoin(businessesTable, eq(usersTable.businessId, businessesTable.id))
+      .where(gte(usersTable.lastSeenAt, cutoff));
+    res.json(users);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

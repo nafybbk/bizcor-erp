@@ -20,7 +20,7 @@ interface AuthCtx {
   user: AuthUser | null;
   business: AuthBusiness | null;
   loading: boolean;
-  login: (email: string, password: string, businessCode?: string) => Promise<void>;
+  login: (email: string, password: string, businessCode?: string, coords?: { latitude: number; longitude: number }) => Promise<void>;
   logout: () => void;
   isSuperAdmin: () => boolean;
   isBusinessAdmin: () => boolean;
@@ -39,10 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   const [loading, setLoading] = useState(false);
 
-  const login = async (email: string, password: string, businessCode?: string) => {
+  const login = async (email: string, password: string, businessCode?: string, coords?: { latitude: number; longitude: number }) => {
     setLoading(true);
     try {
-      const res: any = await api.post("/auth/login", { email, password, businessCode: businessCode || undefined });
+      const res: any = await api.post("/auth/login", { email, password, businessCode: businessCode || undefined, ...coords });
       setToken(res.token);
       setUser(res.user);
       setBusiness(res.business || null);

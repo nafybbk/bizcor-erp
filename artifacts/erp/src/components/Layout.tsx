@@ -204,6 +204,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const superAdminNav: NavItem[] = [
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { label: "Login Activity", href: "/admin/activity", icon: <BarChart3 className="w-4 h-4" /> },
     { label: "Buyers", href: "/admin/buyers", icon: <ShoppingBag className="w-4 h-4" /> },
     { label: "Businesses", href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
     { label: "Plans", href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },

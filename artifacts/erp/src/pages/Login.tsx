@@ -38,11 +38,22 @@ export default function Login() {
     }).catch(() => {});
   }, []);
 
+  const getGPS = (): Promise<{ latitude: number; longitude: number } | undefined> =>
+    new Promise(resolve => {
+      if (!navigator.geolocation) { resolve(undefined); return; }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        () => resolve(undefined),
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+
   const handleBizSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBizError(""); setLoading(true);
     try {
-      await login(bizForm.email, bizForm.password, bizForm.businessCode || undefined);
+      const coords = await getGPS();
+      await login(bizForm.email, bizForm.password, bizForm.businessCode || undefined, coords);
       if (bizForm.businessCode) localStorage.setItem(SAVED_CODE_KEY, bizForm.businessCode.toUpperCase());
       navigate("/");
     } catch (err: any) {
@@ -59,7 +70,8 @@ export default function Login() {
     e.preventDefault();
     setTechError(""); setLoading(true);
     try {
-      const res = await api.post<any>("/auth/tech-login", { phone: techForm.phone.trim(), password: techForm.password });
+      const coords = await getGPS();
+      const res = await api.post<any>("/auth/tech-login", { phone: techForm.phone.trim(), password: techForm.password, ...coords });
       if (res.token && res.user) {
         // Use sessionStorage (tab-isolated) so tech admin token doesn't
         // overwrite the business user token in localStorage on other tabs.
