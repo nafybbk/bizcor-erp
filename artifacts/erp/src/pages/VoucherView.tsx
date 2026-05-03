@@ -121,6 +121,42 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           #printable { position: fixed; inset: 0; padding: 0; background: white; overflow: auto; }
           .no-print { display: none !important; }
           @page { margin: 10mm; size: A4; }
+
+          /* ── LASER PRINTER: Force black & white ── */
+          /* All text → black */
+          #printable [class*="text-blue"],
+          #printable [class*="text-red"],
+          #printable [class*="text-green"],
+          #printable [class*="text-orange"],
+          #printable [class*="text-amber"],
+          #printable [class*="text-indigo"],
+          #printable [class*="text-purple"] { color: #000 !important; }
+
+          /* All colored backgrounds → white */
+          #printable [class*="bg-blue"],
+          #printable [class*="bg-orange"],
+          #printable [class*="bg-amber"],
+          #printable [class*="bg-red"],
+          #printable [class*="bg-green"],
+          #printable [class*="bg-indigo"],
+          #printable [class*="bg-gray-50"],
+          #printable [class*="bg-gray-100"] { background-color: #fff !important; }
+
+          /* All colored borders → light gray */
+          #printable [class*="border-blue"],
+          #printable [class*="border-orange"],
+          #printable [class*="border-red"],
+          #printable [class*="border-green"],
+          #printable [class*="border-amber"] { border-color: #aaa !important; }
+
+          /* Keep dark header & footer strip solid black */
+          #printable .bg-gray-900 { background-color: #000 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          #printable .bg-gray-900 * { color: #fff !important; }
+
+          /* Keep strong structural borders black */
+          #printable .border-gray-800 { border-color: #000 !important; }
+          #printable .border-t-2.border-gray-800,
+          #printable .border-b-2.border-gray-800 { border-color: #000 !important; }
         }
       `}</style>
 
