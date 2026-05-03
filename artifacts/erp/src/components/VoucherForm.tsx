@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
-import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff } from "lucide-react";
+import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw } from "lucide-react";
 
 // Business type → invoice-level and item-level custom fields config
 const BIZ_FIELDS: Record<string, {
@@ -198,6 +198,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [savedShipAddrs, setSavedShipAddrs] = useState<string[]>([]);
   const [showShipAddrDrop, setShowShipAddrDrop] = useState(false);
 
+  // Linked invoice (for credit-note / debit-note)
+  const isReturn = voucherType === "sales/credit-notes" || voucherType === "purchases/debit-notes";
+  const linkedVoucherApi = voucherType === "sales/credit-notes" ? "/sales/invoices" : "/purchases/bills";
+  const [linkedVouchers, setLinkedVouchers] = useState<any[]>([]);
+  const [linkedVoucherId, setLinkedVoucherId] = useState<number | null>(initialData?.linkedVoucherId || null);
+  const [linkedVoucherNumber, setLinkedVoucherNumber] = useState<string>(initialData?.linkedVoucherNumber || "");
+  const [linkedSearch, setLinkedSearch] = useState(initialData?.linkedVoucherNumber || "");
+  const [showLinkedDrop, setShowLinkedDrop] = useState(false);
+  const [loadingLinked, setLoadingLinked] = useState(false);
+
   const [form, setForm] = useState({
     date: fmt.today(),
     voucherNumber: "",
@@ -310,6 +320,44 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         setCreditInfo({ outstanding: bal.outstanding, creditLimit: bal.creditLimit });
       }).catch(() => {});
     }
+
+    // Load available invoices/bills for return type vouchers
+    if (isReturn) {
+      setLoadingLinked(true);
+      api.get<any>(`${linkedVoucherApi}?partyId=${party.id}&limit=100`).then(r => {
+        setLinkedVouchers(r.data || []);
+      }).catch(() => {}).finally(() => setLoadingLinked(false));
+    }
+  };
+
+  const loadLinkedVoucherItems = async (vId: number) => {
+    try {
+      const v = await api.get<any>(`${linkedVoucherApi}/${vId}`);
+      if (v.items?.length) {
+        const populated: VoucherItem[] = v.items.map((i: any) => ({
+          itemId: i.itemId,
+          itemName: i.itemName,
+          hsnCode: i.hsnCode || "",
+          description: i.description || "",
+          quantity: Number(i.quantity),
+          unit: i.unit || "PCS",
+          rate: Number(i.rate),
+          rateIncludesGst: false,
+          discount: Number(i.discount || 0),
+          discountType: i.discountType || "percent",
+          taxRateId: i.taxRateId,
+          taxRate: Number(i.taxRate || 0),
+          taxableAmount: Number(i.taxableAmount || 0),
+          cgst: Number(i.cgst || 0),
+          sgst: Number(i.sgst || 0),
+          igst: Number(i.igst || 0),
+          total: Number(i.total || 0),
+          customFields: i.customFields,
+        }));
+        setLineItems(populated);
+        setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
+      }
+    } catch { /* ignore */ }
   };
 
   const updateItem = (idx: number, field: keyof VoucherItem, value: any) => {
@@ -436,6 +484,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       customFields: Object.keys(invoiceCustomFields).length > 0 ? invoiceCustomFields : undefined,
       transportCharges: Number(form.transportCharges),
       roundOff: Number(form.roundOff),
+      linkedVoucherId: linkedVoucherId || undefined,
     };
     if (serialMode === "manual" && form.voucherNumber) payload.voucherNumber = form.voucherNumber;
 
@@ -773,6 +822,105 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             )}
           </div>
         </div>
+
+        {/* ── Linked Invoice Reference (Credit Note / Debit Note only) ── */}
+        {isReturn && (
+          <div className="bg-white rounded-xl border border-amber-200 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Link2 className="w-4 h-4 text-amber-600" />
+              <h3 className="font-semibold text-amber-800 text-sm">
+                {voucherType === "sales/credit-notes" ? "Original Sales Invoice (Reference)" : "Original Purchase Bill (Reference)"}
+              </h3>
+              <span className="text-xs text-amber-600 ml-auto">(Optional lekin recommended)</span>
+            </div>
+
+            {!form.partyId ? (
+              <p className="text-xs text-gray-400 italic">Pehle party select karein — phir original invoice dhundh sakte hain</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="border border-amber-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-amber-400 pr-10"
+                    placeholder={`Invoice number type karein ya list mein se chunein...`}
+                    value={linkedSearch}
+                    onChange={e => { setLinkedSearch(e.target.value); setShowLinkedDrop(true); }}
+                    onFocus={() => setShowLinkedDrop(true)}
+                    onBlur={() => setTimeout(() => setShowLinkedDrop(false), 150)}
+                  />
+                  {loadingLinked && (
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  )}
+                  {showLinkedDrop && (
+                    <div className="absolute z-20 top-full mt-1 w-full bg-white border border-amber-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                      {linkedVouchers.filter(v =>
+                        !linkedSearch || v.voucherNumber?.toLowerCase().includes(linkedSearch.toLowerCase()) || v.partyName?.toLowerCase().includes(linkedSearch.toLowerCase())
+                      ).slice(0, 30).map(v => (
+                        <div
+                          key={v.id}
+                          onMouseDown={e => {
+                            e.preventDefault();
+                            setLinkedVoucherId(v.id);
+                            setLinkedVoucherNumber(v.voucherNumber);
+                            setLinkedSearch(v.voucherNumber);
+                            setShowLinkedDrop(false);
+                          }}
+                          className={`px-3 py-2.5 hover:bg-amber-50 cursor-pointer text-sm border-b border-gray-50 last:border-0 ${linkedVoucherId === v.id ? "bg-amber-50" : ""}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-mono font-semibold text-amber-800">{v.voucherNumber}</span>
+                              <span className="text-xs text-gray-400 ml-2">{fmt.date(v.date)}</span>
+                            </div>
+                            <span className="text-xs font-semibold text-gray-700">{fmt.currency(v.grandTotal)}</span>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex gap-2">
+                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${v.status === "paid" ? "bg-green-100 text-green-700" : v.status === "partial" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>{v.status?.toUpperCase()}</span>
+                            {v.balanceDue > 0 && <span className="text-red-500">Balance: {fmt.currency(v.balanceDue)}</span>}
+                          </div>
+                        </div>
+                      ))}
+                      {linkedVouchers.filter(v => !linkedSearch || v.voucherNumber?.toLowerCase().includes(linkedSearch.toLowerCase())).length === 0 && (
+                        <div className="px-3 py-4 text-sm text-gray-400 text-center">Koi invoice nahi mila is party ke liye</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {linkedVoucherId && (
+                  <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                    <Link2 className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <div className="flex-1 text-sm">
+                      <span className="text-amber-700 font-medium">Reference:</span>
+                      <span className="font-mono font-bold text-amber-900 ml-2">{linkedVoucherNumber}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadLinkedVoucherItems(linkedVoucherId)}
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors"
+                      title="Original invoice ke saare items copy kare (Full Return)"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Full Return (Items Load)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLinkedVoucherId(null); setLinkedVoucherNumber(""); setLinkedSearch(""); }}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-400">
+                  "Full Return" button dabaane se original invoice ke saare items automatically load ho jayenge.
+                  Partial return ke liye items manually adjust karein.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Invoice-level business type custom fields */}
         {bizType && BIZ_FIELDS[bizType]?.invoiceFields?.length > 0 && (

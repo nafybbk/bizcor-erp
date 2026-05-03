@@ -37,6 +37,13 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
 
   useEffect(() => {
     api.get<any>(`/parties?type=${partyType}&limit=200`).then(r => setParties(r.data || [])).catch(console.error);
+    // On edit: pre-load outstanding bills for existing party
+    if (initialData?.partyId && !initialData?.isOnAccount) {
+      const vType = type === "receipt" ? "receivable" : "payable";
+      api.get<any>(`/payments/outstanding?partyId=${initialData.partyId}&type=${vType}`)
+        .then(data => setOutstanding(data.bills || []))
+        .catch(console.error);
+    }
   }, []);
 
   const selectParty = async (party: any) => {

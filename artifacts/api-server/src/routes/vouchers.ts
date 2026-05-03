@@ -69,8 +69,16 @@ async function getVoucherById(req: any, res: any) {
   if (!voucher) { res.status(404).json({ error: "Not Found" }); return; }
   const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, voucher.partyId) });
   const items = await db.select().from(voucherItemsTable).where(eq(voucherItemsTable.voucherId, voucher.id));
+
+  let linkedVoucherNumber: string | null = null;
+  if (voucher.linkedVoucherId) {
+    const linked = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, voucher.linkedVoucherId) });
+    linkedVoucherNumber = linked?.voucherNumber ?? null;
+  }
+
   res.json({
     ...voucher, partyName: party?.name, partyGstin: party?.gstin,
+    linkedVoucherNumber,
     items: items.map(i => ({ ...i, quantity: Number(i.quantity), rate: Number(i.rate), discount: Number(i.discount), taxableAmount: Number(i.taxableAmount), taxRate: Number(i.taxRate), cgst: Number(i.cgst), sgst: Number(i.sgst), igst: Number(i.igst), taxAmount: Number(i.taxAmount), total: Number(i.total) })),
     grandTotal: Number(voucher.grandTotal), paidAmount: Number(voucher.paidAmount || 0),
     balanceDue: Number(voucher.grandTotal) - Number(voucher.paidAmount || 0),

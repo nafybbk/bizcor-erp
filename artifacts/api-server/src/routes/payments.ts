@@ -162,8 +162,25 @@ router.patch("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, Number(req.params.id)));
-    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, Number(req.params.id)), eq(paymentsTable.businessId, businessId)));
+    const paymentId = Number(req.params.id);
+
+    // Reverse allocations: recalculate paid amount on each affected voucher
+    const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+    for (const alloc of oldAllocs) {
+      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+        .from(paymentAllocationsTable)
+        .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
+      const totalPaid = Number(remaining[0]?.paid || 0);
+      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+      if (voucher) {
+        const grandTotal = Number(voucher.grandTotal);
+        const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
+        await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
+      }
+    }
+
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);

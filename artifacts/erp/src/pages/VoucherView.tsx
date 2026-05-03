@@ -224,6 +224,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   {voucher.placeOfSupply && (
                     <div className="text-xs text-gray-500 mt-0.5">Place of Supply: {voucher.placeOfSupply}</div>
                   )}
+                  {voucher.linkedVoucherNumber && (
+                    <div className="mt-1.5 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs text-left">
+                      <span className="text-amber-600 font-semibold">
+                        {voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}
+                      </span>
+                      <span className="font-mono font-bold text-amber-900 ml-1">{voucher.linkedVoucherNumber}</span>
+                    </div>
+                  )}
                   <div className="mt-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[voucher.status]}`}>
                       {STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}
