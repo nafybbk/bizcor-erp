@@ -583,10 +583,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       if (isOfflineError(err)) {
         // Save the quick party as an offline draft
         const partyType = isSales ? "customer" : "supplier";
+        const tempParty = { id: -Date.now(), name: quickAddForm.name.trim(), type: partyType };
         saveDraft({
           label: `New ${partyType === "supplier" ? "Supplier" : "Customer"}: ${quickAddForm.name.trim()}`,
           endpoint: "/parties",
           method: "POST",
+          tempId: tempParty.id,
           payload: {
             name: quickAddForm.name.trim(), type: partyType,
             phone: quickAddForm.phone || undefined,
@@ -597,7 +599,6 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           },
         });
         // Add party locally so user can continue the voucher
-        const tempParty = { id: -Date.now(), name: quickAddForm.name.trim(), type: partyType };
         setParties(prev => [...prev, tempParty as any]);
         selectParty(tempParty as any);
         setShowQuickAdd(false);
