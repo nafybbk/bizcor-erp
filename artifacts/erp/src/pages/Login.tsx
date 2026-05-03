@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { api, setAdminToken } from "@/lib/api";
-import { Eye, EyeOff, Loader2, Search, ChevronRight, Headphones } from "lucide-react";
+import { Eye, EyeOff, Loader2, Search, ChevronRight, Headphones, Lock, Globe, ShieldCheck } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
 
 const SAVED_CODE_KEY = "erp_last_business_code";
@@ -239,6 +239,31 @@ export default function Login() {
               <a href="/register" className="text-blue-600 hover:underline font-medium">Register here</a>
             </p>
           </div>
+        </div>
+
+        {/* Trust Info */}
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-green-500" /> Secure Login
+            </span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span className="flex items-center gap-1">
+              <Lock className="w-3.5 h-3.5 text-blue-400" /> SSL Encrypted
+            </span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span className="flex items-center gap-1">
+              <Globe className="w-3.5 h-3.5 text-indigo-400" /> Made in India
+            </span>
+          </div>
+          <a
+            href="https://erp.naewtgroup.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-400 hover:text-blue-500 transition-colors font-mono"
+          >
+            erp.naewtgroup.com
+          </a>
         </div>
       </div>
     </div>
