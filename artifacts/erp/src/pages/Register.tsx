@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Loader2, Gift } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Arunachal Pradesh", code: "12" },
@@ -25,7 +25,7 @@ export default function Register() {
   const [form, setForm] = useState({
     businessName: "", gstin: "", pan: "", address: "", city: "", state: "", stateCode: "",
     pincode: "", phone: "", businessType: "retail",
-    adminName: "", adminEmail: "", adminPassword: "",
+    adminName: "", adminEmail: "", adminPassword: "", referredBy: "",
   });
 
   const set = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
@@ -142,6 +142,19 @@ export default function Register() {
                 <div>
                   <label className={labelClass}>Password *</label>
                   <input type="password" className={inputClass} value={form.adminPassword} onChange={e => set("adminPassword", e.target.value)} required placeholder="Min 8 characters" minLength={8} />
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <label className="block text-sm font-medium text-green-800 mb-1 flex items-center gap-1.5">
+                    <Gift className="w-4 h-4" /> Referral Code (Optional)
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 text-sm bg-white font-mono tracking-widest uppercase"
+                    value={form.referredBy}
+                    onChange={e => set("referredBy", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                    placeholder="Kisi ne code diya ho toh daalen"
+                    maxLength={6}
+                  />
+                  <p className="text-xs text-green-600 mt-1">Referral code se referrer ko bonus milta hai (har 2 referrals pe 30 din free)</p>
                 </div>
                 {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
                 <div className="flex gap-3 mt-4">

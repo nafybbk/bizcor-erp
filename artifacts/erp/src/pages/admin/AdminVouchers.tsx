@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api, fmt } from "@/lib/api";
 import {
   Plus, Loader2, X, Copy, Check, Ticket, Search, Ban, Trash2,
-  ChevronRight, FolderOpen, CheckCircle2, Clock, XCircle,
+  FolderOpen, CheckCircle2, Clock, XCircle, Edit2, RefreshCw,
 } from "lucide-react";
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -54,6 +54,12 @@ export default function AdminVouchers() {
   const [newCodes, setNewCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
+  // Edit voucher modal
+  const [editVoucher, setEditVoucher] = useState<Voucher | null>(null);
+  const [editForm, setEditForm] = useState({ validityDays: 30, sellingPrice: "", notes: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [reissueSaving, setReissueSaving] = useState<number | null>(null);
+
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
   const loadCounts = useCallback(() => {
@@ -101,6 +107,35 @@ export default function AdminVouchers() {
     setSelectedStatus(status);
     setPage(1);
     setSearch("");
+  };
+
+  const openEditVoucher = (v: Voucher) => {
+    setEditVoucher(v);
+    setEditForm({ validityDays: v.validityDays, sellingPrice: v.sellingPrice || "", notes: v.notes || "" });
+  };
+
+  const saveEditVoucher = async () => {
+    if (!editVoucher) return;
+    setEditSaving(true);
+    try {
+      await api.patch(`/super-admin/vouchers/${editVoucher.id}`, {
+        validityDays: Number(editForm.validityDays),
+        sellingPrice: editForm.sellingPrice || null,
+        notes: editForm.notes || null,
+      });
+      setEditVoucher(null);
+      loadVouchers();
+    } finally { setEditSaving(false); }
+  };
+
+  const reissueVoucher = async (v: Voucher) => {
+    if (!confirm(`"${v.code}" ko reissue karna chahte hain? Naya code generate hoga aur status Active ho jaayega.`)) return;
+    setReissueSaving(v.id);
+    try {
+      await api.patch(`/super-admin/vouchers/${v.id}`, { reissue: true });
+      loadCounts();
+      loadVouchers();
+    } finally { setReissueSaving(null); }
   };
 
   const cancelVoucher = async (id: number) => {
@@ -331,16 +366,28 @@ export default function AdminVouchers() {
                       )}
                       <td className="px-4 py-3 text-xs text-gray-400">{fmt.date(v.createdAt)}</td>
                       <td className="px-4 py-3">
-                        {v.status === "active" && (
-                          <button onClick={() => cancelVoucher(v.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Cancel voucher">
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {v.status === "cancelled" && (
-                          <button onClick={() => deleteVoucher(v.id, v.code)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Permanently delete">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {(v.status === "active" || v.status === "cancelled") && (
+                            <button onClick={() => openEditVoucher(v)} className="p-1.5 text-blue-400 hover:bg-blue-50 rounded-lg" title="Edit voucher">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {v.status === "cancelled" && (
+                            <button onClick={() => reissueVoucher(v)} disabled={reissueSaving === v.id} className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg disabled:opacity-50" title="Reissue (naya code)">
+                              {reissueSaving === v.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          {v.status === "active" && (
+                            <button onClick={() => cancelVoucher(v.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Cancel voucher">
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {v.status === "cancelled" && (
+                            <button onClick={() => deleteVoucher(v.id, v.code)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Permanently delete">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -363,6 +410,50 @@ export default function AdminVouchers() {
           )}
         </div>
       </div>
+
+      {/* Edit Voucher Modal */}
+      {editVoucher && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setEditVoucher(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-500" /> Voucher Edit Karo</h2>
+              <button onClick={() => setEditVoucher(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="font-mono font-bold text-indigo-700 tracking-wider">{editVoucher.code}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{editVoucher.planName} · Current status: <span className="capitalize font-medium">{editVoucher.status}</span></div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Validity (Days)</label>
+                <input type="number" min={1} className={inputCls} value={editForm.validityDays}
+                  onChange={e => setEditForm(f => ({ ...f, validityDays: Number(e.target.value) }))} />
+                <p className="text-xs text-gray-400 mt-1">Plan activate hone ke baad kitne din chalega</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-sm">₹</span>
+                  <input type="number" min={0} className={inputCls + " pl-7"} placeholder="e.g. 999"
+                    value={editForm.sellingPrice} onChange={e => setEditForm(f => ({ ...f, sellingPrice: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <input type="text" className={inputCls} placeholder="e.g. Promo batch, Sharma Ji..."
+                  value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setEditVoucher(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                <button onClick={saveEditVoucher} disabled={editSaving}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+                  {editSaving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Generate Modal */}
       {showGenerate && (

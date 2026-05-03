@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
 
@@ -10,16 +10,54 @@ function generateBusinessCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
 router.post("/register", async (req, res) => {
   try {
-    const { businessName, gstin, pan, address, city, state, stateCode, pincode, phone, businessType, adminName, adminEmail, adminPassword, planId } = req.body;
+    const { businessName, gstin, pan, address, city, state, stateCode, pincode, phone, businessType, adminName, adminEmail, adminPassword, planId, referredBy } = req.body;
     if (!businessName || !adminName || !adminEmail || !adminPassword) {
       res.status(400).json({ error: "Bad Request", message: "Required fields missing" });
       return;
     }
+
+    // Max 2 businesses per email
+    const emailLower = adminEmail.toLowerCase().trim();
+    const existingEmailUsers = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(sql`LOWER(${usersTable.email}) = ${emailLower}`);
+    if (existingEmailUsers.length >= 2) {
+      res.status(400).json({
+        error: "limit_reached",
+        message: "Yeh email pehle se 2 businesses mein registered hai. Ek email se maximum 2 businesses bana sakte hain.",
+      });
+      return;
+    }
+
+    // Max 2 businesses per phone (if provided)
+    if (phone && phone.trim()) {
+      const existingPhoneUsers = await db.select({ id: businessesTable.id }).from(businessesTable)
+        .where(sql`${businessesTable.phone} = ${phone.trim()}`);
+      if (existingPhoneUsers.length >= 2) {
+        res.status(400).json({
+          error: "limit_reached",
+          message: "Yeh phone number pehle se 2 businesses mein registered hai. Ek number se maximum 2 businesses bana sakte hain.",
+        });
+        return;
+      }
+    }
+
     let businessCode = generateBusinessCode();
     const existing = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode) });
     if (existing) businessCode = generateBusinessCode();
+
+    // Generate unique referral code
+    let referralCode = generateReferralCode();
+    const refExisting = await db.query.businessesTable.findFirst({ where: eq(businessesTable.referralCode, referralCode) });
+    if (refExisting) referralCode = generateReferralCode();
 
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -27,11 +65,30 @@ router.post("/register", async (req, res) => {
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
       planId: planId || null, status: "trial",
       isTrial: true, planStartDate: now, planExpiresAt: trialExpiresAt,
+      referralCode,
+      referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
     }).returning();
+
+    // Handle referral bonus — every 2 referrals = 30 days free for referrer
+    if (referredBy && referredBy.trim()) {
+      const referrer = await db.query.businessesTable.findFirst({
+        where: eq(businessesTable.referralCode, referredBy.toUpperCase().trim()),
+      });
+      if (referrer) {
+        const newCount = (referrer.referralCount || 0) + 1;
+        const updates: Record<string, unknown> = { referralCount: newCount };
+        if (newCount % 2 === 0) {
+          const baseDate = referrer.planExpiresAt && referrer.planExpiresAt > now ? referrer.planExpiresAt : now;
+          updates.planExpiresAt = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+          updates.bonusDaysAdded = (referrer.bonusDaysAdded || 0) + 30;
+        }
+        await db.update(businessesTable).set(updates).where(eq(businessesTable.id, referrer.id));
+      }
+    }
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
     const [user] = await db.insert(usersTable).values({
-      businessId: business.id, name: adminName, email: adminEmail, passwordHash, role: "business_admin", permissions: [],
+      businessId: business.id, name: adminName, email: emailLower, passwordHash, role: "business_admin", permissions: [],
     }).returning();
 
     await db.insert(unitsTable).values([
@@ -55,7 +112,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       token,
       user: { id: user.id, email: user.email, name: user.name, role: "business_admin", businessId: business.id },
-      business: { id: business.id, name: business.name, businessCode: business.businessCode },
+      business: { id: business.id, name: business.name, businessCode: business.businessCode, referralCode: business.referralCode },
     });
   } catch (err) {
     req.log.error(err);

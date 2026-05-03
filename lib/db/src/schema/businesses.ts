@@ -69,6 +69,10 @@ export const businessesTable = pgTable("businesses", {
   bankBranch: text("bank_branch"),
   signatoryName: text("signatory_name"),
   invoiceFooter: text("invoice_footer"),
+  referralCode: text("referral_code").unique(),
+  referredBy: text("referred_by"),
+  referralCount: integer("referral_count").notNull().default(0),
+  bonusDaysAdded: integer("bonus_days_added").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
