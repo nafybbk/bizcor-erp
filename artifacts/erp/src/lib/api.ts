@@ -41,6 +41,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+// Central helper — works for "Failed to fetch", service-worker 503, and browser offline
+export function isOfflineError(err: any): boolean {
+  if (!navigator.onLine) return true;
+  const msg: string = err?.message || "";
+  return (
+    msg.includes("Failed to fetch") ||
+    msg.includes("NetworkError") ||
+    msg.includes("network") ||
+    msg.toLowerCase().includes("offline") ||
+    msg.includes("503")
+  );
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body) }),

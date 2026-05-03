@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, fmt } from "@/lib/api";
+import { api, fmt, isOfflineError } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties } from "@/lib/masterCache";
@@ -71,8 +71,7 @@ export default function Parties({ defaultType }: Props) {
       else await api.post("/parties", form);
       setShowModal(false); load();
     } catch (err: any) {
-      const isNetwork = !navigator.onLine || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError");
-      if (isNetwork && !editId) {
+      if (isOfflineError(err) && !editId) {
         saveDraft({
           label: `New ${form.type === "supplier" ? "Supplier" : "Customer"}: ${form.name || "—"}`,
           endpoint: "/parties",

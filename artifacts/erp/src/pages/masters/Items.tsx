@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, fmt } from "@/lib/api";
+import { api, fmt, isOfflineError } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheItems } from "@/lib/masterCache";
@@ -58,8 +58,7 @@ export default function Items() {
       else await api.post("/items", payload);
       setShowModal(false); load();
     } catch (err: any) {
-      const isNetwork = !navigator.onLine || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError");
-      if (isNetwork && !editId) {
+      if (isOfflineError(err) && !editId) {
         saveDraft({
           label: `New Item: ${form.name || "—"}`,
           endpoint: "/items",
