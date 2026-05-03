@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BizERP — Supabase + Vercel Deployment Guide</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a1a1a; background: #fff; }
+  @media print {
+    body { font-size: 11px; }
+    .page-break { page-break-before: always; }
+    .no-break { page-break-inside: avoid; }
+    @page { margin: 15mm 12mm; size: A4; }
+  }
+
+  /* ── Cover ── */
+  .cover { background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 50%, #2563eb 100%); color: white; padding: 60px 50px; min-height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover-logo { font-size: 48px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
+  .cover-tagline { font-size: 16px; opacity: 0.8; margin-bottom: 60px; }
+  .cover-title { font-size: 32px; font-weight: 700; line-height: 1.3; margin-bottom: 12px; }
+  .cover-subtitle { font-size: 16px; opacity: 0.85; margin-bottom: 40px; }
+  .cover-arch { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 24px; margin-bottom: 40px; }
+  .cover-arch h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 16px; }
+  .arch-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 14px; }
+  .arch-badge { background: rgba(255,255,255,0.2); border-radius: 6px; padding: 4px 12px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .arch-arrow { opacity: 0.6; font-size: 18px; }
+  .cover-footer { font-size: 12px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 16px; }
+  .cover-toc { margin-top: 24px; }
+  .cover-toc h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 12px; }
+  .toc-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .toc-num { background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; flex-shrink: 0; }
+
+  /* ── Content ── */
+  .content { max-width: 860px; margin: 0 auto; padding: 40px 40px; }
+  h1 { font-size: 22px; font-weight: 800; color: #1e40af; margin-bottom: 6px; margin-top: 0; padding-bottom: 10px; border-bottom: 3px solid #1e40af; }
+  h2 { font-size: 17px; font-weight: 700; color: #1e293b; margin: 28px 0 12px; }
+  h3 { font-size: 14px; font-weight: 700; color: #374151; margin: 20px 0 8px; }
+  p { line-height: 1.7; color: #374151; margin-bottom: 10px; }
+
+  /* ── Step boxes ── */
+  .section-header { background: #1e40af; color: white; border-radius: 10px 10px 0 0; padding: 14px 20px; margin-top: 32px; }
+  .section-header h2 { color: white; margin: 0; font-size: 16px; }
+  .section-header .step-label { font-size: 11px; opacity: 0.75; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .section-body { border: 2px solid #1e40af; border-top: none; border-radius: 0 0 10px 10px; padding: 20px; margin-bottom: 8px; }
+
+  /* ── Steps ── */
+  .step { display: flex; gap: 14px; margin-bottom: 18px; }
+  .step-num { background: #1e40af; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+  .step-content { flex: 1; }
+  .step-content strong { display: block; color: #1a1a1a; margin-bottom: 4px; font-size: 13px; }
+  .step-content p { margin: 0; font-size: 12.5px; }
+
+  /* ── Screen mockup ── */
+  .screen { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin: 14px 0; }
+  .screen-bar { background: #334155; padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+  .screen-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .screen-dot.r { background: #ef4444; }
+  .screen-dot.y { background: #f59e0b; }
+  .screen-dot.g { background: #22c55e; }
+  .screen-url { background: rgba(255,255,255,0.1); border-radius: 4px; padding: 3px 10px; font-size: 11px; color: #94a3b8; margin-left: 8px; font-family: monospace; flex: 1; }
+  .screen-body { padding: 16px 20px; font-size: 12px; }
+  .screen-body .field { margin-bottom: 10px; }
+  .screen-body .field label { display: block; font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .screen-body .field .val { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 7px 10px; font-family: monospace; font-size: 11.5px; color: #1e293b; word-break: break-all; }
+  .screen-body .field .val.highlight { background: #fef3c7; border-color: #f59e0b; }
+  .btn-mock { display: inline-block; background: #1e40af; color: white; border-radius: 6px; padding: 7px 16px; font-size: 12px; font-weight: 600; margin-top: 4px; }
+  .btn-mock.green { background: #16a34a; }
+
+  /* ── Info boxes ── */
+  .info { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 12.5px; line-height: 1.6; }
+  .info strong { color: #1d4ed8; }
+  .warn { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 12.5px; line-height: 1.6; }
+  .warn strong { color: #92400e; }
+  .success { border-left: 4px solid #22c55e; background: #f0fdf4; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 12.5px; line-height: 1.6; }
+  .success strong { color: #166534; }
+  .danger { border-left: 4px solid #ef4444; background: #fef2f2; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 12.5px; line-height: 1.6; }
+
+  /* ── Code ── */
+  code { background: #1e293b; color: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11.5px; }
+  pre { background: #1e293b; color: #e2e8f0; padding: 14px 18px; border-radius: 8px; font-size: 11.5px; overflow-x: auto; margin: 10px 0; line-height: 1.6; }
+  pre .comment { color: #94a3b8; }
+  pre .key { color: #7dd3fc; }
+  pre .val { color: #86efac; }
+
+  /* ── Env table ── */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+  th { background: #1e293b; color: white; padding: 8px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  td:first-child { font-family: monospace; font-size: 11.5px; color: #1e40af; font-weight: 600; white-space: nowrap; }
+  td code { background: #f1f5f9; color: #1e293b; }
+
+  /* ── Arch diagram ── */
+  .arch { border: 2px solid #e2e8f0; border-radius: 10px; padding: 24px; margin: 16px 0; }
+  .arch-boxes { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; }
+  .arch-box { border-radius: 10px; padding: 14px 18px; text-align: center; min-width: 130px; }
+  .arch-box .icon { font-size: 24px; margin-bottom: 6px; }
+  .arch-box .label { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+  .arch-box .sub { font-size: 10px; opacity: 0.7; }
+  .arch-box.user { background: #eff6ff; border: 2px solid #bfdbfe; }
+  .arch-box.front { background: #ecfdf5; border: 2px solid #bbf7d0; }
+  .arch-box.back { background: #fefce8; border: 2px solid #fde68a; }
+  .arch-box.db { background: #fdf4ff; border: 2px solid #e9d5ff; }
+  .arch-arrow-h { font-size: 20px; color: #94a3b8; padding: 0 4px; align-self: center; }
+  .arch-note { text-align: center; font-size: 11px; color: #64748b; margin-top: 14px; }
+
+  /* ── Checklist ── */
+  .checklist { list-style: none; margin: 10px 0; }
+  .checklist li { padding: 5px 0; padding-left: 24px; position: relative; font-size: 12.5px; }
+  .checklist li::before { content: "☐"; position: absolute; left: 0; color: #94a3b8; font-size: 14px; }
+
+  /* ── Badge ── */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge.required { background: #fee2e2; color: #991b1b; }
+  .badge.optional { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .badge.backend { background: #fef3c7; color: #92400e; }
+  .badge.frontend { background: #dbeafe; color: #1e40af; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 2px solid #e2e8f0; margin: 32px 0; }
+
+  /* ── Troubleshoot ── */
+  .trouble-item { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+  .trouble-q { background: #fef9c3; padding: 10px 16px; font-weight: 700; font-size: 12.5px; color: #713f12; }
+  .trouble-a { padding: 10px 16px; font-size: 12.5px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     COVER PAGE
+══════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div>
+    <div class="cover-logo">BizERP</div>
+    <div class="cover-tagline">Indian Business ERP — For Supabase &amp; Vercel</div>
+
+    <div class="cover-title">Complete Deployment Guide</div>
+    <div class="cover-subtitle">Step-by-step guide to deploy your ERP on Supabase (database) and Vercel (hosting)</div>
+
+    <div class="cover-arch">
+      <h3>Architecture Overview</h3>
+      <div class="arch-row">
+        <div class="arch-badge">👤 User Browser</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-badge">⚡ Vercel CDN</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-badge">⚛️ React Frontend</div>
+      </div>
+      <div class="arch-row" style="padding-left: 170px;">
+        <div class="arch-arrow">↓ API calls (HTTPS)</div>
+      </div>
+      <div class="arch-row">
+        <div class="arch-badge" style="margin-left: 170px;">🟡 Vercel Serverless</div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-badge">🟢 Express Backend</div>
+      </div>
+      <div class="arch-row" style="padding-left: 280px;">
+        <div class="arch-arrow">↓ DATABASE_URL</div>
+      </div>
+      <div class="arch-row" style="padding-left: 280px;">
+        <div class="arch-badge">🐘 Supabase PostgreSQL</div>
+      </div>
+    </div>
+
+    <div class="cover-toc">
+      <h3>Contents</h3>
+      <div class="toc-item"><div class="toc-num">1</div> Prerequisites — Accounts aur tools</div>
+      <div class="toc-item"><div class="toc-num">2</div> GitHub — Code push karna</div>
+      <div class="toc-item"><div class="toc-num">3</div> Supabase — Database setup aur migration</div>
+      <div class="toc-item"><div class="toc-num">4</div> Vercel Backend — API server deploy karna</div>
+      <div class="toc-item"><div class="toc-num">5</div> Vercel Frontend — ERP app deploy karna</div>
+      <div class="toc-item"><div class="toc-num">6</div> Environment Variables — Poori list</div>
+      <div class="toc-item"><div class="toc-num">7</div> First Login — Super admin setup</div>
+      <div class="toc-item"><div class="toc-num">8</div> Troubleshooting — Common problems</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    BizERP • Confidential Deployment Document • Generated for internal use
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 1: PREREQUISITES
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 1 — Prerequisites</h1>
+  <p>Shuru karne se pehle yeh accounts aur tools ready hone chahiye:</p>
+
+  <h2>📋 Required Accounts</h2>
+
+  <div class="section-body" style="border: 2px solid #1e40af; border-radius: 10px; margin-bottom: 12px;">
+    <div class="step">
+      <div class="step-num">A</div>
+      <div class="step-content">
+        <strong>GitHub Account — <a href="https://github.com" style="color:#1e40af">github.com</a></strong>
+        <p>Code store karne ke liye. Free hai. Email se sign up karo.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">B</div>
+      <div class="step-content">
+        <strong>Supabase Account — <a href="https://supabase.com" style="color:#1e40af">supabase.com</a></strong>
+        <p>PostgreSQL database ke liye. Free tier available hai. GitHub se sign in kar sakte ho.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">C</div>
+      <div class="step-content">
+        <strong>Vercel Account — <a href="https://vercel.com" style="color:#1e40af">vercel.com</a></strong>
+        <p>Website hosting ke liye. Free tier available hai. GitHub se sign in karo (recommended).</p>
+      </div>
+    </div>
+  </div>
+
+  <h2>💻 Required Tools (Computer mein install karo)</h2>
+
+  <div class="section-body" style="border: 2px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px;">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Node.js (v18 ya usse upar) — <a href="https://nodejs.org" style="color:#1e40af">nodejs.org</a></strong>
+        <p>LTS version download karo. Install karo. Verify: terminal mein <code>node --version</code> likho.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>pnpm — Package Manager</strong>
+        <p>Terminal mein likho: <code>npm install -g pnpm</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Git — <a href="https://git-scm.com" style="color:#1e40af">git-scm.com</a></strong>
+        <p>Download aur install karo. Verify: <code>git --version</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Vercel CLI (optional but helpful)</strong>
+        <p>Terminal mein: <code>npm install -g vercel</code></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="info">
+    <strong>ℹ️ Agar Replit se code export kar rahe ho:</strong><br/>
+    Replit mein apne project ke "..." menu se <strong>Download as ZIP</strong> select karo. Phir extract karo apne computer pe.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 2: GITHUB
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 2 — GitHub pe Code Push karo</h1>
+
+  <div class="section-header">
+    <div class="step-label">Step 2.1</div>
+    <h2>GitHub pe Naya Repository Banao</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>github.com pe jao → Sign in karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Top-right mein "+" button → "New repository" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Repository details bharo:</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">github.com/new</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Repository name</label><div class="val">bizerp</div></div>
+            <div class="field"><label>Visibility</label><div class="val">● Private &nbsp;&nbsp; ○ Public</div></div>
+            <div class="field"><label>Initialize</label><div class="val">☐ Add README (leave unchecked)</div></div>
+            <div class="btn-mock">Create repository</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Repository URL note kar lo (baad mein chahiye hogi)</strong>
+        <p>Format: <code>https://github.com/YOUR_USERNAME/bizerp.git</code></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 2.2</div>
+    <h2>Code Push karo</h2>
+  </div>
+  <div class="section-body">
+    <p>Terminal/Command Prompt open karo, project folder mein jao:</p>
+    <pre><span class="comment"># Project folder mein jao (aapka folder ka naam jo bhi ho)</span>
+cd bizerp
+
+<span class="comment"># Git initialize karo (agar pehli baar hai)</span>
+git init
+git add .
+git commit -m "Initial commit — BizERP"
+
+<span class="comment"># GitHub se connect karo (apna URL dalo)</span>
+git remote add origin https://github.com/YOUR_USERNAME/bizerp.git
+
+<span class="comment"># Push karo</span>
+git branch -M main
+git push -u origin main</pre>
+
+    <div class="success">
+      <strong>✅ Success sign:</strong> Terminal mein "Branch 'main' set up to track remote branch 'main' from 'origin'" dikhna chahiye.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 3: SUPABASE
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 3 — Supabase Database Setup</h1>
+
+  <div class="section-header">
+    <div class="step-label">Step 3.1</div>
+    <h2>Supabase Project Banao</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>supabase.com pe jao → Sign in karo (GitHub se recommended)</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>"New Project" click karo</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">supabase.com/dashboard/new-project</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Project Name</label><div class="val">bizerp-production</div></div>
+            <div class="field"><label>Database Password</label><div class="val highlight">⚠️ Strong password likhein — ZAROOR SAVE KARO!</div></div>
+            <div class="field"><label>Region</label><div class="val">Southeast Asia (Singapore) — India ke liye closest</div></div>
+            <div class="btn-mock green">Create new project</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Wait karo — Project setup mein 2-3 minutes lagte hain</strong>
+        <p>Green "Project is ready" message aane ka wait karo.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 3.2</div>
+    <h2>DATABASE_URL Copy Karo</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Supabase dashboard → Left sidebar → "Project Settings" (gear icon) click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>"Database" tab → "Connection string" section mein jao</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>"URI" tab select karo → Connection string copy karo</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">Project Settings → Database → Connection string</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Connection String (URI)</label><div class="val">postgresql://postgres:[YOUR-PASSWORD]@db.xxxxxxxxxxxx.supabase.co:5432/postgres</div></div>
+          </div>
+        </div>
+        <div class="warn" style="margin-top: 8px;">
+          <strong>⚠️ [YOUR-PASSWORD]</strong> ki jagah aapka actual database password dalo (jo Step 3.1 mein set kiya tha). URL mein <code>[YOUR-PASSWORD]</code> literally likhna nahi hai!
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Yeh URL kisi safe jagah save karo — baad mein Vercel mein use hoga</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 3.3</div>
+    <h2>Database Schema Run Karo (Migration)</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Supabase dashboard → Left sidebar → "SQL Editor" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>"New query" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Project folder se <code>supabase-migration.sql</code> file open karo</strong>
+        <p>Notepad ya VS Code mein open karo, saara content copy karo (Ctrl+A, Ctrl+C).</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Supabase SQL Editor mein paste karo (Ctrl+V) → "Run" button click karo</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">Supabase → SQL Editor</div>
+          </div>
+          <div class="screen-body">
+            <div style="background: #1e293b; color: #86efac; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-bottom: 10px;">
+              -- Paste your supabase-migration.sql content here --<br/>
+              CREATE TYPE balance_type AS ENUM ('debit', 'credit');<br/>
+              CREATE TYPE billing_cycle AS ENUM ('monthly', 'yearly');<br/>
+              ... (all the SQL)
+            </div>
+            <div class="btn-mock green">▶ Run</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <strong>Success verify karo</strong>
+        <p>Neeche "Success. No rows returned" ya similar message aana chahiye. Left sidebar → "Table Editor" mein 16 tables dikhne chahiye.</p>
+      </div>
+    </div>
+
+    <div class="success">
+      <strong>✅ Tables jo dikhne chahiye:</strong> app_settings, businesses, custom_fields, hsn_codes, items, parties, payment_allocations, payments, plans, super_admins, tax_rates, units, users, voucher_items, vouchers, aur ek aur table.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 4: VERCEL BACKEND
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 4 — Vercel pe Backend Deploy karo</h1>
+
+  <div class="info">
+    <strong>ℹ️ Do alag Vercel projects banenge:</strong> Ek Backend ke liye (API Server) aur ek Frontend ke liye (React App). Pehle Backend banate hain.
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 4.1</div>
+    <h2>Vercel Backend Project Banao</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>vercel.com pe jao → Sign in karo (GitHub se) → Dashboard open hoga</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>"Add New → Project" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>GitHub se "bizerp" repository import karo</strong>
+        <p>"Import Git Repository" section mein apna <code>bizerp</code> repo dikhega → "Import" click karo.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Project configuration set karo — IMPORTANT!</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">Vercel → Configure Project (Backend)</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Project Name</label><div class="val">bizerp-api</div></div>
+            <div class="field"><label>Framework Preset</label><div class="val">Other</div></div>
+            <div class="field"><label>Root Directory</label><div class="val highlight">artifacts/api-server &nbsp; ← ZAROOR SET KARO</div></div>
+            <div class="field"><label>Build Command</label><div class="val">cd ../.. &amp;&amp; pnpm install &amp;&amp; pnpm --filter @workspace/api-server run build</div></div>
+            <div class="field"><label>Output Directory</label><div class="val">dist</div></div>
+            <div class="field"><label>Install Command</label><div class="val">(leave blank)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <strong>"Environment Variables" section mein yeh variables add karo:</strong>
+        <table>
+          <tr><th>Variable Name</th><th>Value</th><th>Note</th></tr>
+          <tr><td>DATABASE_URL</td><td><em>Supabase connection string (Step 3.2)</em></td><td><span class="badge required">Required</span></td></tr>
+          <tr><td>SESSION_SECRET</td><td><em>Koi bhi random 32+ char string</em></td><td><span class="badge required">Required</span></td></tr>
+          <tr><td>NODE_ENV</td><td>production</td><td><span class="badge required">Required</span></td></tr>
+          <tr><td>PORT</td><td>8080</td><td><span class="badge optional">Optional</span></td></tr>
+        </table>
+
+        <div class="warn">
+          <strong>SESSION_SECRET kaise banayein?</strong><br/>
+          Browser mein jao: <code>https://generate-secret.vercel.app/32</code> — wahan se copy karo. Ya koi bhi random text likhein jaise <code>MyBizERP_Secret_2024_XYZ789_abc123_PROD</code>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <strong>"Deploy" click karo</strong>
+        <p>2-4 minutes mein deploy ho jayega. Green checkmark aane ka wait karo.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">7</div>
+      <div class="step-content">
+        <strong>Backend URL note karo</strong>
+        <p>Format: <code>https://bizerp-api.vercel.app</code> (ya jo bhi Vercel assign kare). Isko save karo — Frontend mein chahiye hoga.</p>
+        <div class="info">
+          <strong>Test karo:</strong> Browser mein <code>https://bizerp-api.vercel.app/api/healthz</code> ya <code>/api/auth/me</code> open karo. JSON response aana chahiye.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 5: VERCEL FRONTEND
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 5 — Vercel pe Frontend Deploy karo</h1>
+
+  <div class="section-header">
+    <div class="step-label">Step 5.1</div>
+    <h2>Vercel Frontend Project Banao</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Vercel dashboard pe wapas jao → "Add New → Project" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Same "bizerp" repository phir se import karo</strong>
+        <p>(Ek hi GitHub repo se do Vercel projects ban sakte hain — ek backend, ek frontend)</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Frontend configuration set karo — IMPORTANT!</strong>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">Vercel → Configure Project (Frontend)</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Project Name</label><div class="val">bizerp</div></div>
+            <div class="field"><label>Framework Preset</label><div class="val">Vite</div></div>
+            <div class="field"><label>Root Directory</label><div class="val highlight">artifacts/erp &nbsp; ← ZAROOR SET KARO</div></div>
+            <div class="field"><label>Build Command</label><div class="val">cd ../.. &amp;&amp; pnpm install &amp;&amp; pnpm --filter @workspace/erp run build</div></div>
+            <div class="field"><label>Output Directory</label><div class="val">dist/public</div></div>
+            <div class="field"><label>Install Command</label><div class="val">(leave blank)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>"Environment Variables" mein yeh add karo:</strong>
+        <table>
+          <tr><th>Variable Name</th><th>Value</th><th>Note</th></tr>
+          <tr><td>VITE_API_URL</td><td><em>Backend URL (Step 4.7 se, e.g. https://bizerp-api.vercel.app)</em></td><td><span class="badge required">Required</span></td></tr>
+          <tr><td>BASE_PATH</td><td>/</td><td><span class="badge required">Required</span></td></tr>
+          <tr><td>NODE_ENV</td><td>production</td><td><span class="badge required">Required</span></td></tr>
+        </table>
+        <div class="warn">
+          <strong>⚠️ VITE_API_URL</strong> mein trailing slash mat dalo. Sahi: <code>https://bizerp-api.vercel.app</code> &nbsp; Galat: <code>https://bizerp-api.vercel.app/</code>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <strong>"Deploy" click karo</strong>
+        <p>2-3 minutes mein deploy hoga. Phir aapka URL milega: <code>https://bizerp.vercel.app</code></p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <strong>CORS update karo — Backend ko batao Frontend ka URL</strong>
+        <p>Vercel Dashboard → bizerp-api project → Settings → Environment Variables mein ek aur variable add karo:</p>
+        <table>
+          <tr><th>Variable Name</th><th>Value</th></tr>
+          <tr><td>CORS_ORIGIN</td><td>https://bizerp.vercel.app</td></tr>
+        </table>
+        <p style="margin-top: 8px;">Phir bizerp-api project ko <strong>Redeploy</strong> karo: Vercel → bizerp-api → Deployments → Latest → "..." → Redeploy.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 5.2</div>
+    <h2>Custom Domain Connect karo (Optional)</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Vercel → bizerp project → Settings → Domains</strong>
+        <p>Apna domain (e.g. <code>app.yourbusiness.com</code>) add karo.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>DNS settings update karo</strong>
+        <p>Vercel aapko CNAME record dega jo apne domain provider (GoDaddy, Hostinger, etc.) mein add karna hoga.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>VITE_API_URL aur CORS_ORIGIN update karo</strong>
+        <p>Frontend mein <code>VITE_API_URL</code> aur Backend mein <code>CORS_ORIGIN</code> ko apne actual domain se update karo. Dono projects redeploy karo.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 6: ENV VARS QUICK REFERENCE
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 6 — Environment Variables Quick Reference</h1>
+  <p>Dono Vercel projects mein correctly set hone chahiye:</p>
+
+  <h2>🟡 Backend (bizerp-api) — Environment Variables</h2>
+  <table>
+    <tr><th>Variable</th><th>Example Value</th><th>Description</th></tr>
+    <tr><td>DATABASE_URL</td><td><code>postgresql://postgres:MyPass@db.xyz.supabase.co:5432/postgres</code></td><td>Supabase connection string. <code>[YOUR-PASSWORD]</code> replace karo.</td></tr>
+    <tr><td>SESSION_SECRET</td><td><code>MyBizERP_Secret_XYZ789_2024</code></td><td>JWT signing key. Koi bhi random long string.</td></tr>
+    <tr><td>NODE_ENV</td><td><code>production</code></td><td>Production mode.</td></tr>
+    <tr><td>CORS_ORIGIN</td><td><code>https://bizerp.vercel.app</code></td><td>Frontend URL for CORS (no trailing slash).</td></tr>
+    <tr><td>PORT</td><td><code>8080</code></td><td>Optional — Vercel serverless pe matter nahi karta.</td></tr>
+    <tr><td>DB_SSL</td><td><code>true</code></td><td>Optional — Supabase pe automatically detect hota hai.</td></tr>
+  </table>
+
+  <h2>⚛️ Frontend (bizerp) — Environment Variables</h2>
+  <table>
+    <tr><th>Variable</th><th>Example Value</th><th>Description</th></tr>
+    <tr><td>VITE_API_URL</td><td><code>https://bizerp-api.vercel.app</code></td><td>Backend URL. Trailing slash mat dalo.</td></tr>
+    <tr><td>BASE_PATH</td><td><code>/</code></td><td>Frontend base path. Vercel pe "/" hota hai.</td></tr>
+    <tr><td>NODE_ENV</td><td><code>production</code></td><td>Production mode.</td></tr>
+  </table>
+
+  <div class="warn">
+    <strong>⚠️ Important:</strong> VITE_ prefix wale variables frontend code mein directly visible hote hain. Koi bhi secret (DATABASE_URL, SESSION_SECRET) Frontend mein kabhi mat dalo.
+  </div>
+
+  <h2>🔄 Redeploy kab karna chahiye?</h2>
+  <div class="section-body" style="border: 2px solid #e2e8f0; border-radius: 10px;">
+    <ul style="padding-left: 20px; line-height: 2;">
+      <li>Koi bhi <strong>environment variable change</strong> karo → Project redeploy karo</li>
+      <li>Koi bhi <strong>code change</strong> karo → <code>git push</code> karo → Vercel automatically redeploy karta hai</li>
+      <li>Database schema change karo → Supabase SQL Editor mein ALTER TABLE run karo → Backend redeploy</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 7: FIRST LOGIN
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 7 — First Login aur Super Admin Setup</h1>
+
+  <div class="section-header">
+    <div class="step-label">Step 7.1</div>
+    <h2>Super Admin Account Banao (Database se)</h2>
+  </div>
+  <div class="section-body">
+    <p>Deploy hone ke baad, pehla super admin Supabase SQL Editor se banana hoga:</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Password ka bcrypt hash banao</strong>
+        <p>Browser mein jao: <a href="https://bcrypt-generator.com" style="color:#1e40af">bcrypt-generator.com</a><br/>
+        Apna password enter karo → "Generate" click karo → Hash copy karo.<br/>
+        Rounds: <strong>10</strong> rakho.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Supabase SQL Editor mein yeh SQL run karo:</strong>
+        <pre><span class="comment">-- Apna naam, email, aur hash dalo:</span>
+INSERT INTO super_admins (name, email, password_hash)
+VALUES (
+  <span class="val">'Aapka Naam'</span>,
+  <span class="val">'aap@email.com'</span>,
+  <span class="val">'$2b$10$...hash jo upar generate kiya...'</span>
+);</pre>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Login karo</strong>
+        <p>Frontend URL pe jao → Login page → Email aur Password enter karo → <strong>Business Code khaali rakhein</strong> (Super Admin ke liye Business Code nahi chahiye) → Sign In.</p>
+        <div class="screen" style="margin-top: 8px;">
+          <div class="screen-bar">
+            <div class="screen-dot r"></div><div class="screen-dot y"></div><div class="screen-dot g"></div>
+            <div class="screen-url">https://bizerp.vercel.app</div>
+          </div>
+          <div class="screen-body">
+            <div class="field"><label>Email Address</label><div class="val">aap@email.com</div></div>
+            <div class="field"><label>Password</label><div class="val">••••••••</div></div>
+            <div class="field"><label>Business Code (optional)</label><div class="val" style="color:#94a3b8;">— KHAALI RAKHEIN —</div></div>
+            <div class="btn-mock">Sign In</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <strong>Tech Support Dashboard dikhega</strong>
+        <p>Ab aap pehla business register kar sakte ho, plans bana sakte ho, aur App Settings se software ka naam change kar sakte ho.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div class="step-label">Step 7.2</div>
+    <h2>Pehla Business Register karo</h2>
+  </div>
+  <div class="section-body">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <strong>Logout karo → Login page pe "Register here" click karo</strong>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <strong>Business details bharo → Register karo</strong>
+        <p>Business Code automatically generate hoga (e.g. ABC123). Isko note karo.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <strong>Login karo with Business Code</strong>
+        <p>Email + Password + Business Code dalo → Sign In.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SECTION 8: TROUBLESHOOTING
+══════════════════════════════════════════════════════════ -->
+<div class="content page-break">
+  <h1>Step 8 — Troubleshooting (Common Problems)</h1>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ Build fail ho rahi hai Vercel pe</div>
+    <div class="trouble-a">
+      <strong>Check karo:</strong>
+      <ul style="padding-left: 20px; margin-top: 6px; line-height: 2;">
+        <li>Root Directory sahi set hai? Backend ke liye <code>artifacts/api-server</code>, Frontend ke liye <code>artifacts/erp</code></li>
+        <li>Build Command exactly yeh hai? <code>cd ../.. &amp;&amp; pnpm install &amp;&amp; pnpm --filter @workspace/api-server run build</code></li>
+        <li>Vercel → Project → Deployments → Latest deployment → "View Build Logs" mein exact error dekho</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ "Invalid credentials" — Login nahi ho raha</div>
+    <div class="trouble-a">
+      <strong>Check karo:</strong>
+      <ul style="padding-left: 20px; margin-top: 6px; line-height: 2;">
+        <li>Super admin ke liye Business Code field khaali rakhein</li>
+        <li>Bcrypt hash sahi hai? <a href="https://bcrypt-generator.com" style="color:#1e40af">bcrypt-generator.com</a> pe verify karo</li>
+        <li>Backend ka <code>SESSION_SECRET</code> env var set hai?</li>
+        <li>Backend URL <code>VITE_API_URL</code> mein correct hai?</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ "Failed to fetch" ya API call fail ho rahi hai</div>
+    <div class="trouble-a">
+      <strong>Check karo:</strong>
+      <ul style="padding-left: 20px; margin-top: 6px; line-height: 2;">
+        <li>Frontend ka <code>VITE_API_URL</code> exactly backend URL hai (no trailing slash)?</li>
+        <li>Backend deploy ho chuki hai aur running hai? <code>https://bizerp-api.vercel.app/api/auth/me</code> kholo browser mein</li>
+        <li>CORS: Backend mein <code>CORS_ORIGIN</code> frontend URL set hai?</li>
+        <li>Browser console (F12 → Console) mein exact error dekho</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ Database connection error — "SSL required"</div>
+    <div class="trouble-a">
+      <strong>Fix:</strong> Backend environment variables mein <code>DB_SSL=true</code> add karo. Phir redeploy karo.<br/>
+      Verify: DATABASE_URL mein <code>supabase.com</code> domain hai — SSL automatic detect hota hai.
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ Page refresh pe 404 error aata hai</div>
+    <div class="trouble-a">
+      <strong>Fix:</strong> Frontend project mein <code>artifacts/erp/vercel.json</code> file present honi chahiye jo pehle se code mein add kar di gayi hai. Agar nahi hai to create karo:<br/>
+      <pre style="margin-top: 8px;">{"rewrites": [{"source": "/((?!assets/).*)", "destination": "/index.html"}]}</pre>
+      Phir git push karo → auto redeploy hoga.
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ Supabase migration error — "type already exists"</div>
+    <div class="trouble-a">
+      <strong>Fix:</strong> Migration pehle se partially run ho chuki hai. SQL Editor mein yeh run karo pehle:<br/>
+      <pre style="margin-top: 8px;">DROP TABLE IF EXISTS voucher_items, payment_allocations, payments, vouchers, items, custom_fields, hsn_codes, tax_rates, units, parties, users, app_settings, businesses, plans, super_admins CASCADE;
+DROP TYPE IF EXISTS balance_type, billing_cycle, business_status, custom_field_entity, custom_field_type, discount_type, item_type, party_type, payment_mode, payment_type, user_role, voucher_status, voucher_type CASCADE;</pre>
+      Phir dobara migration SQL run karo.
+    </div>
+  </div>
+
+  <div class="trouble-item no-break">
+    <div class="trouble-q">❌ "Function timeout" error — Vercel serverless</div>
+    <div class="trouble-a">
+      <strong>Fix:</strong> Backend <code>vercel.json</code> mein maxDuration badha sakte ho. <code>artifacts/api-server/vercel.json</code> mein:<br/>
+      <pre style="margin-top: 8px;">{"functions": {"src/vercel-entry.ts": {"maxDuration": 30}}}</pre>
+    </div>
+  </div>
+
+  <hr/>
+
+  <h2>🆘 Support ke liye</h2>
+  <div class="info">
+    <strong>Log dekhne ke liye:</strong> Vercel → Project → Deployments → Latest → Functions tab → Log entries dekhein.<br/><br/>
+    <strong>Supabase logs:</strong> Supabase Dashboard → Database → Logs.<br/><br/>
+    <strong>Helpful communities:</strong>
+    <ul style="padding-left: 20px; margin-top: 6px; line-height: 2;">
+      <li>Vercel Discussions: <code>github.com/vercel/vercel/discussions</code></li>
+      <li>Supabase Discord: <code>discord.supabase.com</code></li>
+    </ul>
+  </div>
+
+  <hr/>
+
+  <h2>📋 Deployment Checklist</h2>
+  <ul class="checklist">
+    <li>GitHub repo banaya aur code push kiya</li>
+    <li>Supabase project banaya aur DATABASE_URL save kiya</li>
+    <li>supabase-migration.sql run kiya — 16 tables ban gaye</li>
+    <li>Vercel Backend (bizerp-api) deploy kiya — DATABASE_URL, SESSION_SECRET, NODE_ENV set kiya</li>
+    <li>Backend URL test kiya — /api/auth/me pe JSON response aaya</li>
+    <li>Vercel Frontend (bizerp) deploy kiya — VITE_API_URL, BASE_PATH set kiya</li>
+    <li>CORS_ORIGIN backend mein set kiya → Backend redeploy kiya</li>
+    <li>Supabase se pehla Super Admin insert kiya</li>
+    <li>Login verify kiya — Tech Support dashboard khula</li>
+    <li>Pehla business register kiya aur login verify kiya</li>
+  </ul>
+
+  <div style="margin-top: 40px; background: #1e293b; color: white; border-radius: 12px; padding: 24px; text-align: center;">
+    <div style="font-size: 20px; font-weight: 800; margin-bottom: 8px;">🎉 BizERP Deployed!</div>
+    <div style="font-size: 13px; opacity: 0.75; line-height: 1.8;">
+      Agar koi bhi problem aaye, yeh guide dobara dekhein ya tech support se contact karein.<br/>
+      Good luck with your deployment!
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
