@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
+import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
@@ -189,6 +190,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [creditWarning, setCreditWarning] = useState<{ outstanding: number; creditLimit: number; newBill: number } | null>(null);
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<any>(null);
   const [offlineSaved, setOfflineSaved] = useState(false);
+  const [fieldSize, setFieldSizeState] = useState<FieldSize>(() => getFieldSize());
+
+  const applyFieldSize = (s: FieldSize) => { setFieldSizeState(s); saveFieldSize(s); };
 
   // Quick add party
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -531,7 +535,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     }
   };
 
-  const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full";
+  const inputPad = fieldSize === "sm" ? "py-1" : fieldSize === "lg" ? "py-3" : "py-2";
+  const inputCls = `border border-gray-300 rounded-lg px-3 ${inputPad} text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full`;
+
+  const fsCls = fieldSize === "sm"
+    ? "[&_.fs-input]:py-0.5 [&_.fs-input]:text-xs [&_.fs-select]:py-0.5 [&_.fs-select]:text-xs"
+    : fieldSize === "lg"
+    ? "[&_.fs-input]:py-2.5 [&_.fs-select]:py-2.5"
+    : "";
 
   return (
     <>
@@ -683,10 +694,27 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         </div>
       )}
 
+      <style>{`
+        .erp-items-table input, .erp-items-table select {
+          padding-top: ${fieldSize === "sm" ? "2px" : fieldSize === "lg" ? "10px" : "6px"} !important;
+          padding-bottom: ${fieldSize === "sm" ? "2px" : fieldSize === "lg" ? "10px" : "6px"} !important;
+          font-size: ${fieldSize === "sm" ? "11px" : fieldSize === "lg" ? "15px" : "13px"} !important;
+        }
+      `}</style>
       <form onSubmit={handleSubmit} className="max-w-5xl space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Field size toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 mr-1">
+              <span className="text-xs text-gray-400 pl-1.5 pr-1">Size:</span>
+              {(["sm", "md", "lg"] as FieldSize[]).map(s => (
+                <button key={s} type="button" onClick={() => applyFieldSize(s)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${fieldSize === s ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+                  {s === "sm" ? "Chota" : s === "md" ? "Normal" : "Bada"}
+                </button>
+              ))}
+            </div>
             <button type="button" onClick={() => navigate(listHref)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={loading} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -926,7 +954,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         )}
 
         {/* Items table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden erp-items-table">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <h3 className="font-semibold text-gray-800 text-sm">Items</h3>
             <div className="flex items-center gap-3">

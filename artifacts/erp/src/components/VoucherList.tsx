@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
+import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
+import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
 import { Plus, Search, Eye, Trash2, Loader2, Download, Printer, Pencil } from "lucide-react";
 
 interface VoucherListProps {
@@ -20,6 +22,19 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-red-100 text-red-600",
 };
 
+const ALL_COLS: ColDef[] = [
+  { key: "number", label: "Voucher #", required: true },
+  { key: "date", label: "Date" },
+  { key: "party", label: "Party" },
+  { key: "amount", label: "Amount" },
+  { key: "paid", label: "Paid" },
+  { key: "balance", label: "Balance" },
+  { key: "status", label: "Status" },
+  { key: "actions", label: "Actions", required: true },
+];
+
+const REPORT_KEY = "voucher_list";
+
 export default function VoucherList({ voucherType, title, createHref, viewHref, isIncome = true }: VoucherListProps) {
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -30,7 +45,17 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
   const [status, setStatus] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [visibleCols, setVisibleCols] = useState<string[]>(() =>
+    getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
+  );
   const limit = 20;
+
+  const handleColChange = (cols: string[]) => {
+    setVisibleCols(cols);
+    saveVisibleCols(REPORT_KEY, cols);
+  };
+
+  const show = (key: string) => visibleCols.includes(key);
 
   const load = () => {
     setLoading(true);
@@ -79,6 +104,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
           <p className="text-sm text-gray-500 mt-0.5">{total} records · Total: {fmt.currency(totalAmount)}</p>
         </div>
         <div className="flex gap-2">
+          <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
           <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors">
             <Download className="w-4 h-4" /> Excel
           </button>
@@ -123,51 +149,57 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">#</th>
-                  <th className="text-left px-4 py-3 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 font-medium">Party</th>
-                  <th className="text-right px-4 py-3 font-medium">Amount</th>
-                  <th className="text-right px-4 py-3 font-medium">Paid</th>
-                  <th className="text-right px-4 py-3 font-medium">Balance</th>
-                  <th className="text-center px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3"></th>
+                  {show("number") && <th className="text-left px-4 py-3 font-medium">#</th>}
+                  {show("date") && <th className="text-left px-4 py-3 font-medium">Date</th>}
+                  {show("party") && <th className="text-left px-4 py-3 font-medium">Party</th>}
+                  {show("amount") && <th className="text-right px-4 py-3 font-medium">Amount</th>}
+                  {show("paid") && <th className="text-right px-4 py-3 font-medium">Paid</th>}
+                  {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance</th>}
+                  {show("status") && <th className="text-center px-4 py-3 font-medium">Status</th>}
+                  {show("actions") && <th className="px-4 py-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map(v => (
                   <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-blue-600 font-medium">{v.voucherNumber}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmt.date(v.date)}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{v.partyName}</div>
-                      {v.partyGstin && <div className="text-xs text-gray-400 font-mono">{v.partyGstin}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt.currency(v.grandTotal)}</td>
-                    <td className="px-4 py-3 text-right text-green-700">{fmt.currency(v.paidAmount)}</td>
-                    <td className="px-4 py-3 text-right text-red-600 font-medium">{fmt.currency(v.balanceDue)}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[v.status] || STATUS_COLORS.draft}`}>
-                        {v.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={viewHref(v.id)}>
-                          <button title="View" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
-                        </Link>
-                        <Link href={`${viewHref(v.id)}/edit`}>
-                          <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
-                        </Link>
-                        <button
-                          title="Print"
-                          onClick={() => window.open(`${viewHref(v.id)}?print=1`, "_blank")}
-                          className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => del(v.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    </td>
+                    {show("number") && <td className="px-4 py-3 font-mono text-blue-600 font-medium">{v.voucherNumber}</td>}
+                    {show("date") && <td className="px-4 py-3 text-gray-600">{fmt.date(v.date)}</td>}
+                    {show("party") && (
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{v.partyName}</div>
+                        {v.partyGstin && <div className="text-xs text-gray-400 font-mono">{v.partyGstin}</div>}
+                      </td>
+                    )}
+                    {show("amount") && <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmt.currency(v.grandTotal)}</td>}
+                    {show("paid") && <td className="px-4 py-3 text-right text-green-700">{fmt.currency(v.paidAmount)}</td>}
+                    {show("balance") && <td className="px-4 py-3 text-right text-red-600 font-medium">{fmt.currency(v.balanceDue)}</td>}
+                    {show("status") && (
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[v.status] || STATUS_COLORS.draft}`}>
+                          {v.status}
+                        </span>
+                      </td>
+                    )}
+                    {show("actions") && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={viewHref(v.id)}>
+                            <button title="View" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
+                          </Link>
+                          <Link href={`${viewHref(v.id)}/edit`}>
+                            <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
+                          </Link>
+                          <button
+                            title="Print"
+                            onClick={() => window.open(`${viewHref(v.id)}?print=1`, "_blank")}
+                            className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => del(v.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
