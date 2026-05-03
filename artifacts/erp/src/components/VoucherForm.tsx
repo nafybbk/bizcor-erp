@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { api, fmt } from "@/lib/api";
+import { api, fmt, isOfflineError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
@@ -504,8 +504,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       navigate(listHref);
     } catch (err: any) {
       // Network/offline error → save to offline queue
-      const isNetworkErr = err.message === "Failed to fetch" || err.message?.includes("NetworkError") || err.message?.includes("network");
-      if (isNetworkErr && !editId) {
+      if (isOfflineError(err) && !editId) {
         const partyLabel = form.partyName || "Unknown Party";
         const typeLabel = voucherType.replace(/\//g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
         saveDraft({
@@ -581,7 +580,31 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setShowQuickAdd(false);
       setQuickAddForm({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
     } catch (err: any) {
-      alert("Party create nahi ho saka: " + err.message);
+      if (isOfflineError(err)) {
+        // Save the quick party as an offline draft
+        const partyType = isSales ? "customer" : "supplier";
+        saveDraft({
+          label: `New ${partyType === "supplier" ? "Supplier" : "Customer"}: ${quickAddForm.name.trim()}`,
+          endpoint: "/parties",
+          method: "POST",
+          payload: {
+            name: quickAddForm.name.trim(), type: partyType,
+            phone: quickAddForm.phone || undefined,
+            gstin: quickAddForm.gstin || undefined,
+            address: quickAddForm.address || undefined,
+            state: quickAddForm.state || undefined,
+            stateCode: quickAddForm.stateCode || undefined,
+          },
+        });
+        // Add party locally so user can continue the voucher
+        const tempParty = { id: -Date.now(), name: quickAddForm.name.trim(), type: partyType };
+        setParties(prev => [...prev, tempParty as any]);
+        selectParty(tempParty as any);
+        setShowQuickAdd(false);
+        setQuickAddForm({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
+      } else {
+        setError("Party create nahi ho saka: " + err.message);
+      }
     } finally {
       setQuickAddSaving(false);
     }
