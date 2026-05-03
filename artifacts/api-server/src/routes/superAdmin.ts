@@ -403,14 +403,16 @@ router.post("/vouchers", async (req, res) => {
     if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
     const qty = Math.min(50, Math.max(1, Number(quantity)));
 
-    // Generate sequential codes: PREFIX-NNNNNN
-    const prefix = plan.name.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
-    const [{ cnt }] = await db.select({ cnt: count() }).from(licenseVouchersTable).where(eq(licenseVouchersTable.planId, Number(planId)));
+    // Generate codes: SERIAL-RANDOM6-RANDOM4 (e.g. 0001-X7KQ2P-R9MZ)
+    const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I for clarity
+    const rand = (len: number) => Array.from({ length: len }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join("");
+    const [{ cnt }] = await db.select({ cnt: count() }).from(licenseVouchersTable);
     const startSerial = Number(cnt) + 1;
 
     const codes: string[] = [];
     for (let i = 0; i < qty; i++) {
-      codes.push(`${prefix}-${String(startSerial + i).padStart(6, "0")}`);
+      const serial = String(startSerial + i).padStart(4, "0");
+      codes.push(`${serial}-${rand(6)}-${rand(4)}`);
     }
 
     await db.insert(licenseVouchersTable).values(
