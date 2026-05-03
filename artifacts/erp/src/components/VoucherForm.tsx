@@ -1036,21 +1036,21 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         {/* Rate Before GST */}
                         <div className="relative mb-1">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">B</span>
-                          <input type="number" min="0" step="0.01"
+                          <input type="number" min="0" step="any"
                             className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                             value={item.rate}
-                            onChange={e => updateItem(idx, "rate", Number(e.target.value))} />
+                            onChange={e => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} />
                         </div>
                         {/* Rate After GST — auto-computes from rate + taxRate */}
                         <div className="relative">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-500 pointer-events-none">A</span>
-                          <input type="number" min="0" step="0.01"
+                          <input type="number" min="0" step="any"
                             className="border border-green-200 bg-green-50 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-green-400"
-                            value={item.taxRate > 0 ? +((item.rate) * (1 + item.taxRate / 100)).toFixed(2) : item.rate}
+                            value={item.taxRate > 0 ? parseFloat(((item.rate) * (1 + item.taxRate / 100)).toFixed(6)) : item.rate}
                             onChange={e => {
-                              const afterGst = Number(e.target.value);
+                              const afterGst = parseFloat(e.target.value) || 0;
                               const beforeGst = item.taxRate > 0 ? afterGst / (1 + item.taxRate / 100) : afterGst;
-                              updateItem(idx, "rate", +beforeGst.toFixed(4));
+                              updateItem(idx, "rate", parseFloat(beforeGst.toFixed(6)));
                             }} />
                         </div>
                         {item.taxRate > 0 && (
@@ -1138,14 +1138,27 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <input type="number" step="0.01" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={form.transportCharges} onChange={e => setForm(f => ({ ...f, transportCharges: Number(e.target.value) }))} />
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Round Off</span>
-              <input type="number" step="0.01" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.roundOff} onChange={e => setForm(f => ({ ...f, roundOff: Number(e.target.value) }))} />
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-600">Round Off</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const baseTotal = taxableAmount + totalTax + (form.transportCharges || 0);
+                    const frac = baseTotal - Math.floor(baseTotal);
+                    const ro = frac < 0.5 ? -frac : (1 - frac);
+                    setForm(f => ({ ...f, roundOff: parseFloat(ro.toFixed(2)) }));
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium border border-blue-200 transition-colors"
+                  title="Auto-calculate round off"
+                >Auto</button>
+              </div>
+              <input type="number" step="any" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={form.roundOff} onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
             </div>
             <div className="border-t pt-2 flex justify-between font-bold text-base">
               <span>Grand Total</span>
-              <span className="text-blue-700">{fmt.currency(grandTotal)}</span>
+              <span className="text-blue-700">{fmt.currency(Math.round(grandTotal))}</span>
             </div>
             {/* GST breakdown */}
             <div className={`text-xs text-center py-1 rounded-full font-medium ${isInterState ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"}`}>
