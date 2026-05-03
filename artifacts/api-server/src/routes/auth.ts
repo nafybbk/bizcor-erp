@@ -1,8 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { superAdminsTable, businessesTable, usersTable, loginLogsTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { superAdminsTable, businessesTable, usersTable, loginLogsTable, plansTable } from "@workspace/db";
+import { eq, and, inArray, count } from "drizzle-orm";
 import { signToken, requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -66,6 +66,24 @@ router.post("/login", async (req, res) => {
 
     const doLogin = async (fullUser: any, business: any) => {
       if (!fullUser || !fullUser.isActive) return null;
+
+      // License enforcement: plan expiry
+      if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date() && business.status !== "trial") {
+        throw { code: "PLAN_EXPIRED", message: "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein." };
+      }
+
+      // License enforcement: max users (skip for business_admin)
+      if (fullUser.role !== "business_admin" && business.planId) {
+        const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) });
+        if (plan && plan.maxUsers) {
+          const [{ total }] = await db.select({ total: count() }).from(usersTable)
+            .where(and(eq(usersTable.businessId, business.id), eq(usersTable.isActive, true)));
+          if (Number(total) > plan.maxUsers) {
+            throw { code: "USER_LIMIT_EXCEEDED", message: `Is business mein sirf ${plan.maxUsers} users allowed hain. Admin se contact karein.` };
+          }
+        }
+      }
+
       const token = signToken({ id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId });
       logLogin({
         userId: fullUser.id, businessId: business.id,
@@ -116,7 +134,12 @@ router.post("/login", async (req, res) => {
     const result = await doLogin(user, business);
     if (!result) { res.status(401).json({ error: "Unauthorized", message: "User account is inactive" }); return; }
     res.json(result);
-  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+  } catch (err: any) {
+    if (err?.code === "PLAN_EXPIRED" || err?.code === "USER_LIMIT_EXCEEDED") {
+      res.status(403).json({ error: err.code, message: err.message }); return;
+    }
+    req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 router.post("/logout", (_req, res) => { res.json({ success: true, message: "Logged out" }); });
