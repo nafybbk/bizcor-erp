@@ -284,6 +284,86 @@ router.patch("/my-profile", async (req, res) => {
 
 // ─── Super Admins Management ──────────────────────────────────────────────────
 
+// ─── Buyers List ─────────────────────────────────────────────────────────────
+
+router.get("/buyers", async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 25;
+    const search = req.query.search as string;
+    const planIdFilter = req.query.planId ? Number(req.query.planId) : null;
+    const statusFilter = req.query.status as string;
+
+    // Businesses with a plan (have purchased/activated)
+    const allBiz = await db.select({
+      id: businessesTable.id,
+      name: businessesTable.name,
+      businessCode: businessesTable.businessCode,
+      email: businessesTable.email,
+      phone: businessesTable.phone,
+      city: businessesTable.city,
+      state: businessesTable.state,
+      planId: businessesTable.planId,
+      planStartDate: businessesTable.planStartDate,
+      planExpiresAt: businessesTable.planExpiresAt,
+      isTrial: businessesTable.isTrial,
+      status: businessesTable.status,
+      createdAt: businessesTable.createdAt,
+    }).from(businessesTable)
+      .where(sql`${businessesTable.planId} IS NOT NULL`)
+      .orderBy(sql`${businessesTable.planStartDate} desc nulls last`);
+
+    const allPlans = await db.select().from(plansTable);
+    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).groupBy(usersTable.businessId);
+
+    // Get voucher codes used by each business
+    const redeemedVouchers = await db.select({
+      businessId: licenseVouchersTable.redeemedByBusinessId,
+      code: licenseVouchersTable.code,
+      redeemedAt: licenseVouchersTable.redeemedAt,
+    }).from(licenseVouchersTable).where(sql`${licenseVouchersTable.redeemedByBusinessId} IS NOT NULL`);
+
+    let enriched = allBiz.map(b => ({
+      ...b,
+      planName: allPlans.find(p => p.id === b.planId)?.name || "Unknown",
+      planPrice: allPlans.find(p => p.id === b.planId)?.price || null,
+      maxUsers: allPlans.find(p => p.id === b.planId)?.maxUsers || null,
+      userCount: Number(userCounts.find(u => u.businessId === b.id)?.cnt || 0),
+      voucherCode: redeemedVouchers.find(v => v.businessId === b.id)?.code || null,
+      voucherRedeemedAt: redeemedVouchers.find(v => v.businessId === b.id)?.redeemedAt || null,
+      isExpired: b.planExpiresAt ? new Date(b.planExpiresAt) < new Date() : false,
+    }));
+
+    if (search) {
+      const q = search.toLowerCase();
+      enriched = enriched.filter(b =>
+        b.name.toLowerCase().includes(q) ||
+        b.businessCode.toLowerCase().includes(q) ||
+        (b.email || "").toLowerCase().includes(q) ||
+        (b.phone || "").includes(q) ||
+        (b.voucherCode || "").toLowerCase().includes(q)
+      );
+    }
+    if (planIdFilter) enriched = enriched.filter(b => b.planId === planIdFilter);
+    if (statusFilter === "expired") enriched = enriched.filter(b => b.isExpired);
+    if (statusFilter === "active") enriched = enriched.filter(b => !b.isExpired && b.status === "active");
+    if (statusFilter === "trial") enriched = enriched.filter(b => b.isTrial);
+
+    const total = enriched.length;
+    const data = enriched.slice((page - 1) * limit, page * limit);
+
+    // Summary stats
+    const totalRevenue = enriched.reduce((sum, b) => {
+      const price = b.planPrice ? Number(b.planPrice) : 0;
+      return sum + (b.isTrial ? 0 : price);
+    }, 0);
+
+    res.json({ data, total, page, limit, totalRevenue });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Super Admins Management ──────────────────────────────────────────────────
+
 router.get("/super-admins", async (req, res) => {
   try {
     const admins = await db.select({ id: superAdminsTable.id, name: superAdminsTable.name, email: superAdminsTable.email, phone: superAdminsTable.phone, createdAt: superAdminsTable.createdAt }).from(superAdminsTable).orderBy(superAdminsTable.id);

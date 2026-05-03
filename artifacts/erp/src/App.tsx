@@ -53,6 +53,7 @@ import AdminPlans from "@/pages/admin/AdminPlans";
 import AdminSettings from "@/pages/admin/AdminSettings";
 import AdminSuperAdmins from "@/pages/admin/AdminSuperAdmins";
 import AdminVouchers from "@/pages/admin/AdminVouchers";
+import AdminBuyers from "@/pages/admin/AdminBuyers";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -234,6 +235,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/vouchers">
         <ProtectedRoute><AdminVouchers /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/buyers">
+        <ProtectedRoute><AdminBuyers /></ProtectedRoute>
       </Route>
 
       <Route>
