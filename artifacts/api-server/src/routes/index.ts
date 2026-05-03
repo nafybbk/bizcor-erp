@@ -17,6 +17,25 @@ import dashboardRouter from "./dashboard";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+
+// Public endpoint — no auth required (for login page branding)
+router.get("/public-settings", async (_req, res) => {
+  try {
+    const { db, appSettingsTable } = await import("@workspace/db");
+    const rows = await db.select().from(appSettingsTable);
+    const settings: Record<string, string> = {};
+    for (const row of rows) settings[row.key] = row.value || "";
+    res.json({
+      softwareName: settings.softwareName || "BizERP",
+      logoUrl: settings.logoUrl || "",
+      primaryColor: settings.primaryColor || "#2563eb",
+      footerText: settings.footerText || "Powered by BizERP",
+    });
+  } catch {
+    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP" });
+  }
+});
+
 router.use("/auth", authRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/businesses", businessesRouter);

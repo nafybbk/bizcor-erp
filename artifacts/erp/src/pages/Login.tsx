@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Building2, Eye, EyeOff, Loader2, Search, ChevronRight } from "lucide-react";
+import { Building2, Eye, EyeOff, Loader2, Search, ChevronRight, Headphones } from "lucide-react";
 
 const SAVED_CODE_KEY = "erp_last_business_code";
 
@@ -17,11 +17,22 @@ export default function Login() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [showLookup, setShowLookup] = useState(false);
+  const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
+  const [appSubtitle, setAppSubtitle] = useState("Indian Business ERP");
 
   useEffect(() => {
     // Auto-fill saved business code
     const saved = localStorage.getItem(SAVED_CODE_KEY);
     if (saved) setForm(f => ({ ...f, businessCode: saved }));
+
+    // Load branding from public API (no auth needed)
+    api.get<any>("/public-settings").then(s => {
+      if (s.softwareName) {
+        setAppName(s.softwareName);
+        localStorage.setItem("erp_app_name", s.softwareName);
+      }
+      if (s.footerText) setAppSubtitle(s.footerText);
+    }).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,7 +83,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <Building2 className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">BizERP</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{appName}</h1>
           <p className="text-gray-500 mt-1">Indian Business ERP</p>
         </div>
 
@@ -80,8 +91,11 @@ export default function Login() {
           <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
             <button className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === "business" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
               onClick={() => setMode("business")}>Business Login</button>
-            <button className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${mode === "superadmin" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
-              onClick={() => setMode("superadmin")}>Super Admin</button>
+            <button className={`flex-1 py-2 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-1.5 ${mode === "superadmin" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+              onClick={() => setMode("superadmin")}>
+              <Headphones className="w-3.5 h-3.5" />
+              Tech Login
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
