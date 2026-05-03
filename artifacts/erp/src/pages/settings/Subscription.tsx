@@ -244,7 +244,7 @@ export default function Subscription() {
           <input
             type="text"
             className="flex-1 border border-indigo-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            placeholder="e.g. BAS-000001 ya PRO-000001"
+            placeholder="e.g. 0001-X7KQ2P-R9MZ"
             value={voucherCode}
             onChange={e => setVoucherCode(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === "Enter" && redeemVoucher()}
