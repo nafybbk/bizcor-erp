@@ -486,6 +486,32 @@ router.patch("/vouchers/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// Permanently delete a cancelled voucher
+router.delete("/vouchers/:id", async (req, res) => {
+  try {
+    const voucher = await db.query.licenseVouchersTable.findFirst({ where: eq(licenseVouchersTable.id, Number(req.params.id)) });
+    if (!voucher) { res.status(404).json({ error: "Voucher not found" }); return; }
+    if (voucher.status !== "cancelled") { res.status(400).json({ error: "Sirf cancelled vouchers delete ho sakte hain" }); return; }
+    await db.delete(licenseVouchersTable).where(eq(licenseVouchersTable.id, Number(req.params.id)));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// Counts per plan+status for folder view
+router.get("/vouchers/counts", async (req, res) => {
+  try {
+    const rows = await db.select({
+      planId: licenseVouchersTable.planId,
+      planName: plansTable.name,
+      status: licenseVouchersTable.status,
+      cnt: count(),
+    }).from(licenseVouchersTable)
+      .leftJoin(plansTable, eq(licenseVouchersTable.planId, plansTable.id))
+      .groupBy(licenseVouchersTable.planId, plansTable.name, licenseVouchersTable.status);
+    res.json(rows);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── Super Admin Create (legacy) ─────────────────────────────────────────────
 
 router.post("/create-super-admin", async (req, res) => {
