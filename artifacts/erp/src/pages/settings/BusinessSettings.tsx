@@ -229,27 +229,74 @@ export default function BusinessSettings() {
             placeholder="e.g. Goods once sold will not be taken back. Subject to Mumbai jurisdiction." /></div>
       </div>
 
-      {/* Invoice Settings */}
+      {/* Invoice Number Series Settings */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Document Number Settings</h3>
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Invoice Number Series</h3>
+
+        {/* Preview */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+          <div className="text-xs text-blue-600 font-medium mb-1">Preview — Agle invoice ka number kaisa dikhega:</div>
+          <div className="font-mono text-blue-800 font-bold text-lg tracking-wider">
+            {(form.invoicePrefix || "SI")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")}
+          </div>
+          <div className="text-xs text-blue-500 mt-1">
+            Purchase Bill: {(form.billPrefix || "PB")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")} &nbsp;·&nbsp;
+            Credit Note: {(form.creditNotePrefix || "CN")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label>
-            <input className={inputCls} value={form.invoicePrefix || "SI"} onChange={e => setForm((f: any) => ({ ...f, invoicePrefix: e.target.value }))} placeholder="SI" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Note Prefix</label>
-            <input className={inputCls} value={form.creditNotePrefix || "CN"} onChange={e => setForm((f: any) => ({ ...f, creditNotePrefix: e.target.value }))} placeholder="CN" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Purchase Bill Prefix</label>
-            <input className={inputCls} value={form.billPrefix || "PB"} onChange={e => setForm((f: any) => ({ ...f, billPrefix: e.target.value }))} placeholder="PB" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Debit Note Prefix</label>
-            <input className={inputCls} value={form.debitNotePrefix || "DN"} onChange={e => setForm((f: any) => ({ ...f, debitNotePrefix: e.target.value }))} placeholder="DN" /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label>
+            <input className={inputCls} value={form.invoicePrefix || "SI"} onChange={e => setForm((f: any) => ({ ...f, invoicePrefix: e.target.value.toUpperCase() }))} placeholder="SI" maxLength={10} />
+            <p className="text-xs text-gray-400 mt-1">Sales Invoice ke liye</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Credit Note Prefix</label>
+            <input className={inputCls} value={form.creditNotePrefix || "CN"} onChange={e => setForm((f: any) => ({ ...f, creditNotePrefix: e.target.value.toUpperCase() }))} placeholder="CN" maxLength={10} />
+            <p className="text-xs text-gray-400 mt-1">Sales Return ke liye</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Bill Prefix</label>
+            <input className={inputCls} value={form.billPrefix || "PB"} onChange={e => setForm((f: any) => ({ ...f, billPrefix: e.target.value.toUpperCase() }))} placeholder="PB" maxLength={10} />
+            <p className="text-xs text-gray-400 mt-1">Purchase Bill ke liye</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Debit Note Prefix</label>
+            <input className={inputCls} value={form.debitNotePrefix || "DN"} onChange={e => setForm((f: any) => ({ ...f, debitNotePrefix: e.target.value.toUpperCase() }))} placeholder="DN" maxLength={10} />
+            <p className="text-xs text-gray-400 mt-1">Purchase Return ke liye</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Separator</label>
+            <select className={inputCls} value={form.numberSeparator ?? "-"} onChange={e => setForm((f: any) => ({ ...f, numberSeparator: e.target.value }))}>
+              <option value="-">Hyphen  (INV-0001)</option>
+              <option value="/">Slash  (INV/0001)</option>
+              <option value="">Kuch nahi  (INV0001)</option>
+              <option value=".">Dot  (INV.0001)</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Prefix aur number ke beech</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Number Digits (zero padding)</label>
+            <select className={inputCls} value={String(form.numberDigits ?? 4)} onChange={e => setForm((f: any) => ({ ...f, numberDigits: Number(e.target.value) }))}>
+              <option value="3">3 digits — 001, 002 ... 999</option>
+              <option value="4">4 digits — 0001, 0002 ... 9999</option>
+              <option value="5">5 digits — 00001, 00002 ... 99999</option>
+              <option value="6">6 digits — 000001, 000002 ...</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Number se pehle kitne zero</p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number Mode</label>
             <select className={inputCls} value={form.serialNumberMode || "auto"} onChange={e => setForm((f: any) => ({ ...f, serialNumberMode: e.target.value }))}>
-              <option value="auto">Auto (system generates)</option>
-              <option value="manual">Manual (enter manually)</option>
+              <option value="auto">Auto (system generate karta hai)</option>
+              <option value="manual">Manual (khud likho)</option>
             </select>
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Financial Year Start (MM-DD)</label>
-            <input className={inputCls} value={form.financialYearStart || "04-01"} onChange={e => setForm((f: any) => ({ ...f, financialYearStart: e.target.value }))} placeholder="04-01" /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Financial Year Start (MM-DD)</label>
+            <input className={inputCls} value={form.financialYearStart || "04-01"} onChange={e => setForm((f: any) => ({ ...f, financialYearStart: e.target.value }))} placeholder="04-01" />
+          </div>
         </div>
       </div>
 

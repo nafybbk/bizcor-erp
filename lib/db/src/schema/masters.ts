@@ -85,6 +85,7 @@ export const itemsTable = pgTable("items", {
   lowStockAlert: numeric("low_stock_alert", { precision: 15, scale: 3 }).default("0"),
   isActive: boolean("is_active").notNull().default(true),
   customFields: jsonb("custom_fields"),
+  shippingAddresses: jsonb("shipping_addresses"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

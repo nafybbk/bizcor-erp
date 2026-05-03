@@ -195,6 +195,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddSaving, setQuickAddSaving] = useState(false);
   const [quickAddForm, setQuickAddForm] = useState({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
+  const [savedShipAddrs, setSavedShipAddrs] = useState<string[]>([]);
+  const [showShipAddrDrop, setShowShipAddrDrop] = useState(false);
 
   const [form, setForm] = useState({
     date: fmt.today(),
@@ -293,6 +295,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     setPartySearch(party.name);
     setShowPartyDrop(false);
     setCreditInfo(null);
+    // Load saved shipping addresses for this party
+    const addrs = Array.isArray(party.shippingAddresses) ? party.shippingAddresses as string[] : [];
+    setSavedShipAddrs(addrs);
 
     // Auto-detect IGST/CGST+SGST based on state
     const autoInter = !!(party.stateCode && bizStateCode && party.stateCode !== bizStateCode);
@@ -380,6 +385,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     try {
       if (editId) await api.patch(`/${voucherType}/${editId}`, payload);
       else await api.post(`/${voucherType}`, payload);
+      // Auto-save new ship-to address to party (for future auto-fill)
+      if (form.useShippingAddress && form.shippingAddress.trim() && form.partyId) {
+        const newAddr = form.shippingAddress.trim();
+        if (!savedShipAddrs.includes(newAddr)) {
+          const updated = [...savedShipAddrs, newAddr];
+          api.patch(`/parties/${form.partyId}`, { shippingAddresses: updated }).catch(() => {});
+          setSavedShipAddrs(updated);
+        }
+      }
       navigate(listHref);
     } catch (err: any) {
       // Network/offline error → save to offline queue
@@ -736,7 +750,26 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               Different shipping address
             </label>
             {form.useShippingAddress && (
-              <textarea className={inputCls} rows={2} value={form.shippingAddress} onChange={e => setForm(f => ({ ...f, shippingAddress: e.target.value }))} placeholder="Shipping address..." />
+              <div className="relative">
+                {savedShipAddrs.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    <span className="text-xs text-gray-500 self-center">Saved:</span>
+                    {savedShipAddrs.map((addr, i) => (
+                      <button key={i} type="button"
+                        onClick={() => setForm(f => ({ ...f, shippingAddress: addr }))}
+                        className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${form.shippingAddress === addr ? "bg-blue-600 text-white border-blue-600" : "bg-gray-50 text-gray-600 border-gray-200 hover:border-blue-400 hover:text-blue-600"}`}>
+                        {addr.length > 35 ? addr.slice(0, 35) + "…" : addr}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea className={inputCls} rows={2} value={form.shippingAddress}
+                  onChange={e => setForm(f => ({ ...f, shippingAddress: e.target.value }))}
+                  placeholder="Shipping address likhein — save hone par is customer ke liye save ho jayega..." />
+                {form.shippingAddress.trim() && !savedShipAddrs.includes(form.shippingAddress.trim()) && (
+                  <p className="text-xs text-green-600 mt-1">✓ Yeh naya address save hone par is customer ke saath save ho jayega</p>
+                )}
+              </div>
             )}
           </div>
         </div>

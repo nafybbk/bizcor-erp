@@ -81,9 +81,18 @@ async function getVoucherById(req: any, res: any) {
 }
 
 async function generateVoucherNumber(businessId: number, voucherType: VoucherType): Promise<string> {
-  const prefix = { sales_invoice: "SI", credit_note: "CN", purchase_bill: "PB", debit_note: "DN" }[voucherType];
+  const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+  const prefixMap: Record<string, string> = {
+    sales_invoice: business?.invoicePrefix || "SI",
+    credit_note: business?.creditNotePrefix || "CN",
+    purchase_bill: business?.billPrefix || "PB",
+    debit_note: business?.debitNotePrefix || "DN",
+  };
+  const prefix = prefixMap[voucherType];
+  const sep = business?.numberSeparator ?? "-";
+  const digits = Number(business?.numberDigits ?? 4);
   const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
-  return `${prefix}-${String(Number(cnt) + 1).padStart(4, "0")}`;
+  return `${prefix}${sep}${String(Number(cnt) + 1).padStart(digits, "0")}`;
 }
 
 async function createVoucher(req: any, res: any, voucherType: VoucherType) {
