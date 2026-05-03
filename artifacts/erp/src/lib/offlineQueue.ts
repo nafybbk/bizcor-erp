@@ -6,6 +6,9 @@ export interface OfflineDraft {
   payload: any;
   savedAt: string;
   voucherType?: string;
+  locationName?: string;
+  locationLat?: number;
+  locationLng?: number;
 }
 
 const KEY = "erp_offline_queue";
@@ -17,6 +20,12 @@ export function getDrafts(): OfflineDraft[] {
 }
 
 export function saveDraft(draft: Omit<OfflineDraft, "id" | "savedAt">): OfflineDraft {
+  try {
+    const loc = JSON.parse(localStorage.getItem("erp_device_location") || "null");
+    if (loc?.name && !draft.locationName) {
+      draft = { ...draft, locationName: loc.name, locationLat: loc.latitude, locationLng: loc.longitude };
+    }
+  } catch { }
   const full: OfflineDraft = {
     ...draft,
     id: `draft_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
