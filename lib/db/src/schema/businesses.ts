@@ -76,6 +76,19 @@ export const appSettingsTable = pgTable("app_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const licenseVouchersTable = pgTable("license_vouchers", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  planId: integer("plan_id").references(() => plansTable.id).notNull(),
+  validityDays: integer("validity_days").notNull().default(30),
+  status: text("status").notNull().default("active"), // active | used | cancelled
+  notes: text("notes"),
+  generatedBy: integer("generated_by").references(() => superAdminsTable.id),
+  redeemedByBusinessId: integer("redeemed_by_business_id").references(() => businessesTable.id),
+  redeemedAt: timestamp("redeemed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertPlanSchema = createInsertSchema(plansTable).omit({ id: true, createdAt: true });
 export type InsertPlan = z.infer<typeof insertPlanSchema>;
 export type Plan = typeof plansTable.$inferSelect;

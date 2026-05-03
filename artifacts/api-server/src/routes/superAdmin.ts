@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, partiesTable, itemsTable, paymentsTable } from "@workspace/db";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, partiesTable, itemsTable, paymentsTable, licenseVouchersTable } from "@workspace/db";
 import { eq, count, sql, ilike, and } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
@@ -304,6 +304,97 @@ router.delete("/super-admins/:id", async (req, res) => {
     if (Number(req.params.id) === myId) { res.status(400).json({ error: "Apna khud ka account delete nahi kar sakte" }); return; }
     await db.delete(superAdminsTable).where(eq(superAdminsTable.id, Number(req.params.id)));
     res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── License Vouchers ────────────────────────────────────────────────────────
+
+router.post("/vouchers", async (req, res) => {
+  try {
+    const { planId, quantity = 1, validityDays = 30, notes } = req.body;
+    if (!planId) { res.status(400).json({ error: "planId required" }); return; }
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, Number(planId)) });
+    if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+    const qty = Math.min(50, Math.max(1, Number(quantity)));
+
+    // Generate sequential codes: PREFIX-NNNNNN
+    const prefix = plan.name.slice(0, 3).toUpperCase().replace(/[^A-Z]/g, "X");
+    const [{ cnt }] = await db.select({ cnt: count() }).from(licenseVouchersTable).where(eq(licenseVouchersTable.planId, Number(planId)));
+    const startSerial = Number(cnt) + 1;
+
+    const codes: string[] = [];
+    for (let i = 0; i < qty; i++) {
+      codes.push(`${prefix}-${String(startSerial + i).padStart(6, "0")}`);
+    }
+
+    await db.insert(licenseVouchersTable).values(
+      codes.map(code => ({
+        code,
+        planId: Number(planId),
+        validityDays: Number(validityDays),
+        notes: notes || null,
+        generatedBy: req.user!.id,
+        status: "active" as const,
+      }))
+    );
+    res.status(201).json({ codes, count: codes.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/vouchers", async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 25;
+    const statusFilter = req.query.status as string;
+    const planIdFilter = req.query.planId ? Number(req.query.planId) : null;
+    const search = (req.query.search as string)?.toUpperCase();
+
+    const allVouchers = await db.select({
+      id: licenseVouchersTable.id,
+      code: licenseVouchersTable.code,
+      planId: licenseVouchersTable.planId,
+      planName: plansTable.name,
+      validityDays: licenseVouchersTable.validityDays,
+      status: licenseVouchersTable.status,
+      notes: licenseVouchersTable.notes,
+      redeemedByBusinessId: licenseVouchersTable.redeemedByBusinessId,
+      redeemedAt: licenseVouchersTable.redeemedAt,
+      createdAt: licenseVouchersTable.createdAt,
+    }).from(licenseVouchersTable)
+      .leftJoin(plansTable, eq(licenseVouchersTable.planId, plansTable.id))
+      .orderBy(sql`${licenseVouchersTable.createdAt} desc`);
+
+    let filtered = allVouchers;
+    if (statusFilter) filtered = filtered.filter(v => v.status === statusFilter);
+    if (planIdFilter) filtered = filtered.filter(v => v.planId === planIdFilter);
+    if (search) filtered = filtered.filter(v => v.code.includes(search) || v.notes?.toUpperCase().includes(search));
+
+    const total = filtered.length;
+    const page_data = filtered.slice((page - 1) * limit, page * limit);
+
+    // Attach business names for redeemed vouchers
+    const bizIds = page_data.filter(v => v.redeemedByBusinessId).map(v => v.redeemedByBusinessId!);
+    const businesses = bizIds.length
+      ? await db.select({ id: businessesTable.id, name: businessesTable.name }).from(businessesTable).where(sql`${businessesTable.id} = ANY(${bizIds})`)
+      : [];
+
+    const data = page_data.map(v => ({
+      ...v,
+      redeemedByBusiness: businesses.find(b => b.id === v.redeemedByBusinessId)?.name || null,
+    }));
+
+    res.json({ data, total, page, limit });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/vouchers/:id", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const voucher = await db.query.licenseVouchersTable.findFirst({ where: eq(licenseVouchersTable.id, Number(req.params.id)) });
+    if (!voucher) { res.status(404).json({ error: "Voucher not found" }); return; }
+    if (voucher.status === "used") { res.status(400).json({ error: "Used voucher cancel nahi ho sakta" }); return; }
+    const [updated] = await db.update(licenseVouchersTable).set({ status }).where(eq(licenseVouchersTable.id, Number(req.params.id))).returning();
+    res.json(updated);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

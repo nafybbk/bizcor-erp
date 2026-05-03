@@ -13,6 +13,7 @@ import inventoryRouter from "./inventory";
 import accountingRouter from "./accounting";
 import gstRouter from "./gst";
 import dashboardRouter from "./dashboard";
+import licenseVouchersRouter from "./licenseVouchers";
 
 const router: IRouter = Router();
 
@@ -49,5 +50,6 @@ router.use("/inventory", inventoryRouter);
 router.use("/accounting", accountingRouter);
 router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
+router.use(licenseVouchersRouter);
 
 export default router;

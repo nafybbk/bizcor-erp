@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X } from "lucide-react";
+import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2 } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -49,6 +49,9 @@ export default function BusinessSettings() {
   const [isOnline, setIsOnline] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemResult, setRedeemResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     api.get<any>("/businesses/current").then(b => setForm(b)).catch(console.error).finally(() => setLoading(false));
@@ -63,6 +66,20 @@ export default function BusinessSettings() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } finally { setSaving(false); }
+  };
+
+  const redeemVoucher = async () => {
+    if (!voucherCode.trim()) return;
+    setRedeemLoading(true);
+    setRedeemResult(null);
+    try {
+      const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
+      setRedeemResult({ success: true, message: res.message });
+      setVoucherCode("");
+      api.get<any>("/businesses/current").then(b => setForm(b)).catch(() => null);
+    } catch (err: any) {
+      setRedeemResult({ success: false, message: err.message || "Voucher redeem nahi hua" });
+    } finally { setRedeemLoading(false); }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,6 +384,44 @@ export default function BusinessSettings() {
         </div>
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
           <input className={inputCls + " bg-gray-50 text-gray-500 font-mono tracking-widest"} value={form.businessCode || ""} readOnly /></div>
+      </div>
+
+      {/* Activate License */}
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5 space-y-4">
+        <h3 className="font-semibold text-indigo-800 text-sm border-b border-indigo-200 pb-2 flex items-center gap-2">
+          <Ticket className="w-4 h-4" /> License Activate Karein
+        </h3>
+        {form.planId && (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Plan active hai{form.planExpiresAt ? ` · Expires: ${new Date(form.planExpiresAt).toLocaleDateString("en-IN")}` : ""}</span>
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-indigo-700 mb-1">Voucher Code</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="flex-1 border border-indigo-300 rounded-lg px-3 py-2 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g. BAS-000001 ya PRO-000001"
+              value={voucherCode}
+              onChange={e => setVoucherCode(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === "Enter" && redeemVoucher()}
+            />
+            <button type="button" onClick={redeemVoucher} disabled={redeemLoading || !voucherCode.trim()}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+              {redeemLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ticket className="w-4 h-4" />}
+              Activate
+            </button>
+          </div>
+          <p className="text-xs text-indigo-500 mt-1">Vendor se mila hua license code yahan daalo</p>
+        </div>
+        {redeemResult && (
+          <div className={`flex items-start gap-2 text-sm px-3 py-2.5 rounded-lg border ${redeemResult.success ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
+            {redeemResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <X className="w-4 h-4 shrink-0 mt-0.5" />}
+            {redeemResult.message}
+          </div>
+        )}
       </div>
     </form>
   );
