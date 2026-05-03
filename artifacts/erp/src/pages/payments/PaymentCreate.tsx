@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
+import PartySelect from "@/components/PartySelect";
 
 interface Props {
   type: "receipt" | "payment";
@@ -16,7 +17,6 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [partySearch, setPartySearch] = useState(initialData?.partyName || "");
-  const [showPartyDrop, setShowPartyDrop] = useState(false);
   const [allocations, setAllocations] = useState<Array<{ voucherId: number; allocatedAmount: number }>>(
     initialData?.allocations?.map((a: any) => ({ voucherId: a.voucherId, allocatedAmount: a.allocatedAmount })) || []
   );
@@ -49,7 +49,6 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const selectParty = async (party: any) => {
     setForm(f => ({ ...f, partyId: String(party.id), partyName: party.name }));
     setPartySearch(party.name);
-    setShowPartyDrop(false);
     try {
       const vType = type === "receipt" ? "receivable" : "payable";
       const data = await api.get<any>(`/payments/outstanding?partyId=${party.id}&type=${vType}`);
@@ -98,7 +97,6 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   };
 
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full";
-  const filteredParties = parties.filter(p => p.name?.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20);
   const title = type === "receipt" ? "Receipt" : "Payment";
 
   return (
@@ -115,16 +113,15 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <div className="relative">
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Party *</label>
-          <input className={inputCls} value={partySearch} onChange={e => { setPartySearch(e.target.value); setShowPartyDrop(true); }} onFocus={() => setShowPartyDrop(true)} placeholder="Search party..." required />
-          {showPartyDrop && filteredParties.length > 0 && (
-            <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {filteredParties.map(p => (
-                <div key={p.id} onClick={() => selectParty(p)} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-medium">{p.name}</div>
-              ))}
-            </div>
-          )}
+          <PartySelect
+            parties={parties}
+            value={partySearch}
+            onSelect={p => { selectParty(p); }}
+            placeholder={`Search ${partyType}...`}
+            required
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
