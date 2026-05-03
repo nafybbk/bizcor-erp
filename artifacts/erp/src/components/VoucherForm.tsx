@@ -191,6 +191,11 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<any>(null);
   const [offlineSaved, setOfflineSaved] = useState(false);
 
+  // Quick add party
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
+
   const [form, setForm] = useState({
     date: fmt.today(),
     voucherNumber: "",
@@ -433,8 +438,34 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     await doSave(payload);
   };
 
+  const createQuickParty = async () => {
+    if (!quickAddForm.name.trim()) return;
+    setQuickAddSaving(true);
+    try {
+      const partyType = isSales ? "customer" : "supplier";
+      const created = await api.post<any>("/parties", {
+        name: quickAddForm.name.trim(),
+        type: partyType,
+        phone: quickAddForm.phone || undefined,
+        gstin: quickAddForm.gstin || undefined,
+        address: quickAddForm.address || undefined,
+        state: quickAddForm.state || undefined,
+        stateCode: quickAddForm.stateCode || undefined,
+      });
+      setParties(prev => [...prev, created]);
+      selectParty(created);
+      setShowQuickAdd(false);
+      setQuickAddForm({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
+    } catch (err: any) {
+      alert("Party create nahi ho saka: " + err.message);
+    } finally {
+      setQuickAddSaving(false);
+    }
+  };
+
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full";
   const filteredParties = parties.filter(p => p.name?.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20);
+  const isNewParty = partySearch.trim().length >= 2 && !parties.some(p => p.name?.toLowerCase() === partySearch.trim().toLowerCase());
 
   return (
     <>
@@ -483,6 +514,103 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                     Override & Save
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Party Modal */}
+      {showQuickAdd && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="font-bold text-gray-900 text-lg">
+                    Naya {isSales ? "Customer" : "Supplier"} Banao
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-0.5">
+                    Ye {isSales ? "Customer" : "Supplier"} list mein permanent save ho jayega
+                  </p>
+                </div>
+                <button onClick={() => setShowQuickAdd(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Naam *</label>
+                  <input
+                    className={inputCls}
+                    value={quickAddForm.name}
+                    onChange={e => setQuickAddForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Party ka naam"
+                    autoFocus
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input
+                      className={inputCls}
+                      value={quickAddForm.phone}
+                      onChange={e => setQuickAddForm(f => ({ ...f, phone: e.target.value }))}
+                      placeholder="9999999999"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label>
+                    <input
+                      className={inputCls}
+                      value={quickAddForm.gstin}
+                      onChange={e => setQuickAddForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                      placeholder="27AAAAA0000A1Z5"
+                      maxLength={15}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State (GST ke liye)</label>
+                  <select
+                    className={inputCls}
+                    value={quickAddForm.state}
+                    onChange={e => {
+                      const st = INDIAN_STATES.find(s => s.name === e.target.value);
+                      setQuickAddForm(f => ({ ...f, state: e.target.value, stateCode: st?.code || "" }));
+                    }}
+                  >
+                    <option value="">Select State</option>
+                    {INDIAN_STATES.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address (optional)</label>
+                  <textarea
+                    className={inputCls}
+                    rows={2}
+                    value={quickAddForm.address}
+                    onChange={e => setQuickAddForm(f => ({ ...f, address: e.target.value }))}
+                    placeholder="Shop no., gali, shahar..."
+                  />
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
+                  ✓ Baad mein Masters → {isSales ? "Customers" : "Suppliers"} se poori details edit kar sakte hain
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-5">
+                <button type="button" onClick={() => setShowQuickAdd(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button type="button" onClick={createQuickParty} disabled={quickAddSaving || !quickAddForm.name.trim()}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                  {quickAddSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {isSales ? "Customer" : "Supplier"} Banao & Select Karo
+                </button>
               </div>
             </div>
           </div>
@@ -545,8 +673,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                   if (e.key === "Escape") setShowPartyDrop(false);
                 }}
                 placeholder="Search party..." />
-              {showPartyDrop && filteredParties.length > 0 && (
-                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {showPartyDrop && (filteredParties.length > 0 || isNewParty) && (
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
                   {filteredParties.map(p => (
                     <div key={p.id} onClick={() => selectParty(p)} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm">
                       <div className="font-medium">{p.name}</div>
@@ -557,6 +685,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </div>
                     </div>
                   ))}
+                  {isNewParty && (
+                    <div
+                      onMouseDown={e => { e.preventDefault(); setQuickAddForm(f => ({ ...f, name: partySearch.trim() })); setShowQuickAdd(true); setShowPartyDrop(false); }}
+                      className="px-3 py-2.5 border-t border-dashed border-green-200 bg-green-50 hover:bg-green-100 cursor-pointer text-sm flex items-center gap-2 text-green-700 font-medium">
+                      <Plus className="w-4 h-4 flex-shrink-0" />
+                      <span>"{partySearch.trim()}" ko naya {isSales ? "Customer" : "Supplier"} banao</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
