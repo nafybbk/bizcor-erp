@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Download } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
+import PartySelect from "@/components/PartySelect";
 
 export default function PartyLedger() {
   const [parties, setParties] = useState<any[]>([]);
   const [selectedParty, setSelectedParty] = useState<any>(null);
   const [ledger, setLedger] = useState<any>(null);
   const [partySearch, setPartySearch] = useState("");
-  const [showDrop, setShowDrop] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -28,7 +28,6 @@ export default function PartyLedger() {
   const selectParty = (p: any) => {
     setSelectedParty(p);
     setPartySearch(p.name);
-    setShowDrop(false);
     loadLedger(p.id);
   };
 
@@ -36,24 +35,20 @@ export default function PartyLedger() {
     if (selectedParty) loadLedger(selectedParty.id);
   }, [fromDate, toDate]);
 
-  const filtered = parties.filter(p => p.name?.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20);
 
   return (
     <div className="max-w-5xl space-y-4">
       <h1 className="text-2xl font-bold text-gray-900">Party Ledger</h1>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap gap-4">
-        <div className="relative flex-1 min-w-48">
+        <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-gray-700 mb-1">Select Party</label>
-          <input className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={partySearch} onChange={e => { setPartySearch(e.target.value); setShowDrop(true); }} onFocus={() => setShowDrop(true)} placeholder="Search party..." />
-          {showDrop && filtered.length > 0 && (
-            <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              {filtered.map(p => (
-                <div key={p.id} onClick={() => selectParty(p)} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-medium">{p.name}</div>
-              ))}
-            </div>
-          )}
+          <PartySelect
+            parties={parties}
+            value={partySearch}
+            onSelect={selectParty}
+            placeholder="Search party..."
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>

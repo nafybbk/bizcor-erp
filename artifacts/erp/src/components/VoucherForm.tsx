@@ -4,6 +4,7 @@ import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw } from "lucide-react";
+import PartySelect from "@/components/PartySelect";
 
 // Business type → invoice-level and item-level custom fields config
 const BIZ_FIELDS: Record<string, {
@@ -178,12 +179,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [partySearch, setPartySearch] = useState("");
-  const [showPartyDrop, setShowPartyDrop] = useState(false);
   const [serialMode, setSerialMode] = useState<"auto" | "manual">("auto");
   const [bizStateCode, setBizStateCode] = useState("");
   const [bizType, setBizType] = useState("");
   const [invoiceCustomFields, setInvoiceCustomFields] = useState<Record<string, any>>({});
-  const partyDropRef = useRef<HTMLDivElement>(null);
 
   // Credit limit
   const [creditInfo, setCreditInfo] = useState<{ outstanding: number; creditLimit: number } | null>(null);
@@ -303,7 +302,6 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       placeOfSupply: party.stateCode || "",
     }));
     setPartySearch(party.name);
-    setShowPartyDrop(false);
     setCreditInfo(null);
     // Load saved shipping addresses for this party
     const addrs = Array.isArray(party.shippingAddresses) ? party.shippingAddresses as string[] : [];
@@ -534,8 +532,6 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   };
 
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full";
-  const filteredParties = parties.filter(p => p.name?.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20);
-  const isNewParty = partySearch.trim().length >= 2 && !parties.some(p => p.name?.toLowerCase() === partySearch.trim().toLowerCase());
 
   return (
     <>
@@ -733,39 +729,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           {/* Party */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Party *</label>
-            <div className="relative">
-              <input className={inputCls} value={partySearch}
-                onChange={e => { setPartySearch(e.target.value); setShowPartyDrop(true); }}
-                onFocus={() => setShowPartyDrop(true)}
-                onBlur={() => setTimeout(() => setShowPartyDrop(false), 150)}
-                onKeyDown={e => {
-                  if (e.key === "Enter" && filteredParties.length > 0) { e.preventDefault(); selectParty(filteredParties[0]); }
-                  if (e.key === "Escape") setShowPartyDrop(false);
-                }}
-                placeholder="Search party..." />
-              {showPartyDrop && (filteredParties.length > 0 || isNewParty) && (
-                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
-                  {filteredParties.map(p => (
-                    <div key={p.id} onClick={() => selectParty(p)} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm">
-                      <div className="font-medium">{p.name}</div>
-                      <div className="flex gap-3 mt-0.5">
-                        {p.gstin && <span className="text-xs text-gray-400 font-mono">{p.gstin}</span>}
-                        {p.stateCode && <span className="text-xs text-gray-400">State: {p.stateCode}</span>}
-                        {Number(p.creditLimit) > 0 && <span className="text-xs text-amber-600">Limit: {fmt.currency(Number(p.creditLimit))}</span>}
-                      </div>
-                    </div>
-                  ))}
-                  {isNewParty && (
-                    <div
-                      onMouseDown={e => { e.preventDefault(); setQuickAddForm(f => ({ ...f, name: partySearch.trim() })); setShowQuickAdd(true); setShowPartyDrop(false); }}
-                      className="px-3 py-2.5 border-t border-dashed border-green-200 bg-green-50 hover:bg-green-100 cursor-pointer text-sm flex items-center gap-2 text-green-700 font-medium">
-                      <Plus className="w-4 h-4 flex-shrink-0" />
-                      <span>"{partySearch.trim()}" ko naya {isSales ? "Customer" : "Supplier"} banao</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <PartySelect
+              parties={parties}
+              value={partySearch}
+              onSelect={selectParty}
+              showDetails={true}
+              placeholder={`Search ${isSales ? "customer" : "supplier"}...`}
+              onAddNew={name => { setQuickAddForm(f => ({ ...f, name })); setShowQuickAdd(true); }}
+              addNewLabel={`ko naya ${isSales ? "Customer" : "Supplier"} banao`}
+            />
             {/* Credit limit indicator */}
             {creditInfo && creditInfo.creditLimit > 0 && (
               <div className={`mt-2 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 ${creditInfo.outstanding >= creditInfo.creditLimit ? "bg-red-50 border border-red-200 text-red-700" : creditInfo.outstanding >= creditInfo.creditLimit * 0.8 ? "bg-amber-50 border border-amber-200 text-amber-700" : "bg-green-50 border border-green-200 text-green-700"}`}>
