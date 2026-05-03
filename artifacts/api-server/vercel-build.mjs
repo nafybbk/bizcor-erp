@@ -2,15 +2,20 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
-import { rm, mkdir } from "node:fs/promises";
+import { rm, mkdir, writeFile } from "node:fs/promises";
 
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 const apiDir = path.resolve(artifactDir, "api");
+const publicDir = path.resolve(artifactDir, "public");
 
 await rm(apiDir, { recursive: true, force: true });
 await mkdir(apiDir, { recursive: true });
+
+// Create public dir so Vercel doesn't complain about missing static output
+await mkdir(publicDir, { recursive: true });
+await writeFile(path.resolve(publicDir, ".gitkeep"), "");
 
 console.log("Building Vercel serverless entry...");
 
@@ -22,7 +27,6 @@ await esbuild({
   outfile: path.resolve(apiDir, "index.js"),
   logLevel: "info",
   sourcemap: false,
-  // Externalize only native addons and packages that can't be bundled
   external: [
     "*.node",
     "sharp",
