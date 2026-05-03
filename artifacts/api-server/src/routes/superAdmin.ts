@@ -477,13 +477,51 @@ router.get("/vouchers", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// Top-up: add free days to a business plan
+router.post("/businesses/:id/topup", async (req, res) => {
+  try {
+    const { days } = req.body;
+    if (!days || isNaN(Number(days)) || Number(days) <= 0) {
+      res.status(400).json({ error: "Valid 'days' required" }); return;
+    }
+    const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, Number(req.params.id)) });
+    if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+    const now = new Date();
+    const baseDate = biz.planExpiresAt && biz.planExpiresAt > now ? biz.planExpiresAt : now;
+    const newExpiry = new Date(baseDate.getTime() + Number(days) * 24 * 60 * 60 * 1000);
+    const [updated] = await db.update(businessesTable).set({
+      planExpiresAt: newExpiry,
+      bonusDaysAdded: (biz.bonusDaysAdded || 0) + Number(days),
+      isTrial: false,
+      status: "active",
+    }).where(eq(businessesTable.id, Number(req.params.id))).returning();
+    res.json(updated);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 router.patch("/vouchers/:id", async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, validityDays, sellingPrice, notes, reissue } = req.body;
     const voucher = await db.query.licenseVouchersTable.findFirst({ where: eq(licenseVouchersTable.id, Number(req.params.id)) });
     if (!voucher) { res.status(404).json({ error: "Voucher not found" }); return; }
-    if (voucher.status === "used") { res.status(400).json({ error: "Used voucher cancel nahi ho sakta" }); return; }
-    const [updated] = await db.update(licenseVouchersTable).set({ status }).where(eq(licenseVouchersTable.id, Number(req.params.id))).returning();
+    if (status === "cancelled" && voucher.status === "used") {
+      res.status(400).json({ error: "Used voucher cancel nahi ho sakta" }); return;
+    }
+    const updates: Record<string, unknown> = {};
+    if (status !== undefined) updates.status = status;
+    if (validityDays !== undefined) updates.validityDays = Number(validityDays);
+    if (sellingPrice !== undefined) updates.sellingPrice = sellingPrice ? String(sellingPrice) : null;
+    if (notes !== undefined) updates.notes = notes || null;
+    if (reissue) {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let newCode = "";
+      for (let i = 0; i < 8; i++) newCode += chars[Math.floor(Math.random() * chars.length)];
+      updates.code = newCode;
+      updates.status = "active";
+      updates.redeemedByBusinessId = null;
+      updates.redeemedAt = null;
+    }
+    const [updated] = await db.update(licenseVouchersTable).set(updates).where(eq(licenseVouchersTable.id, Number(req.params.id))).returning();
     res.json(updated);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
