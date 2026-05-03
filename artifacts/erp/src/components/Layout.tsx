@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -70,7 +70,8 @@ function NavGroup({ item, location }: { item: NavItem; location: string }) {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, business, logout, isSuperAdmin } = useAuth();
   const [location, navigate] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const isMobile = () => window.innerWidth < 768;
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [isOnline, setIsOnline] = useState(true);
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -78,6 +79,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bizLogo, setBizLogo] = useState<string | null>(null);
   const [draftCount, setDraftCount] = useState(getDraftCount());
   const [showDraftNotice, setShowDraftNotice] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   // Load firm logo
   const loadLogo = useCallback(() => {
@@ -139,10 +142,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Reload logo when navigating back from profile/settings
+  // Close sidebar on mobile when route changes
   useEffect(() => {
+    if (isMobile()) setSidebarOpen(false);
     if (location === "/" || location === "/settings/business") loadLogo();
   }, [location]);
+
+  // Swipe gesture — right swipe opens, left swipe closes
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (dy > 40) return; // vertical scroll — ignore
+    if (dx > 60 && touchStartX.current < 40) setSidebarOpen(true);   // right swipe from edge
+    if (dx < -60) setSidebarOpen(false);                               // left swipe
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   const businessNav: NavItem[] = [
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -216,9 +236,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <aside className={`${sidebarOpen ? "w-56" : "w-0 overflow-hidden"} bg-slate-900 flex-shrink-0 flex flex-col transition-all duration-200`}>
+    <div className="flex h-screen bg-background overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+
+      {/* Mobile overlay — tap to close */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 bg-black/50 z-20" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Sidebar handle tab — mobile only */}
+      <button
+        className="md:hidden fixed top-1/2 -translate-y-1/2 z-40 transition-all duration-200 focus:outline-none"
+        style={{ left: sidebarOpen ? "224px" : "0px" }}
+        onClick={() => setSidebarOpen(o => !o)}
+        aria-label="Toggle sidebar"
+      >
+        <div className="bg-slate-700/90 backdrop-blur-sm rounded-r-xl flex flex-col items-center justify-center gap-1 w-4 h-14 shadow-lg">
+          <div className="w-0.5 h-2 bg-slate-300 rounded-full" />
+          <div className="w-0.5 h-3 bg-slate-400 rounded-full" />
+          <div className="w-0.5 h-2 bg-slate-300 rounded-full" />
+        </div>
+      </button>
+
+      {/* Sidebar — fixed on mobile, static on desktop */}
+      <aside className={`
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        ${sidebarOpen ? "md:w-56" : "md:w-0 md:overflow-hidden"}
+        fixed md:static inset-y-0 left-0 z-30
+        w-56 bg-slate-900 flex-shrink-0 flex flex-col transition-all duration-200
+      `}>
 
         {/* Firm Header — clickable → Firm Profile */}
         <Link href="/profile">
