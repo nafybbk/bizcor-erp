@@ -2,15 +2,24 @@ const BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/api`
   : `${import.meta.env.BASE_URL}api`.replace(/\/+/g, "/").replace(/\/$/, "");
 
+// Tech admin token is stored in sessionStorage (tab-isolated) so it does not
+// overwrite the business user token stored in localStorage when both panels
+// are open in different tabs of the same browser.
 function getToken(): string | null {
-  return localStorage.getItem("erp_token");
+  return sessionStorage.getItem("erp_token") || localStorage.getItem("erp_token");
 }
 
 export function setToken(token: string) {
   localStorage.setItem("erp_token", token);
 }
 
+export function setAdminToken(token: string) {
+  sessionStorage.setItem("erp_token", token);
+}
+
 export function clearToken() {
+  sessionStorage.removeItem("erp_token");
+  sessionStorage.removeItem("erp_user");
   localStorage.removeItem("erp_token");
   localStorage.removeItem("erp_user");
   localStorage.removeItem("erp_business");
