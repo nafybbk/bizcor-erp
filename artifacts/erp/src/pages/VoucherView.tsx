@@ -283,33 +283,36 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-900 text-white text-xs">
-                  <th className="px-3 py-2.5 text-center w-8">#</th>
-                  <th className="px-3 py-2.5 text-left">Item / Description</th>
-                  <th className="px-3 py-2.5 text-center w-20">HSN/SAC</th>
-                  <th className="px-3 py-2.5 text-right w-16">Qty</th>
-                  <th className="px-3 py-2.5 text-center w-14">Unit</th>
-                  <th className="px-3 py-2.5 text-right w-24">Rate (₹)</th>
-                  <th className="px-3 py-2.5 text-right w-20">Disc.</th>
-                  <th className="px-3 py-2.5 text-right w-24">Taxable (₹)</th>
+                  <th className="px-2 py-2.5 text-center w-7">#</th>
+                  <th className="px-2 py-2.5 text-left">Item / Description</th>
+                  <th className="px-2 py-2.5 text-center w-16">HSN</th>
+                  <th className="px-2 py-2.5 text-center w-12">Unit</th>
+                  <th className="px-2 py-2.5 text-right w-14">Qty</th>
+                  <th className="px-2 py-2.5 text-right w-20">Rate<br/><span className="font-normal opacity-75">(Before GST)</span></th>
+                  <th className="px-2 py-2.5 text-right w-16">Disc<br/><span className="font-normal opacity-75">%/₹</span></th>
+                  <th className="px-2 py-2.5 text-right w-20">Rate<br/><span className="font-normal opacity-75">(After GST)</span></th>
+                  <th className="px-2 py-2.5 text-right w-20">Taxable</th>
                   {isInterState ? (
-                    <th className="px-3 py-2.5 text-right w-20">IGST</th>
+                    <th className="px-2 py-2.5 text-right w-18">IGST</th>
                   ) : (
                     <>
-                      <th className="px-3 py-2.5 text-right w-20">CGST</th>
-                      <th className="px-3 py-2.5 text-right w-20">SGST</th>
+                      <th className="px-2 py-2.5 text-right w-18">SGST</th>
+                      <th className="px-2 py-2.5 text-right w-18">CGST</th>
                     </>
                   )}
-                  <th className="px-3 py-2.5 text-right w-24">Amount (₹)</th>
+                  <th className="px-2 py-2.5 text-right w-20">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {(voucher.items || []).map((item: any, idx: number) => (
+                {(voucher.items || []).map((item: any, idx: number) => {
+                  const taxablePerUnit = item.quantity > 0 ? item.taxableAmount / item.quantity : 0;
+                  const rateAfterGst = taxablePerUnit * (1 + (item.taxRate || 0) / 100);
+                  return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{idx + 1}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-2 text-center text-gray-500 text-xs">{idx + 1}</td>
+                    <td className="px-2 py-2">
                       <div className="font-semibold text-gray-900">{item.itemName}</div>
                       {item.description && <div className="text-xs text-gray-400 mt-0.5">{item.description}</div>}
-                      {/* Custom fields (business type specific) */}
                       {item.customFields && Object.keys(item.customFields).length > 0 && (
                         <div className="flex flex-wrap gap-x-3 gap-y-0 mt-1">
                           {Object.entries(item.customFields).filter(([, v]) => v).map(([k, v]) => (
@@ -320,34 +323,36 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-center text-xs text-gray-500 font-mono">{item.hsnCode || "-"}</td>
-                    <td className="px-3 py-2.5 text-right">{fmt.number(item.quantity, 3)}</td>
-                    <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{item.unit}</td>
-                    <td className="px-3 py-2.5 text-right">{fmt.number(item.rate)}</td>
-                    <td className="px-3 py-2.5 text-right text-red-500 text-xs">
+                    <td className="px-2 py-2 text-center text-xs text-gray-500 font-mono">{item.hsnCode || "-"}</td>
+                    <td className="px-2 py-2 text-center text-gray-500 text-xs">{item.unit}</td>
+                    <td className="px-2 py-2 text-right">{fmt.number(item.quantity, 3)}</td>
+                    <td className="px-2 py-2 text-right">{fmt.number(item.rate)}</td>
+                    <td className="px-2 py-2 text-right text-red-500 text-xs">
                       {item.discount > 0 ? `${fmt.number(item.discount)}${item.discountType === "percent" ? "%" : "₹"}` : "-"}
                     </td>
-                    <td className="px-3 py-2.5 text-right">{fmt.number(item.taxableAmount)}</td>
+                    <td className="px-2 py-2 text-right text-gray-700">{fmt.number(rateAfterGst)}</td>
+                    <td className="px-2 py-2 text-right">{fmt.number(item.taxableAmount)}</td>
                     {isInterState ? (
-                      <td className="px-3 py-2.5 text-right text-orange-600">
+                      <td className="px-2 py-2 text-right text-orange-600">
                         <div className="text-xs text-gray-400">{item.taxRate}%</div>
                         {fmt.number(item.igst)}
                       </td>
                     ) : (
                       <>
-                        <td className="px-3 py-2.5 text-right text-blue-600">
-                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
-                          {fmt.number(item.cgst)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right text-blue-600">
+                        <td className="px-2 py-2 text-right text-blue-600">
                           <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
                           {fmt.number(item.sgst)}
                         </td>
+                        <td className="px-2 py-2 text-right text-blue-600">
+                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
+                          {fmt.number(item.cgst)}
+                        </td>
                       </>
                     )}
-                    <td className="px-3 py-2.5 text-right font-bold">{fmt.number(item.total)}</td>
+                    <td className="px-2 py-2 text-right font-bold">{fmt.number(item.total)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
