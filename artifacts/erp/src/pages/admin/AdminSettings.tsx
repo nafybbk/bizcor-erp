@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type } from "lucide-react";
+import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone } from "lucide-react";
 
 export default function AdminSettings() {
   const [form, setForm] = useState({
@@ -15,11 +15,40 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const [profile, setProfile] = useState({ phone: "", name: "" });
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
   useEffect(() => {
     api.get<any>("/super-admin/settings").then(s => {
       setForm(f => ({ ...f, ...s }));
     }).catch(console.error).finally(() => setLoading(false));
+    api.get<any>("/super-admin/my-profile").then(p => setProfile({ phone: p.phone || "", name: p.name || "" })).catch(() => {});
   }, []);
+
+  const saveProfile = async () => {
+    setProfileMsg(null); setProfileSaving(true);
+    try {
+      const payload: Record<string, string> = {};
+      if (profile.phone !== undefined) payload.phone = profile.phone;
+      if (pwForm.newPassword) {
+        if (pwForm.newPassword !== pwForm.confirmPassword) {
+          setProfileMsg({ type: "err", text: "New password aur confirm password match nahi kar rahe" }); setProfileSaving(false); return;
+        }
+        if (!pwForm.currentPassword) {
+          setProfileMsg({ type: "err", text: "Current password daalna zaroori hai" }); setProfileSaving(false); return;
+        }
+        payload.currentPassword = pwForm.currentPassword;
+        payload.newPassword = pwForm.newPassword;
+      }
+      await api.patch("/super-admin/my-profile", payload);
+      setProfileMsg({ type: "ok", text: "Profile update ho gayi!" });
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (err: any) {
+      setProfileMsg({ type: "err", text: err.message || "Update mein problem hui" });
+    } finally { setProfileSaving(false); }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +116,68 @@ export default function AdminSettings() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Support Phone</label>
           <input className={inputCls} value={form.supportPhone} onChange={e => setForm(f => ({ ...f, supportPhone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
         </div>
+      </div>
+
+      {/* ── My Profile: Phone + Password ── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-yellow-600" /> Tech Login — Mera Profile
+        </h3>
+        <p className="text-xs text-gray-500">Tech Login ka mobile number aur password yahan se badlein.</p>
+
+        {profileMsg && (
+          <div className={`text-sm px-3 py-2 rounded-lg ${profileMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+            {profileMsg.text}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (Login ke liye use hoga)</label>
+          <input type="tel" className={inputCls}
+            value={profile.phone}
+            onChange={e => setProfile(p => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+            placeholder="10 digit mobile number" maxLength={10} />
+          <p className="text-xs text-gray-400 mt-1">Yahi number Tech Login mein daalenge</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Lock className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-medium text-gray-700">Password Badlein</span>
+            <span className="text-xs text-gray-400">(khali chhodein agar sirf mobile update karna ho)</span>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+              <input type="password" className={inputCls}
+                value={pwForm.currentPassword}
+                onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))}
+                placeholder="Purana password" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input type="password" className={inputCls}
+                  value={pwForm.newPassword}
+                  onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))}
+                  placeholder="Naya password (min 6 char)" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input type="password" className={inputCls}
+                  value={pwForm.confirmPassword}
+                  onChange={e => setPwForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                  placeholder="Dobara naya password" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" onClick={saveProfile} disabled={profileSaving}
+          className="flex items-center gap-2 px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+          {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {profileSaving ? "Saving..." : "Profile Save Karo"}
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

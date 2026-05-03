@@ -194,11 +194,56 @@ router.delete("/plans/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── My Profile (phone + password change) ────────────────────────────────────
+
+router.get("/my-profile", async (req, res) => {
+  try {
+    const admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.id, req.user!.id) });
+    if (!admin) { res.status(404).json({ error: "Not Found" }); return; }
+    res.json({ id: admin.id, name: admin.name, email: admin.email, phone: admin.phone || "" });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/my-profile", async (req, res) => {
+  try {
+    const { phone, currentPassword, newPassword } = req.body;
+    const admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.id, req.user!.id) });
+    if (!admin) { res.status(404).json({ error: "Not Found" }); return; }
+
+    const updateData: Record<string, unknown> = {};
+
+    if (phone !== undefined) {
+      const trimmed = String(phone).trim();
+      if (trimmed && trimmed.length !== 10) {
+        res.status(400).json({ error: "Phone number 10 digits ka hona chahiye" }); return;
+      }
+      updateData.phone = trimmed || null;
+    }
+
+    if (newPassword) {
+      if (!currentPassword) { res.status(400).json({ error: "Current password required" }); return; }
+      if (!await bcrypt.compare(currentPassword, admin.passwordHash)) {
+        res.status(400).json({ error: "Current password galat hai" }); return;
+      }
+      if (newPassword.length < 6) { res.status(400).json({ error: "New password kam se kam 6 characters ka hona chahiye" }); return; }
+      updateData.passwordHash = await bcrypt.hash(newPassword, 10);
+    }
+
+    if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "Kuch update karne ke liye nahi diya" }); return; }
+
+    const [updated] = await db.update(superAdminsTable).set(updateData).where(eq(superAdminsTable.id, req.user!.id)).returning();
+    res.json({ id: updated.id, name: updated.name, email: updated.email, phone: updated.phone || "" });
+  } catch (err: any) {
+    if (err?.code === "23505") { res.status(400).json({ error: "Yeh phone number pehle se registered hai" }); return; }
+    req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Super Admins Management ──────────────────────────────────────────────────
 
 router.get("/super-admins", async (req, res) => {
   try {
-    const admins = await db.select({ id: superAdminsTable.id, name: superAdminsTable.name, email: superAdminsTable.email, createdAt: superAdminsTable.createdAt }).from(superAdminsTable).orderBy(superAdminsTable.id);
+    const admins = await db.select({ id: superAdminsTable.id, name: superAdminsTable.name, email: superAdminsTable.email, phone: superAdminsTable.phone, createdAt: superAdminsTable.createdAt }).from(superAdminsTable).orderBy(superAdminsTable.id);
     res.json({ data: admins });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });

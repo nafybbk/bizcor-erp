@@ -13,7 +13,7 @@ export default function Login() {
 
   // ── Separate state for each tab ──────────────────────────
   const [bizForm, setBizForm] = useState({ email: "", password: "", businessCode: "" });
-  const [techForm, setTechForm] = useState({ email: "", password: "" });
+  const [techForm, setTechForm] = useState({ phone: "", password: "" });
 
   const [showBizPass, setShowBizPass] = useState(false);
   const [showTechPass, setShowTechPass] = useState(false);
@@ -58,10 +58,14 @@ export default function Login() {
     e.preventDefault();
     setTechError(""); setLoading(true);
     try {
-      await login(techForm.email, techForm.password, undefined);
-      navigate("/");
+      const res = await api.post<any>("/auth/tech-login", { phone: techForm.phone.trim(), password: techForm.password });
+      if (res.token && res.user) {
+        localStorage.setItem("erp_token", res.token);
+        localStorage.setItem("erp_user", JSON.stringify(res.user));
+        window.location.href = "/";
+      }
     } catch (err: any) {
-      setTechError(err.message || "Invalid email ya password");
+      setTechError(err.message || "Phone ya password galat hai");
     } finally { setLoading(false); }
   };
 
@@ -195,9 +199,9 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tech Support Email</label>
-                <input type="email" className={inputCls} placeholder="tech@yourdomain.com"
-                  value={techForm.email} onChange={e => setTechForm(f => ({ ...f, email: e.target.value }))} required />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                <input type="tel" className={inputCls} placeholder="9999999999"
+                  value={techForm.phone} onChange={e => setTechForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))} required maxLength={10} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
