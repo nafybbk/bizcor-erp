@@ -1,12 +1,13 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "src/vercel-entry.ts",
-      "use": "@vercel/node"
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "node vercel-build.mjs",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
-    { "src": "/(.*)", "dest": "/src/vercel-entry.ts" }
+    { "src": "/(.*)", "dest": "/api/index.js" }
   ]
 }

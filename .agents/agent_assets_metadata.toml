@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "zAHhzwifTSPwZP4yZAY2J"
+uri = "file://DEPLOY.md"
+type = "text"
+title = "Vercel + Supabase Deployment Guide"
