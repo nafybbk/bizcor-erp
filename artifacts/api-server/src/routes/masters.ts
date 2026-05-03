@@ -10,7 +10,7 @@ router.use(requireBusiness);
 // UNITS
 router.get("/units", async (req, res) => {
   try {
-    const units = await db.select().from(unitsTable).where(eq(unitsTable.businessId, req.user!.businessId!)).orderBy(unitsTable.name);
+    const units = await db.select().from(unitsTable).where(eq(unitsTable.businessId, req.user!.businessId!)).orderBy(unitsTable.sortOrder, unitsTable.id);
     res.json({ data: units });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
@@ -18,8 +18,20 @@ router.get("/units", async (req, res) => {
 router.post("/units", async (req, res) => {
   try {
     const { name, symbol } = req.body;
-    const [unit] = await db.insert(unitsTable).values({ businessId: req.user!.businessId!, name, symbol }).returning();
+    const existing = await db.select({ id: unitsTable.id }).from(unitsTable).where(eq(unitsTable.businessId, req.user!.businessId!));
+    const sortOrder = existing.length;
+    const [unit] = await db.insert(unitsTable).values({ businessId: req.user!.businessId!, name, symbol, sortOrder }).returning();
     res.status(201).json(unit);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/units/reorder", async (req, res) => {
+  try {
+    const { order } = req.body as { order: number[] };
+    await Promise.all(order.map((id, idx) =>
+      db.update(unitsTable).set({ sortOrder: idx }).where(and(eq(unitsTable.id, id), eq(unitsTable.businessId, req.user!.businessId!)))
+    ));
+    res.json({ success: true });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
@@ -81,9 +93,19 @@ router.delete("/hsn/:id", async (req, res) => {
 });
 
 // TAX RATES
+router.patch("/tax-rates/reorder", async (req, res) => {
+  try {
+    const { order } = req.body as { order: number[] };
+    await Promise.all(order.map((id, idx) =>
+      db.update(taxRatesTable).set({ sortOrder: idx }).where(and(eq(taxRatesTable.id, id), eq(taxRatesTable.businessId, req.user!.businessId!)))
+    ));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 router.get("/tax-rates", async (req, res) => {
   try {
-    const rates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, req.user!.businessId!)).orderBy(taxRatesTable.rate);
+    const rates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, req.user!.businessId!)).orderBy(taxRatesTable.sortOrder, taxRatesTable.id);
     const data = rates.map(r => ({
       ...r, rate: Number(r.rate),
       cgst: Number(r.rate) / 2, sgst: Number(r.rate) / 2, igst: Number(r.rate),
