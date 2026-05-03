@@ -954,7 +954,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isInterState ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
                 {isInterState ? "IGST" : "CGST + SGST"}
               </span>
-              <span className="text-xs text-gray-400">✓ = Include · GST Inc. = Rate includes GST</span>
+              <span className="text-xs text-gray-400">✓ = Include in total</span>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -966,7 +966,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                   <th className="px-3 py-2.5 text-left w-24">HSN</th>
                   <th className="px-3 py-2.5 text-right w-20">Qty</th>
                   <th className="px-3 py-2.5 text-left w-20">Unit</th>
-                  <th className="px-3 py-2.5 text-right w-28">Rate</th>
+                  <th className="px-3 py-2.5 text-right w-36">
+                    <div>Rate (Before GST)</div>
+                    <div className="font-normal text-gray-400 text-[10px]">Rate (After GST)</div>
+                  </th>
                   <th className="px-3 py-2.5 text-right w-24">Discount</th>
                   <th className="px-3 py-2.5 text-center w-28">Tax</th>
                   <th className="px-3 py-2.5 text-right w-24">Taxable</th>
@@ -1030,15 +1033,29 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         </select>
                       </td>
                       <td className="px-2 py-1.5">
-                        <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={item.rate} onChange={e => updateItem(idx, "rate", Number(e.target.value))} />
-                        <label className="flex items-center gap-1 mt-0.5 text-xs text-gray-500 cursor-pointer">
-                          <input type="checkbox" checked={item.rateIncludesGst} onChange={e => updateItem(idx, "rateIncludesGst", e.target.checked)} className="rounded" />
-                          GST Inc.
-                          {item.rateIncludesGst && item.taxRate > 0 && (
-                            <span className="text-blue-600 ml-1">(Base: {fmt.number(item.rate / (1 + item.taxRate / 100))})</span>
-                          )}
-                        </label>
+                        {/* Rate Before GST */}
+                        <div className="relative mb-1">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">B</span>
+                          <input type="number" min="0" step="0.01"
+                            className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={item.rate}
+                            onChange={e => updateItem(idx, "rate", Number(e.target.value))} />
+                        </div>
+                        {/* Rate After GST — auto-computes from rate + taxRate */}
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-500 pointer-events-none">A</span>
+                          <input type="number" min="0" step="0.01"
+                            className="border border-green-200 bg-green-50 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                            value={item.taxRate > 0 ? +((item.rate) * (1 + item.taxRate / 100)).toFixed(2) : item.rate}
+                            onChange={e => {
+                              const afterGst = Number(e.target.value);
+                              const beforeGst = item.taxRate > 0 ? afterGst / (1 + item.taxRate / 100) : afterGst;
+                              updateItem(idx, "rate", +beforeGst.toFixed(4));
+                            }} />
+                        </div>
+                        {item.taxRate > 0 && (
+                          <div className="text-[10px] text-gray-400 mt-0.5 text-right">GST {item.taxRate}%</div>
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
                         <div className="flex gap-1">
