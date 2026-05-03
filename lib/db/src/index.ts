@@ -10,12 +10,16 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-const isSupabase = process.env.DATABASE_URL.includes("supabase.com") || process.env.DATABASE_URL.includes("supabase.co") || process.env.DATABASE_URL.includes("pooler.supabase");
+const sslDisabled = process.env.DB_SSL === "false";
+const sslForced = process.env.DB_SSL === "true";
+const isSupabase = /supabase\.(com|co)/.test(process.env.DATABASE_URL) || process.env.DATABASE_URL.includes("pooler.supabase");
+const isProduction = process.env.NODE_ENV === "production";
+
+const useSSL = !sslDisabled && (sslForced || isSupabase || isProduction);
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DB_SSL === "false" ? false
-    : (isSupabase || process.env.DB_SSL === "true") ? { rejectUnauthorized: false }
-    : false,
+  ssl: useSSL ? { rejectUnauthorized: false } : false,
 });
 export const db = drizzle(pool, { schema });
 
