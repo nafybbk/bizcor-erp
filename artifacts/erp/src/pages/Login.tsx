@@ -100,7 +100,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <BizCorLogo size="lg" />
+          <BizCorLogo size="lg" animated />
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
