@@ -120,7 +120,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           #printable, #printable * { visibility: visible !important; }
           #printable { position: fixed; inset: 0; padding: 0; background: white; overflow: auto; }
           .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          .screen-only { display: none !important; }
           @page { margin: 10mm; size: A4; }
+        }
+        .print-only { display: none; }
 
           /* ── LASER PRINTER: Force black & white ── */
           /* All text → black */
@@ -219,7 +223,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   {docTitle}
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-gray-900">{voucher.voucherNumber}</div>
+                  {/* Screen: full number e.g. SI-1-00001 */}
+                  <div className="screen-only text-xl font-bold text-gray-900">{voucher.voucherNumber}</div>
+                  {/* Print: digits only e.g. 100001 */}
+                  <div className="print-only text-xl font-bold text-gray-900">{voucher.voucherNumber.replace(/[^0-9]/g, "")}</div>
                   <div className="text-sm text-gray-500 mt-0.5">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
                   {voucher.placeOfSupply && (
                     <div className="text-xs text-gray-500 mt-0.5">Place of Supply: {voucher.placeOfSupply}</div>

@@ -99,8 +99,10 @@ async function generateVoucherNumber(businessId: number, voucherType: VoucherTyp
   const prefix = prefixMap[voucherType];
   const sep = business?.numberSeparator ?? "-";
   const digits = Number(business?.numberDigits ?? 4);
+  const series = Number(business?.numberSeries ?? 1);
   const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
-  return `${prefix}${sep}${String(Number(cnt) + 1).padStart(digits, "0")}`;
+  // Screen format: SI-1-00001 (prefix + sep + series + sep + padded_serial)
+  return `${prefix}${sep}${series}${sep}${String(Number(cnt) + 1).padStart(digits, "0")}`;
 }
 
 async function createVoucher(req: any, res: any, voucherType: VoucherType) {

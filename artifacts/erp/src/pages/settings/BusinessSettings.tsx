@@ -234,18 +234,56 @@ export default function BusinessSettings() {
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Invoice Number Series</h3>
 
         {/* Preview */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
-          <div className="text-xs text-blue-600 font-medium mb-1">Preview — Agle invoice ka number kaisa dikhega:</div>
-          <div className="font-mono text-blue-800 font-bold text-lg tracking-wider">
-            {(form.invoicePrefix || "SI")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")}
-          </div>
-          <div className="text-xs text-blue-500 mt-1">
-            Purchase Bill: {(form.billPrefix || "PB")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")} &nbsp;·&nbsp;
-            Credit Note: {(form.creditNotePrefix || "CN")}{form.numberSeparator ?? "-"}{String(1).padStart(Number(form.numberDigits ?? 4), "0")}
-          </div>
-        </div>
+        {(() => {
+          const pfx = form.invoicePrefix || "SI";
+          const sep = form.numberSeparator ?? "-";
+          const series = form.numberSeries ?? 1;
+          const digits = Number(form.numberDigits ?? 4);
+          const screenNum = `${pfx}${sep}${series}${sep}${String(1).padStart(digits, "0")}`;
+          const printNum = `${series}${String(1).padStart(digits, "0")}`;
+          return (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-4 space-y-3">
+              <div>
+                <div className="text-xs text-blue-600 font-medium mb-1">Screen par dikhega (document list + form):</div>
+                <div className="font-mono text-blue-800 font-bold text-xl tracking-wider">{screenNum}</div>
+                <div className="text-xs text-blue-500 mt-1">
+                  Credit Note: {(form.creditNotePrefix || "CN")}{sep}{series}{sep}{String(1).padStart(digits, "0")} &nbsp;·&nbsp;
+                  Bill: {(form.billPrefix || "PB")}{sep}{series}{sep}{String(1).padStart(digits, "0")} &nbsp;·&nbsp;
+                  Debit Note: {(form.debitNotePrefix || "DN")}{sep}{series}{sep}{String(1).padStart(digits, "0")}
+                </div>
+              </div>
+              <div className="border-t border-blue-200 pt-3">
+                <div className="text-xs text-orange-600 font-medium mb-1">Print/PDF par dikhega (sirf numbers, koi alphabet/separator nahi):</div>
+                <div className="font-mono text-orange-800 font-bold text-xl tracking-wider">{printNum}</div>
+                <div className="text-xs text-orange-500 mt-1">= Series ({series}) + Serial ({String(1).padStart(digits, "0")})</div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-2 gap-4">
+          {/* Series Number — highlighted prominently */}
+          <div className="col-span-2 bg-amber-50 border border-amber-300 rounded-xl p-4">
+            <label className="block text-sm font-bold text-amber-800 mb-1">
+              Series Number <span className="font-normal text-amber-600">(Print mein pehla digit)</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number" min="1" max="9"
+                className="w-24 border-2 border-amber-400 rounded-lg px-3 py-2 text-lg font-bold text-amber-900 text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                value={form.numberSeries ?? 1}
+                onChange={e => setForm((f: any) => ({ ...f, numberSeries: Number(e.target.value) }))}
+              />
+              <div className="text-sm text-amber-700">
+                <p className="font-medium">Abhi series: <span className="font-mono text-xl">{form.numberSeries ?? 1}</span></p>
+                <p className="text-xs text-amber-600 mt-0.5">Naya financial year ya book change par badlein — 1 se 9 tak</p>
+              </div>
+            </div>
+            <div className="mt-2 px-3 py-2 bg-amber-100 rounded-lg text-xs text-amber-700">
+              ⚠️ Series badalne par naye documents ka number change ho jayega. Purane documents waise hi rahenge.
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label>
             <input className={inputCls} value={form.invoicePrefix || "SI"} onChange={e => setForm((f: any) => ({ ...f, invoicePrefix: e.target.value.toUpperCase() }))} placeholder="SI" maxLength={10} />
@@ -269,12 +307,11 @@ export default function BusinessSettings() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Separator</label>
             <select className={inputCls} value={form.numberSeparator ?? "-"} onChange={e => setForm((f: any) => ({ ...f, numberSeparator: e.target.value }))}>
-              <option value="-">Hyphen  (INV-0001)</option>
-              <option value="/">Slash  (INV/0001)</option>
-              <option value="">Kuch nahi  (INV0001)</option>
-              <option value=".">Dot  (INV.0001)</option>
+              <option value="-">Hyphen  (SI-1-0001)</option>
+              <option value="/">Slash  (SI/1/0001)</option>
+              <option value=".">Dot  (SI.1.0001)</option>
             </select>
-            <p className="text-xs text-gray-400 mt-1">Prefix aur number ke beech</p>
+            <p className="text-xs text-gray-400 mt-1">Prefix, series aur number ke beech</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Number Digits (zero padding)</label>
@@ -284,7 +321,7 @@ export default function BusinessSettings() {
               <option value="5">5 digits — 00001, 00002 ... 99999</option>
               <option value="6">6 digits — 000001, 000002 ...</option>
             </select>
-            <p className="text-xs text-gray-400 mt-1">Number se pehle kitne zero</p>
+            <p className="text-xs text-gray-400 mt-1">Serial number mein kitne zero</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number Mode</label>

@@ -56,6 +56,7 @@ export const businessesTable = pgTable("businesses", {
   billPrefix: text("bill_prefix").default("PB"),
   debitNotePrefix: text("debit_note_prefix").default("DN"),
   serialNumberMode: text("serial_number_mode").default("auto"),
+  numberSeries: integer("number_series").default(1),
   numberDigits: integer("number_digits").default(4),
   numberSeparator: text("number_separator").default("-"),
   bankName: text("bank_name"),
