@@ -564,6 +564,92 @@ router.post("/create-super-admin", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── All Users Management ─────────────────────────────────────────────────────
+
+router.get("/users", async (req, res) => {
+  try {
+    const search = (req.query.search as string || "").toLowerCase();
+    const statusFilter = req.query.status as string; // "active" | "blocked" | ""
+    const bizId = req.query.businessId ? Number(req.query.businessId) : null;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 50;
+
+    const allUsers = await db.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email,
+      role: usersTable.role, isActive: usersTable.isActive,
+      lastSeenAt: usersTable.lastSeenAt, createdAt: usersTable.createdAt,
+      businessId: usersTable.businessId,
+      bizName: businessesTable.name, bizCode: businessesTable.businessCode,
+      gstin: businessesTable.gstin, pan: businessesTable.pan,
+      bizPhone: businessesTable.phone, bizEmail: businessesTable.email,
+      bizStatus: businessesTable.status, planId: businessesTable.planId,
+      planExpiresAt: businessesTable.planExpiresAt, isTrial: businessesTable.isTrial,
+    }).from(usersTable)
+      .leftJoin(businessesTable, eq(usersTable.businessId, businessesTable.id))
+      .orderBy(desc(usersTable.createdAt));
+
+    const allPlans = await db.select().from(plansTable);
+    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).groupBy(usersTable.businessId);
+    const redeemedVouchers = await db.select({ businessId: licenseVouchersTable.redeemedByBusinessId, code: licenseVouchersTable.code })
+      .from(licenseVouchersTable).where(sql`${licenseVouchersTable.redeemedByBusinessId} IS NOT NULL`);
+    const lastLogins = await db.select({ userId: loginLogsTable.userId, loggedAt: sql<Date>`MAX(${loginLogsTable.createdAt})` })
+      .from(loginLogsTable).where(sql`${loginLogsTable.userId} IS NOT NULL`).groupBy(loginLogsTable.userId);
+
+    let enriched = allUsers.map(u => {
+      const plan = allPlans.find(p => p.id === u.planId) || null;
+      return {
+        ...u,
+        planName: plan?.name || null,
+        maxUsers: plan?.maxUsers || null,
+        userCount: Number(userCounts.find(c => c.businessId === u.businessId)?.cnt || 0),
+        voucherCode: redeemedVouchers.find(v => v.businessId === u.businessId)?.code || null,
+        lastLogin: lastLogins.find(l => l.userId === u.id)?.loggedAt || null,
+        isExpired: u.planExpiresAt ? new Date(u.planExpiresAt) < new Date() : false,
+      };
+    });
+
+    if (search) enriched = enriched.filter(u =>
+      u.name?.toLowerCase().includes(search) ||
+      u.email?.toLowerCase().includes(search) ||
+      u.bizName?.toLowerCase().includes(search) ||
+      u.bizCode?.toLowerCase().includes(search) ||
+      u.gstin?.toLowerCase().includes(search) ||
+      u.bizPhone?.includes(search)
+    );
+    if (statusFilter === "active") enriched = enriched.filter(u => u.isActive);
+    if (statusFilter === "blocked") enriched = enriched.filter(u => !u.isActive);
+    if (bizId) enriched = enriched.filter(u => u.businessId === bizId);
+
+    const total = enriched.length;
+    const data = enriched.slice((page - 1) * limit, page * limit);
+    res.json({ data, total, page, limit });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/users/:id/password", async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 4) {
+      res.status(400).json({ error: "Password kam se kam 4 characters ka hona chahiye" }); return;
+    }
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, Number(req.params.id)) });
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const passwordHash = await bcrypt.hash(password, 10);
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, Number(req.params.id)));
+    res.json({ success: true, message: `${user.name} ka password reset ho gaya` });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/users/:id/block", async (req, res) => {
+  try {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, Number(req.params.id)) });
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const [updated] = await db.update(usersTable).set({ isActive: !user.isActive })
+      .where(eq(usersTable.id, Number(req.params.id))).returning();
+    res.json({ id: updated.id, isActive: updated.isActive, message: updated.isActive ? `${user.name} ko unblock kar diya` : `${user.name} ko block kar diya` });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── Login Activity & Active Users ────────────────────────────────────────────
 
 router.get("/login-logs", async (req, res) => {
