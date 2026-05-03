@@ -28,6 +28,33 @@ router.get("/lookup-business", async (req, res) => {
   }
 });
 
+// ── Tech Login (phone + password) ──────────────────────────────────────────
+router.post("/tech-login", async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    if (!phone || !password) {
+      res.status(400).json({ error: "Bad Request", message: "Phone and password required" });
+      return;
+    }
+    const admin = await db.query.superAdminsTable.findFirst({
+      where: eq(superAdminsTable.phone, phone.trim()),
+    });
+    if (!admin || !admin.isActive) {
+      res.status(401).json({ error: "Unauthorized", message: "Phone number registered nahi hai ya account inactive hai" });
+      return;
+    }
+    if (!await bcrypt.compare(password, admin.passwordHash)) {
+      res.status(401).json({ error: "Unauthorized", message: "Password galat hai" });
+      return;
+    }
+    const token = signToken({ id: admin.id, email: admin.email, name: admin.name, role: "super_admin" });
+    res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: "super_admin" } });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password, businessCode } = req.body;
@@ -37,15 +64,6 @@ router.post("/login", async (req, res) => {
     }
 
     if (!businessCode) {
-      // Try super admin login (case-insensitive email)
-      const admin = await db.query.superAdminsTable.findFirst({
-        where: eq(superAdminsTable.email, email.toLowerCase()),
-      });
-      if (admin && await bcrypt.compare(password, admin.passwordHash)) {
-        const token = signToken({ id: admin.id, email: admin.email, name: admin.name, role: "super_admin" });
-        res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: "super_admin" } });
-        return;
-      }
       // Try to auto-find business by email
       const users = await db.select({ businessId: usersTable.businessId, passwordHash: usersTable.passwordHash })
         .from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
