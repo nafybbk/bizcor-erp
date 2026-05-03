@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Plus, Search, Loader2, Trash2, Edit2, X, Download } from "lucide-react";
+import { saveDraft } from "@/lib/offlineQueue";
+import { cacheItems } from "@/lib/masterCache";
+import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
 
 const emptyForm = { name: "", description: "", type: "goods" as "goods"|"service", hsnCode: "", unitId: "", taxRateId: "", salePrice: "", purchasePrice: "", openingStock: "", lowStockAlert: "" };
 
@@ -25,12 +27,17 @@ export default function Items() {
       .then(([u, t]) => { setUnits(u.data); setTaxRates(t.data); }).catch(console.error);
   }, []);
 
+  const [offlineSaved, setOfflineSaved] = useState(false);
+
   const load = () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) params.set("search", search);
     api.get<any>(`/items?${params}`)
-      .then(r => { setItems(r.data); setTotal(r.total); })
+      .then(r => {
+        setItems(r.data); setTotal(r.total);
+        if (!search && page === 1) cacheItems(r.data || []);
+      })
       .catch(console.error).finally(() => setLoading(false));
   };
 
@@ -44,13 +51,27 @@ export default function Items() {
   };
 
   const save = async () => {
-    setSaving(true); setError("");
+    setSaving(true); setError(""); setOfflineSaved(false);
     try {
       const payload = { ...form, unitId: form.unitId ? Number(form.unitId) : undefined, taxRateId: form.taxRateId ? Number(form.taxRateId) : undefined };
       if (editId) await api.patch(`/items/${editId}`, payload);
       else await api.post("/items", payload);
       setShowModal(false); load();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      const isNetwork = !navigator.onLine || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError");
+      if (isNetwork && !editId) {
+        saveDraft({
+          label: `New Item: ${form.name || "—"}`,
+          endpoint: "/items",
+          method: "POST",
+          payload: { ...form, unitId: form.unitId ? Number(form.unitId) : undefined, taxRateId: form.taxRateId ? Number(form.taxRateId) : undefined },
+        });
+        setOfflineSaved(true);
+        setShowModal(false);
+      } else {
+        setError(err.message);
+      }
+    }
     finally { setSaving(false); }
   };
 
@@ -81,6 +102,13 @@ export default function Items() {
 
   return (
     <div className="max-w-5xl space-y-4">
+      {offlineSaved && (
+        <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-3 text-sm">
+          <CloudOff className="w-4 h-4 shrink-0 text-orange-500" />
+          <span><strong>Offline Draft Save Ho Gaya!</strong> Internet aane par "Offline Drafts" se submit karo.</span>
+          <button onClick={() => setOfflineSaved(false)} className="ml-auto text-orange-400 hover:text-orange-600">✕</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Items</h1>
         <div className="flex gap-2">
