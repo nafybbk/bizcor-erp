@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Adeena Handloom – Animated Logo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #130810;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, 'Palatino Linotype', serif;
+  }
+  .wrapper {
+    position: relative;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.8s ease, transform 0.9s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .wrapper.show { opacity: 1; transform: scale(1); }
+
+  .outer-glow {
+    position: absolute;
+    inset: -28px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(180,100,30,0.22) 0%, rgba(140,40,60,0.12) 50%, transparent 75%);
+    opacity: 0;
+    transition: opacity 1s ease 0.4s;
+    pointer-events: none;
+  }
+  .outer-glow.show { opacity: 1; }
+
+  .logo-circle {
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 2.5px rgba(212,160,70,0.55),
+      0 0 0 5px rgba(180,90,30,0.2),
+      0 16px 60px rgba(150,40,50,0.5),
+      0 4px 20px rgba(0,0,0,0.6);
+  }
+
+  canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .text-layer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    pointer-events: none;
+  }
+
+  .deco-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: scaleX(0);
+    transition: opacity 0.6s ease 0.4s, transform 0.7s ease 0.4s;
+  }
+  .deco-line.show { opacity: 1; transform: scaleX(1); }
+  .deco-line .hr { height: 1.5px; width: 36px; }
+  .deco-line .hr-l { background: linear-gradient(90deg, transparent, rgba(212,160,70,0.9)); }
+  .deco-line .hr-r { background: linear-gradient(90deg, rgba(212,160,70,0.9), transparent); }
+
+  .brand-adeena {
+    font-size: 58px;
+    font-weight: 700;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: #e8c060;
+    text-shadow: 0 0 18px rgba(212,160,60,0.55), 0 2px 6px rgba(0,0,0,0.5);
+    line-height: 1;
+    margin: 10px 0 0;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.7s ease 0.3s, transform 0.7s cubic-bezier(0.34,1.56,0.64,1) 0.3s;
+  }
+  .brand-adeena.show { opacity: 1; transform: translateY(0); }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 7px 0;
+    opacity: 0;
+    transition: opacity 0.5s ease 0.7s;
+  }
+  .divider.show { opacity: 1; }
+  .divider .dl { width: 28px; height: 1px; }
+  .divider .dl-l { background: linear-gradient(90deg, transparent, rgba(212,160,70,0.7)); }
+  .divider .dl-r { background: linear-gradient(90deg, rgba(212,160,70,0.7), transparent); }
+  .divider .dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(212,160,70,0.85); }
+
+  .brand-handloom {
+    font-size: 35px;
+    font-weight: 400;
+    letter-spacing: 7px;
+    text-transform: uppercase;
+    color: rgba(245,215,140,0.88);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.6s ease 0.55s, transform 0.6s ease 0.55s;
+  }
+  .brand-handloom.show { opacity: 1; transform: translateY(0); }
+
+  .deco-line-bot {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: scaleX(0);
+    transition: opacity 0.5s ease 0.4s, transform 0.6s ease 0.4s;
+  }
+  .deco-line-bot.show { opacity: 1; transform: scaleX(1); }
+
+  .naewt-strip {
+    margin-top: 12px;
+    background: rgba(0,0,0,0.88);
+    border: 1px solid rgba(212,160,50,0.35);
+    border-radius: 6px;
+    padding: 7px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.5s ease 0.8s;
+  }
+  .naewt-strip.show { opacity: 1; }
+  .naewt-by {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 1.2px;
+    color: #d4a040;
+  }
+  .naewt-name {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: #f5d870;
+    text-shadow: 0 0 8px rgba(240,200,80,0.7), 0 0 16px rgba(212,160,40,0.4);
+  }
+
+  @keyframes shimmer-slide {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .shimmer {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(105deg, transparent 40%, rgba(255,220,140,0.07) 50%, transparent 60%);
+    background-size: 200% 100%;
+    animation: shimmer-slide 3.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper" id="wrapper">
+  <div class="outer-glow" id="outerGlow"></div>
+  <div class="logo-circle">
+    <canvas id="cvs" width="400" height="400"></canvas>
+
+    <!-- Text layer -->
+    <div class="text-layer">
+      <div class="deco-line" id="decoTop">
+        <div class="hr hr-l"></div>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" id="booti-top"></svg>
+        <div class="hr hr-r"></div>
+      </div>
+
+      <div class="brand-adeena" id="brandAdeena">ADEENA</div>
+
+      <div class="divider" id="divider">
+        <div class="dl dl-l"></div>
+        <div class="dot"></div>
+        <div class="dl dl-r"></div>
+      </div>
+
+      <div class="brand-handloom" id="brandHandloom">HANDLOOM</div>
+
+      <div class="deco-line-bot" id="decoBot">
+        <div class="hr hr-l"></div>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" id="booti-bot"></svg>
+        <div class="hr hr-r"></div>
+      </div>
+
+      <div class="naewt-strip" id="naewtStrip">
+        <span class="naewt-by">Powered By</span>
+        <span class="naewt-name">NAEWT</span>
+      </div>
+    </div>
+    <div class="shimmer"></div>
+  </div>
+</div>
+
+<script>
+// ── Booti SVG builder ──
+function buildBooti(svgEl, size, color) {
+  svgEl.setAttribute('width', size);
+  svgEl.setAttribute('height', size);
+  svgEl.setAttribute('viewBox', '0 0 24 24');
+  const ns = 'http://www.w3.org/2000/svg';
+  const cx = 12, cy = 12;
+  const c = document.createElementNS(ns,'circle');
+  c.setAttribute('cx',cx); c.setAttribute('cy',cy); c.setAttribute('r','2'); c.setAttribute('fill',color);
+  svgEl.appendChild(c);
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2, x=cx+Math.cos(a)*4.8, y=cy+Math.sin(a)*4.8;
+    const e=document.createElementNS(ns,'ellipse');
+    e.setAttribute('cx',x); e.setAttribute('cy',y);
+    e.setAttribute('rx','1.6'); e.setAttribute('ry','2.6');
+    e.setAttribute('transform',`rotate(${i*60} ${x} ${y})`);
+    e.setAttribute('fill',color); svgEl.appendChild(e);
+  }
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+Math.PI/6, x=cx+Math.cos(a)*8.5, y=cy+Math.sin(a)*8.5;
+    const d=document.createElementNS(ns,'circle');
+    d.setAttribute('cx',x); d.setAttribute('cy',y); d.setAttribute('r','0.9'); d.setAttribute('fill',color);
+    svgEl.appendChild(d);
+  }
+}
+buildBooti(document.getElementById('booti-top'), 13, 'rgba(212,160,70,0.95)');
+buildBooti(document.getElementById('booti-bot'), 13, 'rgba(212,160,70,0.9)');
+
+// ── Canvas drawing ──
+const cvs = document.getElementById('cvs');
+const ctx = cvs.getContext('2d');
+const W = 400, R = 200;
+const startTime = performance.now();
+
+// Booti positions
+const booties = [];
+for(let i=0;i<28;i++){
+  const a=(i/28)*Math.PI*2, r=130+Math.sin(i*1.7)*30;
+  booties.push({ x: R+Math.cos(a)*r, y: R+Math.sin(a)*r, s: 12+(i%3)*5 });
+}
+for(let i=0;i<14;i++){
+  const a=(i/14)*Math.PI*2+0.22;
+  booties.push({ x: R+Math.cos(a)*75, y: R+Math.sin(a)*75, s: 9 });
+}
+
+// Bandhej circles
+const bandhej = [
+  {cx:75,cy:80,r:42},{cx:320,cy:340,r:48},{cx:340,cy:60,r:30},
+  {cx:68,cy:320,r:35},{cx:310,cy:85,r:22},{cx:90,cy:295,r:22},
+  {cx:200,cy:26,r:18},{cx:200,cy:374,r:18}
+];
+
+// Multi-shade segment colors
+const multiColors = [
+  'rgba(160,80,220,0.85)','rgba(212,160,70,0.85)','rgba(30,160,100,0.8)',
+  'rgba(220,60,100,0.8)','rgba(60,140,220,0.8)','rgba(200,120,240,0.85)',
+  'rgba(240,180,60,0.8)','rgba(50,180,120,0.8)'
+];
+
+function drawBooti(x, y, size, color, opacity) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.translate(x, y);
+  const r1=size*0.16, r2=size*0.4, r3=size*0.71;
+  ctx.beginPath(); ctx.arc(0,0,r1,0,Math.PI*2); ctx.fillStyle=color; ctx.fill();
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2, px=Math.cos(a)*r2, py=Math.sin(a)*r2;
+    ctx.save(); ctx.translate(px,py); ctx.rotate(a);
+    ctx.beginPath(); ctx.ellipse(0,0,r1*0.85,r1*1.4,0,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.fill(); ctx.restore();
+  }
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+Math.PI/6;
+    ctx.beginPath(); ctx.arc(Math.cos(a)*r3,Math.sin(a)*r3,r1*0.55,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
+  }
+  ctx.restore();
+}
+
+let phase = 0;
+function applyPhase(p) {
+  phase = p;
+  if(p>=1){ document.getElementById('wrapper').classList.add('show'); document.getElementById('outerGlow').classList.add('show'); }
+  if(p>=3){ document.getElementById('decoTop').classList.add('show'); }
+  if(p>=4){ document.getElementById('brandAdeena').classList.add('show'); document.getElementById('divider').classList.add('show'); document.getElementById('brandHandloom').classList.add('show'); }
+  if(p>=5){ document.getElementById('decoBot').classList.add('show'); document.getElementById('naewtStrip').classList.add('show'); }
+}
+setTimeout(()=>applyPhase(1),200);
+setTimeout(()=>applyPhase(2),700);
+setTimeout(()=>applyPhase(3),1300);
+setTimeout(()=>applyPhase(4),1900);
+setTimeout(()=>applyPhase(5),2500);
+
+function draw(ts) {
+  const t = (ts - startTime) / 1000;
+  const waveOff = Math.sin(t * 0.7) * 3;
+  ctx.clearRect(0, 0, W, W);
+
+  // Clip circle
+  ctx.save();
+  ctx.beginPath(); ctx.arc(R,R,R,0,Math.PI*2); ctx.clip();
+
+  // Tie-dye background
+  const bg1 = ctx.createRadialGradient(160,152,0,160,152,220);
+  bg1.addColorStop(0,'#7a1230'); bg1.addColorStop(0.35,'#92183a');
+  bg1.addColorStop(0.7,'#60091e'); bg1.addColorStop(1,'#380510');
+  ctx.fillStyle=bg1; ctx.fillRect(0,0,W,W);
+  const bg2 = ctx.createRadialGradient(280,272,0,280,272,200);
+  bg2.addColorStop(0,'rgba(131,22,37,0.9)'); bg2.addColorStop(0.5,'rgba(83,11,24,0.7)'); bg2.addColorStop(1,'rgba(54,4,16,0)');
+  ctx.fillStyle=bg2; ctx.fillRect(0,0,W,W);
+  const bg3 = ctx.createRadialGradient(220,72,0,220,72,152);
+  bg3.addColorStop(0,'rgba(181,36,72,0.45)'); bg3.addColorStop(1,'rgba(56,5,16,0)');
+  ctx.fillStyle=bg3; ctx.fillRect(0,0,W,W);
+  const bg4 = ctx.createRadialGradient(72,312,0,72,312,140);
+  bg4.addColorStop(0,'rgba(196,101,10,0.3)'); bg4.addColorStop(1,'rgba(56,5,16,0)');
+  ctx.fillStyle=bg4; ctx.fillRect(0,0,W,W);
+  const bg5 = ctx.createRadialGradient(328,80,0,328,80,120);
+  bg5.addColorStop(0,'rgba(24,68,107,0.28)'); bg5.addColorStop(1,'rgba(56,5,16,0)');
+  ctx.fillStyle=bg5; ctx.fillRect(0,0,W,W);
+
+  // Bandhej rings
+  if(phase>=2){
+    bandhej.forEach(b=>{
+      ctx.save(); ctx.globalAlpha=0.85;
+      // Outer dashed ring
+      ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(212,160,70,0.3)'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.stroke();
+      ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r*0.6,0,Math.PI*2);
+      ctx.strokeStyle='rgba(212,160,70,0.22)'; ctx.lineWidth=1; ctx.setLineDash([2,3]); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(b.cx,b.cy,b.r*0.25,0,Math.PI*2);
+      ctx.fillStyle='rgba(20,110,50,0.75)'; ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // Center glow
+  if(phase>=3){
+    const cg=ctx.createRadialGradient(R,R,0,R,R,R*0.75);
+    cg.addColorStop(0,'rgba(200,130,50,0.2)'); cg.addColorStop(1,'rgba(200,130,50,0)');
+    ctx.fillStyle=cg; ctx.fillRect(0,0,W,W);
+  }
+
+  // Booties
+  if(phase>=3){
+    ctx.globalAlpha=0.75;
+    booties.forEach(b=>drawBooti(b.x,b.y,b.s,'rgba(212,160,70,0.65)',1));
+    ctx.globalAlpha=1;
+  }
+
+  // Multi-shade outer ring segments
+  if(phase>=2){
+    const segs=40, rr=R-8+waveOff*0.4;
+    const circ=2*Math.PI*rr, segLen=circ/segs, gap=3, dash=segLen-gap;
+    for(let i=0;i<segs;i++){
+      const color=multiColors[i%multiColors.length];
+      const startA=(i*segLen)/rr - Math.PI/2;
+      const endA=startA+(dash/rr);
+      ctx.beginPath(); ctx.arc(R,R,rr,startA,endA);
+      ctx.strokeStyle=color; ctx.lineWidth=3; ctx.lineCap='round'; ctx.setLineDash([]); ctx.stroke();
+    }
+    // Second ring purple dashes
+    ctx.beginPath(); ctx.arc(R,R,R-18+waveOff*0.3,0,Math.PI*2);
+    ctx.strokeStyle='rgba(160,80,220,0.45)'; ctx.lineWidth=1; ctx.setLineDash([3,4]); ctx.stroke();
+    ctx.setLineDash([]);
+    // Inner ring
+    ctx.beginPath(); ctx.arc(R,R,R-30,0,Math.PI*2);
+    ctx.strokeStyle='rgba(212,160,70,0.2)'; ctx.lineWidth=0.8; ctx.stroke();
+    // Rotating purple dots
+    for(let i=0;i<24;i++){
+      const a=(i/24)*Math.PI*2+t*0.15;
+      const bx=R+Math.cos(a)*(R-13), by=R+Math.sin(a)*(R-13);
+      ctx.beginPath(); ctx.arc(bx,by,i%3===0?2.2:1.2,0,Math.PI*2);
+      ctx.fillStyle=i%3===0?'rgba(160,80,220,0.85)':'rgba(180,100,240,0.6)';
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
