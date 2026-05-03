@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X } from "lucide-react";
+import { saveDraft } from "@/lib/offlineQueue";
+import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff } from "lucide-react";
 
 // Business type → invoice-level and item-level custom fields config
 const BIZ_FIELDS: Record<string, {
@@ -188,6 +189,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [creditInfo, setCreditInfo] = useState<{ outstanding: number; creditLimit: number } | null>(null);
   const [creditWarning, setCreditWarning] = useState<{ outstanding: number; creditLimit: number; newBill: number } | null>(null);
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<any>(null);
+  const [offlineSaved, setOfflineSaved] = useState(false);
 
   const [form, setForm] = useState({
     date: fmt.today(),
@@ -375,7 +377,24 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       else await api.post(`/${voucherType}`, payload);
       navigate(listHref);
     } catch (err: any) {
-      setError(err.message);
+      // Network/offline error → save to offline queue
+      const isNetworkErr = err.message === "Failed to fetch" || err.message?.includes("NetworkError") || err.message?.includes("network");
+      if (isNetworkErr && !editId) {
+        const partyLabel = form.partyName || "Unknown Party";
+        const typeLabel = voucherType.replace(/\//g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        saveDraft({
+          label: `${typeLabel} — ${partyLabel} (Draft)`,
+          endpoint: `/${voucherType}`,
+          method: "POST",
+          payload,
+          voucherType,
+        });
+        setError("");
+        setOfflineSaved(true);
+        setTimeout(() => navigate(listHref), 2500);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -483,6 +502,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         </div>
 
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>}
+        {offlineSaved && (
+          <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-lg flex items-center gap-2">
+            <CloudOff className="w-4 h-4 flex-shrink-0" />
+            <span>Offline hai — draft save ho gaya. Internet aane par "Offline Drafts" se submit karo.</span>
+          </div>
+        )}
 
         {/* Header */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 grid grid-cols-2 gap-4">

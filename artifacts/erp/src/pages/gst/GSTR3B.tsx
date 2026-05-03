@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import BusinessHeader from "@/components/BusinessHeader";
 
 export default function GSTR3B() {
   const now = new Date();
@@ -41,6 +42,9 @@ export default function GSTR3B() {
 
   return (
     <div className="max-w-4xl space-y-5">
+      <div className="print:block hidden">
+        <BusinessHeader title="GSTR-3B Return" period={`${months[month - 1]} ${year}`} />
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">GSTR-3B</h1>
         <div className="flex items-center gap-3">

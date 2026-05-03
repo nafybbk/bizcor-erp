@@ -1,97 +1,132 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { getDraftCount } from "@/lib/offlineQueue";
 import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
+  UserCircle, CloudOff,
 } from "lucide-react";
 
 interface NavItem {
   label: string;
   href?: string;
-  icon: React.ReactNode;
-  children?: { label: string; href: string }[];
+  icon?: React.ReactNode;
+  children?: NavItem[];
 }
 
-function NavLink({ href, children, icon, active }: { href: string; children: React.ReactNode; icon: React.ReactNode; active: boolean }) {
+function NavLink({ href, icon, active, children }: { href: string; icon?: React.ReactNode; active: boolean; children: React.ReactNode }) {
   return (
     <Link href={href}>
-      <div className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}>
-        <span className="w-4 h-4 flex-shrink-0">{icon}</span>
-        <span>{children}</span>
-      </div>
+      <a className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
+        active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}>
+        {icon}
+        <span className="truncate">{children}</span>
+      </a>
     </Link>
   );
 }
 
 function NavGroup({ item, location }: { item: NavItem; location: string }) {
-  const isActive = item.children?.some(c => c.href === location) || false;
-  const [open, setOpen] = useState(isActive);
+  const isChildActive = item.children?.some(c => c.href === location);
+  const [open, setOpen] = useState(isChildActive);
 
-  if (item.children) {
+  useEffect(() => { if (isChildActive) setOpen(true); }, [location]);
+
+  if (!item.children) {
     return (
-      <div>
-        <button
-          onClick={() => setOpen(!open)}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${isActive ? "text-white bg-slate-700" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}
-        >
-          <span className="w-4 h-4 flex-shrink-0">{item.icon}</span>
-          <span className="flex-1 text-left">{item.label}</span>
-          {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        </button>
-        {open && (
-          <div className="ml-7 mt-1 space-y-0.5">
-            {item.children.map(child => (
-              <Link key={child.href} href={child.href}>
-                <div className={`px-3 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${location === child.href ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-700 hover:text-white"}`}>
-                  {child.label}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <NavLink href={item.href!} icon={item.icon} active={location === item.href}>
+        {item.label}
+      </NavLink>
     );
   }
 
   return (
-    <NavLink href={item.href!} icon={item.icon} active={location === item.href}>
-      {item.label}
-    </NavLink>
+    <div>
+      <button onClick={() => setOpen(!open)}
+        className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+          isChildActive ? "bg-slate-700 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}>
+        {item.icon}
+        <span className="flex-1 text-left">{item.label}</span>
+        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+      </button>
+      {open && (
+        <div className="ml-3 pl-3 border-l border-slate-700 mt-0.5 space-y-0.5">
+          {item.children.map((child, i) => (
+            <NavLink key={i} href={child.href!} icon={child.icon} active={location === child.href}>
+              {child.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, business, logout, isSuperAdmin } = useAuth();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
+  const [bizLogo, setBizLogo] = useState<string | null>(null);
+  const [draftCount, setDraftCount] = useState(getDraftCount());
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
 
-  useEffect(() => {
-    // PWA install prompt
-    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => { setInstalled(true); setInstallPrompt(null); });
-    // Check if already installed
-    if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+  // Load firm logo
+  const loadLogo = useCallback(() => {
+    const cached = localStorage.getItem("erp_biz_profile");
+    if (cached) {
+      try { const p = JSON.parse(cached); if (p.logo) setBizLogo(p.logo); } catch { }
+    }
+    if (!isSuperAdmin()) {
+      api.get<any>("/businesses/current").then(b => {
+        if (b.logo) setBizLogo(b.logo);
+        else setBizLogo(null);
+        localStorage.setItem("erp_biz_profile", JSON.stringify(b));
+      }).catch(() => {});
+    }
+  }, []);
+
+  // Track offline draft count
+  const refreshDraftCount = useCallback(() => {
+    setDraftCount(getDraftCount());
   }, []);
 
   useEffect(() => {
-    // Check online status
+    loadLogo();
+
+    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => { setInstalled(true); setInstallPrompt(null); });
+    if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
+
+    // Offline queue listener
+    window.addEventListener("offline-queue-change", refreshDraftCount);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("offline-queue-change", refreshDraftCount);
+    };
+  }, []);
+
+  useEffect(() => {
     const checkOnline = () => {
-      api.get("/healthz").then(() => setIsOnline(true)).catch(() => setIsOnline(false));
+      const wasOffline = !isOnline;
+      api.get("/healthz").then(() => {
+        setIsOnline(true);
+        // Came back online — remind user about drafts
+        if (wasOffline && getDraftCount() > 0) setShowDraftNotice(true);
+      }).catch(() => setIsOnline(false));
     };
     checkOnline();
     const interval = setInterval(checkOnline, 30000);
 
-    // Load software name from settings (for super admin) or localStorage
     const cached = localStorage.getItem("erp_app_name");
     if (cached) setSoftwareName(cached);
     if (isSuperAdmin()) {
@@ -102,6 +137,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Reload logo when navigating back from profile/settings
+  useEffect(() => {
+    if (location === "/" || location === "/settings/business") loadLogo();
+  }, [location]);
 
   const businessNav: NavItem[] = [
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -173,19 +213,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-56" : "w-0 overflow-hidden"} bg-slate-900 flex-shrink-0 flex flex-col transition-all duration-200`}>
-        {/* Logo */}
-        <div className="p-4 border-b border-slate-700">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-4 h-4 text-white" />
+
+        {/* Firm Header — clickable → Firm Profile */}
+        <Link href="/profile">
+          <a className="block p-4 border-b border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer group">
+            <div className="flex items-center gap-2.5">
+              {/* Logo or icon */}
+              <div className="w-8 h-8 flex-shrink-0 rounded-lg overflow-hidden bg-blue-600 flex items-center justify-center">
+                {bizLogo
+                  ? <img src={bizLogo} alt="Logo" className="w-full h-full object-contain" />
+                  : <Building2 className="w-4 h-4 text-white" />
+                }
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-white font-bold text-sm leading-tight truncate">{softwareName}</div>
+                {business && <div className="text-slate-400 text-xs truncate group-hover:text-blue-400">{business.name}</div>}
+                {isSuperAdmin() && <div className="text-yellow-400 text-xs flex items-center gap-1"><ShieldCheck className="w-3 h-3" />Tech Support</div>}
+              </div>
             </div>
-            <div className="min-w-0">
-              <div className="text-white font-bold text-sm leading-tight truncate">{softwareName}</div>
-              {business && <div className="text-slate-400 text-xs truncate">{business.name}</div>}
-              {isSuperAdmin() && <div className="text-yellow-400 text-xs flex items-center gap-1"><ShieldCheck className="w-3 h-3" />Tech Support</div>}
-            </div>
-          </div>
-        </div>
+          </a>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
@@ -194,28 +241,44 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        {/* User footer */}
-        <div className="p-3 border-t border-slate-700">
-          {/* Online/Offline indicator */}
-          <div className={`flex items-center gap-2 px-2 py-1 mb-2 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
+        {/* Bottom — User + status */}
+        <div className="p-3 border-t border-slate-700 space-y-1.5">
+          {/* Online/Offline */}
+          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
             {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             <span>{isOnline ? "Connected" : "Offline"}</span>
+            {/* Pending drafts badge */}
+            {draftCount > 0 && (
+              <button onClick={() => navigate("/offline-drafts")}
+                className="ml-auto flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
+                <CloudOff className="w-3 h-3" />
+                {draftCount} draft{draftCount > 1 ? "s" : ""}
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-            <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {user?.name?.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-white text-xs font-medium truncate">{user?.name}</div>
-              <div className="text-slate-400 text-xs truncate">{isSuperAdmin() ? "Tech Support" : user?.role?.replace("_", " ")}</div>
-            </div>
-          </div>
+
+          {/* Profile link */}
+          <Link href="/profile">
+            <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+              location === "/profile" ? "bg-slate-700" : "hover:bg-slate-700"}`}>
+              <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-white text-xs font-medium truncate">{user?.name}</div>
+                <div className="text-slate-400 text-xs truncate">{isSuperAdmin() ? "Tech Support" : user?.role?.replace("_", " ")}</div>
+              </div>
+              <UserCircle className="w-4 h-4 text-slate-500 flex-shrink-0" />
+            </a>
+          </Link>
+
           {isSuperAdmin() && (
-            <div className="flex items-center gap-1 px-2 py-1 mb-1">
+            <div className="flex items-center gap-1 px-2 py-1">
               <Headphones className="w-3 h-3 text-yellow-400" />
               <span className="text-yellow-400 text-xs font-medium">Tech Support Panel</span>
             </div>
           )}
+
           <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
             <LogOut className="w-4 h-4" />
             Sign Out
@@ -230,18 +293,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-gray-700">
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
+
+          {/* Firm logo in topbar (when sidebar closed) */}
+          {!sidebarOpen && bizLogo && (
+            <img src={bizLogo} alt="Logo" className="h-7 w-auto object-contain" />
+          )}
+
           <div className="flex-1" />
+
+          {/* Offline drafts alert in topbar */}
+          {draftCount > 0 && isOnline && (
+            <button onClick={() => navigate("/offline-drafts")}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs rounded-lg hover:bg-orange-100 transition-colors">
+              <CloudOff className="w-3.5 h-3.5" />
+              {draftCount} offline draft{draftCount > 1 ? "s" : ""} — Submit karo
+            </button>
+          )}
+
           {!isOnline && (
             <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1">
               <WifiOff className="w-3 h-3" /> Offline
             </span>
           )}
-          {/* PWA Install Button */}
+
           {installPrompt && !installed && (
             <button
               onClick={() => installPrompt.prompt().then((r: any) => { if (r?.outcome === "accepted") { setInstalled(true); setInstallPrompt(null); } })}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
-              title="Install BizERP as desktop/mobile app"
             >
               <Download className="w-3.5 h-3.5" />
               Install App
@@ -256,6 +334,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">{business.businessCode}</span>
           )}
         </header>
+
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}
         </main>

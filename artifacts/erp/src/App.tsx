@@ -42,6 +42,8 @@ import TaxRates from "@/pages/masters/TaxRates";
 
 import BusinessSettings from "@/pages/settings/BusinessSettings";
 import Users from "@/pages/settings/Users";
+import FirmProfile from "@/pages/FirmProfile";
+import OfflineDrafts from "@/pages/OfflineDrafts";
 
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminBusinesses from "@/pages/admin/AdminBusinesses";
@@ -177,6 +179,14 @@ function AppRoutes() {
       </Route>
       <Route path="/masters/tax-rates">
         <ProtectedRoute><TaxRates /></ProtectedRoute>
+      </Route>
+
+      {/* Profile & Offline Drafts */}
+      <Route path="/profile">
+        <ProtectedRoute><FirmProfile /></ProtectedRoute>
+      </Route>
+      <Route path="/offline-drafts">
+        <ProtectedRoute><OfflineDrafts /></ProtectedRoute>
       </Route>
 
       {/* Settings */}

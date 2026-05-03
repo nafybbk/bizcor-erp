@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { Loader2, Download, FileJson } from "lucide-react";
+import BusinessHeader from "@/components/BusinessHeader";
 
 export default function GSTR1() {
   const now = new Date();
@@ -53,20 +54,22 @@ export default function GSTR1() {
       "SGST": b.sgst,
       "IGST": "",
     }));
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    downloadCSV([...b2bRows, ...b2cRows], `GSTR1_${months[month - 1]}_${year}.csv`);
+    downloadCSV([...b2bRows, ...b2cRows], `GSTR1_${MONTHS[month - 1]}_${year}.csv`);
   };
 
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   return (
     <div className="max-w-5xl space-y-5">
+      <div className="print:block hidden">
+        <BusinessHeader title="GSTR-1 Return" period={`${MONTHS[month - 1]} ${year}`} />
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">GSTR-1</h1>
         <div className="flex items-center gap-3 flex-wrap">
           <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={month} onChange={e => setMonth(Number(e.target.value))}>
-            {months.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+            {MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
           <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={year} onChange={e => setYear(Number(e.target.value))}>
