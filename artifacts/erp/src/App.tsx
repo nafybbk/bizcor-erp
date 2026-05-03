@@ -20,8 +20,10 @@ import DebitNoteList from "@/pages/purchases/DebitNoteList";
 import DebitNoteCreate from "@/pages/purchases/DebitNoteCreate";
 
 import VoucherView from "@/pages/VoucherView";
+import VoucherEditPage from "@/pages/VoucherEditPage";
 import PaymentsList from "@/pages/payments/PaymentsList";
 import PaymentCreate from "@/pages/payments/PaymentCreate";
+import PaymentEdit from "@/pages/payments/PaymentEdit";
 import Outstanding from "@/pages/payments/Outstanding";
 
 import Inventory from "@/pages/Inventory";
@@ -81,6 +83,9 @@ function AppRoutes() {
       <Route path="/sales/invoices/new">
         <ProtectedRoute><InvoiceCreate /></ProtectedRoute>
       </Route>
+      <Route path="/sales/invoices/:id/edit">
+        {() => <ProtectedRoute><VoucherEditPage voucherType="sales/invoices" title="Sales Invoice" listHref="/sales/invoices" /></ProtectedRoute>}
+      </Route>
       <Route path="/sales/invoices/:id">
         {() => <ProtectedRoute><VoucherView voucherType="sales/invoices" listHref="/sales/invoices" /></ProtectedRoute>}
       </Route>
@@ -89,6 +94,9 @@ function AppRoutes() {
       </Route>
       <Route path="/sales/credit-notes/new">
         <ProtectedRoute><CreditNoteCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/sales/credit-notes/:id/edit">
+        {() => <ProtectedRoute><VoucherEditPage voucherType="sales/credit-notes" title="Credit Note" listHref="/sales/credit-notes" /></ProtectedRoute>}
       </Route>
       <Route path="/sales/credit-notes/:id">
         {() => <ProtectedRoute><VoucherView voucherType="sales/credit-notes" listHref="/sales/credit-notes" /></ProtectedRoute>}
@@ -101,6 +109,9 @@ function AppRoutes() {
       <Route path="/purchases/bills/new">
         <ProtectedRoute><BillCreate /></ProtectedRoute>
       </Route>
+      <Route path="/purchases/bills/:id/edit">
+        {() => <ProtectedRoute><VoucherEditPage voucherType="purchases/bills" title="Purchase Bill" listHref="/purchases/bills" /></ProtectedRoute>}
+      </Route>
       <Route path="/purchases/bills/:id">
         {() => <ProtectedRoute><VoucherView voucherType="purchases/bills" listHref="/purchases/bills" /></ProtectedRoute>}
       </Route>
@@ -109,6 +120,9 @@ function AppRoutes() {
       </Route>
       <Route path="/purchases/debit-notes/new">
         <ProtectedRoute><DebitNoteCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/purchases/debit-notes/:id/edit">
+        {() => <ProtectedRoute><VoucherEditPage voucherType="purchases/debit-notes" title="Debit Note" listHref="/purchases/debit-notes" /></ProtectedRoute>}
       </Route>
       <Route path="/purchases/debit-notes/:id">
         {() => <ProtectedRoute><VoucherView voucherType="purchases/debit-notes" listHref="/purchases/debit-notes" /></ProtectedRoute>}
@@ -121,11 +135,17 @@ function AppRoutes() {
       <Route path="/payments/receipts/new">
         <ProtectedRoute><PaymentCreate type="receipt" /></ProtectedRoute>
       </Route>
+      <Route path="/payments/receipts/:id/edit">
+        {() => <ProtectedRoute><PaymentEdit type="receipt" /></ProtectedRoute>}
+      </Route>
       <Route path="/payments/payments">
         <ProtectedRoute><PaymentsList type="payment" /></ProtectedRoute>
       </Route>
       <Route path="/payments/payments/new">
         <ProtectedRoute><PaymentCreate type="payment" /></ProtectedRoute>
+      </Route>
+      <Route path="/payments/payments/:id/edit">
+        {() => <ProtectedRoute><PaymentEdit type="payment" /></ProtectedRoute>}
       </Route>
       <Route path="/payments/outstanding">
         <ProtectedRoute><Outstanding /></ProtectedRoute>

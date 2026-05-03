@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Plus, Search, Loader2, Trash2, Eye, Download } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Eye, Download, Pencil } from "lucide-react";
 
 interface Props { type: "receipt" | "payment" }
 
@@ -107,11 +107,11 @@ export default function PaymentsList({ type }: Props) {
                     }
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link href={`/payments/${p.id}`}>
-                        <button className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Eye className="w-4 h-4" /></button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Link href={`/payments/${type === "receipt" ? "receipts" : "payments"}/${p.id}/edit`}>
+                        <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
                       </Link>
-                      <button onClick={() => del(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => del(p.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>

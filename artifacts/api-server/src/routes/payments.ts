@@ -106,6 +106,59 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+router.patch("/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const paymentId = Number(req.params.id);
+    const { date, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations } = req.body;
+
+    const existing = await db.query.paymentsTable.findFirst({
+      where: and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)),
+    });
+    if (!existing) { res.status(404).json({ error: "Not Found" }); return; }
+
+    // Reverse old allocations — recalc each affected voucher
+    const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+    for (const alloc of oldAllocs) {
+      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+        .from(paymentAllocationsTable)
+        .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
+      const totalPaid = Number(remaining[0]?.paid || 0);
+      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+      if (voucher) {
+        const grandTotal = Number(voucher.grandTotal);
+        const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
+        await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
+      }
+    }
+
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+    await db.update(paymentsTable).set({ date, amount: String(amount), paymentMode, referenceNumber, notes, isOnAccount: isOnAccount || false })
+      .where(eq(paymentsTable.id, paymentId));
+
+    if (!isOnAccount && allocations && allocations.length > 0) {
+      for (const alloc of allocations) {
+        await db.insert(paymentAllocationsTable).values({ paymentId, voucherId: alloc.voucherId, allocatedAmount: String(alloc.allocatedAmount) });
+        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+          .from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
+        const totalPaid = Number(currentPaid[0]?.paid || 0);
+        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        if (voucher) {
+          const grandTotal = Number(voucher.grandTotal);
+          const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
+          await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
+        }
+      }
+    }
+
+    const updated = await db.query.paymentsTable.findFirst({ where: eq(paymentsTable.id, paymentId) });
+    res.json({ ...updated, amount: Number(updated!.amount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.delete("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;

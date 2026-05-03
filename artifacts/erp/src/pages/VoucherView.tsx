@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
-import { Loader2, ArrowLeft, Printer, Share2, FileDown } from "lucide-react";
+import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -77,6 +77,18 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   const handlePrint = () => window.print();
 
+  const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
+
+  const handleDelete = async () => {
+    if (!confirm("Kya aap is voucher ko delete karna chahte hain? Yeh action undo nahi hoga.")) return;
+    try {
+      await api.delete(`/${voucherType}/${params.id}`);
+      navigate(listHref);
+    } catch (err: any) {
+      alert(err.message || "Delete nahi hua, dobara try karein.");
+    }
+  };
+
   const handleWhatsApp = () => {
     if (!voucher) return;
     const text = [
@@ -119,6 +131,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="flex gap-2">
+            <button onClick={handleDelete}
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
+            <button onClick={handleEdit}
+              className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
+              <Pencil className="w-4 h-4" /> Edit
+            </button>
             <button onClick={handleWhatsApp}
               className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
               <Share2 className="w-4 h-4" /> WhatsApp

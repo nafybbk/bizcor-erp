@@ -3,27 +3,33 @@ import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
-interface Props { type: "receipt" | "payment" }
+interface Props {
+  type: "receipt" | "payment";
+  editId?: number;
+  initialData?: any;
+}
 
-export default function PaymentCreate({ type }: Props) {
+export default function PaymentCreate({ type, editId, initialData }: Props) {
   const [, navigate] = useLocation();
   const [parties, setParties] = useState<any[]>([]);
   const [outstanding, setOutstanding] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [partySearch, setPartySearch] = useState("");
+  const [partySearch, setPartySearch] = useState(initialData?.partyName || "");
   const [showPartyDrop, setShowPartyDrop] = useState(false);
-  const [allocations, setAllocations] = useState<Array<{ voucherId: number; allocatedAmount: number }>>([]);
+  const [allocations, setAllocations] = useState<Array<{ voucherId: number; allocatedAmount: number }>>(
+    initialData?.allocations?.map((a: any) => ({ voucherId: a.voucherId, allocatedAmount: a.allocatedAmount })) || []
+  );
 
   const [form, setForm] = useState({
-    date: fmt.today(),
-    partyId: "",
-    partyName: "",
-    amount: "",
-    paymentMode: "cash" as "cash" | "bank" | "cheque" | "upi" | "other",
-    referenceNumber: "",
-    notes: "",
-    isOnAccount: false,
+    date: initialData?.date || fmt.today(),
+    partyId: initialData?.partyId ? String(initialData.partyId) : "",
+    partyName: initialData?.partyName || "",
+    amount: initialData?.amount ? String(initialData.amount) : "",
+    paymentMode: (initialData?.paymentMode || "cash") as "cash" | "bank" | "cheque" | "upi" | "other",
+    referenceNumber: initialData?.referenceNumber || "",
+    notes: initialData?.notes || "",
+    isOnAccount: initialData?.isOnAccount || false,
   });
 
   const partyType = type === "receipt" ? "customer" : "supplier";
@@ -70,10 +76,12 @@ export default function PaymentCreate({ type }: Props) {
     setError("");
     setLoading(true);
     try {
-      await api.post("/payments", {
-        type, ...form, partyId: Number(form.partyId), amount: Number(form.amount),
-        allocations: form.isOnAccount ? [] : allocations,
-      });
+      const payload = { type, ...form, partyId: Number(form.partyId), amount: Number(form.amount), allocations: form.isOnAccount ? [] : allocations };
+      if (editId) {
+        await api.patch(`/payments/${editId}`, payload);
+      } else {
+        await api.post("/payments", payload);
+      }
       navigate(listHref);
     } catch (err: any) {
       setError(err.message);
@@ -89,11 +97,11 @@ export default function PaymentCreate({ type }: Props) {
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">New {title}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
         <div className="flex gap-3">
           <button type="button" onClick={() => navigate(listHref)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
           <button type="submit" disabled={loading} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />} Save {title}
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />} {editId ? "Update" : "Save"} {title}
           </button>
         </div>
       </div>

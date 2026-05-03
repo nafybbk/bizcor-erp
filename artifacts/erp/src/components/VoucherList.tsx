@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Plus, Search, Eye, Trash2, Loader2, Download, Printer } from "lucide-react";
+import { Plus, Search, Eye, Trash2, Loader2, Download, Printer, Pencil } from "lucide-react";
 
 interface VoucherListProps {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -154,6 +154,9 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
                       <div className="flex items-center justify-end gap-1">
                         <Link href={viewHref(v.id)}>
                           <button title="View" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
+                        </Link>
+                        <Link href={`${viewHref(v.id)}/edit`}>
+                          <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
                         </Link>
                         <button
                           title="Print"

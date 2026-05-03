@@ -166,6 +166,8 @@ router.delete("/sales/invoices/:id", (req, res) => deleteVoucher(req, res).catch
 router.get("/sales/credit-notes", (req, res) => getVoucherList(req, res, "credit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.post("/sales/credit-notes", (req, res) => createVoucher(req, res, "credit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.get("/sales/credit-notes/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.patch("/sales/credit-notes/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.delete("/sales/credit-notes/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 
 // PURCHASE BILLS
 router.get("/purchases/bills", (req, res) => getVoucherList(req, res, "purchase_bill").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
@@ -178,5 +180,7 @@ router.delete("/purchases/bills/:id", (req, res) => deleteVoucher(req, res).catc
 router.get("/purchases/debit-notes", (req, res) => getVoucherList(req, res, "debit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.post("/purchases/debit-notes", (req, res) => createVoucher(req, res, "debit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.get("/purchases/debit-notes/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.patch("/purchases/debit-notes/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.delete("/purchases/debit-notes/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 
 export default router;
