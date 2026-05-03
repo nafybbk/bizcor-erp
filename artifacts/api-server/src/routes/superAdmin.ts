@@ -1,8 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, partiesTable, itemsTable, paymentsTable, licenseVouchersTable, loginLogsTable } from "@workspace/db";
-import { eq, count, sql, ilike, and, desc, gte } from "drizzle-orm";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable } from "@workspace/db";
+import { eq, count, sql, ilike, and, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -648,6 +648,95 @@ router.patch("/users/:id/block", async (req, res) => {
       .where(eq(usersTable.id, Number(req.params.id))).returning();
     res.json({ id: updated.id, isActive: updated.isActive, message: updated.isActive ? `${user.name} ko unblock kar diya` : `${user.name} ko block kar diya` });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Data Cleanup ─────────────────────────────────────────────────────────────
+
+router.get("/businesses/:id/parties", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const parties = await db
+      .select({ id: partiesTable.id, name: partiesTable.name, type: partiesTable.type, phone: partiesTable.phone })
+      .from(partiesTable)
+      .where(eq(partiesTable.businessId, bizId))
+      .orderBy(partiesTable.name);
+    res.json(parties);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// Clear ALL transactions for a business (keeps parties, items, units, tax rates, users)
+router.post("/businesses/:id/clear-transactions", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+    const voucherRows = await db.select({ id: vouchersTable.id }).from(vouchersTable).where(eq(vouchersTable.businessId, bizId));
+    const paymentRows = await db.select({ id: paymentsTable.id }).from(paymentsTable).where(eq(paymentsTable.businessId, bizId));
+    const vIds = voucherRows.map(v => v.id);
+    const pIds = paymentRows.map(p => p.id);
+
+    let delVoucherItems = 0, delAllocations = 0, delPayments = 0, delVouchers = 0;
+
+    if (pIds.length > 0) {
+      const r = await db.delete(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, pIds)).returning();
+      delAllocations += r.length;
+    }
+    if (vIds.length > 0) {
+      const r1 = await db.delete(paymentAllocationsTable).where(inArray(paymentAllocationsTable.voucherId, vIds)).returning();
+      delAllocations += r1.length;
+      const r2 = await db.delete(voucherItemsTable).where(inArray(voucherItemsTable.voucherId, vIds)).returning();
+      delVoucherItems = r2.length;
+    }
+    const r3 = await db.delete(paymentsTable).where(eq(paymentsTable.businessId, bizId)).returning();
+    delPayments = r3.length;
+    const r4 = await db.delete(vouchersTable).where(eq(vouchersTable.businessId, bizId)).returning();
+    delVouchers = r4.length;
+
+    req.log.info({ bizId, delVouchers, delVoucherItems, delPayments, delAllocations }, "clear-transactions");
+    res.json({ success: true, businessName: business.name, deleted: { vouchers: delVouchers, voucherItems: delVoucherItems, payments: delPayments, paymentAllocations: delAllocations } });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error", detail: (err as any).message }); }
+});
+
+// Clear transactions for a SPECIFIC party in a business (keeps the party record itself)
+router.post("/businesses/:id/clear-party-transactions", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const partyId = Number(req.body.partyId);
+    if (!partyId) { res.status(400).json({ error: "partyId required" }); return; }
+
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+    const party = await db.query.partiesTable.findFirst({ where: and(eq(partiesTable.id, partyId), eq(partiesTable.businessId, bizId)) });
+    if (!party) { res.status(404).json({ error: "Party not found in this business" }); return; }
+
+    const voucherRows = await db.select({ id: vouchersTable.id }).from(vouchersTable)
+      .where(and(eq(vouchersTable.businessId, bizId), eq(vouchersTable.partyId, partyId)));
+    const paymentRows = await db.select({ id: paymentsTable.id }).from(paymentsTable)
+      .where(and(eq(paymentsTable.businessId, bizId), eq(paymentsTable.partyId, partyId)));
+    const vIds = voucherRows.map(v => v.id);
+    const pIds = paymentRows.map(p => p.id);
+
+    let delVoucherItems = 0, delAllocations = 0, delPayments = 0, delVouchers = 0;
+
+    if (pIds.length > 0) {
+      const r = await db.delete(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, pIds)).returning();
+      delAllocations += r.length;
+    }
+    if (vIds.length > 0) {
+      const r1 = await db.delete(paymentAllocationsTable).where(inArray(paymentAllocationsTable.voucherId, vIds)).returning();
+      delAllocations += r1.length;
+      const r2 = await db.delete(voucherItemsTable).where(inArray(voucherItemsTable.voucherId, vIds)).returning();
+      delVoucherItems = r2.length;
+    }
+    const r3 = await db.delete(paymentsTable).where(and(eq(paymentsTable.businessId, bizId), eq(paymentsTable.partyId, partyId))).returning();
+    delPayments = r3.length;
+    const r4 = await db.delete(vouchersTable).where(and(eq(vouchersTable.businessId, bizId), eq(vouchersTable.partyId, partyId))).returning();
+    delVouchers = r4.length;
+
+    req.log.info({ bizId, partyId, delVouchers, delVoucherItems, delPayments, delAllocations }, "clear-party-transactions");
+    res.json({ success: true, businessName: business.name, partyName: party.name, deleted: { vouchers: delVouchers, voucherItems: delVoucherItems, payments: delPayments, paymentAllocations: delAllocations } });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error", detail: (err as any).message }); }
 });
 
 // ─── Login Activity & Active Users ────────────────────────────────────────────

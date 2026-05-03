@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check } from "lucide-react";
+import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle } from "lucide-react";
 
 const ALL_PERMS = [
   { key: "sales", label: "Sales" },
@@ -40,6 +40,18 @@ export default function AdminBusinesses() {
 
   // Copy referral code
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
+
+  // Cleanup modal state
+  const [cleanupBiz, setCleanupBiz] = useState<any>(null);
+  const [cleanupTab, setCleanupTab] = useState<"all" | "party">("all");
+  const [cleanupConfirmText, setCleanupConfirmText] = useState("");
+  const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<any>(null);
+  const [cleanupError, setCleanupError] = useState("");
+  const [partiesList, setPartiesList] = useState<any[]>([]);
+  const [partiesLoading, setPartiesLoading] = useState(false);
+  const [partySearch, setPartySearch] = useState("");
+  const [selectedParty, setSelectedParty] = useState<any>(null);
 
   const limit = 20;
 
@@ -102,6 +114,48 @@ export default function AdminBusinesses() {
     navigator.clipboard.writeText(code);
     setCopiedRef(code);
     setTimeout(() => setCopiedRef(null), 2000);
+  };
+
+  const openCleanup = async (b: any) => {
+    setCleanupBiz(b);
+    setCleanupTab("all");
+    setCleanupConfirmText("");
+    setCleanupResult(null);
+    setCleanupError("");
+    setSelectedParty(null);
+    setPartySearch("");
+    setPartiesLoading(true);
+    try {
+      const data = await api.get<any[]>(`/super-admin/businesses/${b.id}/parties`);
+      setPartiesList(Array.isArray(data) ? data : []);
+    } catch { setPartiesList([]); }
+    finally { setPartiesLoading(false); }
+  };
+
+  const doCleanupAll = async () => {
+    if (!cleanupBiz || cleanupConfirmText !== "DELETE") return;
+    setCleanupLoading(true);
+    setCleanupError("");
+    setCleanupResult(null);
+    try {
+      const result = await api.post<any>(`/super-admin/businesses/${cleanupBiz.id}/clear-transactions`, {});
+      setCleanupResult(result);
+    } catch (e: any) {
+      setCleanupError(e?.message || "Error hua");
+    } finally { setCleanupLoading(false); }
+  };
+
+  const doCleanupParty = async () => {
+    if (!cleanupBiz || !selectedParty) return;
+    setCleanupLoading(true);
+    setCleanupError("");
+    setCleanupResult(null);
+    try {
+      const result = await api.post<any>(`/super-admin/businesses/${cleanupBiz.id}/clear-party-transactions`, { partyId: selectedParty.id });
+      setCleanupResult(result);
+    } catch (e: any) {
+      setCleanupError(e?.message || "Error hua");
+    } finally { setCleanupLoading(false); }
   };
 
   const openUsers = async (b: any) => {
@@ -261,6 +315,7 @@ export default function AdminBusinesses() {
                         <button onClick={() => openUsers(b)} className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg" title="Manage Users"><Users className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit Business"><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openTopup(b)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Top-up Free Days"><Gift className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openCleanup(b)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Data Cleanup — Vouchers/Payments delete karo"><Trash2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => downloadBackup(b.id, b.businessCode)} className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg" title="Download backup"><Download className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
@@ -391,6 +446,143 @@ export default function AdminBusinesses() {
               <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cleanup Modal */}
+      {cleanupBiz && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && !cleanupLoading && setCleanupBiz(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-red-600">
+                <Trash2 className="w-5 h-5" /> Data Cleanup
+              </h2>
+              <button onClick={() => setCleanupBiz(null)} disabled={cleanupLoading}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+
+            <div className="px-6 pt-4 shrink-0">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 text-sm text-red-700">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-semibold">{cleanupBiz.name}</span> — sirf vouchers aur payments delete honge. Customers, suppliers, items, units, tax rates safe rahenge.
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="px-6 pt-4 shrink-0">
+              <div className="flex border border-gray-200 rounded-xl overflow-hidden text-sm font-medium">
+                <button onClick={() => { setCleanupTab("all"); setCleanupResult(null); setCleanupError(""); setCleanupConfirmText(""); }}
+                  className={`flex-1 py-2.5 transition-colors ${cleanupTab === "all" ? "bg-red-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                  Puri Business Clean
+                </button>
+                <button onClick={() => { setCleanupTab("party"); setCleanupResult(null); setCleanupError(""); setSelectedParty(null); setPartySearch(""); }}
+                  className={`flex-1 py-2.5 transition-colors ${cleanupTab === "party" ? "bg-orange-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                  Ek Party Clean
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {cleanupResult ? (
+                <div className="text-center space-y-3 py-4">
+                  <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-7 h-7 text-green-500" />
+                  </div>
+                  <p className="font-semibold text-gray-800">Cleanup ho gaya!</p>
+                  <div className="bg-gray-50 rounded-xl p-4 text-sm text-left space-y-1.5 text-gray-700">
+                    {cleanupResult.partyName && <div className="text-orange-600 font-medium mb-2">Party: {cleanupResult.partyName}</div>}
+                    <div className="flex justify-between"><span>Vouchers deleted:</span><span className="font-mono font-bold text-red-600">{cleanupResult.deleted?.vouchers ?? 0}</span></div>
+                    <div className="flex justify-between"><span>Voucher items deleted:</span><span className="font-mono font-bold text-red-600">{cleanupResult.deleted?.voucherItems ?? 0}</span></div>
+                    <div className="flex justify-between"><span>Payments deleted:</span><span className="font-mono font-bold text-red-600">{cleanupResult.deleted?.payments ?? 0}</span></div>
+                    <div className="flex justify-between"><span>Payment allocations deleted:</span><span className="font-mono font-bold text-red-600">{cleanupResult.deleted?.paymentAllocations ?? 0}</span></div>
+                  </div>
+                  <button onClick={() => setCleanupBiz(null)} className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-sm font-medium">Close</button>
+                </div>
+              ) : cleanupTab === "all" ? (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    <p className="font-medium text-gray-800 mb-1">Ye delete hoga:</p>
+                    <ul className="list-disc list-inside space-y-1 text-gray-500 text-xs ml-1">
+                      <li>Saare Sales Invoice, Credit Note, Purchase Bill, Debit Note</li>
+                      <li>Saare Payments aur Receipts</li>
+                      <li>Saari Payment Allocations</li>
+                    </ul>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                    Confirm karne ke liye neeche <span className="font-bold font-mono">DELETE</span> type karein
+                  </div>
+                  <input
+                    type="text"
+                    value={cleanupConfirmText}
+                    onChange={e => setCleanupConfirmText(e.target.value)}
+                    placeholder='Type "DELETE" to confirm'
+                    className="w-full border-2 border-red-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-red-500"
+                  />
+                  {cleanupError && <p className="text-sm text-red-500">{cleanupError}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => setCleanupBiz(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50">Cancel</button>
+                    <button
+                      onClick={doCleanupAll}
+                      disabled={cleanupLoading || cleanupConfirmText !== "DELETE"}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+                    >
+                      {cleanupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      Sab Clean Karo
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600">
+                    Neeche se party select karo — sirf usi party ke vouchers aur payments delete honge.
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={partySearch}
+                      onChange={e => { setPartySearch(e.target.value); setSelectedParty(null); }}
+                      placeholder="Party ka naam search karo..."
+                      className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    />
+                  </div>
+                  {partiesLoading ? (
+                    <div className="flex items-center justify-center h-24"><Loader2 className="w-5 h-5 animate-spin text-orange-500" /></div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                      {partiesList.filter(p => !partySearch || p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 ? (
+                        <div className="text-center text-gray-400 text-sm py-8">Koi party nahi mila</div>
+                      ) : partiesList.filter(p => !partySearch || p.name.toLowerCase().includes(partySearch.toLowerCase())).map(p => (
+                        <button key={p.id} onClick={() => setSelectedParty(p)}
+                          className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-0 flex items-center justify-between transition-colors ${selectedParty?.id === p.id ? "bg-orange-50 text-orange-700" : "hover:bg-gray-50 text-gray-700"}`}>
+                          <span className="font-medium">{p.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${p.type === "customer" ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"}`}>{p.type}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedParty && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-700 flex items-center justify-between">
+                      <span>Selected: <span className="font-semibold">{selectedParty.name}</span></span>
+                      <button onClick={() => setSelectedParty(null)}><X className="w-4 h-4" /></button>
+                    </div>
+                  )}
+                  {cleanupError && <p className="text-sm text-red-500">{cleanupError}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => setCleanupBiz(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm hover:bg-gray-50">Cancel</button>
+                    <button
+                      onClick={doCleanupParty}
+                      disabled={cleanupLoading || !selectedParty}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+                    >
+                      {cleanupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      {selectedParty ? `${selectedParty.name} ke transactions delete karo` : "Party select karo pehle"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
