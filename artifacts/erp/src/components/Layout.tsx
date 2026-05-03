@@ -197,6 +197,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { label: "Tax Rates", href: "/masters/tax-rates" },
       ],
     },
+    { label: "Mera Plan", href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
     { label: "Users", href: "/settings/users", icon: <Users className="w-4 h-4" /> },
     { label: "Settings", href: "/settings/business", icon: <Settings className="w-4 h-4" /> },
   ];

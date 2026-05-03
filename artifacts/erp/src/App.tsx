@@ -43,6 +43,7 @@ import HsnCodes from "@/pages/masters/HsnCodes";
 import TaxRates from "@/pages/masters/TaxRates";
 
 import BusinessSettings from "@/pages/settings/BusinessSettings";
+import Subscription from "@/pages/settings/Subscription";
 import Users from "@/pages/settings/Users";
 import FirmProfile from "@/pages/FirmProfile";
 import OfflineDrafts from "@/pages/OfflineDrafts";
@@ -215,6 +216,9 @@ function AppRoutes() {
       {/* Settings */}
       <Route path="/settings/business">
         <ProtectedRoute><BusinessSettings /></ProtectedRoute>
+      </Route>
+      <Route path="/settings/subscription">
+        <ProtectedRoute><Subscription /></ProtectedRoute>
       </Route>
       <Route path="/settings/users">
         <ProtectedRoute><Users /></ProtectedRoute>

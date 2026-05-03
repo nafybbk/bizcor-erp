@@ -19,6 +19,24 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 
+// Public — available plans list (for subscription page)
+router.get("/public-plans", async (_req, res) => {
+  try {
+    const { db, plansTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const plans = await db.select().from(plansTable).where(eq(plansTable.isActive, true));
+    res.json(plans.map(p => ({
+      id: p.id, name: p.name, description: p.description,
+      price: Number(p.price), billingCycle: p.billingCycle,
+      maxUsers: p.maxUsers, validityDays: p.validityDays,
+      features: p.features || [],
+      maxVouchersPerMonth: p.maxVouchersPerMonth,
+      maxItems: p.maxItems, maxParties: p.maxParties,
+      sortOrder: p.sortOrder,
+    })).sort((a, b) => a.sortOrder - b.sortOrder || a.price - b.price));
+  } catch { res.json([]); }
+});
+
 // Public endpoint — no auth required (for login page branding)
 router.get("/public-settings", async (_req, res) => {
   try {
