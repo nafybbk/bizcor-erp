@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { getDrafts, removeDraft, OfflineDraft } from "@/lib/offlineQueue";
+import { getDrafts, removeDraft, resolvePayload, OfflineDraft } from "@/lib/offlineQueue";
 import { api } from "@/lib/api";
 import { ArrowLeft, CloudOff, CheckCircle2, XCircle, Loader2, Trash2, Send, AlertTriangle } from "lucide-react";
 import { fmt } from "@/lib/api";
@@ -21,14 +21,24 @@ export default function OfflineDrafts() {
     setDrafts(getDrafts().map(d => ({ ...d, status: "pending" as Status })));
   }, []);
 
+  // Submit a single draft, using idMap for temp-party resolution. Returns server result or throws.
+  const submitDraft = async (draft: DraftState, idMap: Record<number, number>): Promise<any> => {
+    const payload = resolvePayload(draft.payload, idMap);
+
+    // Guard: if partyId is still negative after resolution, the party draft hasn't synced yet
+    if (payload?.partyId && typeof payload.partyId === "number" && payload.partyId < 0) {
+      throw new Error("Party abhi server par save nahi hua. Pehle party draft submit karo ya 'Sab Submit Karo' use karo.");
+    }
+
+    if (draft.method === "POST") return api.post(draft.endpoint, payload);
+    return api.patch(draft.endpoint, payload);
+  };
+
+  // Sync a single draft independently (Submit button per card)
   const syncOne = async (draft: DraftState): Promise<void> => {
     setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, status: "syncing" } : d));
     try {
-      if (draft.method === "POST") {
-        await api.post(draft.endpoint, draft.payload);
-      } else {
-        await api.patch(draft.endpoint, draft.payload);
-      }
+      await submitDraft(draft, {});
       removeDraft(draft.id);
       setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, status: "done" } : d));
     } catch (err: any) {
@@ -36,10 +46,26 @@ export default function OfflineDrafts() {
     }
   };
 
+  // Sync all pending drafts in order, carrying ID map forward
   const syncAll = async () => {
     setSyncing(true);
+    const idMap: Record<number, number> = {};
     const pending = drafts.filter(d => d.status === "pending" || d.status === "failed");
-    for (const d of pending) await syncOne(d);
+
+    for (const d of pending) {
+      setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, status: "syncing" } : x));
+      try {
+        const result = await submitDraft(d, idMap);
+        // Track party temp→real ID mapping for subsequent voucher drafts
+        if (d.endpoint === "/parties" && d.tempId && result?.id) {
+          idMap[d.tempId] = result.id;
+        }
+        removeDraft(d.id);
+        setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, status: "done" } : x));
+      } catch (err: any) {
+        setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, status: "failed", error: err.message } : x));
+      }
+    }
     setSyncing(false);
   };
 
@@ -88,6 +114,13 @@ export default function OfflineDrafts() {
               Sab Submit Karo
             </button>
           </div>
+
+          {/* Tip when temp-party drafts exist */}
+          {drafts.some(d => d.payload?.partyId < 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+              ⚠️ Kuch vouchers mein party offline banayi gayi thi. <strong>Sab Submit Karo</strong> use karo — yeh sahi order mein submit karta hai.
+            </div>
+          )}
 
           {/* Draft list */}
           <div className="space-y-3">
