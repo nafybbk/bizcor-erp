@@ -193,30 +193,37 @@ async function deleteVoucher(req: any, res: any) {
   res.json({ success: true });
 }
 
+function errHandler(req: any, res: any) {
+  return (err: any) => {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
+  };
+}
+
 // SALES INVOICES
-router.get("/sales/invoices", (req, res) => getVoucherList(req, res, "sales_invoice").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.post("/sales/invoices", (req, res) => createVoucher(req, res, "sales_invoice").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.get("/sales/invoices/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.patch("/sales/invoices/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.delete("/sales/invoices/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.get("/sales/invoices", (req, res) => getVoucherList(req, res, "sales_invoice").catch(errHandler(req, res)));
+router.post("/sales/invoices", (req, res) => createVoucher(req, res, "sales_invoice").catch(errHandler(req, res)));
+router.get("/sales/invoices/:id", (req, res) => getVoucherById(req, res).catch(errHandler(req, res)));
+router.patch("/sales/invoices/:id", (req, res) => updateVoucher(req, res).catch(errHandler(req, res)));
+router.delete("/sales/invoices/:id", (req, res) => deleteVoucher(req, res).catch(errHandler(req, res)));
 
 // CREDIT NOTES (Sales Returns)
-router.get("/sales/credit-notes", (req, res) => getVoucherList(req, res, "credit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.post("/sales/credit-notes", (req, res) => createVoucher(req, res, "credit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.get("/sales/credit-notes/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.patch("/sales/credit-notes/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.delete("/sales/credit-notes/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.get("/sales/credit-notes", (req, res) => getVoucherList(req, res, "credit_note").catch(errHandler(req, res)));
+router.post("/sales/credit-notes", (req, res) => createVoucher(req, res, "credit_note").catch(errHandler(req, res)));
+router.get("/sales/credit-notes/:id", (req, res) => getVoucherById(req, res).catch(errHandler(req, res)));
+router.patch("/sales/credit-notes/:id", (req, res) => updateVoucher(req, res).catch(errHandler(req, res)));
+router.delete("/sales/credit-notes/:id", (req, res) => deleteVoucher(req, res).catch(errHandler(req, res)));
 
 // PURCHASE BILLS
-router.get("/purchases/bills", (req, res) => getVoucherList(req, res, "purchase_bill").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.post("/purchases/bills", (req, res) => createVoucher(req, res, "purchase_bill").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.get("/purchases/bills/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.patch("/purchases/bills/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.delete("/purchases/bills/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.get("/purchases/bills", (req, res) => getVoucherList(req, res, "purchase_bill").catch(errHandler(req, res)));
+router.post("/purchases/bills", (req, res) => createVoucher(req, res, "purchase_bill").catch(errHandler(req, res)));
+router.get("/purchases/bills/:id", (req, res) => getVoucherById(req, res).catch(errHandler(req, res)));
+router.patch("/purchases/bills/:id", (req, res) => updateVoucher(req, res).catch(errHandler(req, res)));
+router.delete("/purchases/bills/:id", (req, res) => deleteVoucher(req, res).catch(errHandler(req, res)));
 
 // DEBIT NOTES (Purchase Returns)
-router.get("/purchases/debit-notes", (req, res) => getVoucherList(req, res, "debit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
-router.post("/purchases/debit-notes", (req, res) => createVoucher(req, res, "debit_note").catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
+router.get("/purchases/debit-notes", (req, res) => getVoucherList(req, res, "debit_note").catch(errHandler(req, res)));
+router.post("/purchases/debit-notes", (req, res) => createVoucher(req, res, "debit_note").catch(errHandler(req, res)));
 router.get("/purchases/debit-notes/:id", (req, res) => getVoucherById(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.patch("/purchases/debit-notes/:id", (req, res) => updateVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
 router.delete("/purchases/debit-notes/:id", (req, res) => deleteVoucher(req, res).catch(err => { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }));
