@@ -199,9 +199,16 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
-                <input type="tel" className={inputCls} placeholder="9999999999"
-                  value={techForm.phone} onChange={e => setTechForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))} required maxLength={10} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number / Email</label>
+                <input type="text" className={inputCls} placeholder="Mobile number ya email address"
+                  value={techForm.phone}
+                  onChange={e => {
+                    const v = e.target.value;
+                    // Allow email characters OR digits only
+                    setTechForm(f => ({ ...f, phone: v.includes("@") ? v : v.replace(/\D/g, "").slice(0, 10) }));
+                  }}
+                  required />
+                <p className="text-xs text-gray-400 mt-1">Pehli baar? Apna registered email daalo</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>

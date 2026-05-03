@@ -28,19 +28,31 @@ router.get("/lookup-business", async (req, res) => {
   }
 });
 
-// ── Tech Login (phone + password) ──────────────────────────────────────────
+// ── Tech Login (phone or email + password) ─────────────────────────────────
 router.post("/tech-login", async (req, res) => {
   try {
     const { phone, password } = req.body;
     if (!phone || !password) {
-      res.status(400).json({ error: "Bad Request", message: "Phone and password required" });
+      res.status(400).json({ error: "Bad Request", message: "Phone/Email aur password required" });
       return;
     }
-    const admin = await db.query.superAdminsTable.findFirst({
-      where: eq(superAdminsTable.phone, phone.trim()),
-    });
+    const input = phone.trim();
+    const isEmail = input.includes("@");
+
+    // Try phone lookup first, then email fallback
+    let admin = isEmail
+      ? null
+      : await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.phone, input) });
+
+    // Email fallback (when phone not set yet or user enters email directly)
+    if (!admin) {
+      admin = await db.query.superAdminsTable.findFirst({
+        where: eq(superAdminsTable.email, input.toLowerCase()),
+      });
+    }
+
     if (!admin || !admin.isActive) {
-      res.status(401).json({ error: "Unauthorized", message: "Phone number registered nahi hai ya account inactive hai" });
+      res.status(401).json({ error: "Unauthorized", message: "Credentials galat hain ya account inactive hai" });
       return;
     }
     if (!await bcrypt.compare(password, admin.passwordHash)) {
