@@ -106,8 +106,13 @@ export default function OfflineDrafts() {
                       {draft.status === "pending" && <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />}
                       <span className="font-semibold text-sm text-gray-800">{draft.label}</span>
                     </div>
-                    <div className="text-xs text-gray-400 mt-1 ml-6">
-                      Saved: {fmt.date(draft.savedAt)} · {draft.endpoint}
+                    <div className="text-xs text-gray-400 mt-1 ml-6 flex flex-wrap gap-x-3 gap-y-0.5">
+                      <span>Saved: {fmt.date(draft.savedAt)}</span>
+                      {draft.locationName && (
+                        <span className="text-emerald-600 flex items-center gap-0.5">
+                          📍 {draft.locationName}
+                        </span>
+                      )}
                     </div>
                     {draft.status === "failed" && draft.error && (
                       <div className="text-xs text-red-600 mt-1 ml-6">Error: {draft.error}</div>

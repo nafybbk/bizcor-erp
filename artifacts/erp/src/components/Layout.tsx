@@ -3,14 +3,16 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getDraftCount } from "@/lib/offlineQueue";
+import { getDeviceLocation } from "@/lib/locationStore";
 import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
+import LocationModal from "@/components/LocationModal";
 
 interface NavItem {
   label: string;
@@ -79,6 +81,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [bizLogo, setBizLogo] = useState<string | null>(null);
   const [draftCount, setDraftCount] = useState(getDraftCount());
   const [showDraftNotice, setShowDraftNotice] = useState(false);
+  const [deviceLoc, setDeviceLoc] = useState(getDeviceLocation());
+  const [showLocationModal, setShowLocationModal] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -113,9 +117,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     // Offline queue listener
     window.addEventListener("offline-queue-change", refreshDraftCount);
 
+    // Device location listener
+    const refreshLoc = () => setDeviceLoc(getDeviceLocation());
+    window.addEventListener("device-location-change", refreshLoc);
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
       window.removeEventListener("offline-queue-change", refreshDraftCount);
+      window.removeEventListener("device-location-change", refreshLoc);
     };
   }, []);
 
@@ -301,7 +310,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
             {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             <span>{isOnline ? "Connected" : "Offline"}</span>
-            {/* Pending drafts badge */}
             {draftCount > 0 && (
               <button onClick={() => navigate("/offline-drafts")}
                 className="ml-auto flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
@@ -310,6 +318,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </button>
             )}
           </div>
+
+          {/* Device Location */}
+          <button
+            onClick={() => setShowLocationModal(true)}
+            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+              deviceLoc ? "text-emerald-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span className="truncate flex-1 text-left">
+              {deviceLoc ? deviceLoc.name : "Location set karo"}
+            </span>
+            <span className="text-slate-600 text-[10px]">✎</span>
+          </button>
 
           {/* Profile link */}
           <Link href="/profile">
@@ -339,6 +361,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
+
+      {/* Location Modal */}
+      {showLocationModal && (
+        <LocationModal onClose={() => { setShowLocationModal(false); setDeviceLoc(getDeviceLocation()); }} />
+      )}
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
