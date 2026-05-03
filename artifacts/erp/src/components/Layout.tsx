@@ -6,7 +6,7 @@ import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
-  TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones,
+  TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
 } from "lucide-react";
 
 interface NavItem {
@@ -70,6 +70,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isOnline, setIsOnline] = useState(true);
   const [softwareName, setSoftwareName] = useState("BizERP");
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installed, setInstalled] = useState(false);
+
+  useEffect(() => {
+    // PWA install prompt
+    const handler = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => { setInstalled(true); setInstallPrompt(null); });
+    // Check if already installed
+    if (window.matchMedia("(display-mode: standalone)").matches) setInstalled(true);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   useEffect(() => {
     // Check online status
@@ -222,6 +234,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {!isOnline && (
             <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1">
               <WifiOff className="w-3 h-3" /> Offline
+            </span>
+          )}
+          {/* PWA Install Button */}
+          {installPrompt && !installed && (
+            <button
+              onClick={() => installPrompt.prompt().then((r: any) => { if (r?.outcome === "accepted") { setInstalled(true); setInstallPrompt(null); } })}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+              title="Install BizERP as desktop/mobile app"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Install App
+            </button>
+          )}
+          {installed && (
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+              ✓ Installed
             </span>
           )}
           {business && (
