@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { TrendingUp, ShoppingCart, CreditCard, Package, FileBarChart2, Loader2, AlertTriangle } from "lucide-react";
+import { TrendingUp, ShoppingCart, CreditCard, Package, FileBarChart2, Loader2, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface Summary {
   totalSales: number; totalPurchases: number; totalReceivables: number; totalPayables: number;
   salesCount: number; purchaseCount: number; gstPayable: number; lowStockItems: number;
+}
+
+interface BusinessInfo {
+  isTrial: boolean;
+  planExpiresAt: string | null;
+  planStartDate: string | null;
+  status: string;
+  planId: number | null;
 }
 
 function StatCard({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: React.ReactNode; color: string }) {
@@ -23,10 +31,94 @@ function StatCard({ label, value, sub, icon, color }: { label: string; value: st
   );
 }
 
+function TrialBanner({ biz }: { biz: BusinessInfo }) {
+  if (!biz.planExpiresAt) return null;
+
+  const expiresAt = new Date(biz.planExpiresAt);
+  const now = new Date();
+  const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const isExpired = daysLeft <= 0;
+  const isExpiringSoon = daysLeft <= 5 && !isExpired;
+
+  if (biz.planId && !biz.isTrial) {
+    // Has a paid plan — show green if still valid
+    if (daysLeft > 30) return null;
+    if (isExpired) {
+      return (
+        <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+          <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div className="flex-1">
+            <span className="text-sm font-semibold text-red-700">Plan Expired — </span>
+            <span className="text-sm text-red-600">Apna plan renew karo, warna features band ho jayenge.</span>
+          </div>
+          <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Renew Now</a>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+        <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
+        <div className="flex-1">
+          <span className="text-sm font-semibold text-amber-700">Plan {daysLeft} din mein expire hoga — </span>
+          <span className="text-sm text-amber-600">Abhi renew karo uninterrupted access ke liye.</span>
+        </div>
+        <a href="/settings/subscription" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 whitespace-nowrap">Renew</a>
+      </div>
+    );
+  }
+
+  // Trial logic
+  if (isExpired) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
+        <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+        <div className="flex-1">
+          <span className="text-sm font-semibold text-red-700">Free Trial Khatam! — </span>
+          <span className="text-sm text-red-600">Plan activate karo ya License Voucher redeem karo.</span>
+        </div>
+        <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Plan Lelo</a>
+      </div>
+    );
+  }
+
+  const barPct = Math.max(0, Math.min(100, ((30 - daysLeft) / 30) * 100));
+  const barColor = isExpiringSoon ? "bg-red-500" : daysLeft <= 15 ? "bg-amber-500" : "bg-blue-500";
+  const borderColor = isExpiringSoon ? "border-red-200" : daysLeft <= 15 ? "border-amber-200" : "border-blue-200";
+  const bgColor = isExpiringSoon ? "bg-red-50" : daysLeft <= 15 ? "bg-amber-50" : "bg-blue-50";
+  const textColor = isExpiringSoon ? "text-red-700" : daysLeft <= 15 ? "text-amber-700" : "text-blue-700";
+  const subColor = isExpiringSoon ? "text-red-600" : daysLeft <= 15 ? "text-amber-600" : "text-blue-600";
+
+  return (
+    <div className={`px-4 py-3 ${bgColor} border ${borderColor} rounded-xl`}>
+      <div className="flex items-center gap-3 mb-2">
+        <Clock className={`w-5 h-5 ${textColor} flex-shrink-0`} />
+        <div className="flex-1">
+          <span className={`text-sm font-semibold ${textColor}`}>
+            Free Trial: {daysLeft} din bacha hai{isExpiringSoon ? " ⚡" : ""}
+          </span>
+          <span className={`text-sm ${subColor} ml-1`}>
+            — {isExpiringSoon ? "Jaldi plan lo!" : "Plan activate karo unlimited access ke liye."}
+          </span>
+        </div>
+        <a href="/settings/subscription" className={`text-xs px-3 py-1.5 rounded-lg whitespace-nowrap text-white ${isExpiringSoon ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+          Plan Dekhein
+        </a>
+      </div>
+      <div className="w-full h-1.5 bg-white/60 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${barPct}%` }} />
+      </div>
+      <div className={`text-xs ${subColor} mt-1`}>
+        Trial {expiresAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} tak
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trend, setTrend] = useState<any[]>([]);
   const [topParties, setTopParties] = useState<any[]>([]);
+  const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("this_month");
 
@@ -36,10 +128,12 @@ export default function Dashboard() {
       api.get<Summary>(`/dashboard/summary?period=${period}`),
       api.get<{ data: any[] }>("/dashboard/sales-trend"),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5"),
-    ]).then(([s, t, p]) => {
+      api.get<any>("/businesses/current").catch(() => null),
+    ]).then(([s, t, p, b]) => {
       setSummary(s);
       setTrend(t.data);
       setTopParties(p.data);
+      if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
     }).catch(console.error).finally(() => setLoading(false));
   }, [period]);
 
@@ -51,6 +145,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-6xl">
+      {bizInfo && <TrialBanner biz={bizInfo} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
