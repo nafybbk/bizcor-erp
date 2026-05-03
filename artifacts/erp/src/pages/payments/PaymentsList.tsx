@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
-import { Plus, Search, Loader2, Trash2, Eye } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Plus, Search, Loader2, Trash2, Eye, Download } from "lucide-react";
 
 interface Props { type: "receipt" | "payment" }
 
@@ -30,6 +31,20 @@ export default function PaymentsList({ type }: Props) {
   };
 
   const filtered = payments.filter(p => !search || p.partyName?.toLowerCase().includes(search.toLowerCase()) || p.paymentNumber?.toLowerCase().includes(search.toLowerCase()));
+
+  const exportCSV = () => {
+    const rows = filtered.map(p => ({
+      "Payment No": p.paymentNumber,
+      "Date": fmt.date(p.date),
+      "Party": p.partyName,
+      "Mode": p.paymentMode,
+      "Amount": p.amount,
+      "Type": p.isOnAccount ? "On Account" : "Bill-wise",
+      "Reference": p.reference || "",
+    }));
+    downloadCSV(rows, `${type === "receipt" ? "Receipts" : "Payments"}_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const title = type === "receipt" ? "Receipts" : "Payments";
 
   return (
@@ -39,11 +54,16 @@ export default function PaymentsList({ type }: Props) {
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{total} records · Total: {fmt.currency(totalAmount)}</p>
         </div>
-        <Link href={`/payments/${type === "receipt" ? "receipts" : "payments"}/new`}>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
-            <Plus className="w-4 h-4" /> New {type === "receipt" ? "Receipt" : "Payment"}
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> Excel
           </button>
-        </Link>
+          <Link href={`/payments/${type === "receipt" ? "receipts" : "payments"}/new`}>
+            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+              <Plus className="w-4 h-4" /> New {type === "receipt" ? "Receipt" : "Payment"}
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

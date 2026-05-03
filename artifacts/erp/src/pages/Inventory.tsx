@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, TrendingDown, AlertTriangle } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Search, Loader2, AlertTriangle, Download } from "lucide-react";
 
 export default function Inventory() {
   const [items, setItems] = useState<any[]>([]);
@@ -21,6 +22,21 @@ export default function Inventory() {
       .catch(console.error).finally(() => setLoading(false));
   }, [page, search]);
 
+  const exportCSV = () => {
+    const rows = items.map(item => ({
+      "Item": item.itemName,
+      "HSN Code": item.hsnCode || "",
+      "Unit": item.unit || "",
+      "Opening Stock": item.openingStock,
+      "Purchased": item.inQuantity,
+      "Sold": item.outQuantity,
+      "Current Stock": item.currentStock,
+      "Avg Rate (₹)": item.avgRate,
+      "Stock Value (₹)": item.stockValue,
+    }));
+    downloadCSV(rows, `Inventory_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div className="max-w-6xl space-y-4">
       <div className="flex items-center justify-between">
@@ -28,6 +44,10 @@ export default function Inventory() {
           <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
           <p className="text-sm text-gray-500 mt-0.5">{total} items · Total Value: {fmt.currency(totalValue)}</p>
         </div>
+        <button onClick={exportCSV} disabled={loading || items.length === 0}
+          className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+          <Download className="w-4 h-4" /> Excel
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Loader2, Download } from "lucide-react";
 
 export default function TrialBalance() {
   const [data, setData] = useState<any[]>([]);
@@ -13,9 +14,28 @@ export default function TrialBalance() {
       .catch(console.error).finally(() => setLoading(false));
   }, []);
 
+  const exportCSV = () => {
+    const rows = [
+      ...data.map(e => ({
+        "Account": e.accountName,
+        "Type": e.accountType,
+        "Debit (Dr)": e.debit > 0 ? e.debit : "",
+        "Credit (Cr)": e.credit > 0 ? e.credit : "",
+      })),
+      { "Account": "TOTAL", "Type": "", "Debit (Dr)": totals.totalDebit, "Credit (Cr)": totals.totalCredit },
+    ];
+    downloadCSV(rows, `Trial_Balance_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div className="max-w-3xl space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Trial Balance</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Trial Balance</h1>
+        <button onClick={exportCSV} disabled={loading || data.length === 0}
+          className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+          <Download className="w-4 h-4" /> Excel
+        </button>
+      </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (

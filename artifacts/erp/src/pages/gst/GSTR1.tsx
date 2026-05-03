@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Loader2, Download } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Loader2, Download, FileJson } from "lucide-react";
 
 export default function GSTR1() {
   const now = new Date();
@@ -26,13 +27,43 @@ export default function GSTR1() {
     URL.revokeObjectURL(url);
   };
 
+  const exportExcel = () => {
+    if (!data) return;
+    const b2bRows = (data.b2b || []).map((b: any) => ({
+      "Section": "B2B",
+      "GSTIN": b.gstin,
+      "Party": b.partyName,
+      "Invoice No": b.invoiceNumber,
+      "Date": fmt.date(b.invoiceDate),
+      "Invoice Value": b.invoiceValue,
+      "Taxable Value": b.taxableValue,
+      "CGST": b.cgst,
+      "SGST": b.sgst,
+      "IGST": b.igst,
+    }));
+    const b2cRows = (data.b2c || []).map((b: any) => ({
+      "Section": "B2C",
+      "GSTIN": "",
+      "Party": "",
+      "Invoice No": b.invoiceNumber,
+      "Date": fmt.date(b.invoiceDate),
+      "Invoice Value": b.invoiceValue,
+      "Taxable Value": b.taxableValue,
+      "CGST": b.cgst,
+      "SGST": b.sgst,
+      "IGST": "",
+    }));
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    downloadCSV([...b2bRows, ...b2cRows], `GSTR1_${months[month - 1]}_${year}.csv`);
+  };
+
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   return (
     <div className="max-w-5xl space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">GSTR-1</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={month} onChange={e => setMonth(Number(e.target.value))}>
             {months.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
@@ -41,8 +72,12 @@ export default function GSTR1() {
             value={year} onChange={e => setYear(Number(e.target.value))}>
             {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
-          <button onClick={exportJSON} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors">
-            <Download className="w-4 h-4" /> Export JSON
+          <button onClick={exportExcel} disabled={!data}
+            className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={exportJSON} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+            <FileJson className="w-4 h-4" /> Export JSON
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Plus, Search, Loader2, Trash2, Edit2, X } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Plus, Search, Loader2, Trash2, Edit2, X, Download } from "lucide-react";
 
 const emptyForm = { name: "", description: "", type: "goods" as "goods"|"service", hsnCode: "", unitId: "", taxRateId: "", salePrice: "", purchasePrice: "", openingStock: "", lowStockAlert: "" };
 
@@ -59,15 +60,37 @@ export default function Items() {
     load();
   };
 
+  const exportCSV = () => {
+    const rows = items.map(it => ({
+      "Name": it.name,
+      "Type": it.type,
+      "HSN Code": it.hsnCode || "",
+      "Unit": it.unitName || "",
+      "Tax Rate %": it.taxRate || 0,
+      "Sale Price": it.salePrice || 0,
+      "Purchase Price": it.purchasePrice || 0,
+      "Opening Stock": it.openingStock || 0,
+      "Current Stock": it.currentStock || 0,
+      "Low Stock Alert": it.lowStockAlert || 0,
+      "Description": it.description || "",
+    }));
+    downloadCSV(rows, `Items_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Items</h1>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
-          <Plus className="w-4 h-4" /> Add Item
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+            <Plus className="w-4 h-4" /> Add Item
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

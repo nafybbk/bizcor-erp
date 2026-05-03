@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Plus, Search, Loader2, Trash2, Edit2, X } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Plus, Search, Loader2, Trash2, Edit2, X, Download } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -62,15 +63,39 @@ export default function Parties() {
     load();
   };
 
+  const exportCSV = () => {
+    const rows = parties.map(p => ({
+      "Name": p.name,
+      "Type": p.type,
+      "GSTIN": p.gstin || "",
+      "PAN": p.pan || "",
+      "Phone": p.phone || "",
+      "Email": p.email || "",
+      "City": p.city || "",
+      "State": p.state || "",
+      "Pincode": p.pincode || "",
+      "Opening Balance": p.openingBalance || 0,
+      "Balance Type": p.openingBalanceType || "",
+      "Credit Limit": p.creditLimit || 0,
+      "Credit Days": p.creditDays || 0,
+    }));
+    downloadCSV(rows, `Parties_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Parties</h1>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
-          <Plus className="w-4 h-4" /> Add Party
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+            <Plus className="w-4 h-4" /> Add Party
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Loader2 } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Loader2, Download } from "lucide-react";
 
 export default function Payables() {
   const [data, setData] = useState<any[]>([]);
@@ -13,13 +14,32 @@ export default function Payables() {
       .catch(console.error).finally(() => setLoading(false));
   }, []);
 
+  const exportCSV = () => {
+    const rows = [
+      ...data.map(r => ({
+        "Party": r.partyName,
+        "Total Billed": r.totalAmount,
+        "Paid": r.paidAmount,
+        "Balance Due": r.balanceDue,
+      })),
+      { "Party": "TOTAL", "Total Billed": "", "Paid": "", "Balance Due": totalOutstanding },
+    ];
+    downloadCSV(rows, `Outstanding_Payables_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Outstanding Payables</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-center">
-          <div className="text-xs text-red-600">Total Payable</div>
-          <div className="text-lg font-bold text-red-700">{fmt.currency(totalOutstanding)}</div>
+        <div className="flex items-center gap-3">
+          <button onClick={exportCSV} disabled={loading || data.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+            <Download className="w-4 h-4" /> Excel
+          </button>
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-center">
+            <div className="text-xs text-red-600">Total Payable</div>
+            <div className="text-lg font-bold text-red-700">{fmt.currency(totalOutstanding)}</div>
+          </div>
         </div>
       </div>
 

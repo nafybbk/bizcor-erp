@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
-import { Plus, Search, Eye, Trash2, Loader2, Filter, Download } from "lucide-react";
+import { downloadCSV } from "@/lib/export";
+import { Plus, Search, Eye, Trash2, Loader2, Download } from "lucide-react";
 
 interface VoucherListProps {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -52,6 +53,20 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     load();
   };
 
+  const exportCSV = () => {
+    const rows = filtered.map(v => ({
+      "Voucher No": v.voucherNumber,
+      "Date": fmt.date(v.date),
+      "Party": v.partyName,
+      "GSTIN": v.partyGstin || "",
+      "Amount": v.grandTotal,
+      "Paid": v.paidAmount,
+      "Balance": v.balanceDue,
+      "Status": v.status,
+    }));
+    downloadCSV(rows, `${title.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
   const filtered = vouchers.filter(v =>
     !search || v.voucherNumber?.toLowerCase().includes(search.toLowerCase()) || v.partyName?.toLowerCase().includes(search.toLowerCase())
   );
@@ -63,12 +78,17 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{total} records · Total: {fmt.currency(totalAmount)}</p>
         </div>
-        <Link href={createHref}>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-            <Plus className="w-4 h-4" />
-            New {title.replace(/s$/, "")}
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors">
+            <Download className="w-4 h-4" /> Excel
           </button>
-        </Link>
+          <Link href={createHref}>
+            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+              <Plus className="w-4 h-4" />
+              New {title.replace(/s$/, "")}
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
