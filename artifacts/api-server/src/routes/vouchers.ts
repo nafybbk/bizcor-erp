@@ -136,33 +136,42 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const grandTotal = calc.taxableAmount + calc.totalTax + transport + round;
   const voucherNum = customNumber || await generateVoucherNumber(businessId, voucherType);
 
-  const [voucher] = await db.insert(vouchersTable).values({
+  const voucherInsert: Record<string, any> = {
     businessId, voucherType, voucherNumber: voucherNum, date, partyId: parsedPartyId,
-    billingAddress: billingAddress || party?.address,
-    useShippingAddress: useShippingAddress || false, shippingAddress,
+    billingAddress: billingAddress || party?.address || null,
+    useShippingAddress: useShippingAddress || false, shippingAddress: shippingAddress || null,
     subTotal: String(calc.subTotal), totalDiscount: String(calc.totalDiscount),
     taxableAmount: String(calc.taxableAmount), totalCgst: String(calc.totalCgst),
     totalSgst: String(calc.totalSgst), totalIgst: String(calc.totalIgst),
     totalTax: String(calc.totalTax), transportCharges: String(transport),
     roundOff: String(round), grandTotal: String(grandTotal),
-    status: status || "posted", notes, termsAndConditions,
-    linkedVoucherId, isInterState, placeOfSupply: placeOfSupply || party?.stateCode,
-    customFields,
-  }).returning();
+    status: status || "posted", notes: notes || null, termsAndConditions: termsAndConditions || null,
+    linkedVoucherId: linkedVoucherId || null, isInterState,
+    placeOfSupply: placeOfSupply || party?.stateCode || null,
+  };
+  if (customFields && typeof customFields === "object" && Object.keys(customFields).length > 0) {
+    voucherInsert.customFields = customFields;
+  }
+  const [voucher] = await db.insert(vouchersTable).values(voucherInsert).returning();
 
   const voucherItemRows = rawItems.map((ri: any, idx: number) => {
     const pi = calc.processedItems[idx];
-    const itemName = ri.itemName || rawItems[idx].itemName || "Item";
-    return {
-      voucherId: voucher.id, itemId: ri.itemId || null, itemName,
-      description: ri.description, hsnCode: ri.hsnCode, quantity: String(ri.quantity),
-      unit: ri.unit, rate: String(ri.rate), discount: String(pi.discount),
-      discountType: ri.discountType || "percent",
-      taxableAmount: String(pi.taxable), taxRateId: ri.taxRateId || null,
+    const itemName = ri.itemName || "Item";
+    const taxRateId = (ri.taxRateId && Number(ri.taxRateId) > 0) ? Number(ri.taxRateId) : null;
+    const row: Record<string, any> = {
+      voucherId: voucher.id, itemId: ri.itemId ? Number(ri.itemId) : null, itemName,
+      description: ri.description || null, hsnCode: ri.hsnCode || null,
+      quantity: String(Number(ri.quantity) || 0),
+      unit: ri.unit || null, rate: String(Number(ri.rate) || 0),
+      discount: String(pi.discount), discountType: ri.discountType || "percent",
+      taxableAmount: String(pi.taxable), taxRateId,
       taxRate: String(pi.taxRate), cgst: String(pi.cgst), sgst: String(pi.sgst),
       igst: String(pi.igst), taxAmount: String(pi.tax), total: String(pi.total),
-      customFields: ri.customFields,
     };
+    if (ri.customFields && typeof ri.customFields === "object" && Object.keys(ri.customFields).length > 0) {
+      row.customFields = ri.customFields;
+    }
+    return row;
   });
   await db.insert(voucherItemsTable).values(voucherItemRows);
   res.status(201).json({ ...voucher, grandTotal: Number(voucher.grandTotal) });
