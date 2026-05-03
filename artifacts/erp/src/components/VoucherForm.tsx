@@ -377,8 +377,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         }
       }
       if (field === "taxRateId") {
-        const tr = taxRates.find(t => t.id === Number(value));
-        if (tr) updated.taxRate = Number(tr.rate);
+        const id = Number(value);
+        if (id === -1) {
+          updated.taxRate = 0; // custom mode — user will type rate
+        } else {
+          const tr = taxRates.find(t => t.id === id);
+          updated.taxRate = tr ? Number(tr.rate) : 0; // reset to 0 when "None" selected
+        }
       }
       next[idx] = calcItem(updated, isInterState);
       return next;
@@ -477,7 +482,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     const itemsToSend = activeItems.map(i => ({
       ...i, quantity: Number(i.quantity) || 0, rate: Number(i.rate) || 0,
       discount: Number(i.discount) || 0, taxRate: Number(i.taxRate) || 0,
-      customFields: i.customFields || {},
+      customFields: i.customFields && Object.keys(i.customFields).length > 0 ? i.customFields : undefined,
+      taxRateId: (i.taxRateId && i.taxRateId > 0) ? i.taxRateId : undefined,
     }));
     const payload: any = {
       ...form, partyId: parsedPartyId,
@@ -1070,12 +1076,34 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         </div>
                       </td>
                       <td className="px-2 py-1.5">
-                        <select className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={item.taxRateId || ""}
-                          onChange={e => updateItem(idx, "taxRateId" as any, e.target.value ? Number(e.target.value) : undefined)}>
-                          <option value="">None</option>
-                          {taxRates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
+                        {taxRates.length === 0 || item.taxRateId === -1 ? (
+                          <div className={taxRates.length > 0 ? "flex items-center gap-1" : ""}>
+                            {taxRates.length > 0 && (
+                              <button type="button" title="Back to dropdown"
+                                onClick={() => updateItem(idx, "taxRateId" as any, undefined)}
+                                className="text-xs text-gray-400 hover:text-red-500 px-1 flex-shrink-0">✕</button>
+                            )}
+                            <input type="number" min="0" max="100" step="0.5" placeholder="GST %"
+                              className="border border-blue-300 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={item.taxRate || ""}
+                              onChange={e => {
+                                const rate = parseFloat(e.target.value) || 0;
+                                setLineItems(prev => {
+                                  const next = [...prev];
+                                  next[idx] = calcItem({ ...next[idx], taxRate: rate }, isInterState);
+                                  return next;
+                                });
+                              }} />
+                          </div>
+                        ) : (
+                          <select className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={item.taxRateId || ""}
+                            onChange={e => updateItem(idx, "taxRateId" as any, e.target.value ? Number(e.target.value) : undefined)}>
+                            <option value="">None</option>
+                            {taxRates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            <option value="-1">Custom %…</option>
+                          </select>
+                        )}
                       </td>
                       <td className="px-2 py-1.5 text-right text-xs text-gray-600">{fmt.number(item.taxableAmount)}</td>
                       <td className="px-2 py-1.5 text-right text-xs">
