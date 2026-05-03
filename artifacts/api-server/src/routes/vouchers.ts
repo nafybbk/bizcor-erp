@@ -109,7 +109,17 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const businessId = req.user!.businessId!;
   const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber } = req.body;
 
-  const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, Number(partyId)) });
+  const parsedPartyId = parseInt(String(partyId), 10);
+  if (!parsedPartyId || isNaN(parsedPartyId)) {
+    res.status(400).json({ error: "Bad Request", message: "Please select a valid party" });
+    return;
+  }
+  if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
+    res.status(400).json({ error: "Bad Request", message: "At least one item is required" });
+    return;
+  }
+
+  const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, parsedPartyId) });
   const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
   const isInterState = !!(party?.stateCode && business?.stateCode && party.stateCode !== business.stateCode);
 
@@ -127,7 +137,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const voucherNum = customNumber || await generateVoucherNumber(businessId, voucherType);
 
   const [voucher] = await db.insert(vouchersTable).values({
-    businessId, voucherType, voucherNumber: voucherNum, date, partyId: Number(partyId),
+    businessId, voucherType, voucherNumber: voucherNum, date, partyId: parsedPartyId,
     billingAddress: billingAddress || party?.address,
     useShippingAddress: useShippingAddress || false, shippingAddress,
     subTotal: String(calc.subTotal), totalDiscount: String(calc.totalDiscount),
