@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Edit2, Download, X, CreditCard } from "lucide-react";
+import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield } from "lucide-react";
+
+const ALL_PERMS = [
+  { key: "sales", label: "Sales" },
+  { key: "purchases", label: "Purchases" },
+  { key: "payments", label: "Payments" },
+  { key: "inventory", label: "Inventory" },
+  { key: "accounting", label: "Accounting" },
+  { key: "gst", label: "GST" },
+  { key: "masters", label: "Masters" },
+  { key: "settings", label: "Settings" },
+];
 
 export default function AdminBusinesses() {
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -13,6 +24,14 @@ export default function AdminBusinesses() {
   const [editBiz, setEditBiz] = useState<any>(null);
   const [editForm, setEditForm] = useState({ status: "", planId: "", isTrial: false, planExpiresAt: "" });
   const [saving, setSaving] = useState(false);
+
+  // Users modal state
+  const [usersBiz, setUsersBiz] = useState<any>(null);
+  const [usersData, setUsersData] = useState<{ users: any[]; planFeatures: string[]; planName: string | null; businessName: string } | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [userSaving, setUserSaving] = useState<number | null>(null);
+
   const limit = 20;
 
   const load = () => {
@@ -54,6 +73,47 @@ export default function AdminBusinesses() {
     } finally { setSaving(false); }
   };
 
+  const openUsers = async (b: any) => {
+    setUsersBiz(b);
+    setUsersLoading(true);
+    setUsersData(null);
+    setEditingUser(null);
+    try {
+      const data = await api.get<any>(`/super-admin/businesses/${b.id}/users`);
+      setUsersData(data);
+    } catch (e) { console.error(e); }
+    finally { setUsersLoading(false); }
+  };
+
+  const toggleActive = async (user: any) => {
+    setUserSaving(user.id);
+    try {
+      const updated = await api.patch<any>(`/super-admin/businesses/${usersBiz.id}/users/${user.id}`, { isActive: !user.isActive });
+      setUsersData(d => d ? { ...d, users: d.users.map(u => u.id === user.id ? { ...u, ...updated } : u) } : d);
+    } finally { setUserSaving(null); }
+  };
+
+  const openEditPerms = (user: any) => {
+    setEditingUser({ ...user, editPerms: [...(user.permissions || [])] });
+  };
+
+  const togglePerm = (perm: string) => {
+    setEditingUser((u: any) => ({
+      ...u,
+      editPerms: u.editPerms.includes(perm) ? u.editPerms.filter((p: string) => p !== perm) : [...u.editPerms, perm],
+    }));
+  };
+
+  const savePerms = async () => {
+    if (!editingUser) return;
+    setUserSaving(editingUser.id);
+    try {
+      const updated = await api.patch<any>(`/super-admin/businesses/${usersBiz.id}/users/${editingUser.id}`, { permissions: editingUser.editPerms });
+      setUsersData(d => d ? { ...d, users: d.users.map(u => u.id === editingUser.id ? { ...u, ...updated } : u) } : d);
+      setEditingUser(null);
+    } finally { setUserSaving(null); }
+  };
+
   const downloadBackup = async (id: number, code: string) => {
     const token = localStorage.getItem("erp_token");
     const res = await fetch(`${import.meta.env.BASE_URL}api/super-admin/backup?businessId=${id}`, {
@@ -77,6 +137,11 @@ export default function AdminBusinesses() {
   };
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+  // Determine which permissions to show: plan features if set, else all
+  const availablePerms = usersData?.planFeatures && usersData.planFeatures.length > 0
+    ? ALL_PERMS.filter(p => usersData.planFeatures.includes(p.key))
+    : ALL_PERMS;
 
   return (
     <div className="max-w-6xl space-y-4">
@@ -148,7 +213,8 @@ export default function AdminBusinesses() {
                     <td className="px-4 py-3 text-gray-500 text-xs">{fmt.date(b.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openUsers(b)} className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg" title="Manage Users"><Users className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit Business"><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => downloadBackup(b.id, b.businessCode)} className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg" title="Download backup"><Download className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
@@ -170,7 +236,7 @@ export default function AdminBusinesses() {
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Business Modal */}
       {editBiz && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setEditBiz(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
@@ -211,6 +277,107 @@ export default function AdminBusinesses() {
               <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Users Modal */}
+      {usersBiz && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && !editingUser && setUsersBiz(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <div>
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-500" /> {usersBiz.name} — Users
+                </h2>
+                {usersData?.planName && (
+                  <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                    <CreditCard className="w-3 h-3" /> Plan: <span className="font-medium text-blue-600">{usersData.planName}</span>
+                    {usersData.planFeatures.length > 0 && <span className="text-gray-400">· {usersData.planFeatures.length} modules</span>}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => { setUsersBiz(null); setEditingUser(null); }}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {usersLoading ? (
+                <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+              ) : usersData?.users.length === 0 ? (
+                <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Koi user nahi hai is business mein</div>
+              ) : usersData?.users.map(user => (
+                <div key={user.id} className={`border rounded-xl p-4 transition-all ${editingUser?.id === user.id ? "border-purple-300 bg-purple-50" : "border-gray-200 bg-white"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900">{user.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${user.role === "business_admin" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                          {user.role?.replace("_", " ")}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">{user.email}</div>
+                      {user.role !== "business_admin" && user.permissions?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {(user.permissions as string[]).map((p: string) => (
+                            <span key={p} className="text-xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded capitalize">{p}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Active/Inactive Toggle */}
+                      <button
+                        onClick={() => toggleActive(user)}
+                        disabled={userSaving === user.id}
+                        title={user.isActive ? "Deactivate user" : "Activate user"}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${user.isActive ? "bg-green-50 text-green-700 hover:bg-red-50 hover:text-red-600 border border-green-200 hover:border-red-200" : "bg-red-50 text-red-600 hover:bg-green-50 hover:text-green-700 border border-red-200 hover:border-green-200"}`}
+                      >
+                        {userSaving === user.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : user.isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                        {user.isActive ? "Active" : "Inactive"}
+                      </button>
+                      {/* Permissions (only for staff) */}
+                      {user.role !== "business_admin" && (
+                        <button
+                          onClick={() => editingUser?.id === user.id ? setEditingUser(null) : openEditPerms(user)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 transition-colors"
+                        >
+                          <Shield className="w-3.5 h-3.5" /> Rights
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Permissions Editor */}
+                  {editingUser?.id === user.id && (
+                    <div className="mt-3 pt-3 border-t border-purple-200">
+                      <p className="text-xs font-medium text-gray-700 mb-2">
+                        Rights assign karein
+                        {usersData.planFeatures.length > 0
+                          ? <span className="text-gray-400 font-normal"> (plan ke hisaab se available modules)</span>
+                          : <span className="text-gray-400 font-normal"> (saare modules)</span>
+                        }
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {availablePerms.map(p => (
+                          <label key={p.key} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${editingUser.editPerms.includes(p.key) ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                            <input type="checkbox" className="rounded accent-indigo-600" checked={editingUser.editPerms.includes(p.key)} onChange={() => togglePerm(p.key)} />
+                            {p.label}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex justify-end gap-2 mt-3">
+                        <button onClick={() => setEditingUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">Cancel</button>
+                        <button onClick={savePerms} disabled={userSaving === editingUser.id} className="flex items-center gap-1.5 px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium disabled:opacity-60">
+                          {userSaving === editingUser.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Save Rights
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

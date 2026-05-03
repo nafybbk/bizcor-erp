@@ -110,6 +110,43 @@ router.patch("/businesses/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── Business Users (activate/deactivate + permissions) ──────────────────────
+
+router.get("/businesses/:id/users", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+    const plan = business.planId ? await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) }) : null;
+    const users = await db.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email,
+      role: usersTable.role, isActive: usersTable.isActive, permissions: usersTable.permissions,
+    }).from(usersTable).where(eq(usersTable.businessId, bizId)).orderBy(usersTable.name);
+    res.json({
+      users,
+      planFeatures: plan?.features || [],
+      planName: plan?.name || null,
+      businessName: business.name,
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/businesses/:id/users/:userId", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const userId = Number(req.params.userId);
+    const { isActive, permissions } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (permissions !== undefined) updateData.permissions = permissions;
+    if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "Nothing to update" }); return; }
+    const [updated] = await db.update(usersTable).set(updateData)
+      .where(and(eq(usersTable.id, userId), eq(usersTable.businessId, bizId))).returning();
+    if (!updated) { res.status(404).json({ error: "User not found" }); return; }
+    res.json({ id: updated.id, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive, permissions: updated.permissions });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── Backup ───────────────────────────────────────────────────────────────────
 
 router.get("/backup", async (req, res) => {
