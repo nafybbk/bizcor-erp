@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
-import { api } from "@/lib/api";
+import { api, setAdminToken } from "@/lib/api";
 import { Eye, EyeOff, Loader2, Search, ChevronRight, Headphones } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
 
@@ -61,8 +61,10 @@ export default function Login() {
     try {
       const res = await api.post<any>("/auth/tech-login", { phone: techForm.phone.trim(), password: techForm.password });
       if (res.token && res.user) {
-        localStorage.setItem("erp_token", res.token);
-        localStorage.setItem("erp_user", JSON.stringify(res.user));
+        // Use sessionStorage (tab-isolated) so tech admin token doesn't
+        // overwrite the business user token in localStorage on other tabs.
+        setAdminToken(res.token);
+        sessionStorage.setItem("erp_user", JSON.stringify(res.user));
         window.location.href = "/";
       }
     } catch (err: any) {

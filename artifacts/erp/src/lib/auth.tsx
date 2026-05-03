@@ -30,7 +30,7 @@ const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem("erp_user");
+    const stored = sessionStorage.getItem("erp_user") || localStorage.getItem("erp_user");
     return stored ? JSON.parse(stored) : null;
   });
   const [business, setBusiness] = useState<AuthBusiness | null>(() => {
