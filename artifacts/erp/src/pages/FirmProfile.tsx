@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Loader2, Save, Upload, X, ArrowLeft, Settings, Building2 } from "lucide-react";
+import { Loader2, Save, Upload, X, ArrowLeft, Settings, Building2, Sparkles, ImageIcon } from "lucide-react";
+import { BusinessAnimatedLogo } from "@/components/BizCorLogo";
 
 export default function FirmProfile() {
   const [, navigate] = useLocation();
@@ -9,11 +10,16 @@ export default function FirmProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [logoTab, setLogoTab] = useState<"default" | "custom">("default");
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get<any>("/businesses/current")
-      .then(b => { setForm(b); localStorage.setItem("erp_biz_profile", JSON.stringify(b)); })
+      .then(b => {
+        setForm(b);
+        localStorage.setItem("erp_biz_profile", JSON.stringify(b));
+        if (b.logo) setLogoTab("custom");
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -22,9 +28,10 @@ export default function FirmProfile() {
     e.preventDefault();
     setSaving(true);
     try {
+      const logoToSave = logoTab === "custom" ? form.logo : null;
       const updated = await api.patch<any>("/businesses/current", {
         name: form.name, gstin: form.gstin, pan: form.pan,
-        phone: form.phone, email: form.email, logo: form.logo,
+        phone: form.phone, email: form.email, logo: logoToSave,
         address: form.address, city: form.city, state: form.state, pincode: form.pincode,
         signatoryName: form.signatoryName,
       });
@@ -39,7 +46,10 @@ export default function FirmProfile() {
     if (!file) return;
     if (file.size > 500 * 1024) { alert("Logo 500KB se chhota hona chahiye"); return; }
     const reader = new FileReader();
-    reader.onload = (ev) => setForm((f: any) => ({ ...f, logo: ev.target?.result as string }));
+    reader.onload = (ev) => {
+      setForm((f: any) => ({ ...f, logo: ev.target?.result as string }));
+      setLogoTab("custom");
+    };
     reader.readAsDataURL(file);
   };
 
@@ -50,6 +60,9 @@ export default function FirmProfile() {
       <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
     </div>
   );
+
+  const bizName = form?.name || "Business";
+  const bizType = form?.businessType || "";
 
   return (
     <form onSubmit={save} className="max-w-xl space-y-5">
@@ -71,51 +84,101 @@ export default function FirmProfile() {
         </div>
       )}
 
-      {/* Logo Card */}
+      {/* ── Logo Card ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Building2 className="w-4 h-4 text-blue-600" /> Firm Logo
         </h3>
 
-        <div className="flex items-center gap-6">
-          {/* Logo preview */}
-          <div className="relative flex-shrink-0">
-            <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-2xl flex items-center justify-center bg-gray-50 overflow-hidden">
-              {form?.logo ? (
-                <img src={form.logo} alt="Logo" className="w-full h-full object-contain p-2" />
-              ) : (
-                <div className="text-center text-gray-300">
-                  <Building2 className="w-12 h-12 mx-auto mb-1" />
-                  <span className="text-xs">Logo nahi hai</span>
-                </div>
+        {/* Tab switcher */}
+        <div className="flex gap-2 mb-5">
+          <button
+            type="button"
+            onClick={() => setLogoTab("default")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              logoTab === "default"
+                ? "bg-indigo-600 text-white shadow"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Auto Logo (Default)
+          </button>
+          <button
+            type="button"
+            onClick={() => setLogoTab("custom")}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              logoTab === "custom"
+                ? "bg-indigo-600 text-white shadow"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            Custom Logo Upload
+          </button>
+        </div>
+
+        {logoTab === "default" ? (
+          /* ── Default animated logo ── */
+          <div className="flex flex-col items-center gap-4 py-4">
+            <BusinessAnimatedLogo
+              name={bizName}
+              subtitle={bizType}
+              size={200}
+              bounce={false}
+            />
+            <div className="text-center">
+              <p className="text-sm font-medium text-gray-700">{bizName}</p>
+              {bizType && <p className="text-xs text-gray-400 mt-0.5">{bizType}</p>}
+            </div>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 text-center max-w-sm">
+              <p className="text-xs text-indigo-600 font-medium">✨ Yeh aapka auto-generated logo hai</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Firm naam se apne aap banta hai — koi design ki zarurat nahi!
+                Custom logo upload karna ho toh "Custom Logo Upload" tab use karo.
+              </p>
+            </div>
+          </div>
+        ) : (
+          /* ── Custom logo upload ── */
+          <div className="flex items-center gap-6">
+            <div className="relative flex-shrink-0">
+              <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-2xl flex items-center justify-center bg-gray-50 overflow-hidden">
+                {form?.logo ? (
+                  <img src={form.logo} alt="Logo" className="w-full h-full object-contain p-2" />
+                ) : (
+                  <div className="text-center text-gray-300">
+                    <Building2 className="w-12 h-12 mx-auto mb-1" />
+                    <span className="text-xs">Logo nahi hai</span>
+                  </div>
+                )}
+              </div>
+              {form?.logo && (
+                <button type="button"
+                  onClick={() => setForm((f: any) => ({ ...f, logo: null }))}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 shadow">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
-            {form?.logo && (
-              <button type="button"
-                onClick={() => setForm((f: any) => ({ ...f, logo: null }))}
-                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 shadow">
-                <X className="w-3.5 h-3.5" />
+            <div className="space-y-3">
+              <button type="button" onClick={() => logoInputRef.current?.click()}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors">
+                <Upload className="w-4 h-4" />
+                {form?.logo ? "Logo Badlo" : "Logo Upload Karo"}
               </button>
-            )}
+              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} />
+              <ul className="text-xs text-gray-400 space-y-0.5 list-disc list-inside">
+                <li>PNG, JPG, SVG — max 500KB</li>
+                <li>Transparent background best hota hai</li>
+                <li>Har invoice aur document par dikhega</li>
+              </ul>
+            </div>
           </div>
-
-          <div className="space-y-3">
-            <button type="button" onClick={() => logoInputRef.current?.click()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors">
-              <Upload className="w-4 h-4" />
-              {form?.logo ? "Logo Badlo" : "Logo Upload Karo"}
-            </button>
-            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} />
-            <ul className="text-xs text-gray-400 space-y-0.5 list-disc list-inside">
-              <li>PNG, JPG, SVG — max 500KB</li>
-              <li>Transparent background best hota hai</li>
-              <li>Har invoice, report aur document par dikhega</li>
-            </ul>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Firm Details */}
+      {/* ── Firm Details ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
         <h3 className="font-semibold text-gray-800">Firm Details</h3>
         <div className="space-y-3">
