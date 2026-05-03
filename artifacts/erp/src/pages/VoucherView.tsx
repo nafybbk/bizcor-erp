@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { Loader2, ArrowLeft, Printer, Share2, FileDown } from "lucide-react";
@@ -50,6 +50,8 @@ function toWords(n: number): string {
 export default function VoucherView({ voucherType, listHref }: Props) {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
+  const search = useSearch();
+  const autoPrint = new URLSearchParams(search).get("print") === "1";
   const [voucher, setVoucher] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +65,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
       setBusiness(b);
     }).catch(console.error).finally(() => setLoading(false));
   }, [params.id]);
+
+  // Auto-print when opened with ?print=1 (from list print button)
+  useEffect(() => {
+    if (autoPrint && !loading && voucher) {
+      const t = setTimeout(() => { window.print(); }, 400);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [autoPrint, loading, voucher]);
 
   const handlePrint = () => window.print();
 

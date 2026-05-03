@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Plus, Search, Eye, Trash2, Loader2, Download } from "lucide-react";
+import { Plus, Search, Eye, Trash2, Loader2, Download, Printer } from "lucide-react";
 
 interface VoucherListProps {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -151,11 +151,18 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1">
                         <Link href={viewHref(v.id)}>
-                          <button className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
+                          <button title="View" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
                         </Link>
-                        <button onClick={() => del(v.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        <button
+                          title="Print"
+                          onClick={() => window.open(`${viewHref(v.id)}?print=1`, "_blank")}
+                          className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => del(v.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
