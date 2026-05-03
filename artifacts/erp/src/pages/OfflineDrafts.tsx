@@ -23,11 +23,25 @@ export default function OfflineDrafts() {
 
   // Submit a single draft, using idMap for temp-party resolution. Returns server result or throws.
   const submitDraft = async (draft: DraftState, idMap: Record<number, number>): Promise<any> => {
-    const payload = resolvePayload(draft.payload, idMap);
+    let payload = resolvePayload(draft.payload, idMap);
 
-    // Guard: if partyId is still negative after resolution, the party draft hasn't synced yet
+    // If partyId is still negative after idMap resolution, try to look up the party by name on the server
     if (payload?.partyId && typeof payload.partyId === "number" && payload.partyId < 0) {
-      throw new Error("Party abhi server par save nahi hua. Pehle party draft submit karo ya 'Sab Submit Karo' use karo.");
+      const partyName: string | undefined = payload.partyName;
+      if (partyName) {
+        const result = await api.get<any>(`/parties?search=${encodeURIComponent(partyName)}&limit=10`);
+        const parties: any[] = result.data || result || [];
+        const found = parties.find((p: any) =>
+          p.name?.toLowerCase().trim() === partyName.toLowerCase().trim()
+        );
+        if (found) {
+          payload = { ...payload, partyId: found.id };
+        } else {
+          throw new Error(`Party "${partyName}" server par nahi mili. Pehle party banao phir submit karo.`);
+        }
+      } else {
+        throw new Error("Party ka ID resolve nahi hua. 'Sab Submit Karo' use karo ya draft delete karke naya banao.");
+      }
     }
 
     if (draft.method === "POST") return api.post(draft.endpoint, payload);
