@@ -37,9 +37,9 @@ router.post("/login", async (req, res) => {
     }
 
     if (!businessCode) {
-      // Try super admin login
+      // Try super admin login (case-insensitive email)
       const admin = await db.query.superAdminsTable.findFirst({
-        where: eq(superAdminsTable.email, email),
+        where: eq(superAdminsTable.email, email.toLowerCase()),
       });
       if (admin && await bcrypt.compare(password, admin.passwordHash)) {
         const token = signToken({ id: admin.id, email: admin.email, name: admin.name, role: "super_admin" });
