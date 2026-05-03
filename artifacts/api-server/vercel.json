@@ -2,6 +2,7 @@
   "version": 2,
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "node vercel-build.mjs",
+  "outputDirectory": ".",
   "functions": {
     "api/index.js": {
       "maxDuration": 30
