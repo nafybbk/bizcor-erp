@@ -9,6 +9,8 @@ export interface AuthUser {
   name: string;
   role: "super_admin" | "business_admin" | "staff";
   businessId?: number;
+  planExpiresAt?: string;
+  isTrial?: boolean;
 }
 
 declare global {
@@ -19,8 +21,25 @@ declare global {
   }
 }
 
-export function signToken(payload: AuthUser): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+export function signToken(payload: AuthUser, planExpiresAt?: Date | null, isTrial?: boolean): string {
+  const enriched: AuthUser = { ...payload };
+
+  // Default: 7 days in seconds
+  let expiresInSeconds = 7 * 24 * 60 * 60;
+
+  if (planExpiresAt && !isTrial) {
+    enriched.planExpiresAt = planExpiresAt.toISOString();
+    const secondsLeft = Math.floor((planExpiresAt.getTime() - Date.now()) / 1000);
+    if (secondsLeft > 0) {
+      expiresInSeconds = Math.min(secondsLeft, 7 * 24 * 60 * 60);
+    } else {
+      expiresInSeconds = 3600; // 1 hour (shouldn't happen — login blocks expired plans)
+    }
+  }
+
+  if (isTrial) enriched.isTrial = true;
+
+  return jwt.sign(enriched, JWT_SECRET, { expiresIn: expiresInSeconds });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -57,4 +76,20 @@ export function requireBusiness(req: Request, res: Response, next: NextFunction)
     }
     next();
   });
+}
+
+export function requireActivePlan(req: Request, res: Response, next: NextFunction): void {
+  const user = req.user;
+  if (!user || user.role === "super_admin" || user.isTrial) { next(); return; }
+  if (user.planExpiresAt) {
+    const expiry = new Date(user.planExpiresAt);
+    if (expiry < new Date()) {
+      res.status(402).json({
+        error: "PLAN_EXPIRED",
+        message: "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein.",
+      });
+      return;
+    }
+  }
+  next();
 }

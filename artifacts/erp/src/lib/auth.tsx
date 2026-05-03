@@ -14,6 +14,9 @@ export interface AuthBusiness {
   id: number;
   name: string;
   businessCode: string;
+  planExpiresAt?: string | null;
+  isTrial?: boolean;
+  status?: string;
 }
 
 interface AuthCtx {
@@ -24,6 +27,31 @@ interface AuthCtx {
   logout: () => void;
   isSuperAdmin: () => boolean;
   isBusinessAdmin: () => boolean;
+  isPlanExpired: () => boolean;
+}
+
+const PLAN_EXPIRY_KEY = "erp_plan_expires_at";
+const PLAN_TRIAL_KEY  = "erp_plan_is_trial";
+
+export function getCachedPlanExpiry(): string | null {
+  return localStorage.getItem(PLAN_EXPIRY_KEY);
+}
+
+function checkPlanExpired(): boolean {
+  const role = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("erp_user") || "null");
+      return u?.role as string | undefined;
+    } catch { return undefined; }
+  })();
+  if (role === "super_admin") return false;
+
+  const isTrial = localStorage.getItem(PLAN_TRIAL_KEY) === "true";
+  if (isTrial) return false;
+
+  const expiry = localStorage.getItem(PLAN_EXPIRY_KEY);
+  if (!expiry) return false;
+  return new Date(expiry) < new Date();
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -45,9 +73,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res: any = await api.post("/auth/login", { email, password, businessCode: businessCode || undefined, ...coords });
       setToken(res.token);
       setUser(res.user);
-      setBusiness(res.business || null);
+      const biz = res.business || null;
+      setBusiness(biz);
       localStorage.setItem("erp_user", JSON.stringify(res.user));
-      localStorage.setItem("erp_business", JSON.stringify(res.business || null));
+      localStorage.setItem("erp_business", JSON.stringify(biz));
+
+      if (biz?.planExpiresAt) {
+        localStorage.setItem(PLAN_EXPIRY_KEY, biz.planExpiresAt);
+      } else {
+        localStorage.removeItem(PLAN_EXPIRY_KEY);
+      }
+      localStorage.setItem(PLAN_TRIAL_KEY, biz?.isTrial ? "true" : "false");
     } finally {
       setLoading(false);
     }
@@ -57,6 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearToken();
     setUser(null);
     setBusiness(null);
+    localStorage.removeItem(PLAN_EXPIRY_KEY);
+    localStorage.removeItem(PLAN_TRIAL_KEY);
   };
 
   return (
@@ -64,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, business, loading, login, logout,
       isSuperAdmin: () => user?.role === "super_admin",
       isBusinessAdmin: () => user?.role === "business_admin",
+      isPlanExpired: () => checkPlanExpired(),
     }}>
       {children}
     </Ctx.Provider>
