@@ -12,6 +12,35 @@ const INDIAN_STATES = [
   { name: "Himachal Pradesh", code: "02" }, { name: "Jharkhand", code: "20" }, { name: "Odisha", code: "21" },
 ];
 
+const BUSINESS_TYPES = [
+  { value: "", label: "General / Trading" },
+  { value: "pharmacy", label: "Pharmacy / Medical Store" },
+  { value: "electronics", label: "Electronics / Mobile Shop" },
+  { value: "fabric", label: "Fabric / Textile / Wholesale" },
+  { value: "restaurant", label: "Restaurant / Hotel / Dhaba" },
+  { value: "auto_parts", label: "Auto Parts / Garage" },
+  { value: "jewellery", label: "Jewellery / Gold Shop" },
+  { value: "construction", label: "Construction / Contractor" },
+  { value: "grocery", label: "Grocery / Kirana / FMCG" },
+  { value: "hardware", label: "Hardware / Electrical / Plumbing" },
+  { value: "books", label: "Books / Stationery" },
+  { value: "furniture", label: "Furniture / Wood Works" },
+  { value: "chemical", label: "Chemical / Pesticide / Fertilizer" },
+  { value: "transport", label: "Transport / Logistics" },
+];
+
+const TYPE_INFO: Record<string, string> = {
+  pharmacy: "Invoice mein Drug License, Batch No, Expiry Date, MRP fields aayenge",
+  electronics: "Invoice mein Serial No, Model No, Brand, Warranty fields aayenge",
+  fabric: "Invoice mein Color, Design, Width, Composition fields aayenge",
+  restaurant: "Invoice mein Table No, Cover Count, Waiter Name fields aayenge",
+  auto_parts: "Invoice mein Vehicle Reg No, Vehicle Model, Part No fields aayenge",
+  jewellery: "Invoice mein Hallmark No, Purity, Weight, Making Charges fields aayenge",
+  construction: "Invoice mein Project Name, Work Order No, Site fields aayenge",
+  grocery: "Invoice mein Batch No, Expiry Date fields aayenge",
+  hardware: "Invoice mein Brand, Model No fields aayenge",
+};
+
 export default function BusinessSettings() {
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -84,6 +113,7 @@ export default function BusinessSettings() {
 
       {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">Settings saved successfully!</div>}
 
+      {/* Basic Info */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Basic Information</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -95,6 +125,26 @@ export default function BusinessSettings() {
         </div>
       </div>
 
+      {/* Business Type */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Business Type & Industry</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Business Type</label>
+          <select className={inputCls} value={form.businessType || ""} onChange={e => setForm((f: any) => ({ ...f, businessType: e.target.value }))}>
+            {BUSINESS_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          {form.businessType && TYPE_INFO[form.businessType] && (
+            <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              ✓ {TYPE_INFO[form.businessType]}
+            </div>
+          )}
+          {!form.businessType && (
+            <p className="text-xs text-gray-400 mt-1">Apna business type choose karo — invoice mein relevant fields automatically aayenge</p>
+          )}
+        </div>
+      </div>
+
+      {/* Address */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Address</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -113,6 +163,7 @@ export default function BusinessSettings() {
         </div>
       </div>
 
+      {/* Invoice Settings */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Invoice Settings</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -133,11 +184,11 @@ export default function BusinessSettings() {
         </div>
       </div>
 
+      {/* Connection & Backup */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
           <Database className="w-4 h-4" /> Connection & Backup
         </h3>
-
         <div className="flex items-center justify-between py-3 border-b border-gray-50">
           <div>
             <div className="text-sm font-medium text-gray-700">Server Connection</div>
@@ -150,20 +201,13 @@ export default function BusinessSettings() {
             {isOnline ? "Online" : "Offline"}
           </div>
         </div>
-
         <div className="flex items-center justify-between py-3 border-b border-gray-50">
           <div>
-            <div className="text-sm font-medium text-gray-700">Database Mode</div>
-            <div className="text-xs text-gray-500 mt-0.5">
-              {dbMode === "cloud" ? "Using cloud database (PostgreSQL)" : "Using local database"}
-            </div>
+            <div className="text-sm font-medium text-gray-700">Offline Support</div>
+            <div className="text-xs text-gray-500 mt-0.5">App shell cached — internet se hi data save/load hota hai</div>
           </div>
-          <button type="button" onClick={toggleDbMode}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dbMode === "cloud" ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"}`}>
-            {dbMode === "cloud" ? "☁ Cloud DB" : "🖥 Local DB"}
-          </button>
+          <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded-full">Data: Cloud Only</span>
         </div>
-
         <div className="flex items-center justify-between py-3">
           <div>
             <div className="text-sm font-medium text-gray-700">Download Business Backup</div>
@@ -175,7 +219,6 @@ export default function BusinessSettings() {
             Download
           </button>
         </div>
-
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
           <input className={inputCls + " bg-gray-50 text-gray-400 font-mono"} value={form.businessCode || ""} readOnly />
         </div>

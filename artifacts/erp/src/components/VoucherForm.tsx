@@ -4,6 +4,111 @@ import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X } from "lucide-react";
 
+// Business type → invoice-level and item-level custom fields config
+const BIZ_FIELDS: Record<string, {
+  invoiceFields: { key: string; label: string; placeholder?: string; type?: string }[];
+  itemFields: { key: string; label: string; placeholder?: string; type?: string }[];
+}> = {
+  pharmacy: {
+    invoiceFields: [
+      { key: "drugLicenseNo", label: "Drug License No.", placeholder: "DL/MH/01/2023" },
+    ],
+    itemFields: [
+      { key: "batchNo", label: "Batch No", placeholder: "B-0012" },
+      { key: "expiryDate", label: "Expiry Date", type: "month" },
+      { key: "mrp", label: "MRP (₹)", type: "number", placeholder: "0.00" },
+      { key: "mfgBy", label: "Manufacturer", placeholder: "Cipla Ltd." },
+    ],
+  },
+  electronics: {
+    invoiceFields: [],
+    itemFields: [
+      { key: "serialNo", label: "Serial No", placeholder: "SN-..." },
+      { key: "modelNo", label: "Model No", placeholder: "Model" },
+      { key: "brand", label: "Brand", placeholder: "Samsung" },
+      { key: "warranty", label: "Warranty (months)", type: "number", placeholder: "12" },
+    ],
+  },
+  fabric: {
+    invoiceFields: [],
+    itemFields: [
+      { key: "color", label: "Color", placeholder: "Red/Navy..." },
+      { key: "design", label: "Design/Print", placeholder: "Floral/Plain" },
+      { key: "widthCm", label: "Width (cm)", type: "number", placeholder: "115" },
+      { key: "composition", label: "Composition", placeholder: "100% Cotton" },
+    ],
+  },
+  restaurant: {
+    invoiceFields: [
+      { key: "tableNo", label: "Table No.", placeholder: "T-01" },
+      { key: "coverCount", label: "Cover Count", type: "number", placeholder: "2" },
+      { key: "waiter", label: "Waiter Name", placeholder: "Staff name" },
+    ],
+    itemFields: [],
+  },
+  auto_parts: {
+    invoiceFields: [
+      { key: "vehicleRegNo", label: "Vehicle Reg. No.", placeholder: "MH-01-AB-1234" },
+      { key: "vehicleModel", label: "Vehicle Model", placeholder: "Maruti Swift 2020" },
+    ],
+    itemFields: [
+      { key: "partNo", label: "Part No.", placeholder: "PT-001" },
+      { key: "compatibility", label: "Fits Model", placeholder: "All petrol variants" },
+    ],
+  },
+  jewellery: {
+    invoiceFields: [
+      { key: "hallmarkNo", label: "Hallmark Cert. No.", placeholder: "HM-..." },
+    ],
+    itemFields: [
+      { key: "purity", label: "Purity/Karat", placeholder: "22K / 916" },
+      { key: "grossWeightGm", label: "Gross Wt (gm)", type: "number", placeholder: "10.00" },
+      { key: "netWeightGm", label: "Net Wt (gm)", type: "number", placeholder: "9.50" },
+      { key: "makingCharges", label: "Making Charges (₹)", type: "number", placeholder: "0" },
+    ],
+  },
+  construction: {
+    invoiceFields: [
+      { key: "projectName", label: "Project Name", placeholder: "Site name..." },
+      { key: "workOrderNo", label: "Work Order No.", placeholder: "WO-2025-001" },
+      { key: "siteName", label: "Site / Location", placeholder: "Location" },
+    ],
+    itemFields: [],
+  },
+  grocery: {
+    invoiceFields: [],
+    itemFields: [
+      { key: "batchNo", label: "Batch No", placeholder: "B-001" },
+      { key: "expiryDate", label: "Expiry Date", type: "month" },
+    ],
+  },
+  hardware: {
+    invoiceFields: [],
+    itemFields: [
+      { key: "brand", label: "Brand", placeholder: "Havells/Anchor..." },
+      { key: "modelNo", label: "Model No.", placeholder: "Model" },
+    ],
+  },
+  chemical: {
+    invoiceFields: [
+      { key: "licenseNo", label: "License No.", placeholder: "PEST/MH/..." },
+    ],
+    itemFields: [
+      { key: "batchNo", label: "Batch No", placeholder: "B-001" },
+      { key: "expiryDate", label: "Expiry Date", type: "month" },
+    ],
+  },
+  transport: {
+    invoiceFields: [
+      { key: "lrNo", label: "LR / GR No.", placeholder: "LR-001" },
+      { key: "vehicleNo", label: "Vehicle No.", placeholder: "MH-01-AB-1234" },
+      { key: "from", label: "From", placeholder: "Mumbai" },
+      { key: "to", label: "To", placeholder: "Delhi" },
+    ],
+    itemFields: [],
+  },
+};
+
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
   { name: "Goa", code: "30" }, { name: "Gujarat", code: "24" }, { name: "Haryana", code: "06" },
@@ -75,6 +180,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [showPartyDrop, setShowPartyDrop] = useState(false);
   const [serialMode, setSerialMode] = useState<"auto" | "manual">("auto");
   const [bizStateCode, setBizStateCode] = useState("");
+  const [bizType, setBizType] = useState("");
+  const [invoiceCustomFields, setInvoiceCustomFields] = useState<Record<string, any>>({});
   const partyDropRef = useRef<HTMLDivElement>(null);
 
   // Credit limit
@@ -118,6 +225,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setUnits(u.data || []);
       if (biz.serialNumberMode === "manual") setSerialMode("manual");
       if (biz.stateCode) setBizStateCode(biz.stateCode);
+      if (biz.businessType) setBizType(biz.businessType);
     }).catch(console.error);
   }, []);
 
@@ -282,10 +390,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     const itemsToSend = activeItems.map(i => ({
       ...i, quantity: Number(i.quantity), rate: Number(i.rate),
       discount: Number(i.discount), taxRate: Number(i.taxRate),
+      customFields: i.customFields || {},
     }));
     const payload: any = {
       ...form, partyId: Number(form.partyId),
       items: itemsToSend,
+      customFields: Object.keys(invoiceCustomFields).length > 0 ? invoiceCustomFields : undefined,
       transportCharges: Number(form.transportCharges),
       roundOff: Number(form.roundOff),
     };
@@ -470,6 +580,30 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           </div>
         </div>
 
+        {/* Invoice-level business type custom fields */}
+        {bizType && BIZ_FIELDS[bizType]?.invoiceFields?.length > 0 && (
+          <div className="bg-white rounded-xl border border-blue-200 p-5">
+            <h3 className="font-semibold text-blue-800 text-sm mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+              Extra Details
+            </h3>
+            <div className="grid grid-cols-3 gap-3">
+              {BIZ_FIELDS[bizType].invoiceFields.map(f => (
+                <div key={f.key}>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+                  <input
+                    type={f.type || "text"}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={f.placeholder || ""}
+                    value={invoiceCustomFields[f.key] || ""}
+                    onChange={e => setInvoiceCustomFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Items table */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
@@ -517,6 +651,26 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         <input className="border border-gray-200 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
                           placeholder="Or type item name" value={item.itemName}
                           onChange={e => updateItem(idx, "itemName", e.target.value)} />
+                        {/* Item-level business type fields */}
+                        {bizType && BIZ_FIELDS[bizType]?.itemFields?.length > 0 && (
+                          <div className="mt-1.5 grid grid-cols-2 gap-1">
+                            {BIZ_FIELDS[bizType].itemFields.map(f => (
+                              <div key={f.key}>
+                                <label className="block text-[10px] text-gray-400 mb-0.5">{f.label}</label>
+                                <input
+                                  type={f.type || "text"}
+                                  className="border border-blue-100 rounded px-1.5 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-400 bg-blue-50/40"
+                                  placeholder={f.placeholder || ""}
+                                  value={(item.customFields || {})[f.key] || ""}
+                                  onChange={e => {
+                                    const cf = { ...(item.customFields || {}), [f.key]: e.target.value };
+                                    updateItem(idx, "customFields", cf);
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-1.5">
                         <input className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
