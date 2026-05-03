@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireActivePlan } from "../middlewares/auth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import superAdminRouter from "./superAdmin";
@@ -57,6 +58,9 @@ router.get("/public-settings", async (_req, res) => {
 
 router.use("/auth", authRouter);
 router.use("/super-admin", superAdminRouter);
+
+// All business routes — plan expiry enforced on every call
+router.use(requireActivePlan);
 router.use("/businesses", businessesRouter);
 router.use("/users", usersRouter);
 router.use("/parties", partiesRouter);

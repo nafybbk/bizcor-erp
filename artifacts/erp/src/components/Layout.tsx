@@ -71,8 +71,43 @@ function NavGroup({ item, location }: { item: NavItem; location: string }) {
   );
 }
 
+function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-gray-950/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center space-y-5">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+          <ShieldCheck className="w-8 h-8 text-red-500" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Plan Expire Ho Gaya</h2>
+          <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+            Aapka subscription plan khatam ho gaya hai. Naya plan activate karne ke liye apne admin ya BizCor support se contact karein.
+          </p>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
+          <div className="text-xs font-semibold text-amber-800">Kya band hai:</div>
+          <div className="text-xs text-amber-700">• Invoice, Bill, Credit Note banana</div>
+          <div className="text-xs text-amber-700">• Customer, Supplier, Item add karna</div>
+          <div className="text-xs text-amber-700">• Reports dekhna</div>
+          <div className="text-xs text-amber-700">• Data download/export karna</div>
+        </div>
+        <div className="text-xs text-gray-400">
+          Naya license voucher milne ke baad Settings → License Activate karo, phir dobara login karo.
+        </div>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-sm font-medium transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout Karo
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, business, logout, isSuperAdmin } = useAuth();
+  const { user, business, logout, isSuperAdmin, isPlanExpired } = useAuth();
   const [location, navigate] = useLocation();
   const isMobile = () => window.innerWidth < 768;
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
@@ -422,6 +457,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Location Modal */}
       {showLocationModal && (
         <LocationModal onClose={() => { setShowLocationModal(false); setDeviceLoc(getDeviceLocation()); }} />
+      )}
+
+      {/* Plan expired lock — shown even offline */}
+      {!isSuperAdmin() && isPlanExpired() && (
+        <PlanExpiredLock onLogout={logout} />
       )}
 
       {/* Main */}

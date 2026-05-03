@@ -84,7 +84,11 @@ router.post("/login", async (req, res) => {
         }
       }
 
-      const token = signToken({ id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId });
+      const token = signToken(
+        { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId },
+        business.planExpiresAt,
+        business.isTrial,
+      );
       logLogin({
         userId: fullUser.id, businessId: business.id,
         userName: fullUser.name, businessName: business.name,
@@ -98,7 +102,12 @@ router.post("/login", async (req, res) => {
       return {
         token,
         user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, permissions: fullUser.permissions || [] },
-        business: { id: business.id, name: business.name, businessCode: business.businessCode },
+        business: {
+          id: business.id, name: business.name, businessCode: business.businessCode,
+          planExpiresAt: business.planExpiresAt?.toISOString() || null,
+          isTrial: business.isTrial,
+          status: business.status,
+        },
       };
     };
 
