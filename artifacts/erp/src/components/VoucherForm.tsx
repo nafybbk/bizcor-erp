@@ -839,7 +839,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               onSelect={selectParty}
               showDetails={true}
               placeholder={`Search ${isSales ? "customer" : "supplier"}...`}
-              onAddNew={name => { setQuickAddForm(f => ({ ...f, name })); setShowQuickAdd(true); }}
+              onAddNew={name => {
+                if (!navigator.onLine) { setError("Offline hai — pehle internet se connect ho, phir naya party banao. Existing party select karo ya draft save karo."); return; }
+                setQuickAddForm(f => ({ ...f, name })); setShowQuickAdd(true);
+              }}
               addNewLabel={`ko naya ${isSales ? "Customer" : "Supplier"} banao`}
             />
             {/* Credit limit indicator */}
