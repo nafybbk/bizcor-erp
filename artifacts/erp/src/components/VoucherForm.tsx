@@ -469,17 +469,18 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.partyId) { setError("Please select a party"); return; }
+    const parsedPartyId = parseInt(form.partyId, 10);
+    if (!parsedPartyId || isNaN(parsedPartyId)) { setError("Please select a party"); return; }
     if (activeItems.length === 0) { setError("Please add at least one item"); return; }
     setError("");
 
     const itemsToSend = activeItems.map(i => ({
-      ...i, quantity: Number(i.quantity), rate: Number(i.rate),
-      discount: Number(i.discount), taxRate: Number(i.taxRate),
+      ...i, quantity: Number(i.quantity) || 0, rate: Number(i.rate) || 0,
+      discount: Number(i.discount) || 0, taxRate: Number(i.taxRate) || 0,
       customFields: i.customFields || {},
     }));
     const payload: any = {
-      ...form, partyId: Number(form.partyId),
+      ...form, partyId: parsedPartyId,
       items: itemsToSend,
       customFields: Object.keys(invoiceCustomFields).length > 0 ? invoiceCustomFields : undefined,
       transportCharges: Number(form.transportCharges),
