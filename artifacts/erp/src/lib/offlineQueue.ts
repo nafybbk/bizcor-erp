@@ -51,3 +51,20 @@ export function clearDrafts() {
 export function getDraftCount(): number {
   return getDrafts().length;
 }
+
+export async function syncAllDrafts(): Promise<{ synced: number; failed: number }> {
+  const { api } = await import("@/lib/api");
+  const drafts = getDrafts();
+  let synced = 0, failed = 0;
+  for (const draft of drafts) {
+    try {
+      if (draft.method === "POST") await api.post(draft.endpoint, draft.payload);
+      else await api.patch(draft.endpoint, draft.payload);
+      removeDraft(draft.id);
+      synced++;
+    } catch {
+      failed++;
+    }
+  }
+  return { synced, failed };
+}

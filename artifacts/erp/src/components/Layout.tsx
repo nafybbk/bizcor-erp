@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { getDraftCount } from "@/lib/offlineQueue";
+import { getDraftCount, syncAllDrafts } from "@/lib/offlineQueue";
 import { getDeviceLocation } from "@/lib/locationStore";
 import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -128,14 +128,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const [autoSyncResult, setAutoSyncResult] = useState<{ synced: number; failed: number } | null>(null);
+
   useEffect(() => {
-    const checkOnline = () => {
+    const checkOnline = async () => {
       const wasOffline = !isOnline;
-      api.get("/healthz").then(() => {
+      try {
+        await api.get("/healthz");
         setIsOnline(true);
-        // Came back online — remind user about drafts
-        if (wasOffline && getDraftCount() > 0) setShowDraftNotice(true);
-      }).catch(() => setIsOnline(false));
+        if (wasOffline && getDraftCount() > 0) {
+          setAutoSyncing(true);
+          try {
+            const result = await syncAllDrafts();
+            setAutoSyncResult(result);
+            setTimeout(() => setAutoSyncResult(null), 5000);
+          } finally { setAutoSyncing(false); }
+        }
+      } catch { setIsOnline(false); }
     };
     checkOnline();
     const interval = setInterval(checkOnline, 30000);
@@ -415,6 +425,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">{business.businessCode}</span>
           )}
         </header>
+
+        {/* Offline Banner */}
+        {!isOnline && (
+          <div className="bg-red-600 text-white text-sm px-4 py-2.5 flex items-center gap-3 shrink-0">
+            <WifiOff className="w-4 h-4 shrink-0" />
+            <span className="font-medium">Aap Offline Hain</span>
+            <span className="text-red-200">— Invoice, Customer, Supplier, Item sab add kar sakte ho. Internet aane par automatic sync ho jaayega.</span>
+            {draftCount > 0 && (
+              <button onClick={() => navigate("/offline-drafts")} className="ml-auto shrink-0 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-semibold transition-colors">
+                {draftCount} Drafts Pending
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Auto-sync banner */}
+        {autoSyncing && (
+          <div className="bg-blue-600 text-white text-sm px-4 py-2 flex items-center gap-2 shrink-0">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            Internet aa gaya — Pending drafts auto-sync ho rahe hain...
+          </div>
+        )}
+        {autoSyncResult && !autoSyncing && (
+          <div className="bg-green-600 text-white text-sm px-4 py-2 flex items-center gap-2 shrink-0">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            {autoSyncResult.synced} drafts server par submit ho gaye!
+            {autoSyncResult.failed > 0 && <span className="text-yellow-200 ml-1">({autoSyncResult.failed} failed — manually check karo)</span>}
+          </div>
+        )}
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Plus, Search, Loader2, Trash2, Edit2, X, Download } from "lucide-react";
+import { saveDraft } from "@/lib/offlineQueue";
+import { cacheParties } from "@/lib/masterCache";
+import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -38,7 +40,12 @@ export default function Parties({ defaultType }: Props) {
     if (search) params.set("search", search);
     if (type) params.set("type", type);
     api.get<any>(`/parties?${params}`)
-      .then(r => { setParties(r.data); setTotal(r.total); })
+      .then(r => {
+        setParties(r.data); setTotal(r.total);
+        if ((type === "customer" || type === "supplier") && !search && page === 1) {
+          cacheParties(type as "customer" | "supplier", r.data || []);
+        }
+      })
       .catch(console.error).finally(() => setLoading(false));
   };
 
@@ -55,13 +62,29 @@ export default function Parties({ defaultType }: Props) {
     setError(""); setShowModal(true);
   };
 
+  const [offlineSaved, setOfflineSaved] = useState(false);
+
   const save = async () => {
-    setSaving(true); setError("");
+    setSaving(true); setError(""); setOfflineSaved(false);
     try {
       if (editId) await api.patch(`/parties/${editId}`, form);
       else await api.post("/parties", form);
       setShowModal(false); load();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      const isNetwork = !navigator.onLine || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError");
+      if (isNetwork && !editId) {
+        saveDraft({
+          label: `New ${form.type === "supplier" ? "Supplier" : "Customer"}: ${form.name || "—"}`,
+          endpoint: "/parties",
+          method: "POST",
+          payload: form,
+        });
+        setOfflineSaved(true);
+        setShowModal(false);
+      } else {
+        setError(err.message);
+      }
+    }
     finally { setSaving(false); }
   };
 
@@ -94,6 +117,13 @@ export default function Parties({ defaultType }: Props) {
 
   return (
     <div className="max-w-6xl space-y-4">
+      {offlineSaved && (
+        <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-3 text-sm">
+          <CloudOff className="w-4 h-4 shrink-0 text-orange-500" />
+          <span><strong>Offline Draft Save Ho Gaya!</strong> Internet aane par "Offline Drafts" se submit karo.</span>
+          <button onClick={() => setOfflineSaved(false)} className="ml-auto text-orange-400 hover:text-orange-600">✕</button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
         <div className="flex gap-2">

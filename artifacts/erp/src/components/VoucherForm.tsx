@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
+import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
 import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
@@ -269,6 +270,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
   useEffect(() => {
     const partyType = isSales ? "customer" : "supplier";
+    // Load from cache immediately for instant offline UI
+    const cachedP = getCachedParties(partyType);
+    const cachedIt = getCachedItems();
+    const cachedT = getCachedTaxRates();
+    const cachedU = getCachedUnits();
+    if (cachedP.length) setParties(cachedP);
+    if (cachedIt.length) setItems(cachedIt);
+    if (cachedT.length) setTaxRates(cachedT);
+    if (cachedU.length) setUnits(cachedU);
+
     Promise.all([
       api.get<any>(`/parties?type=${partyType}&limit=200`),
       api.get<any>("/items?limit=200"),
@@ -280,10 +291,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setItems(it.data || []);
       setTaxRates(t.data || []);
       setUnits(u.data || []);
+      cacheParties(partyType, p.data || []);
+      cacheItems(it.data || []);
+      cacheTaxRates(t.data || []);
+      cacheUnits(u.data || []);
       if (biz.serialNumberMode === "manual") setSerialMode("manual");
       if (biz.stateCode) setBizStateCode(biz.stateCode);
       if (biz.businessType) setBizType(biz.businessType);
-    }).catch(console.error);
+    }).catch(() => {
+      // Offline — already loaded from cache above
+    });
   }, []);
 
   useEffect(() => {
