@@ -29,8 +29,8 @@ const RING_COLORS = [
 /* ring directions alternated so each ring spins different way */
 const RING_DIRS   = [1, -1, 1, -1, 1];
 const RING_SPEEDS = [0.28, 0.18, 0.22, 0.14, 0.32];
-/* arc span per ring: each ring is 320° arc, 40° gap — rotates to show motion */
-const ARC_SPAN = (320 / 360) * Math.PI * 2;
+/* full 360° rings — completely filled, no gap */
+const ARC_SPAN = Math.PI * 2;
 
 /* segment breakdown inside each ring — makes it look multi-colored per ring */
 const SEG_COLORS = [
@@ -57,9 +57,9 @@ export function BizCorCanvasLogo({
     const W = size;
     const R = W / 2;
 
-    /* ring geometry: 5 tight concentric rings */
-    const ringW = Math.round(W * 0.05);         // ring thickness
-    const gap   = Math.round(W * 0.01);         // gap between rings (tiny)
+    /* ring geometry: 5 tight concentric rings — half thickness */
+    const ringW = Math.round(W * 0.025);        // ring thickness (halved)
+    const gap   = Math.round(W * 0.008);        // tiny gap between rings
     const rings  = RING_COLORS.map((color, i) => ({
       r: R - ringW * 0.5 - i * (ringW + gap),   // center radius
       w: ringW,
@@ -232,9 +232,9 @@ export function BizCorLogo({
   animated?: boolean;
 }) {
   const cfg = {
-    sm: { iconSize: 28, canvasSize: 120, titleClass: "text-sm font-bold",  subClass: "text-xs" },
-    md: { iconSize: 48, canvasSize: 180, titleClass: "text-2xl font-bold", subClass: "text-sm" },
-    lg: { iconSize: 64, canvasSize: 220, titleClass: "text-3xl font-bold", subClass: "text-base" },
+    sm: { iconSize: 28, canvasSize: 100, titleClass: "text-sm font-bold",  subClass: "text-xs" },
+    md: { iconSize: 48, canvasSize: 150, titleClass: "text-2xl font-bold", subClass: "text-sm" },
+    lg: { iconSize: 64, canvasSize: 180, titleClass: "text-3xl font-bold", subClass: "text-base" },
   }[size];
 
   if (animated) {
