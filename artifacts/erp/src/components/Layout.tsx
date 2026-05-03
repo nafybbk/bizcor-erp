@@ -204,6 +204,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: "Businesses", href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
     { label: "Plans", href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },
+    { label: "Tech Support Accounts", href: "/admin/super-admins", icon: <ShieldCheck className="w-4 h-4" /> },
     { label: "App Settings", href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
   ];
 

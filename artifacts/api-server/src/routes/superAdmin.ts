@@ -194,7 +194,38 @@ router.delete("/plans/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
-// ─── Super Admin Create ───────────────────────────────────────────────────────
+// ─── Super Admins Management ──────────────────────────────────────────────────
+
+router.get("/super-admins", async (req, res) => {
+  try {
+    const admins = await db.select({ id: superAdminsTable.id, name: superAdminsTable.name, email: superAdminsTable.email, createdAt: superAdminsTable.createdAt }).from(superAdminsTable).orderBy(superAdminsTable.id);
+    res.json({ data: admins });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/super-admins", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) { res.status(400).json({ error: "Name, email, password required" }); return; }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [admin] = await db.insert(superAdminsTable).values({ name, email, passwordHash }).returning();
+    res.status(201).json({ id: admin.id, name: admin.name, email: admin.email });
+  } catch (err: any) {
+    if (err?.code === "23505") { res.status(400).json({ error: "Email already exists" }); return; }
+    req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/super-admins/:id", async (req, res) => {
+  try {
+    const myId = req.user?.id;
+    if (Number(req.params.id) === myId) { res.status(400).json({ error: "Apna khud ka account delete nahi kar sakte" }); return; }
+    await db.delete(superAdminsTable).where(eq(superAdminsTable.id, Number(req.params.id)));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Super Admin Create (legacy) ─────────────────────────────────────────────
 
 router.post("/create-super-admin", async (req, res) => {
   try {
