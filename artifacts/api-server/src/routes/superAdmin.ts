@@ -189,7 +189,7 @@ router.get("/plans", async (req, res) => {
 
 router.post("/plans", async (req, res) => {
   try {
-    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, sortOrder } = req.body;
+    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, sortOrder, maxVouchersPerMonth, maxItems, maxParties } = req.body;
     const [plan] = await db.insert(plansTable).values({
       name, description, price: String(price || 0),
       billingCycle: billingCycle || "monthly",
@@ -198,6 +198,9 @@ router.post("/plans", async (req, res) => {
       validityDays: validityDays || 30,
       features: features || [],
       sortOrder: sortOrder || 0,
+      maxVouchersPerMonth: maxVouchersPerMonth ? Number(maxVouchersPerMonth) : null,
+      maxItems: maxItems ? Number(maxItems) : null,
+      maxParties: maxParties ? Number(maxParties) : null,
     }).returning();
     res.status(201).json({ ...plan, price: Number(plan.price) });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
@@ -205,7 +208,7 @@ router.post("/plans", async (req, res) => {
 
 router.patch("/plans/:id", async (req, res) => {
   try {
-    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, isActive, sortOrder } = req.body;
+    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, isActive, sortOrder, maxVouchersPerMonth, maxItems, maxParties } = req.body;
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -217,6 +220,9 @@ router.patch("/plans/:id", async (req, res) => {
     if (features !== undefined) updateData.features = features;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder;
+    if (maxVouchersPerMonth !== undefined) updateData.maxVouchersPerMonth = maxVouchersPerMonth ? Number(maxVouchersPerMonth) : null;
+    if (maxItems !== undefined) updateData.maxItems = maxItems ? Number(maxItems) : null;
+    if (maxParties !== undefined) updateData.maxParties = maxParties ? Number(maxParties) : null;
     const [updated] = await db.update(plansTable).set(updateData).where(eq(plansTable.id, Number(req.params.id))).returning();
     res.json({ ...updated, price: Number(updated.price) });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
@@ -311,7 +317,7 @@ router.delete("/super-admins/:id", async (req, res) => {
 
 router.post("/vouchers", async (req, res) => {
   try {
-    const { planId, quantity = 1, validityDays = 30, notes } = req.body;
+    const { planId, quantity = 1, validityDays = 30, notes, sellingPrice } = req.body;
     if (!planId) { res.status(400).json({ error: "planId required" }); return; }
     const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, Number(planId)) });
     if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
@@ -332,6 +338,7 @@ router.post("/vouchers", async (req, res) => {
         code,
         planId: Number(planId),
         validityDays: Number(validityDays),
+        sellingPrice: sellingPrice ? String(sellingPrice) : null,
         notes: notes || null,
         generatedBy: req.user!.id,
         status: "active" as const,
@@ -355,6 +362,7 @@ router.get("/vouchers", async (req, res) => {
       planId: licenseVouchersTable.planId,
       planName: plansTable.name,
       validityDays: licenseVouchersTable.validityDays,
+      sellingPrice: licenseVouchersTable.sellingPrice,
       status: licenseVouchersTable.status,
       notes: licenseVouchersTable.notes,
       redeemedByBusinessId: licenseVouchersTable.redeemedByBusinessId,

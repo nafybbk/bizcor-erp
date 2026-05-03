@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Plus, Edit2, Trash2, Loader2, X, Check, Building2, CreditCard } from "lucide-react";
+import { Plus, Edit2, Trash2, Loader2, X, Check, Building2, CreditCard, FileText, Package, Users } from "lucide-react";
 
 const emptyForm = {
   name: "", description: "", price: "", billingCycle: "monthly" as "monthly" | "yearly",
   maxUsers: "5", trialDays: "0", validityDays: "30", features: "", sortOrder: "0", isActive: true,
+  maxVouchersPerMonth: "", maxItems: "", maxParties: "",
 };
 
 export default function AdminPlans() {
@@ -30,6 +31,9 @@ export default function AdminPlans() {
       name: p.name, description: p.description || "", price: String(p.price), billingCycle: p.billingCycle,
       maxUsers: String(p.maxUsers), trialDays: String(p.trialDays), validityDays: String(p.validityDays),
       features: (p.features || []).join("\n"), sortOrder: String(p.sortOrder || 0), isActive: p.isActive,
+      maxVouchersPerMonth: p.maxVouchersPerMonth != null ? String(p.maxVouchersPerMonth) : "",
+      maxItems: p.maxItems != null ? String(p.maxItems) : "",
+      maxParties: p.maxParties != null ? String(p.maxParties) : "",
     });
     setError(""); setShowModal(true);
   };
@@ -44,6 +48,9 @@ export default function AdminPlans() {
         trialDays: Number(form.trialDays), validityDays: Number(form.validityDays),
         features: form.features.split("\n").map(f => f.trim()).filter(Boolean),
         sortOrder: Number(form.sortOrder), isActive: form.isActive,
+        maxVouchersPerMonth: form.maxVouchersPerMonth ? Number(form.maxVouchersPerMonth) : null,
+        maxItems: form.maxItems ? Number(form.maxItems) : null,
+        maxParties: form.maxParties ? Number(form.maxParties) : null,
       };
       if (editId) await api.patch(`/super-admin/plans/${editId}`, payload);
       else await api.post("/super-admin/plans", payload);
@@ -101,9 +108,18 @@ export default function AdminPlans() {
               </div>
 
               <div className="space-y-1.5 text-sm text-gray-600">
-                <div className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-green-500" /> Max {plan.maxUsers} users</div>
+                <div className="flex items-center gap-2"><Users className="w-3.5 h-3.5 text-blue-400" /> Max {plan.maxUsers} users</div>
                 <div className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-green-500" /> {plan.validityDays} days validity</div>
                 {plan.trialDays > 0 && <div className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-orange-400" /> {plan.trialDays} days free trial</div>}
+                {plan.maxVouchersPerMonth != null && (
+                  <div className="flex items-center gap-2"><FileText className="w-3.5 h-3.5 text-purple-400" /> Max {plan.maxVouchersPerMonth} invoices/month</div>
+                )}
+                {plan.maxItems != null && (
+                  <div className="flex items-center gap-2"><Package className="w-3.5 h-3.5 text-amber-400" /> Max {plan.maxItems} items</div>
+                )}
+                {plan.maxParties != null && (
+                  <div className="flex items-center gap-2"><Building2 className="w-3.5 h-3.5 text-teal-400" /> Max {plan.maxParties} parties</div>
+                )}
                 {(plan.features || []).map((f: string, i: number) => (
                   <div key={i} className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-green-500" />{f}</div>
                 ))}
@@ -169,6 +185,25 @@ export default function AdminPlans() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sort Order</label>
                   <input type="number" min="0" className={inputCls} value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Limits section */}
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Usage Limits <span className="font-normal normal-case text-orange-500">(khali chhodo = unlimited)</span></p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><FileText className="w-3 h-3 text-purple-400" /> Invoices/Month</label>
+                    <input type="number" min="1" className={inputCls} placeholder="∞" value={form.maxVouchersPerMonth} onChange={e => setForm(f => ({ ...f, maxVouchersPerMonth: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><Package className="w-3 h-3 text-amber-400" /> Max Items</label>
+                    <input type="number" min="1" className={inputCls} placeholder="∞" value={form.maxItems} onChange={e => setForm(f => ({ ...f, maxItems: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><Building2 className="w-3 h-3 text-teal-400" /> Max Parties</label>
+                    <input type="number" min="1" className={inputCls} placeholder="∞" value={form.maxParties} onChange={e => setForm(f => ({ ...f, maxParties: e.target.value }))} />
+                  </div>
                 </div>
               </div>
 

@@ -25,6 +25,9 @@ export const plansTable = pgTable("plans", {
   trialDays: integer("trial_days").notNull().default(0),
   validityDays: integer("validity_days").notNull().default(30),
   features: text("features").array(),
+  maxVouchersPerMonth: integer("max_vouchers_per_month"),
+  maxItems: integer("max_items"),
+  maxParties: integer("max_parties"),
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -81,6 +84,7 @@ export const licenseVouchersTable = pgTable("license_vouchers", {
   code: text("code").notNull().unique(),
   planId: integer("plan_id").references(() => plansTable.id).notNull(),
   validityDays: integer("validity_days").notNull().default(30),
+  sellingPrice: numeric("selling_price", { precision: 10, scale: 2 }),
   status: text("status").notNull().default("active"), // active | used | cancelled
   notes: text("notes"),
   generatedBy: integer("generated_by").references(() => superAdminsTable.id),

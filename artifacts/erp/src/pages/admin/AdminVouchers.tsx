@@ -18,7 +18,7 @@ export default function AdminVouchers() {
   const [planFilter, setPlanFilter] = useState("");
   const [page, setPage] = useState(1);
   const [showGenerate, setShowGenerate] = useState(false);
-  const [genForm, setGenForm] = useState({ planId: "", quantity: 1, validityDays: 30, notes: "" });
+  const [genForm, setGenForm] = useState({ planId: "", quantity: 1, validityDays: 30, sellingPrice: "", notes: "" });
   const [generating, setGenerating] = useState(false);
   const [newCodes, setNewCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
@@ -49,6 +49,7 @@ export default function AdminVouchers() {
         planId: Number(genForm.planId),
         quantity: Number(genForm.quantity),
         validityDays: Number(genForm.validityDays),
+        sellingPrice: genForm.sellingPrice ? Number(genForm.sellingPrice) : null,
         notes: genForm.notes || null,
       });
       setNewCodes(res.codes || []);
@@ -121,6 +122,7 @@ export default function AdminVouchers() {
                   <th className="text-left px-4 py-3 font-medium">#</th>
                   <th className="text-left px-4 py-3 font-medium">Code</th>
                   <th className="text-left px-4 py-3 font-medium">Plan</th>
+                  <th className="text-right px-4 py-3 font-medium">Price</th>
                   <th className="text-center px-4 py-3 font-medium">Validity</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium">Redeemed By</th>
@@ -130,7 +132,7 @@ export default function AdminVouchers() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {vouchers.length === 0 && (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">Koi voucher nahi mila</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Koi voucher nahi mila</td></tr>
                 )}
                 {vouchers.map((v, idx) => (
                   <tr key={v.id} className="hover:bg-gray-50">
@@ -146,6 +148,9 @@ export default function AdminVouchers() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">{v.planName}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                      {v.sellingPrice ? `₹${Number(v.sellingPrice).toLocaleString("en-IN")}` : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center text-xs text-gray-600">{v.validityDays} days</td>
                     <td className="px-4 py-3 text-center">
@@ -243,6 +248,15 @@ export default function AdminVouchers() {
                       onChange={e => setGenForm(f => ({ ...f, validityDays: Number(e.target.value) }))} />
                     <p className="text-xs text-gray-400 mt-1">Plan activate hone ke baad</p>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹) <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium text-sm">₹</span>
+                    <input type="number" min={0} step={1} className={inputCls + " pl-7"} placeholder="e.g. 999"
+                      value={genForm.sellingPrice} onChange={e => setGenForm(f => ({ ...f, sellingPrice: e.target.value }))} />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Buyer se kitna liya — record ke liye</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
