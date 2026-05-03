@@ -191,8 +191,43 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<any>(null);
   const [offlineSaved, setOfflineSaved] = useState(false);
   const [fieldSize, setFieldSizeState] = useState<FieldSize>(() => getFieldSize());
-
   const applyFieldSize = (s: FieldSize) => { setFieldSizeState(s); saveFieldSize(s); };
+
+  // ── Resizable columns ──────────────────────────────────────────
+  const COL_DEFAULTS: Record<string, number> = {
+    item: 200, hsn: 88, qty: 70, unit: 70, rate: 160,
+    discount: 88, tax: 108, taxable: 88, gst: 88, total: 92,
+  };
+  const [colWidths, setColWidths] = useState<Record<string, number>>(() => {
+    try {
+      const s = localStorage.getItem("erp_form_col_widths");
+      return s ? { ...COL_DEFAULTS, ...JSON.parse(s) } : { ...COL_DEFAULTS };
+    } catch { return { ...COL_DEFAULTS }; }
+  });
+  const doStartResize = (col: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const sx = e.clientX;
+    const sw = colWidths[col];
+    const onMove = (me: MouseEvent) => {
+      setColWidths(prev => ({ ...prev, [col]: Math.max(44, sw + me.clientX - sx) }));
+    };
+    const onUp = (me: MouseEvent) => {
+      setColWidths(prev => {
+        const next = { ...prev, [col]: Math.max(44, sw + me.clientX - sx) };
+        localStorage.setItem("erp_form_col_widths", JSON.stringify(next));
+        return next;
+      });
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+  const resetColWidths = () => {
+    setColWidths({ ...COL_DEFAULTS });
+    localStorage.removeItem("erp_form_col_widths");
+  };
+  // ──────────────────────────────────────────────────────────────
 
   // Quick add party
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -701,7 +736,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           font-size: ${fieldSize === "sm" ? "11px" : fieldSize === "lg" ? "15px" : "13px"} !important;
         }
       `}</style>
-      <form onSubmit={handleSubmit} className="max-w-5xl space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
           <div className="flex items-center gap-2 flex-wrap">
@@ -961,28 +996,74 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isInterState ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
                 {isInterState ? "IGST" : "CGST + SGST"}
               </span>
-              <span className="text-xs text-gray-400">✓ = Include in total</span>
+              <span className="text-xs text-gray-400 hidden sm:inline">✓ = Include in total</span>
+              <span className="text-xs text-gray-300">│</span>
+              <span className="text-xs text-gray-400 hidden sm:inline">↔ Drag headers to resize</span>
+              <button type="button" onClick={resetColWidths} className="text-xs text-blue-500 hover:text-blue-700 underline">Reset</button>
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 text-xs">
+            <table className="text-sm" style={{ tableLayout: "fixed", width: `${32 + Object.values(colWidths).reduce((a, b) => a + b, 0) + 32}px`, minWidth: "100%" }}>
+              <colgroup>
+                <col style={{ width: 32 }} />
+                <col style={{ width: colWidths.item }} />
+                <col style={{ width: colWidths.hsn }} />
+                <col style={{ width: colWidths.qty }} />
+                <col style={{ width: colWidths.unit }} />
+                <col style={{ width: colWidths.rate }} />
+                <col style={{ width: colWidths.discount }} />
+                <col style={{ width: colWidths.tax }} />
+                <col style={{ width: colWidths.taxable }} />
+                <col style={{ width: colWidths.gst }} />
+                <col style={{ width: colWidths.total }} />
+                <col style={{ width: 32 }} />
+              </colgroup>
+              <thead className="bg-gray-50 text-gray-600 text-xs select-none">
                 <tr>
-                  <th className="px-3 py-2.5 w-8">✓</th>
-                  <th className="px-3 py-2.5 text-left min-w-40">Item</th>
-                  <th className="px-3 py-2.5 text-left w-24">HSN</th>
-                  <th className="px-3 py-2.5 text-right w-20">Qty</th>
-                  <th className="px-3 py-2.5 text-left w-20">Unit</th>
-                  <th className="px-3 py-2.5 text-right w-36">
+                  <th className="px-3 py-2.5">✓</th>
+                  {([
+                    { key: "item", label: "Item", align: "left" },
+                    { key: "hsn", label: "HSN", align: "left" },
+                    { key: "qty", label: "Qty", align: "right" },
+                    { key: "unit", label: "Unit", align: "left" },
+                  ] as const).map(col => (
+                    <th key={col.key} className={`relative py-2.5 px-2 text-${col.align} overflow-hidden`}>
+                      <span>{col.label}</span>
+                      <div onMouseDown={e => doStartResize(col.key, e)}
+                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize flex items-center justify-end pr-0.5 hover:bg-blue-100 group"
+                        title="Drag to resize">
+                        <div className="w-px h-4 bg-gray-300 group-hover:bg-blue-500 rounded" />
+                      </div>
+                    </th>
+                  ))}
+                  <th className="relative py-2.5 px-2 text-right overflow-hidden">
                     <div>Rate (Before GST)</div>
                     <div className="font-normal text-gray-400 text-[10px]">Rate (After GST)</div>
+                    <div onMouseDown={e => doStartResize("rate", e)}
+                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize flex items-center justify-end pr-0.5 hover:bg-blue-100 group"
+                      title="Drag to resize">
+                      <div className="w-px h-4 bg-gray-300 group-hover:bg-blue-500 rounded" />
+                    </div>
                   </th>
-                  <th className="px-3 py-2.5 text-right w-24">Discount</th>
-                  <th className="px-3 py-2.5 text-center w-28">Tax</th>
-                  <th className="px-3 py-2.5 text-right w-24">Taxable</th>
-                  <th className="px-3 py-2.5 text-right w-24">{isInterState ? "IGST" : "CGST+SGST"}</th>
-                  <th className="px-3 py-2.5 text-right w-24">Total</th>
-                  <th className="px-3 py-2.5 w-8"></th>
+                  {([
+                    { key: "discount", label: "Discount", align: "right" },
+                    { key: "tax", label: "Tax", align: "center" },
+                    { key: "taxable", label: "Taxable", align: "right" },
+                    { key: "gst", label: isInterState ? "IGST" : "CGST+SGST", align: "right" },
+                    { key: "total", label: "Total", align: "right" },
+                  ] as const).map(col => (
+                    <th key={col.key} className={`relative py-2.5 px-2 text-${col.align} overflow-hidden`}>
+                      <span>{col.label}</span>
+                      {col.key !== "total" && (
+                        <div onMouseDown={e => doStartResize(col.key, e)}
+                          className="absolute right-0 top-0 h-full w-2 cursor-col-resize flex items-center justify-end pr-0.5 hover:bg-blue-100 group"
+                          title="Drag to resize">
+                          <div className="w-px h-4 bg-gray-300 group-hover:bg-blue-500 rounded" />
+                        </div>
+                      )}
+                    </th>
+                  ))}
+                  <th className="py-2.5 px-1"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
