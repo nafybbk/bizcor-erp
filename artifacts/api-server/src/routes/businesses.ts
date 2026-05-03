@@ -21,9 +21,12 @@ router.post("/register", async (req, res) => {
     const existing = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode) });
     if (existing) businessCode = generateBusinessCode();
 
+    const now = new Date();
+    const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const [business] = await db.insert(businessesTable).values({
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
-      planId: planId || null, status: "active",
+      planId: planId || null, status: "trial",
+      isTrial: true, planStartDate: now, planExpiresAt: trialExpiresAt,
     }).returning();
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
