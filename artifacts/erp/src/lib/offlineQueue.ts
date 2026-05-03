@@ -34,6 +34,7 @@ export function saveDraft(draft: Omit<OfflineDraft, "id" | "savedAt">): OfflineD
   const existing = getDrafts();
   localStorage.setItem(KEY, JSON.stringify([...existing, full]));
   window.dispatchEvent(new CustomEvent("offline-queue-change"));
+  import("@/lib/localDataFolder").then(m => m.saveOfflineDraftToFolder(full)).catch(() => {});
   return full;
 }
 

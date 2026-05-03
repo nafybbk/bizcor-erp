@@ -4,12 +4,14 @@ import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getDraftCount, syncAllDrafts } from "@/lib/offlineQueue";
 import { getDeviceLocation } from "@/lib/locationStore";
+import { getLang, toggleLang, T, type Lang } from "@/lib/lang";
+import { getDataFolderName, pickDataFolder, isFileSystemSupported } from "@/lib/localDataFolder";
 import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -83,6 +85,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showDraftNotice, setShowDraftNotice] = useState(false);
   const [deviceLoc, setDeviceLoc] = useState(getDeviceLocation());
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [lang, setLangState] = useState<Lang>(getLang());
+  const [dataFolderName, setDataFolderName] = useState<string | null>(getDataFolderName());
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -121,10 +125,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const refreshLoc = () => setDeviceLoc(getDeviceLocation());
     window.addEventListener("device-location-change", refreshLoc);
 
+    // Language change listener
+    const refreshLang = () => setLangState(getLang());
+    window.addEventListener("lang-change", refreshLang);
+
+    // Data folder change listener
+    const refreshFolder = () => setDataFolderName(getDataFolderName());
+    window.addEventListener("data-folder-change", refreshFolder);
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
       window.removeEventListener("offline-queue-change", refreshDraftCount);
       window.removeEventListener("device-location-change", refreshLoc);
+      window.removeEventListener("lang-change", refreshLang);
+      window.removeEventListener("data-folder-change", refreshFolder);
     };
   }, []);
 
@@ -183,74 +197,76 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     touchStartY.current = null;
   };
 
+  const L = T[lang];
+
   const businessNav: NavItem[] = [
-    { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { label: L.dashboard, href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
     {
-      label: "Sales", icon: <TrendingUp className="w-4 h-4" />,
+      label: L.sales, icon: <TrendingUp className="w-4 h-4" />,
       children: [
-        { label: "Invoices", href: "/sales/invoices" },
-        { label: "Credit Notes", href: "/sales/credit-notes" },
+        { label: L.invoices, href: "/sales/invoices" },
+        { label: L.creditNotes, href: "/sales/credit-notes" },
       ],
     },
     {
-      label: "Purchases", icon: <ShoppingCart className="w-4 h-4" />,
+      label: L.purchases, icon: <ShoppingCart className="w-4 h-4" />,
       children: [
-        { label: "Bills", href: "/purchases/bills" },
-        { label: "Debit Notes", href: "/purchases/debit-notes" },
+        { label: L.bills, href: "/purchases/bills" },
+        { label: L.debitNotes, href: "/purchases/debit-notes" },
       ],
     },
     {
-      label: "Payments", icon: <Wallet className="w-4 h-4" />,
+      label: L.payments, icon: <Wallet className="w-4 h-4" />,
       children: [
-        { label: "Receipts", href: "/payments/receipts" },
-        { label: "Payments", href: "/payments/payments" },
-        { label: "Outstanding", href: "/payments/outstanding" },
+        { label: L.receipts, href: "/payments/receipts" },
+        { label: L.payments, href: "/payments/payments" },
+        { label: L.outstanding, href: "/payments/outstanding" },
       ],
     },
-    { label: "Inventory", href: "/inventory", icon: <Package className="w-4 h-4" /> },
+    { label: L.inventory, href: "/inventory", icon: <Package className="w-4 h-4" /> },
     {
-      label: "Accounting", icon: <BookOpen className="w-4 h-4" />,
+      label: L.accounting, icon: <BookOpen className="w-4 h-4" />,
       children: [
-        { label: "Party Ledger", href: "/accounting/ledger" },
-        { label: "Trial Balance", href: "/accounting/trial-balance" },
-        { label: "Receivables", href: "/accounting/receivables" },
-        { label: "Payables", href: "/accounting/payables" },
-      ],
-    },
-    {
-      label: "GST Reports", icon: <FileBarChart2 className="w-4 h-4" />,
-      children: [
-        { label: "GSTR-1", href: "/gst/gstr1" },
-        { label: "GSTR-3B", href: "/gst/gstr3b" },
+        { label: L.partyLedger, href: "/accounting/ledger" },
+        { label: L.trialBalance, href: "/accounting/trial-balance" },
+        { label: L.receivables, href: "/accounting/receivables" },
+        { label: L.payables, href: "/accounting/payables" },
       ],
     },
     {
-      label: "Masters", icon: <ClipboardList className="w-4 h-4" />,
+      label: L.gstReports, icon: <FileBarChart2 className="w-4 h-4" />,
       children: [
-        { label: "Customers", href: "/masters/customers" },
-        { label: "Suppliers", href: "/masters/suppliers" },
-        { label: "All Parties", href: "/masters/parties" },
-        { label: "Items", href: "/masters/items" },
-        { label: "Units", href: "/masters/units" },
-        { label: "HSN Codes", href: "/masters/hsn" },
-        { label: "Tax Rates", href: "/masters/tax-rates" },
+        { label: L.gstr1, href: "/gst/gstr1" },
+        { label: L.gstr3b, href: "/gst/gstr3b" },
       ],
     },
-    { label: "Mera Plan", href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
-    { label: "Users", href: "/settings/users", icon: <Users className="w-4 h-4" /> },
-    { label: "Settings", href: "/settings/business", icon: <Settings className="w-4 h-4" /> },
+    {
+      label: L.masters, icon: <ClipboardList className="w-4 h-4" />,
+      children: [
+        { label: L.customers, href: "/masters/customers" },
+        { label: L.suppliers, href: "/masters/suppliers" },
+        { label: L.allParties, href: "/masters/parties" },
+        { label: L.items, href: "/masters/items" },
+        { label: L.units, href: "/masters/units" },
+        { label: L.hsnCodes, href: "/masters/hsn" },
+        { label: L.taxRates, href: "/masters/tax-rates" },
+      ],
+    },
+    { label: L.myPlan, href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
+    { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
+    { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" /> },
   ];
 
   const superAdminNav: NavItem[] = [
-    { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
-    { label: "Login Activity", href: "/admin/activity", icon: <BarChart3 className="w-4 h-4" /> },
-    { label: "All Users", href: "/admin/users", icon: <Users className="w-4 h-4" /> },
-    { label: "Buyers", href: "/admin/buyers", icon: <ShoppingBag className="w-4 h-4" /> },
-    { label: "Businesses", href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
-    { label: "Plans", href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },
-    { label: "License Vouchers", href: "/admin/vouchers", icon: <Ticket className="w-4 h-4" /> },
-    { label: "Tech Support Accounts", href: "/admin/super-admins", icon: <ShieldCheck className="w-4 h-4" /> },
-    { label: "App Settings", href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
+    { label: L.dashboard, href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
+    { label: L.loginActivity, href: "/admin/activity", icon: <BarChart3 className="w-4 h-4" /> },
+    { label: L.allUsers, href: "/admin/users", icon: <Users className="w-4 h-4" /> },
+    { label: L.buyers, href: "/admin/buyers", icon: <ShoppingBag className="w-4 h-4" /> },
+    { label: L.businesses, href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
+    { label: L.plans, href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },
+    { label: L.licenseVouchers, href: "/admin/vouchers", icon: <Ticket className="w-4 h-4" /> },
+    { label: L.techSupportAccounts, href: "/admin/super-admins", icon: <ShieldCheck className="w-4 h-4" /> },
+    { label: L.appSettings, href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
   ];
 
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
@@ -338,9 +354,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           >
             <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
             <span className="truncate flex-1 text-left">
-              {deviceLoc ? deviceLoc.name : "Location set karo"}
+              {deviceLoc ? deviceLoc.name : L.setLocation}
             </span>
             <span className="text-slate-600 text-[10px]">✎</span>
+          </button>
+
+          {/* Data Folder */}
+          {isFileSystemSupported() && (
+            <button
+              onClick={async () => {
+                const result = await pickDataFolder();
+                if (result) setDataFolderName(result.name);
+              }}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                dataFolderName ? "text-blue-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="truncate flex-1 text-left">
+                {dataFolderName ? dataFolderName : L.dataFolder}
+              </span>
+              <span className="text-slate-600 text-[10px]">✎</span>
+            </button>
+          )}
+
+          {/* Language Toggle */}
+          <button
+            onClick={() => { toggleLang(); setLangState(getLang()); }}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          >
+            <span className="text-sm leading-none">🌐</span>
+            <span className="flex-1 text-left">{L.language}</span>
+            <span className="bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-slate-200 font-mono text-[10px] font-bold tracking-wider">
+              {lang === "en" ? "EN" : "हि"}
+            </span>
           </button>
 
           {/* Profile link */}
@@ -367,7 +414,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
             <LogOut className="w-4 h-4" />
-            Sign Out
+            {L.signOut}
           </button>
         </div>
       </aside>
