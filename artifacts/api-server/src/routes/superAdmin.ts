@@ -243,13 +243,13 @@ router.get("/my-profile", async (req, res) => {
   try {
     const admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.id, req.user!.id) });
     if (!admin) { res.status(404).json({ error: "Not Found" }); return; }
-    res.json({ id: admin.id, name: admin.name, email: admin.email, phone: admin.phone || "" });
+    res.json({ id: admin.id, name: admin.name, email: admin.email, phone: admin.phone || "", avatar: admin.avatar || "" });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.patch("/my-profile", async (req, res) => {
   try {
-    const { phone, currentPassword, newPassword } = req.body;
+    const { phone, currentPassword, newPassword, avatar } = req.body;
     const admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.id, req.user!.id) });
     if (!admin) { res.status(404).json({ error: "Not Found" }); return; }
 
@@ -261,6 +261,13 @@ router.patch("/my-profile", async (req, res) => {
         res.status(400).json({ error: "Phone number 10 digits ka hona chahiye" }); return;
       }
       updateData.phone = trimmed || null;
+    }
+
+    if (avatar !== undefined) {
+      if (avatar && avatar.length > 2_000_000) {
+        res.status(400).json({ error: "Avatar image bahut badi hai (max 1.5MB)" }); return;
+      }
+      updateData.avatar = avatar || null;
     }
 
     if (newPassword) {
@@ -275,7 +282,7 @@ router.patch("/my-profile", async (req, res) => {
     if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "Kuch update karne ke liye nahi diya" }); return; }
 
     const [updated] = await db.update(superAdminsTable).set(updateData).where(eq(superAdminsTable.id, req.user!.id)).returning();
-    res.json({ id: updated.id, name: updated.name, email: updated.email, phone: updated.phone || "" });
+    res.json({ id: updated.id, name: updated.name, email: updated.email, phone: updated.phone || "", avatar: updated.avatar || "" });
   } catch (err: any) {
     if (err?.code === "23505") { res.status(400).json({ error: "Yeh phone number pehle se registered hai" }); return; }
     req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
