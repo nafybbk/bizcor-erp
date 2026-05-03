@@ -9,38 +9,72 @@ interface Props {
   listHref: string;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: "DRAFT", posted: "POSTED", partial: "PARTIAL", paid: "PAID", cancelled: "CANCELLED",
+};
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600", posted: "bg-blue-100 text-blue-700",
   partial: "bg-amber-100 text-amber-700", paid: "bg-green-100 text-green-700",
   cancelled: "bg-red-100 text-red-600",
 };
 
+const DOC_TITLES: Record<string, string> = {
+  "sales/invoices": "TAX INVOICE",
+  "sales/credit-notes": "CREDIT NOTE",
+  "purchases/bills": "PURCHASE BILL",
+  "purchases/debit-notes": "DEBIT NOTE",
+};
+
+// Convert number to words (Indian system)
+function toWords(n: number): string {
+  if (isNaN(n) || n < 0) return "";
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const convert = (num: number): string => {
+    if (num === 0) return "";
+    if (num < 20) return ones[num] + " ";
+    if (num < 100) return tens[Math.floor(num / 10)] + " " + ones[num % 10] + " ";
+    if (num < 1000) return ones[Math.floor(num / 100)] + " Hundred " + convert(num % 100);
+    if (num < 100000) return convert(Math.floor(num / 1000)) + "Thousand " + convert(num % 1000);
+    if (num < 10000000) return convert(Math.floor(num / 100000)) + "Lakh " + convert(num % 100000);
+    return convert(Math.floor(num / 10000000)) + "Crore " + convert(num % 10000000);
+  };
+  const rupees = Math.floor(n);
+  const paise = Math.round((n - rupees) * 100);
+  let result = convert(rupees).trim();
+  if (paise > 0) result += ` and ${convert(paise).trim()} Paise`;
+  return "Rupees " + result + " Only";
+}
+
 export default function VoucherView({ voucherType, listHref }: Props) {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [voucher, setVoucher] = useState<any>(null);
+  const [business, setBusiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<any>(`/${voucherType}/${params.id}`)
-      .then(setVoucher)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<any>(`/${voucherType}/${params.id}`),
+      api.get<any>("/businesses/current"),
+    ]).then(([v, b]) => {
+      setVoucher(v);
+      setBusiness(b);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [params.id]);
 
   const handlePrint = () => window.print();
 
   const handleWhatsApp = () => {
     if (!voucher) return;
-    const appName = localStorage.getItem("erp_app_name") || "BizERP";
     const text = [
       `*${voucher.voucherNumber}*`,
       `Party: ${voucher.partyName}`,
       `Date: ${fmt.date(voucher.date)}`,
       `Amount: ${fmt.currency(voucher.grandTotal)}`,
       voucher.balanceDue > 0 ? `Balance Due: ${fmt.currency(voucher.balanceDue)}` : `Status: Paid`,
-      ``,
-      `_Sent via ${appName}_`,
+      ``, `_Sent via BizERP_`,
     ].join("\n");
     shareWhatsApp(text);
   };
@@ -49,6 +83,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   if (!voucher) return <div className="text-center py-16 text-gray-400">Voucher not found</div>;
 
   const isInterState = voucher.isInterState;
+  const docTitle = DOC_TITLES[voucherType] || "INVOICE";
+  const biz = business || {};
+
+  // Build full address
+  const bizAddress = [biz.address, biz.city, biz.state, biz.pincode].filter(Boolean).join(", ");
 
   return (
     <>
@@ -56,11 +95,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
         @media print {
           body * { visibility: hidden !important; }
           #printable, #printable * { visibility: visible !important; }
-          #printable { position: fixed; inset: 0; padding: 24px; background: white; }
+          #printable { position: fixed; inset: 0; padding: 0; background: white; overflow: auto; }
           .no-print { display: none !important; }
+          @page { margin: 10mm; size: A4; }
         }
       `}</style>
 
+      {/* Toolbar */}
       <div className="max-w-4xl space-y-4">
         <div className="flex items-center justify-between no-print">
           <button onClick={() => navigate(listHref)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
@@ -68,143 +109,283 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           </button>
           <div className="flex gap-2">
             <button onClick={handleWhatsApp}
-              className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium transition-colors">
-              <Share2 className="w-4 h-4" />
-              WhatsApp
+              className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
+              <Share2 className="w-4 h-4" /> WhatsApp
             </button>
             <button onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium transition-colors">
-              <FileDown className="w-4 h-4" />
-              PDF / Print
+              className="flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
+              <FileDown className="w-4 h-4" /> PDF / Print
             </button>
           </div>
         </div>
 
-        <div id="printable" className="bg-white rounded-xl border border-gray-200 p-8">
-          {/* Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{voucher.voucherNumber}</h2>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-sm text-gray-500">Date: {fmt.date(voucher.date)}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[voucher.status]}`}>{voucher.status}</span>
+        {/* ===== PRINTABLE INVOICE ===== */}
+        <div id="printable" className="bg-white rounded-xl border border-gray-200 overflow-hidden text-gray-900" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+
+          {/* ---- TOP HEADER: Logo + Firm Name + Address ---- */}
+          <div className="border-b-2 border-gray-800 px-7 py-5">
+            <div className="flex items-start justify-between gap-4">
+              {/* Left: Logo + Firm Info */}
+              <div className="flex items-start gap-4 flex-1">
+                {biz.logo && (
+                  <img src={biz.logo} alt="Logo" className="w-20 h-20 object-contain flex-shrink-0" />
+                )}
+                <div>
+                  <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{biz.name || "Your Business Name"}</h1>
+                  {bizAddress && <div className="text-sm text-gray-600 mt-1 max-w-xs">{bizAddress}</div>}
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5 text-xs text-gray-500">
+                    {biz.phone && <span>📞 {biz.phone}</span>}
+                    {biz.email && <span>✉ {biz.email}</span>}
+                  </div>
+                  {biz.gstin && (
+                    <div className="mt-1.5 text-xs font-semibold text-gray-700">
+                      GSTIN: <span className="font-mono tracking-wider">{biz.gstin}</span>
+                    </div>
+                  )}
+                  {biz.pan && <div className="text-xs text-gray-500">PAN: {biz.pan}</div>}
+                </div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-blue-700">{fmt.currency(voucher.grandTotal)}</div>
-              {voucher.balanceDue > 0 && <div className="text-sm text-red-500 mt-1">Balance Due: {fmt.currency(voucher.balanceDue)}</div>}
-              {voucher.paidAmount > 0 && <div className="text-sm text-green-500 mt-0.5">Paid: {fmt.currency(voucher.paidAmount)}</div>}
+
+              {/* Right: Document Title + Number */}
+              <div className="text-right flex-shrink-0">
+                <div className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded text-sm font-bold tracking-widest mb-2">
+                  {docTitle}
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-gray-900">{voucher.voucherNumber}</div>
+                  <div className="text-sm text-gray-500 mt-0.5">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
+                  {voucher.placeOfSupply && (
+                    <div className="text-xs text-gray-500 mt-0.5">Place of Supply: {voucher.placeOfSupply}</div>
+                  )}
+                  <div className="mt-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[voucher.status]}`}>
+                      {STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Party */}
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Bill To</div>
-              <div className="font-semibold text-gray-900 text-lg">{voucher.partyName}</div>
-              {voucher.partyGstin && <div className="text-sm text-gray-500 font-mono mt-1">GSTIN: {voucher.partyGstin}</div>}
-              {voucher.billingAddress && <div className="text-sm text-gray-600 mt-2 whitespace-pre-line">{voucher.billingAddress}</div>}
+          {/* ---- BILLING INFO ---- */}
+          <div className="grid grid-cols-2 border-b border-gray-200">
+            <div className="px-7 py-4 border-r border-gray-200">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Bill To</div>
+              <div className="font-bold text-gray-900 text-base">{voucher.partyName}</div>
+              {voucher.partyGstin && (
+                <div className="text-xs font-mono text-gray-500 mt-1">GSTIN: {voucher.partyGstin}</div>
+              )}
+              {voucher.billingAddress && (
+                <div className="text-sm text-gray-600 mt-1.5 whitespace-pre-line">{voucher.billingAddress}</div>
+              )}
             </div>
-            {voucher.useShippingAddress && voucher.shippingAddress && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Ship To</div>
-                <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.shippingAddress}</div>
-              </div>
-            )}
+            <div className="px-7 py-4">
+              {voucher.useShippingAddress && voucher.shippingAddress ? (
+                <>
+                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ship To</div>
+                  <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.shippingAddress}</div>
+                </>
+              ) : (
+                <div className="h-full flex flex-col justify-center">
+                  {/* GST type badge */}
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold self-start ${isInterState ? "bg-orange-50 text-orange-700 border border-orange-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
+                    {isInterState ? "⚡ IGST (Inter-State)" : "✓ CGST + SGST (Intra-State)"}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Items */}
-          <div className="overflow-x-auto mb-6">
+          {/* ---- ITEMS TABLE ---- */}
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr className="text-gray-600 text-xs">
-                  <th className="text-left px-3 py-2.5">#</th>
-                  <th className="text-left px-3 py-2.5">Item</th>
-                  <th className="text-left px-3 py-2.5">HSN</th>
-                  <th className="text-right px-3 py-2.5">Qty</th>
-                  <th className="text-left px-3 py-2.5">Unit</th>
-                  <th className="text-right px-3 py-2.5">Rate</th>
-                  <th className="text-right px-3 py-2.5">Discount</th>
-                  <th className="text-right px-3 py-2.5">Taxable</th>
-                  {isInterState
-                    ? <th className="text-right px-3 py-2.5">IGST</th>
-                    : <>
-                      <th className="text-right px-3 py-2.5">CGST</th>
-                      <th className="text-right px-3 py-2.5">SGST</th>
+              <thead>
+                <tr className="bg-gray-900 text-white text-xs">
+                  <th className="px-3 py-2.5 text-center w-8">#</th>
+                  <th className="px-3 py-2.5 text-left">Item / Description</th>
+                  <th className="px-3 py-2.5 text-center w-20">HSN/SAC</th>
+                  <th className="px-3 py-2.5 text-right w-16">Qty</th>
+                  <th className="px-3 py-2.5 text-center w-14">Unit</th>
+                  <th className="px-3 py-2.5 text-right w-24">Rate (₹)</th>
+                  <th className="px-3 py-2.5 text-right w-20">Disc.</th>
+                  <th className="px-3 py-2.5 text-right w-24">Taxable (₹)</th>
+                  {isInterState ? (
+                    <th className="px-3 py-2.5 text-right w-20">IGST</th>
+                  ) : (
+                    <>
+                      <th className="px-3 py-2.5 text-right w-20">CGST</th>
+                      <th className="px-3 py-2.5 text-right w-20">SGST</th>
                     </>
-                  }
-                  <th className="text-right px-3 py-2.5">Total</th>
+                  )}
+                  <th className="px-3 py-2.5 text-right w-24">Amount (₹)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {(voucher.items || []).map((item: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-3 py-2.5 text-gray-500">{idx + 1}</td>
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{idx + 1}</td>
                     <td className="px-3 py-2.5">
-                      <div className="font-medium text-gray-900">{item.itemName}</div>
-                      {item.description && <div className="text-xs text-gray-400">{item.description}</div>}
+                      <div className="font-semibold text-gray-900">{item.itemName}</div>
+                      {item.description && <div className="text-xs text-gray-400 mt-0.5">{item.description}</div>}
+                      {/* Custom fields (business type specific) */}
+                      {item.customFields && Object.keys(item.customFields).length > 0 && (
+                        <div className="flex flex-wrap gap-x-3 gap-y-0 mt-1">
+                          {Object.entries(item.customFields).filter(([, v]) => v).map(([k, v]) => (
+                            <span key={k} className="text-xs text-gray-500">
+                              <span className="font-medium capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}:</span> {String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
-                    <td className="px-3 py-2.5 text-gray-500 font-mono text-xs">{item.hsnCode}</td>
+                    <td className="px-3 py-2.5 text-center text-xs text-gray-500 font-mono">{item.hsnCode || "-"}</td>
                     <td className="px-3 py-2.5 text-right">{fmt.number(item.quantity, 3)}</td>
-                    <td className="px-3 py-2.5 text-gray-500">{item.unit}</td>
+                    <td className="px-3 py-2.5 text-center text-gray-500 text-xs">{item.unit}</td>
                     <td className="px-3 py-2.5 text-right">{fmt.number(item.rate)}</td>
-                    <td className="px-3 py-2.5 text-right text-red-500">{item.discount > 0 ? `${fmt.number(item.discount)} ${item.discountType === "percent" ? "%" : "₹"}` : "-"}</td>
+                    <td className="px-3 py-2.5 text-right text-red-500 text-xs">
+                      {item.discount > 0 ? `${fmt.number(item.discount)}${item.discountType === "percent" ? "%" : "₹"}` : "-"}
+                    </td>
                     <td className="px-3 py-2.5 text-right">{fmt.number(item.taxableAmount)}</td>
-                    {isInterState
-                      ? <td className="px-3 py-2.5 text-right text-orange-600">{fmt.number(item.igst)}</td>
-                      : <>
-                        <td className="px-3 py-2.5 text-right text-blue-600">{fmt.number(item.cgst)}</td>
-                        <td className="px-3 py-2.5 text-right text-blue-600">{fmt.number(item.sgst)}</td>
+                    {isInterState ? (
+                      <td className="px-3 py-2.5 text-right text-orange-600">
+                        <div className="text-xs text-gray-400">{item.taxRate}%</div>
+                        {fmt.number(item.igst)}
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2.5 text-right text-blue-600">
+                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
+                          {fmt.number(item.cgst)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-blue-600">
+                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
+                          {fmt.number(item.sgst)}
+                        </td>
                       </>
-                    }
-                    <td className="px-3 py-2.5 text-right font-semibold">{fmt.number(item.total)}</td>
+                    )}
+                    <td className="px-3 py-2.5 text-right font-bold">{fmt.number(item.total)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Summary */}
-          <div className="flex justify-end">
-            <div className="w-64 space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-gray-600">Taxable Amount</span><span>{fmt.currency(voucher.taxableAmount)}</span></div>
-              {!isInterState && Number(voucher.totalCgst) > 0 && (
-                <>
-                  <div className="flex justify-between text-blue-600"><span>CGST</span><span>{fmt.currency(voucher.totalCgst)}</span></div>
-                  <div className="flex justify-between text-blue-600"><span>SGST</span><span>{fmt.currency(voucher.totalSgst)}</span></div>
-                </>
+          {/* ---- TOTALS + BANK ---- */}
+          <div className="border-t-2 border-gray-800 grid grid-cols-2">
+            {/* Left: Bank + Amount in words */}
+            <div className="px-7 py-5 border-r border-gray-200 space-y-4">
+              {/* Amount in words */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Amount in Words</div>
+                <div className="text-sm font-semibold text-blue-900">{toWords(Number(voucher.grandTotal) || 0)}</div>
+              </div>
+
+              {/* Bank Details */}
+              {(biz.bankName || biz.bankAccount) && (
+                <div>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Bank Details</div>
+                  <div className="text-sm space-y-0.5">
+                    {biz.bankName && <div><span className="text-gray-500">Bank:</span> <span className="font-medium">{biz.bankName}</span></div>}
+                    {biz.bankAccount && <div><span className="text-gray-500">A/C No:</span> <span className="font-mono font-medium">{biz.bankAccount}</span></div>}
+                    {biz.bankIfsc && <div><span className="text-gray-500">IFSC:</span> <span className="font-mono font-medium">{biz.bankIfsc}</span></div>}
+                    {biz.bankBranch && <div><span className="text-gray-500">Branch:</span> <span className="font-medium">{biz.bankBranch}</span></div>}
+                  </div>
+                </div>
               )}
-              {isInterState && Number(voucher.totalIgst) > 0 && (
-                <div className="flex justify-between text-orange-600"><span>IGST</span><span>{fmt.currency(voucher.totalIgst)}</span></div>
+
+              {/* Notes */}
+              {voucher.notes && (
+                <div>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Notes</div>
+                  <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.notes}</div>
+                </div>
               )}
-              {Number(voucher.transportCharges) > 0 && (
-                <div className="flex justify-between"><span className="text-gray-600">Transport</span><span>{fmt.currency(voucher.transportCharges)}</span></div>
-              )}
-              {Number(voucher.roundOff) !== 0 && (
-                <div className="flex justify-between"><span className="text-gray-600">Round Off</span><span>{fmt.currency(voucher.roundOff)}</span></div>
-              )}
-              <div className="flex justify-between font-bold text-base border-t pt-2">
-                <span>Grand Total</span><span className="text-blue-700">{fmt.currency(voucher.grandTotal)}</span>
+            </div>
+
+            {/* Right: Tax summary */}
+            <div className="px-7 py-5">
+              <div className="space-y-2 text-sm ml-auto max-w-xs">
+                <div className="flex justify-between text-gray-600">
+                  <span>Taxable Amount</span>
+                  <span className="font-medium">{fmt.currency(voucher.taxableAmount)}</span>
+                </div>
+                {!isInterState && Number(voucher.totalCgst) > 0 && (
+                  <>
+                    <div className="flex justify-between text-blue-600">
+                      <span>CGST</span><span>{fmt.currency(voucher.totalCgst)}</span>
+                    </div>
+                    <div className="flex justify-between text-blue-600">
+                      <span>SGST</span><span>{fmt.currency(voucher.totalSgst)}</span>
+                    </div>
+                  </>
+                )}
+                {isInterState && Number(voucher.totalIgst) > 0 && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>IGST</span><span>{fmt.currency(voucher.totalIgst)}</span>
+                  </div>
+                )}
+                {Number(voucher.transportCharges) > 0 && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Transport Charges</span><span>{fmt.currency(voucher.transportCharges)}</span>
+                  </div>
+                )}
+                {Number(voucher.roundOff) !== 0 && (
+                  <div className="flex justify-between text-gray-500">
+                    <span>Round Off</span><span>{fmt.currency(voucher.roundOff)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-extrabold text-lg border-t-2 border-gray-800 pt-2 mt-2">
+                  <span>Grand Total</span>
+                  <span className="text-blue-700">{fmt.currency(voucher.grandTotal)}</span>
+                </div>
+                {Number(voucher.paidAmount) > 0 && (
+                  <div className="flex justify-between text-green-600 text-sm">
+                    <span>Paid</span><span>{fmt.currency(voucher.paidAmount)}</span>
+                  </div>
+                )}
+                {Number(voucher.balanceDue) > 0 && (
+                  <div className="flex justify-between text-red-600 font-bold text-sm border-t pt-1">
+                    <span>Balance Due</span><span>{fmt.currency(voucher.balanceDue)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {voucher.notes && (
-            <div className="mt-6 pt-6 border-t">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</div>
-              <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.notes}</div>
+          {/* ---- FOOTER: Terms + Signature ---- */}
+          <div className="border-t border-gray-200 grid grid-cols-2 px-7 py-5 gap-6">
+            <div>
+              {(voucher.termsAndConditions || biz.invoiceFooter) && (
+                <>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Terms & Conditions</div>
+                  <div className="text-xs text-gray-500 whitespace-pre-line leading-relaxed">
+                    {voucher.termsAndConditions || biz.invoiceFooter}
+                  </div>
+                </>
+              )}
+              <div className="mt-3 text-xs text-gray-400">
+                This is a computer generated document. No signature required unless specified.
+              </div>
             </div>
-          )}
-          {voucher.termsAndConditions && (
-            <div className="mt-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Terms & Conditions</div>
-              <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.termsAndConditions}</div>
+            <div className="text-right flex flex-col justify-between">
+              <div />
+              <div>
+                <div className="border-t-2 border-gray-800 pt-3 mt-12 inline-block min-w-40 text-center">
+                  <div className="font-bold text-sm text-gray-800">
+                    {biz.name || ""}
+                  </div>
+                  {biz.signatoryName && (
+                    <div className="text-xs text-gray-500 mt-0.5">{biz.signatoryName}</div>
+                  )}
+                  <div className="text-xs text-gray-400 mt-0.5">Authorized Signatory</div>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
 
-          {/* Print footer */}
-          <div className="mt-8 pt-4 border-t text-center text-xs text-gray-400">
-            {localStorage.getItem("erp_app_name") || "BizERP"} — Computer generated document
+          {/* ---- BOTTOM STRIP ---- */}
+          <div className="bg-gray-900 text-white text-center py-2 text-xs tracking-widest font-medium">
+            THANK YOU FOR YOUR BUSINESS
           </div>
         </div>
       </div>
