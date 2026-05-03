@@ -123,7 +123,12 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
   const isInterState = !!(party?.stateCode && business?.stateCode && party.stateCode !== business.stateCode);
 
-  const taxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
+  let taxRates: any[] = [];
+  try {
+    taxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
+  } catch {
+    // tax_rates query failed (e.g. missing column in DB) — custom rates from frontend will be used
+  }
   const itemDetails = rawItems.map((ri: any) => ({
     quantity: Number(ri.quantity), rate: Number(ri.rate),
     discount: Number(ri.discount || 0), discountType: ri.discountType || "percent",
