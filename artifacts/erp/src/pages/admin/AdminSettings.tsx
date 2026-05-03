@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone } from "lucide-react";
+import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle } from "lucide-react";
 
 export default function AdminSettings() {
   const [form, setForm] = useState({
@@ -15,23 +15,34 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const [profile, setProfile] = useState({ phone: "", name: "" });
+  const [profile, setProfile] = useState({ phone: "", name: "", avatar: "" });
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get<any>("/super-admin/settings").then(s => {
       setForm(f => ({ ...f, ...s }));
     }).catch(console.error).finally(() => setLoading(false));
-    api.get<any>("/super-admin/my-profile").then(p => setProfile({ phone: p.phone || "", name: p.name || "" })).catch(() => {});
+    api.get<any>("/super-admin/my-profile").then(p => setProfile({ phone: p.phone || "", name: p.name || "", avatar: p.avatar || "" })).catch(() => {});
   }, []);
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1_500_000) { alert("Image 1.5MB se chhoti honi chahiye"); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setProfile(p => ({ ...p, avatar: ev.target?.result as string }));
+    reader.readAsDataURL(file);
+  };
 
   const saveProfile = async () => {
     setProfileMsg(null); setProfileSaving(true);
     try {
       const payload: Record<string, string> = {};
       if (profile.phone !== undefined) payload.phone = profile.phone;
+      if (profile.avatar !== undefined) payload.avatar = profile.avatar;
       if (pwForm.newPassword) {
         if (pwForm.newPassword !== pwForm.confirmPassword) {
           setProfileMsg({ type: "err", text: "New password aur confirm password match nahi kar rahe" }); setProfileSaving(false); return;
@@ -130,6 +141,33 @@ export default function AdminSettings() {
             {profileMsg.text}
           </div>
         )}
+
+        {/* Avatar Upload */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-shrink-0">
+            <div className="w-20 h-20 rounded-full border-2 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
+              {profile.avatar
+                ? <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                : <UserCircle className="w-12 h-12 text-gray-300" />}
+            </div>
+            {profile.avatar && (
+              <button type="button" onClick={() => setProfile(p => ({ ...p, avatar: "" }))}
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <div className="text-sm font-medium text-gray-700">Profile Photo</div>
+            <button type="button" onClick={() => avatarInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors">
+              <Upload className="w-3.5 h-3.5" />
+              {profile.avatar ? "Photo Badlo" : "Photo Upload Karo"}
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp" className="hidden" onChange={handleAvatarUpload} />
+            <p className="text-xs text-gray-400">PNG/JPG — max 1.5MB</p>
+          </div>
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (Login ke liye use hoga)</label>

@@ -11,6 +11,7 @@ export const superAdminsTable = pgTable("super_admins", {
   email: text("email").notNull().unique(),
   phone: text("phone").unique(),
   passwordHash: text("password_hash").notNull(),
+  avatar: text("avatar"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

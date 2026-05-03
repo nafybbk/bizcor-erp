@@ -473,19 +473,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
-        {/* Offline Banner */}
-        {!isOnline && (
-          <div className="bg-red-600 text-white text-sm px-4 py-2.5 flex items-center gap-3 shrink-0">
-            <WifiOff className="w-4 h-4 shrink-0" />
-            <span className="font-medium">Aap Offline Hain</span>
-            <span className="text-red-200">— Invoice, Customer, Supplier, Item sab add kar sakte ho. Internet aane par automatic sync ho jaayega.</span>
-            {draftCount > 0 && (
-              <button onClick={() => navigate("/offline-drafts")} className="ml-auto shrink-0 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-semibold transition-colors">
-                {draftCount} Drafts Pending
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Auto-sync banner */}
         {autoSyncing && (
