@@ -135,7 +135,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     {
       label: "Masters", icon: <ClipboardList className="w-4 h-4" />,
       children: [
-        { label: "Parties", href: "/masters/parties" },
+        { label: "Customers", href: "/masters/customers" },
+        { label: "Suppliers", href: "/masters/suppliers" },
+        { label: "All Parties", href: "/masters/parties" },
         { label: "Items", href: "/masters/items" },
         { label: "Units", href: "/masters/units" },
         { label: "HSN Codes", href: "/masters/hsn" },

@@ -157,6 +157,12 @@ function AppRoutes() {
       </Route>
 
       {/* Masters */}
+      <Route path="/masters/customers">
+        <ProtectedRoute><Parties defaultType="customer" /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/suppliers">
+        <ProtectedRoute><Parties defaultType="supplier" /></ProtectedRoute>
+      </Route>
       <Route path="/masters/parties">
         <ProtectedRoute><Parties /></ProtectedRoute>
       </Route>
