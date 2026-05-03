@@ -1,0 +1,126 @@
+export type Lang = "en" | "hi";
+
+const KEY = "erp_lang";
+
+export function getLang(): Lang {
+  return (localStorage.getItem(KEY) as Lang) || "en";
+}
+export function setLang(lang: Lang) {
+  localStorage.setItem(KEY, lang);
+  window.dispatchEvent(new CustomEvent("lang-change"));
+}
+export function toggleLang() {
+  setLang(getLang() === "en" ? "hi" : "en");
+}
+
+export const T: Record<Lang, Record<string, string>> = {
+  en: {
+    dashboard: "Dashboard",
+    sales: "Sales",
+    invoices: "Invoices",
+    creditNotes: "Credit Notes",
+    purchases: "Purchases",
+    bills: "Bills",
+    debitNotes: "Debit Notes",
+    payments: "Payments",
+    receipts: "Receipts",
+    outstanding: "Outstanding",
+    inventory: "Inventory",
+    accounting: "Accounting",
+    partyLedger: "Party Ledger",
+    trialBalance: "Trial Balance",
+    receivables: "Receivables",
+    payables: "Payables",
+    gstReports: "GST Reports",
+    gstr1: "GSTR-1",
+    gstr3b: "GSTR-3B",
+    masters: "Masters",
+    customers: "Customers",
+    suppliers: "Suppliers",
+    allParties: "All Parties",
+    items: "Items",
+    units: "Units",
+    hsnCodes: "HSN Codes",
+    taxRates: "Tax Rates",
+    myPlan: "My Plan",
+    users: "Users",
+    settings: "Settings",
+    signOut: "Sign Out",
+    connected: "Connected",
+    offline: "Offline",
+    setLocation: "Set Location",
+    dataFolder: "Set Data Folder",
+    language: "Language",
+    save: "Save",
+    cancel: "Cancel",
+    add: "Add",
+    edit: "Edit",
+    delete: "Delete",
+    search: "Search...",
+    loginActivity: "Login Activity",
+    allUsers: "All Users",
+    buyers: "Buyers",
+    businesses: "Businesses",
+    plans: "Plans",
+    licenseVouchers: "License Vouchers",
+    techSupportAccounts: "Tech Support Accounts",
+    appSettings: "App Settings",
+  },
+  hi: {
+    dashboard: "Dashboard",
+    sales: "Bikri",
+    invoices: "Invoice",
+    creditNotes: "Credit Note",
+    purchases: "Kharidi",
+    bills: "Bill",
+    debitNotes: "Debit Note",
+    payments: "Bhugtan",
+    receipts: "Receipt",
+    outstanding: "Baki Raashi",
+    inventory: "Maal / Stock",
+    accounting: "Hisaab",
+    partyLedger: "Party Khata",
+    trialBalance: "Trial Balance",
+    receivables: "Lena Hai",
+    payables: "Dena Hai",
+    gstReports: "GST Report",
+    gstr1: "GSTR-1",
+    gstr3b: "GSTR-3B",
+    masters: "Master Data",
+    customers: "Grahak",
+    suppliers: "Supplier",
+    allParties: "Sab Parties",
+    items: "Items",
+    units: "Units",
+    hsnCodes: "HSN Codes",
+    taxRates: "Tax Rates",
+    myPlan: "Mera Plan",
+    users: "Users",
+    settings: "Settings",
+    signOut: "Bahar Jao",
+    connected: "Juda Hua",
+    offline: "Offline",
+    setLocation: "Location Set Karo",
+    dataFolder: "Data Folder Set Karo",
+    language: "Bhasha",
+    save: "Save Karo",
+    cancel: "Wapas",
+    add: "Add Karo",
+    edit: "Badlo",
+    delete: "Hatao",
+    search: "Dhundho...",
+    loginActivity: "Login Activity",
+    allUsers: "Sab Users",
+    buyers: "Buyers",
+    businesses: "Businesses",
+    plans: "Plans",
+    licenseVouchers: "License Vouchers",
+    techSupportAccounts: "Tech Support Accounts",
+    appSettings: "App Settings",
+  },
+};
+
+export function t(key: string, lang?: Lang): string {
+  const l = lang || getLang();
+  return T[l][key] || T.en[key] || key;
+}

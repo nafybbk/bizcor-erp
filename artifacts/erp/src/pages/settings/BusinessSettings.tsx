@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2 } from "lucide-react";
+import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2, FolderOpen, FolderX } from "lucide-react";
+import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupported } from "@/lib/localDataFolder";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -40,6 +41,61 @@ const TYPE_INFO: Record<string, string> = {
   grocery: "Invoice mein Batch No, Expiry Date fields aayenge",
   hardware: "Invoice mein Brand, Model No fields aayenge",
 };
+
+function OfflineDataFolderSection() {
+  const [folderName, setFolderName] = useState<string | null>(getDataFolderName());
+  const [picking, setPicking] = useState(false);
+
+  const handlePick = async () => {
+    setPicking(true);
+    try {
+      const result = await pickDataFolder();
+      if (result) setFolderName(result.name);
+    } finally { setPicking(false); }
+  };
+
+  const handleClear = async () => {
+    await clearDataFolder();
+    setFolderName(null);
+  };
+
+  if (!isFileSystemSupported()) {
+    return (
+      <div className="py-2 text-xs text-gray-400">
+        <FolderOpen className="w-3.5 h-3.5 inline mr-1" />
+        Offline folder save sirf Chrome/Edge desktop par kaam karta hai. Mobile par drafts localStorage mein save hote hain.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between py-2 border-t border-gray-50 mt-1">
+      <div>
+        <div className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+          <FolderOpen className="w-4 h-4 text-blue-500" /> Offline Data Folder
+        </div>
+        <div className="text-xs text-gray-500 mt-0.5">
+          {folderName
+            ? <span className="text-blue-600 font-medium">📁 {folderName}</span>
+            : "Offline drafts is folder mein JSON file ke roop mein save honge"}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        {folderName && (
+          <button type="button" onClick={handleClear}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
+            <FolderX className="w-3.5 h-3.5" /> Hatao
+          </button>
+        )}
+        <button type="button" onClick={handlePick} disabled={picking}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium disabled:opacity-60 transition-colors">
+          {picking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
+          {folderName ? "Badlo" : "Folder Chuno"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function BusinessSettings() {
   const [form, setForm] = useState<any>({});
@@ -382,6 +438,10 @@ export default function BusinessSettings() {
             Download
           </button>
         </div>
+
+        {/* Offline Data Folder */}
+        <OfflineDataFolderSection />
+
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
           <input className={inputCls + " bg-gray-50 text-gray-500 font-mono tracking-widest"} value={form.businessCode || ""} readOnly /></div>
       </div>
