@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
-import { Plus, Trash2, Loader2, ChevronDown, Check } from "lucide-react";
+import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -22,6 +22,7 @@ interface VoucherItem {
   quantity: number;
   unit: string;
   rate: number;
+  rateIncludesGst: boolean;
   discount: number;
   discountType: "percent" | "amount";
   taxRateId?: number;
@@ -35,7 +36,12 @@ interface VoucherItem {
 }
 
 function calcItem(item: VoucherItem, isInterState: boolean): VoucherItem {
-  const gross = item.quantity * item.rate;
+  // If rate includes GST, back-calculate rate before GST
+  const baseRate = item.rateIncludesGst && item.taxRate > 0
+    ? item.rate / (1 + item.taxRate / 100)
+    : item.rate;
+
+  const gross = item.quantity * baseRate;
   const discount = item.discountType === "percent" ? gross * (item.discount / 100) : item.discount;
   const taxable = gross - discount;
   const cgst = isInterState ? 0 : taxable * (item.taxRate / 2 / 100);
@@ -45,16 +51,18 @@ function calcItem(item: VoucherItem, isInterState: boolean): VoucherItem {
 }
 
 function emptyItem(): VoucherItem {
-  return { itemName: "", hsnCode: "", description: "", quantity: 1, unit: "PCS", rate: 0, discount: 0, discountType: "percent", taxRate: 0, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
+  return { itemName: "", hsnCode: "", description: "", quantity: 1, unit: "PCS", rate: 0, rateIncludesGst: false, discount: 0, discountType: "percent", taxRate: 0, taxableAmount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
 }
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
   title: string;
   listHref: string;
+  editId?: number;
+  initialData?: any;
 }
 
-export default function VoucherForm({ voucherType, title, listHref }: Props) {
+export default function VoucherForm({ voucherType, title, listHref, editId, initialData }: Props) {
   const [, navigate] = useLocation();
   const [parties, setParties] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
@@ -63,9 +71,11 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
   const [loading, setLoading] = useState(false);
   const [partySearch, setPartySearch] = useState("");
   const [showPartyDrop, setShowPartyDrop] = useState(false);
+  const [serialMode, setSerialMode] = useState<"auto" | "manual">("auto");
 
   const [form, setForm] = useState({
     date: fmt.today(),
+    voucherNumber: "",
     partyId: "",
     partyName: "",
     billingAddress: "",
@@ -90,13 +100,62 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
       api.get<any>("/items?limit=200"),
       api.get<any>("/masters/tax-rates"),
       api.get<any>("/masters/units"),
-    ]).then(([p, it, t, u]) => {
+      api.get<any>("/businesses/current"),
+    ]).then(([p, it, t, u, biz]) => {
       setParties(p.data || []);
       setItems(it.data || []);
       setTaxRates(t.data || []);
       setUnits(u.data || []);
+      if (biz.serialNumberMode === "manual") setSerialMode("manual");
     }).catch(console.error);
   }, []);
+
+  // Populate from initialData if editing
+  useEffect(() => {
+    if (initialData) {
+      setForm(f => ({
+        ...f,
+        date: initialData.date || fmt.today(),
+        voucherNumber: initialData.voucherNumber || "",
+        partyId: String(initialData.partyId || ""),
+        partyName: initialData.partyName || "",
+        billingAddress: initialData.billingAddress || "",
+        useShippingAddress: initialData.useShippingAddress || false,
+        shippingAddress: initialData.shippingAddress || "",
+        placeOfSupply: initialData.placeOfSupply || "",
+        transportCharges: Number(initialData.transportCharges || 0),
+        roundOff: Number(initialData.roundOff || 0),
+        notes: initialData.notes || "",
+        termsAndConditions: initialData.termsAndConditions || "",
+        status: initialData.status || "posted",
+      }));
+      setPartySearch(initialData.partyName || "");
+      setIsInterState(initialData.isInterState || false);
+      if (initialData.items?.length) {
+        const populated = initialData.items.map((i: any) => ({
+          itemId: i.itemId,
+          itemName: i.itemName,
+          hsnCode: i.hsnCode || "",
+          description: i.description || "",
+          quantity: Number(i.quantity),
+          unit: i.unit || "PCS",
+          rate: Number(i.rate),
+          rateIncludesGst: false,
+          discount: Number(i.discount || 0),
+          discountType: i.discountType || "percent",
+          taxRateId: i.taxRateId,
+          taxRate: Number(i.taxRate || 0),
+          taxableAmount: Number(i.taxableAmount || 0),
+          cgst: Number(i.cgst || 0),
+          sgst: Number(i.sgst || 0),
+          igst: Number(i.igst || 0),
+          total: Number(i.total || 0),
+        }));
+        setLineItems(populated);
+        setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
+      }
+    }
+  }, [initialData]);
 
   const selectParty = (party: any) => {
     setForm(f => ({ ...f, partyId: String(party.id), partyName: party.name, billingAddress: [party.address, party.city, party.state, party.pincode].filter(Boolean).join(", "), placeOfSupply: party.stateCode || "" }));
@@ -116,9 +175,8 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
         if (found) {
           updated.itemName = found.name;
           updated.hsnCode = found.hsnCode || "";
-          updated.rate = found.salePrice || found.purchasePrice || 0;
+          updated.rate = Number(found.salePrice || found.purchasePrice || 0);
           updated.taxRateId = found.taxRateId;
-          updated.taxRate = found.taxRate || 0;
           updated.unit = found.unitName || "PCS";
           const tr = taxRates.find(t => t.id === found.taxRateId);
           if (tr) updated.taxRate = Number(tr.rate);
@@ -155,15 +213,20 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
   const toggleItem = (idx: number) => {
     setSelectedItems(prev => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
       return next;
     });
   };
 
   const activeItems = lineItems.filter((_, idx) => selectedItems.has(idx));
-  const subTotal = activeItems.reduce((s, i) => s + i.quantity * i.rate, 0);
-  const totalDiscount = activeItems.reduce((s, i) => s + (i.discountType === "percent" ? i.quantity * i.rate * i.discount / 100 : i.discount), 0);
+  const subTotal = activeItems.reduce((s, i) => {
+    const baseRate = i.rateIncludesGst && i.taxRate > 0 ? i.rate / (1 + i.taxRate / 100) : i.rate;
+    return s + i.quantity * baseRate;
+  }, 0);
+  const totalDiscount = activeItems.reduce((s, i) => {
+    const baseRate = i.rateIncludesGst && i.taxRate > 0 ? i.rate / (1 + i.taxRate / 100) : i.rate;
+    return s + (i.discountType === "percent" ? i.quantity * baseRate * i.discount / 100 : i.discount);
+  }, 0);
   const taxableAmount = activeItems.reduce((s, i) => s + i.taxableAmount, 0);
   const totalCgst = activeItems.reduce((s, i) => s + i.cgst, 0);
   const totalSgst = activeItems.reduce((s, i) => s + i.sgst, 0);
@@ -175,20 +238,26 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
     e.preventDefault();
     if (!form.partyId) { setError("Please select a party"); return; }
     if (activeItems.length === 0) { setError("Please add at least one item"); return; }
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const itemsToSend = activeItems.map(i => ({
-        ...i,
-        quantity: Number(i.quantity), rate: Number(i.rate),
+        ...i, quantity: Number(i.quantity), rate: Number(i.rate),
         discount: Number(i.discount), taxRate: Number(i.taxRate),
       }));
-      await api.post(`/${voucherType}`, {
+      const payload: any = {
         ...form, partyId: Number(form.partyId),
         items: itemsToSend,
         transportCharges: Number(form.transportCharges),
         roundOff: Number(form.roundOff),
-      });
+      };
+      if (serialMode === "manual" && form.voucherNumber) {
+        payload.voucherNumber = form.voucherNumber;
+      }
+      if (editId) {
+        await api.patch(`/${voucherType}/${editId}`, payload);
+      } else {
+        await api.post(`/${voucherType}`, payload);
+      }
       navigate(listHref);
     } catch (err: any) {
       setError(err.message);
@@ -203,12 +272,12 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
   return (
     <form onSubmit={handleSubmit} className="max-w-5xl space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">New {title}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
         <div className="flex gap-3">
           <button type="button" onClick={() => navigate(listHref)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
           <button type="submit" disabled={loading} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save {title}
+            {editId ? "Update" : "Save"} {title}
           </button>
         </div>
       </div>
@@ -217,6 +286,26 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
 
       {/* Header */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 grid grid-cols-2 gap-4">
+        {/* Serial Number */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm font-medium text-gray-700">Voucher Number</label>
+            <button type="button" onClick={() => setSerialMode(m => m === "auto" ? "manual" : "auto")}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700">
+              {serialMode === "auto" ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
+              {serialMode === "auto" ? "Auto" : "Manual"}
+            </button>
+          </div>
+          {serialMode === "auto" ? (
+            <input className={inputCls + " bg-gray-50 text-gray-400"} placeholder="Auto-generated" readOnly />
+          ) : (
+            <input className={inputCls} value={form.voucherNumber} onChange={e => setForm(f => ({ ...f, voucherNumber: e.target.value }))} placeholder="Enter number manually" />
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+          <input type="date" className={inputCls} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Party *</label>
           <div className="relative">
@@ -234,14 +323,6 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-          <input type="date" className={inputCls} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Billing Address</label>
-          <textarea className={inputCls} rows={2} value={form.billingAddress} onChange={e => setForm(f => ({ ...f, billingAddress: e.target.value }))} />
-        </div>
-        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Place of Supply</label>
           <select className={inputCls} value={form.placeOfSupply} onChange={e => setForm(f => ({ ...f, placeOfSupply: e.target.value }))}>
             <option value="">Select State</option>
@@ -252,25 +333,26 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
             Inter-state supply (IGST)
           </label>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Billing Address</label>
+          <textarea className={inputCls} rows={2} value={form.billingAddress} onChange={e => setForm(f => ({ ...f, billingAddress: e.target.value }))} />
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer mb-2">
             <input type="checkbox" checked={form.useShippingAddress} onChange={e => setForm(f => ({ ...f, useShippingAddress: e.target.checked }))} className="rounded" />
             Different shipping address
           </label>
+          {form.useShippingAddress && (
+            <textarea className={inputCls} rows={2} value={form.shippingAddress} onChange={e => setForm(f => ({ ...f, shippingAddress: e.target.value }))} placeholder="Shipping address..." />
+          )}
         </div>
-        {form.useShippingAddress && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address</label>
-            <textarea className={inputCls} rows={2} value={form.shippingAddress} onChange={e => setForm(f => ({ ...f, shippingAddress: e.target.value }))} />
-          </div>
-        )}
       </div>
 
       {/* Items table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h3 className="font-semibold text-gray-800 text-sm">Items</h3>
-          <span className="text-xs text-gray-400">✓ = Include in invoice</span>
+          <span className="text-xs text-gray-400">✓ = Include · GST Inc. = Rate includes GST</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -281,7 +363,7 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
                 <th className="px-3 py-2.5 text-left w-24">HSN</th>
                 <th className="px-3 py-2.5 text-right w-20">Qty</th>
                 <th className="px-3 py-2.5 text-left w-20">Unit</th>
-                <th className="px-3 py-2.5 text-right w-24">Rate</th>
+                <th className="px-3 py-2.5 text-right w-28">Rate</th>
                 <th className="px-3 py-2.5 text-right w-24">Discount</th>
                 <th className="px-3 py-2.5 text-center w-28">Tax</th>
                 <th className="px-3 py-2.5 text-right w-24">Taxable</th>
@@ -327,6 +409,15 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
                     <td className="px-2 py-1.5">
                       <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                         value={item.rate} onChange={e => updateItem(idx, "rate", Number(e.target.value))} />
+                      <label className="flex items-center gap-1 mt-0.5 text-xs text-gray-500 cursor-pointer">
+                        <input type="checkbox" checked={item.rateIncludesGst} onChange={e => updateItem(idx, "rateIncludesGst", e.target.checked)} className="rounded" />
+                        GST Inc.
+                        {item.rateIncludesGst && item.taxRate > 0 && (
+                          <span className="text-blue-600 ml-1">
+                            (Base: {fmt.number(item.rate / (1 + item.taxRate / 100))})
+                          </span>
+                        )}
+                      </label>
                     </td>
                     <td className="px-2 py-1.5">
                       <div className="flex gap-1">
@@ -383,6 +474,14 @@ export default function VoucherForm({ voucherType, title, listHref }: Props) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
             <textarea className={inputCls + " bg-white"} rows={2} value={form.termsAndConditions} onChange={e => setForm(f => ({ ...f, termsAndConditions: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select className={inputCls + " bg-white"} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              <option value="draft">Draft</option>
+              <option value="posted">Posted</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2 text-sm">

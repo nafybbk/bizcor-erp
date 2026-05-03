@@ -23,6 +23,17 @@ router.post("/units", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+router.patch("/units/:id", async (req, res) => {
+  try {
+    const { name, symbol } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = name;
+    if (symbol !== undefined) updateData.symbol = symbol;
+    const [updated] = await db.update(unitsTable).set(updateData).where(and(eq(unitsTable.id, Number(req.params.id)), eq(unitsTable.businessId, req.user!.businessId!))).returning();
+    res.json(updated);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 router.delete("/units/:id", async (req, res) => {
   try {
     await db.delete(unitsTable).where(and(eq(unitsTable.id, Number(req.params.id)), eq(unitsTable.businessId, req.user!.businessId!)));
@@ -34,7 +45,6 @@ router.delete("/units/:id", async (req, res) => {
 router.get("/hsn", async (req, res) => {
   try {
     const { search } = req.query;
-    let query = db.select().from(hsnCodesTable).where(eq(hsnCodesTable.businessId, req.user!.businessId!));
     const codes = await db.select().from(hsnCodesTable).where(and(
       eq(hsnCodesTable.businessId, req.user!.businessId!),
       search ? ilike(hsnCodesTable.code, `%${search}%`) : undefined,
@@ -48,6 +58,25 @@ router.post("/hsn", async (req, res) => {
     const { code, description, taxRate } = req.body;
     const [hsn] = await db.insert(hsnCodesTable).values({ businessId: req.user!.businessId!, code, description, taxRate: taxRate ? String(taxRate) : null }).returning();
     res.status(201).json(hsn);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/hsn/:id", async (req, res) => {
+  try {
+    const { code, description, taxRate } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (code !== undefined) updateData.code = code;
+    if (description !== undefined) updateData.description = description;
+    if (taxRate !== undefined) updateData.taxRate = taxRate ? String(taxRate) : null;
+    const [updated] = await db.update(hsnCodesTable).set(updateData).where(and(eq(hsnCodesTable.id, Number(req.params.id)), eq(hsnCodesTable.businessId, req.user!.businessId!))).returning();
+    res.json(updated);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.delete("/hsn/:id", async (req, res) => {
+  try {
+    await db.delete(hsnCodesTable).where(and(eq(hsnCodesTable.id, Number(req.params.id)), eq(hsnCodesTable.businessId, req.user!.businessId!)));
+    res.json({ success: true });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
@@ -71,12 +100,30 @@ router.post("/tax-rates", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+router.patch("/tax-rates/:id", async (req, res) => {
+  try {
+    const { name, rate } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = name;
+    if (rate !== undefined) updateData.rate = String(rate);
+    const [updated] = await db.update(taxRatesTable).set(updateData).where(and(eq(taxRatesTable.id, Number(req.params.id)), eq(taxRatesTable.businessId, req.user!.businessId!))).returning();
+    res.json({ ...updated, rate: Number(updated.rate), cgst: Number(updated.rate)/2, sgst: Number(updated.rate)/2, igst: Number(updated.rate) });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.delete("/tax-rates/:id", async (req, res) => {
+  try {
+    await db.delete(taxRatesTable).where(and(eq(taxRatesTable.id, Number(req.params.id)), eq(taxRatesTable.businessId, req.user!.businessId!)));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // CUSTOM FIELDS
 router.get("/custom-fields", async (req, res) => {
   try {
     const { entity } = req.query;
     const conditions = [eq(customFieldsTable.businessId, req.user!.businessId!)];
-    if (entity) conditions.push(eq(customFieldsTable.entity, entity as "item" | "party" | "voucher" | "voucher_item"));
+    if (entity) conditions.push(eq(customFieldsTable.entity, entity as any));
     const fields = await db.select().from(customFieldsTable).where(and(...conditions)).orderBy(customFieldsTable.sortOrder);
     res.json({ data: fields });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }

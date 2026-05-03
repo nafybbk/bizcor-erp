@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
@@ -65,34 +65,40 @@ router.get("/current", requireBusiness, async (req, res) => {
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, req.user!.businessId!) });
     if (!business) { res.status(404).json({ error: "Not Found" }); return; }
     res.json(business);
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.patch("/current", requireBusiness, async (req, res) => {
   try {
-    const { name, gstin, pan, address, city, state, stateCode, pincode, phone, email, logo, financialYearStart } = req.body;
+    const allowed = ["name", "gstin", "pan", "address", "city", "state", "stateCode", "pincode", "phone", "email", "logo", "financialYearStart", "invoicePrefix", "creditNotePrefix", "billPrefix", "debitNotePrefix", "serialNumberMode"];
     const updateData: Record<string, unknown> = {};
-    if (name) updateData.name = name;
-    if (gstin !== undefined) updateData.gstin = gstin;
-    if (pan !== undefined) updateData.pan = pan;
-    if (address !== undefined) updateData.address = address;
-    if (city !== undefined) updateData.city = city;
-    if (state !== undefined) updateData.state = state;
-    if (stateCode !== undefined) updateData.stateCode = stateCode;
-    if (pincode !== undefined) updateData.pincode = pincode;
-    if (phone !== undefined) updateData.phone = phone;
-    if (email !== undefined) updateData.email = email;
-    if (logo !== undefined) updateData.logo = logo;
-    if (financialYearStart !== undefined) updateData.financialYearStart = financialYearStart;
+    for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
     const [updated] = await db.update(businessesTable).set(updateData).where(eq(businessesTable.id, req.user!.businessId!)).returning();
     res.json(updated);
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/backup", requireBusiness, async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+    const users = await db.select().from(usersTable).where(eq(usersTable.businessId, businessId));
+    const parties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
+    const items = await db.select().from(itemsTable).where(eq(itemsTable.businessId, businessId));
+    const vouchers = await db.select().from(vouchersTable).where(eq(vouchersTable.businessId, businessId));
+    const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
+
+    const filename = `backup-${business?.businessCode || businessId}-${Date.now()}.json`;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.json({
+      exportedAt: new Date().toISOString(),
+      version: "1.0",
+      business,
+      users: users.map(u => ({ ...u, passwordHash: undefined })),
+      parties, items, vouchers, payments,
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 export default router;

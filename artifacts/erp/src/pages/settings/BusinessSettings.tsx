@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Download, Wifi, WifiOff, Database } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -8,7 +8,8 @@ const INDIAN_STATES = [
   { name: "Karnataka", code: "29" }, { name: "Kerala", code: "32" }, { name: "Madhya Pradesh", code: "23" },
   { name: "Maharashtra", code: "27" }, { name: "Punjab", code: "03" }, { name: "Rajasthan", code: "08" },
   { name: "Tamil Nadu", code: "33" }, { name: "Telangana", code: "36" }, { name: "Uttar Pradesh", code: "09" },
-  { name: "West Bengal", code: "19" },
+  { name: "West Bengal", code: "19" }, { name: "Chhattisgarh", code: "22" }, { name: "Uttarakhand", code: "05" },
+  { name: "Himachal Pradesh", code: "02" }, { name: "Jharkhand", code: "20" }, { name: "Odisha", code: "21" },
 ];
 
 export default function BusinessSettings() {
@@ -16,17 +17,48 @@ export default function BusinessSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [dbMode, setDbMode] = useState<"cloud" | "local">(
+    (localStorage.getItem("erp_db_mode") as any) || "cloud"
+  );
 
   useEffect(() => {
     api.get<any>("/businesses/current").then(b => setForm(b)).catch(console.error).finally(() => setLoading(false));
+    api.get("/healthz").then(() => setIsOnline(true)).catch(() => setIsOnline(false));
   }, []);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await api.patch("/businesses/current", form);
-    setSaving(false); setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+    try {
+      await api.patch("/businesses/current", form);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } finally { setSaving(false); }
+  };
+
+  const downloadBackup = async () => {
+    setBackupLoading(true);
+    try {
+      const token = localStorage.getItem("erp_token");
+      const res = await fetch(`${import.meta.env.BASE_URL}api/businesses/backup`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `backup-${form.businessCode || "business"}-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally { setBackupLoading(false); }
+  };
+
+  const toggleDbMode = () => {
+    const newMode = dbMode === "cloud" ? "local" : "cloud";
+    setDbMode(newMode);
+    localStorage.setItem("erp_db_mode", newMode);
   };
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -37,10 +69,17 @@ export default function BusinessSettings() {
     <form onSubmit={save} className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Business Settings</h1>
-        <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+        <div className="flex gap-3">
+          <button type="button" onClick={downloadBackup} disabled={backupLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+            {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Backup Data
+          </button>
+          <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
       </div>
 
       {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">Settings saved successfully!</div>}
@@ -75,14 +114,70 @@ export default function BusinessSettings() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Other</h3>
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Invoice Settings</h3>
         <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label><input className={inputCls} value={form.invoicePrefix || "SI"} onChange={e => setForm((f: any) => ({ ...f, invoicePrefix: e.target.value }))} placeholder="SI" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Note Prefix</label><input className={inputCls} value={form.creditNotePrefix || "CN"} onChange={e => setForm((f: any) => ({ ...f, creditNotePrefix: e.target.value }))} placeholder="CN" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Bill Prefix</label><input className={inputCls} value={form.billPrefix || "PB"} onChange={e => setForm((f: any) => ({ ...f, billPrefix: e.target.value }))} placeholder="PB" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Debit Note Prefix</label><input className={inputCls} value={form.debitNotePrefix || "DN"} onChange={e => setForm((f: any) => ({ ...f, debitNotePrefix: e.target.value }))} placeholder="DN" /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number Mode</label>
+            <select className={inputCls} value={form.serialNumberMode || "auto"} onChange={e => setForm((f: any) => ({ ...f, serialNumberMode: e.target.value }))}>
+              <option value="auto">Auto (system generates)</option>
+              <option value="manual">Manual (enter manually)</option>
+            </select>
+          </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Financial Year Start (MM-DD)</label>
             <input className={inputCls} value={form.financialYearStart || "04-01"} onChange={e => setForm((f: any) => ({ ...f, financialYearStart: e.target.value }))} placeholder="04-01" />
           </div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
-            <input className={inputCls + " bg-gray-50 text-gray-400 font-mono"} value={form.businessCode || ""} readOnly />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
+          <Database className="w-4 h-4" /> Connection & Backup
+        </h3>
+
+        <div className="flex items-center justify-between py-3 border-b border-gray-50">
+          <div>
+            <div className="text-sm font-medium text-gray-700">Server Connection</div>
+            <div className={`text-xs mt-0.5 ${isOnline ? "text-green-600" : "text-red-500"}`}>
+              {isOnline ? "● Connected to server" : "● Server unreachable"}
+            </div>
           </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isOnline ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+            {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+            {isOnline ? "Online" : "Offline"}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between py-3 border-b border-gray-50">
+          <div>
+            <div className="text-sm font-medium text-gray-700">Database Mode</div>
+            <div className="text-xs text-gray-500 mt-0.5">
+              {dbMode === "cloud" ? "Using cloud database (PostgreSQL)" : "Using local database"}
+            </div>
+          </div>
+          <button type="button" onClick={toggleDbMode}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${dbMode === "cloud" ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"}`}>
+            {dbMode === "cloud" ? "☁ Cloud DB" : "🖥 Local DB"}
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between py-3">
+          <div>
+            <div className="text-sm font-medium text-gray-700">Download Business Backup</div>
+            <div className="text-xs text-gray-500 mt-0.5">Export all your data as JSON (parties, items, invoices, payments)</div>
+          </div>
+          <button type="button" onClick={downloadBackup} disabled={backupLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+            {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Download
+          </button>
+        </div>
+
+        <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
+          <input className={inputCls + " bg-gray-50 text-gray-400 font-mono"} value={form.businessCode || ""} readOnly />
         </div>
       </div>
     </form>

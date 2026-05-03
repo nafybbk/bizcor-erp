@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import {
   LayoutDashboard, FileText, ShoppingCart, CreditCard, Package, BookOpen,
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
-  Building2, Menu, X, ShieldCheck, Receipt, RotateCcw, Wallet,
-  TrendingUp, BarChart3, ClipboardList,
+  Building2, Menu, X, ShieldCheck, Receipt, Wallet,
+  TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones,
 } from "lucide-react";
 
 interface NavItem {
@@ -67,6 +68,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, business, logout, isSuperAdmin } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
+  const [softwareName, setSoftwareName] = useState("BizERP");
+
+  useEffect(() => {
+    // Check online status
+    const checkOnline = () => {
+      api.get("/healthz").then(() => setIsOnline(true)).catch(() => setIsOnline(false));
+    };
+    checkOnline();
+    const interval = setInterval(checkOnline, 30000);
+
+    // Load software name from settings (for super admin) or localStorage
+    const cached = localStorage.getItem("erp_app_name");
+    if (cached) setSoftwareName(cached);
+    if (isSuperAdmin()) {
+      api.get<any>("/super-admin/settings").then(s => {
+        if (s.softwareName) { setSoftwareName(s.softwareName); localStorage.setItem("erp_app_name", s.softwareName); }
+      }).catch(() => {});
+    }
+
+    return () => clearInterval(interval);
+  }, []);
 
   const businessNav: NavItem[] = [
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -127,6 +150,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: "Dashboard", href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: "Businesses", href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
     { label: "Plans", href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },
+    { label: "App Settings", href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
   ];
 
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
@@ -142,9 +166,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Building2 className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <div className="text-white font-bold text-sm leading-tight truncate">BizERP</div>
+              <div className="text-white font-bold text-sm leading-tight truncate">{softwareName}</div>
               {business && <div className="text-slate-400 text-xs truncate">{business.name}</div>}
-              {isSuperAdmin() && <div className="text-yellow-400 text-xs flex items-center gap-1"><ShieldCheck className="w-3 h-3" />Super Admin</div>}
+              {isSuperAdmin() && <div className="text-yellow-400 text-xs flex items-center gap-1"><ShieldCheck className="w-3 h-3" />Tech Support</div>}
             </div>
           </div>
         </div>
@@ -158,15 +182,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* User footer */}
         <div className="p-3 border-t border-slate-700">
+          {/* Online/Offline indicator */}
+          <div className={`flex items-center gap-2 px-2 py-1 mb-2 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
+            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            <span>{isOnline ? "Connected" : "Offline"}</span>
+          </div>
           <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
             <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
               {user?.name?.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-white text-xs font-medium truncate">{user?.name}</div>
-              <div className="text-slate-400 text-xs truncate">{user?.role?.replace("_", " ")}</div>
+              <div className="text-slate-400 text-xs truncate">{isSuperAdmin() ? "Tech Support" : user?.role?.replace("_", " ")}</div>
             </div>
           </div>
+          {isSuperAdmin() && (
+            <div className="flex items-center gap-1 px-2 py-1 mb-1">
+              <Headphones className="w-3 h-3 text-yellow-400" />
+              <span className="text-yellow-400 text-xs font-medium">Tech Support Panel</span>
+            </div>
+          )}
           <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
             <LogOut className="w-4 h-4" />
             Sign Out
@@ -182,6 +217,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex-1" />
+          {!isOnline && (
+            <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full flex items-center gap-1">
+              <WifiOff className="w-3 h-3" /> Offline
+            </span>
+          )}
           {business && (
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">{business.businessCode}</span>
           )}

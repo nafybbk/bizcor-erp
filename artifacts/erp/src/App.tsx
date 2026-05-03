@@ -45,6 +45,8 @@ import Users from "@/pages/settings/Users";
 
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminBusinesses from "@/pages/admin/AdminBusinesses";
+import AdminPlans from "@/pages/admin/AdminPlans";
+import AdminSettings from "@/pages/admin/AdminSettings";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -52,7 +54,6 @@ const queryClient = new QueryClient({
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [location] = useLocation();
   if (!user) return <Redirect to="/login" />;
   return <Layout>{children}</Layout>;
 }
@@ -79,11 +80,7 @@ function AppRoutes() {
         <ProtectedRoute><InvoiceCreate /></ProtectedRoute>
       </Route>
       <Route path="/sales/invoices/:id">
-        {(params) => (
-          <ProtectedRoute>
-            <VoucherView voucherType="sales/invoices" listHref="/sales/invoices" />
-          </ProtectedRoute>
-        )}
+        {() => <ProtectedRoute><VoucherView voucherType="sales/invoices" listHref="/sales/invoices" /></ProtectedRoute>}
       </Route>
       <Route path="/sales/credit-notes">
         <ProtectedRoute><CreditNoteList /></ProtectedRoute>
@@ -92,11 +89,7 @@ function AppRoutes() {
         <ProtectedRoute><CreditNoteCreate /></ProtectedRoute>
       </Route>
       <Route path="/sales/credit-notes/:id">
-        {() => (
-          <ProtectedRoute>
-            <VoucherView voucherType="sales/credit-notes" listHref="/sales/credit-notes" />
-          </ProtectedRoute>
-        )}
+        {() => <ProtectedRoute><VoucherView voucherType="sales/credit-notes" listHref="/sales/credit-notes" /></ProtectedRoute>}
       </Route>
 
       {/* Purchases */}
@@ -107,11 +100,7 @@ function AppRoutes() {
         <ProtectedRoute><BillCreate /></ProtectedRoute>
       </Route>
       <Route path="/purchases/bills/:id">
-        {() => (
-          <ProtectedRoute>
-            <VoucherView voucherType="purchases/bills" listHref="/purchases/bills" />
-          </ProtectedRoute>
-        )}
+        {() => <ProtectedRoute><VoucherView voucherType="purchases/bills" listHref="/purchases/bills" /></ProtectedRoute>}
       </Route>
       <Route path="/purchases/debit-notes">
         <ProtectedRoute><DebitNoteList /></ProtectedRoute>
@@ -120,11 +109,7 @@ function AppRoutes() {
         <ProtectedRoute><DebitNoteCreate /></ProtectedRoute>
       </Route>
       <Route path="/purchases/debit-notes/:id">
-        {() => (
-          <ProtectedRoute>
-            <VoucherView voucherType="purchases/debit-notes" listHref="/purchases/debit-notes" />
-          </ProtectedRoute>
-        )}
+        {() => <ProtectedRoute><VoucherView voucherType="purchases/debit-notes" listHref="/purchases/debit-notes" /></ProtectedRoute>}
       </Route>
 
       {/* Payments */}
@@ -196,9 +181,15 @@ function AppRoutes() {
         <ProtectedRoute><Users /></ProtectedRoute>
       </Route>
 
-      {/* Super Admin */}
+      {/* Super Admin / Tech Support */}
       <Route path="/admin/businesses">
         <ProtectedRoute><AdminBusinesses /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/plans">
+        <ProtectedRoute><AdminPlans /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/settings">
+        <ProtectedRoute><AdminSettings /></ProtectedRoute>
       </Route>
 
       <Route>
