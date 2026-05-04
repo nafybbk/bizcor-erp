@@ -6,3 +6,9 @@ id = "zAHhzwifTSPwZP4yZAY2J"
 uri = "file://DEPLOY.md"
 type = "text"
 title = "Vercel + Supabase Deployment Guide"
+
+[[outputs]]
+id = "IVVzdcVy6Yx6qP4OANCxs"
+uri = "file://bizcor-erp-backup.tar.gz"
+type = "unspecified"
+title = "BizCor ERP — Source Code Backup"
