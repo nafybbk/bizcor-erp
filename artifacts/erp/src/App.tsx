@@ -101,16 +101,20 @@ class ErrorBoundary extends React.Component<
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  if (!user) return <Redirect to="/login" />;
+  if (!user) return <Redirect to={isTechDomain() ? "/tech-login" : "/login"} />;
   return <Layout><ErrorBoundary>{children}</ErrorBoundary></Layout>;
 }
+
+const isTechDomain = () => window.location.hostname === "erpa.naewtgroup.com";
 
 function AppRoutes() {
   const { user, isSuperAdmin } = useAuth();
 
   return (
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login">
+        {isTechDomain() ? <Redirect to="/tech-login" /> : <Login />}
+      </Route>
       <Route path="/tech-login" component={TechLogin} />
       <Route path="/register" component={Register} />
 
