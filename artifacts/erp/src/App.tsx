@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import Layout from "@/components/Layout";
 
 import Login from "@/pages/Login";
+import TechLogin from "@/pages/TechLogin";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 
@@ -110,6 +111,7 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/tech-login" component={TechLogin} />
       <Route path="/register" component={Register} />
 
       <Route path="/">
