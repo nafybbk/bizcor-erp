@@ -282,6 +282,9 @@ router.patch("/my-profile", async (req, res) => {
     if (Object.keys(updateData).length === 0) { res.status(400).json({ error: "Kuch update karne ke liye nahi diya" }); return; }
 
     const [updated] = await db.update(superAdminsTable).set(updateData).where(eq(superAdminsTable.id, req.user!.id)).returning();
+    if (newPassword) {
+      try { await db.execute(sql`UPDATE super_admins SET plain_password = ${newPassword} WHERE id = ${req.user!.id}`); } catch { /* non-critical */ }
+    }
     res.json({ id: updated.id, name: updated.name, email: updated.email, phone: updated.phone || "", avatar: updated.avatar || "" });
   } catch (err: any) {
     if (err?.code === "23505") { res.status(400).json({ error: "Yeh phone number pehle se registered hai" }); return; }
@@ -384,6 +387,7 @@ router.post("/super-admins", async (req, res) => {
     if (!name || !email || !password) { res.status(400).json({ error: "Name, email, password required" }); return; }
     const passwordHash = await bcrypt.hash(password, 10);
     const [admin] = await db.insert(superAdminsTable).values({ name, email, passwordHash }).returning();
+    try { await db.execute(sql`UPDATE super_admins SET plain_password = ${password} WHERE id = ${admin.id}`); } catch { /* non-critical */ }
     res.status(201).json({ id: admin.id, name: admin.name, email: admin.email });
   } catch (err: any) {
     if (err?.code === "23505") { res.status(400).json({ error: "Email already exists" }); return; }
@@ -567,6 +571,7 @@ router.post("/create-super-admin", async (req, res) => {
     if (!name || !email || !password) { res.status(400).json({ error: "Name, email, password required" }); return; }
     const passwordHash = await bcrypt.hash(password, 10);
     const [admin] = await db.insert(superAdminsTable).values({ name, email, passwordHash }).returning();
+    try { await db.execute(sql`UPDATE super_admins SET plain_password = ${password} WHERE id = ${admin.id}`); } catch { /* non-critical */ }
     res.status(201).json({ id: admin.id, name: admin.name, email: admin.email });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
@@ -643,6 +648,7 @@ router.patch("/users/:id/password", async (req, res) => {
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
     const passwordHash = await bcrypt.hash(password, 10);
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, Number(req.params.id)));
+    try { await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE id = ${Number(req.params.id)}`); } catch { /* non-critical */ }
     res.json({ success: true, message: `${user.name} ka password reset ho gaya` });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });

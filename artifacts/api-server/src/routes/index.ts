@@ -15,6 +15,7 @@ import accountingRouter from "./accounting";
 import gstRouter from "./gst";
 import dashboardRouter from "./dashboard";
 import licenseVouchersRouter from "./licenseVouchers";
+import webauthnRouter from "./webauthn";
 
 const router: IRouter = Router();
 
@@ -57,6 +58,7 @@ router.get("/public-settings", async (_req, res) => {
 });
 
 router.use("/auth", authRouter);
+router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
 
 // All business routes — plan expiry enforced on every call

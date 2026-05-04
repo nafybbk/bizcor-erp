@@ -10,6 +10,8 @@ async function runMigrations() {
   migrated = true;
   try {
     await db.execute(sql`ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS avatar TEXT`);
+    await db.execute(sql`ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS plain_password TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS plain_password TEXT`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY,
@@ -25,8 +27,21 @@ async function runMigrations() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS webauthn_credentials (
+        id SERIAL PRIMARY KEY,
+        credential_id TEXT NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        counter INTEGER NOT NULL DEFAULT 0,
+        super_admin_id INTEGER NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
     const hash = await bcrypt.hash("031975", 10);
-    await db.execute(sql`UPDATE super_admins SET password_hash = ${hash} WHERE phone = '7905282816'`);
+    await db.execute(sql`
+      UPDATE super_admins SET password_hash = ${hash}, plain_password = '031975'
+      WHERE phone = '7905282816'
+    `);
   } catch (_err) {
     // non-fatal
   }

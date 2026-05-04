@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle } from "lucide-react";
+import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2 } from "lucide-react";
+import { startRegistration } from "@simplewebauthn/browser";
 
 export default function AdminSettings() {
   const [form, setForm] = useState({
@@ -20,6 +21,8 @@ export default function AdminSettings() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [fpLoading, setFpLoading] = useState(false);
+  const [fpMsg, setFpMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     api.get<any>("/super-admin/settings").then(s => {
@@ -59,6 +62,25 @@ export default function AdminSettings() {
     } catch (err: any) {
       setProfileMsg({ type: "err", text: err.message || "Update mein problem hui" });
     } finally { setProfileSaving(false); }
+  };
+
+  const setupFingerprint = async () => {
+    setFpMsg(null); setFpLoading(true);
+    try {
+      const options = await api.post<any>("/auth/webauthn/register-options", {});
+      const credential = await startRegistration({ optionsJSON: options });
+      await api.post("/auth/webauthn/register-verify", credential);
+      setFpMsg({ type: "ok", text: "Fingerprint register ho gaya! Ab login page pe fingerprint se password list dekh sakte ho." });
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.includes("excludeCredentials") || msg.includes("already") || msg.includes("InvalidStateError")) {
+        setFpMsg({ type: "ok", text: "Yeh fingerprint pehle se register hai!" });
+      } else if (msg.includes("cancel") || msg.includes("NotAllowed")) {
+        setFpMsg({ type: "err", text: "Fingerprint setup cancel ho gaya" });
+      } else {
+        setFpMsg({ type: "err", text: msg || "Fingerprint setup mein error aaya" });
+      }
+    } finally { setFpLoading(false); }
   };
 
   const save = async (e: React.FormEvent) => {
@@ -215,6 +237,31 @@ export default function AdminSettings() {
           className="flex items-center gap-2 px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
           {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {profileSaving ? "Saving..." : "Profile Save Karo"}
+        </button>
+      </div>
+
+      {/* Fingerprint Setup */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
+          <Fingerprint className="w-4 h-4 text-yellow-500" /> Fingerprint Setup
+        </h3>
+        <p className="text-xs text-gray-500">
+          Apna fingerprint register karo — phir login page pe bina password ke sirf fingerprint se saare users ke passwords dekh sakte ho.
+        </p>
+        {fpMsg && (
+          <div className={`flex items-start gap-2 text-sm px-3 py-2 rounded-lg ${fpMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+            {fpMsg.type === "ok" && <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />}
+            {fpMsg.text}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={setupFingerprint}
+          disabled={fpLoading}
+          className="flex items-center gap-2 px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
+        >
+          {fpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+          {fpLoading ? "Setup ho raha hai..." : "Fingerprint Register Karo"}
         </button>
       </div>
 
