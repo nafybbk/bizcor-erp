@@ -1,4 +1,4 @@
-const CACHE_NAME = "bizerp-v5";
+const CACHE_NAME = "bizerp-v6";
 const SHELL_ASSETS = [
   "/",
   "/manifest.json",
@@ -35,17 +35,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // API calls — network only, return JSON error offline
+  // API calls — let browser handle natively, no SW interception
   if (url.pathname.startsWith("/api/")) {
-    event.respondWith(
-      fetch(event.request).catch(
-        () =>
-          new Response(
-            JSON.stringify({ error: "Offline - no internet connection" }),
-            { status: 503, headers: { "Content-Type": "application/json" } }
-          )
-      )
-    );
     return;
   }
 
