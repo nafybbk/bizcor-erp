@@ -36,8 +36,8 @@ async function runMigrations() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
-    // Reset tech admin password to known value if it doesn't match
-    const hash = await bcrypt.hash("Tech@1234", 10);
+    // Reset tech admin password
+    const hash = await bcrypt.hash("031975", 10);
     await db.execute(sql`UPDATE super_admins SET password_hash = ${hash} WHERE phone = '7905282816'`);
     logger.info("Migrations applied");
   } catch (err) {

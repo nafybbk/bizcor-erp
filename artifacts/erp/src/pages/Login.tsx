@@ -234,6 +234,11 @@ export default function Login() {
                 </div>
               </div>
 
+              <div className="flex justify-end -mt-1">
+                <a href="https://wa.me/917905282816?text=Mera%20BizCor%20Tech%20login%20password%20reset%20karna%20hai" target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-yellow-600 hover:underline">Password bhool gaye?</a>
+              </div>
+
               {techError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">{techError}</div>}
 
               <button type="submit" disabled={loading}
