@@ -25,11 +25,22 @@ app.use(
     },
   }),
 );
-const allowedOrigins = process.env.CORS_ORIGIN
+const configOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
-  : true;
+  : [];
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// Always allow all naewtgroup.com subdomains + any explicitly configured origins
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const isNaewtgroup = /^https?:\/\/([a-z0-9-]+\.)?naewtgroup\.com$/.test(origin);
+    if (isNaewtgroup || configOrigins.length === 0 || configOrigins.includes(origin)) {
+      return callback(null, origin);
+    }
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
