@@ -89,6 +89,8 @@ export default function AdminSettings() {
     try {
       await api.post("/super-admin/settings", form);
       localStorage.setItem("erp_app_name", form.softwareName);
+      // Immediately update sidebar — no refresh needed
+      window.dispatchEvent(new CustomEvent("app-settings-changed", { detail: form }));
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) { console.error(err); }
