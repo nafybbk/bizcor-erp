@@ -130,7 +130,7 @@ router.get("/current", requireBusiness, async (req, res) => {
 
 router.patch("/current", requireBusiness, async (req, res) => {
   try {
-    const allowed = ["name", "gstin", "pan", "address", "city", "state", "stateCode", "pincode", "phone", "email", "logo", "financialYearStart", "invoicePrefix", "creditNotePrefix", "billPrefix", "debitNotePrefix", "serialNumberMode", "numberSeries", "numberDigits", "numberSeparator", "businessType", "bankName", "bankAccount", "bankIfsc", "bankBranch", "signatoryName", "invoiceFooter"];
+    const allowed = ["name", "gstin", "pan", "address", "city", "state", "stateCode", "pincode", "phone", "email", "logo", "financialYearStart", "invoicePrefix", "creditNotePrefix", "billPrefix", "debitNotePrefix", "serialNumberMode", "numberSeries", "numberDigits", "numberSeparator", "businessType", "bankName", "bankAccount", "bankIfsc", "bankBranch", "signatoryName", "invoiceFooter", "siStartNumber", "cnStartNumber", "pbStartNumber", "dnStartNumber"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
     const [updated] = await db.update(businessesTable).set(updateData).where(eq(businessesTable.id, req.user!.businessId!)).returning();

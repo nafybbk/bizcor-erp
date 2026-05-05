@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { api, fmt, isOfflineError } from "@/lib/api";
+import { api, fmt, isOfflineError, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
@@ -181,7 +181,11 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [partySearch, setPartySearch] = useState("");
-  const [serialMode, setSerialMode] = useState<"auto" | "manual">("auto");
+  const [serialMode, setSerialMode] = useState<"auto" | "manual">(() => {
+    try { return (localStorage.getItem("biz_serial_mode") as any) || "auto"; } catch { return "auto"; }
+  });
+  const [nextAutoNumber, setNextAutoNumber] = useState<string>("");
+  const [dupWarning, setDupWarning] = useState<{ suggested: string } | null>(null);
   const [bizStateCode, setBizStateCode] = useState("");
   const [bizType, setBizType] = useState("");
   const [invoiceCustomFields, setInvoiceCustomFields] = useState<Record<string, any>>({});
@@ -280,13 +284,19 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     if (cachedT.length) setTaxRates(cachedT);
     if (cachedU.length) setUnits(cachedU);
 
+    const nextNumType = voucherType === "sales/invoices" ? "sales_invoice"
+      : voucherType === "sales/credit-notes" ? "credit_note"
+      : voucherType === "purchases/bills" ? "purchase_bill"
+      : "debit_note";
+
     Promise.all([
       api.get<any>(`/parties?type=${partyType}&limit=200`),
       api.get<any>("/items?limit=200"),
       api.get<any>("/masters/tax-rates"),
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
-    ]).then(([p, it, t, u, biz]) => {
+      !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
+    ]).then(([p, it, t, u, biz, nextNumRes]) => {
       setParties(p.data || []);
       setItems(it.data || []);
       setTaxRates(t.data || []);
@@ -295,9 +305,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       cacheItems(it.data || []);
       cacheTaxRates(t.data || []);
       cacheUnits(u.data || []);
-      if (biz.serialNumberMode === "manual") setSerialMode("manual");
+      const mode = biz.serialNumberMode === "manual" ? "manual" : "auto";
+      setSerialMode(mode);
+      try { localStorage.setItem("biz_serial_mode", mode); } catch {}
       if (biz.stateCode) setBizStateCode(biz.stateCode);
       if (biz.businessType) setBizType(biz.businessType);
+      if (nextNumRes?.nextNumber) setNextAutoNumber(nextNumRes.nextNumber);
     }).catch(() => {
       // Offline — already loaded from cache above
     });
@@ -524,6 +537,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       }
       navigate(listHref);
     } catch (err: any) {
+      // Duplicate number error from server
+      if (err instanceof ApiError && err.status === 409) {
+        const suggested = err.data?.suggestedNumber || "";
+        setDupWarning({ suggested });
+        setError(err.message || "Voucher number duplicate hai");
+        return;
+      }
       // Network/offline error → save to offline queue
       if (isOfflineError(err) && !editId) {
         const partyLabel = form.partyName || "Unknown Party";
@@ -567,7 +587,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       roundOff: Number(form.roundOff),
       linkedVoucherId: linkedVoucherId || undefined,
     };
-    if (serialMode === "manual" && form.voucherNumber) payload.voucherNumber = form.voucherNumber;
+    if (serialMode === "manual") {
+      if (!form.voucherNumber.trim()) {
+        setError("Manual mode mein voucher number daalna zaroori hai");
+        return;
+      }
+      payload.voucherNumber = form.voucherNumber.trim();
+    }
+    setDupWarning(null);
 
     // Credit limit check (sales only, not on edit)
     if (isSales && !editId && creditInfo && creditInfo.creditLimit > 0) {
@@ -841,9 +868,30 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               </button>
             </div>
             {serialMode === "auto" ? (
-              <input className={inputCls + " bg-gray-50 text-gray-400"} placeholder="Auto-generated" readOnly />
+              <input className={inputCls + " bg-gray-50 text-gray-400"}
+                value={nextAutoNumber || ""}
+                placeholder="Auto-generated"
+                readOnly />
             ) : (
-              <input className={inputCls} value={form.voucherNumber} onChange={e => setForm(f => ({ ...f, voucherNumber: e.target.value }))} placeholder="Enter number manually" />
+              <div>
+                <input className={inputCls} value={form.voucherNumber}
+                  onChange={e => { setForm(f => ({ ...f, voucherNumber: e.target.value })); setDupWarning(null); }}
+                  placeholder={nextAutoNumber || "Enter number manually"} />
+                {nextAutoNumber && !form.voucherNumber && (
+                  <div className="text-xs text-gray-400 mt-1">Suggested: <span className="font-mono text-blue-500">{nextAutoNumber}</span>
+                    <button type="button" className="ml-2 text-blue-500 underline" onClick={() => setForm(f => ({ ...f, voucherNumber: nextAutoNumber }))}>Use this</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {dupWarning && (
+              <div className="mt-2 bg-yellow-50 border border-yellow-300 rounded-lg p-2 text-xs text-yellow-800">
+                ⚠️ Yeh number pehle se exist karta hai!
+                <button type="button" className="ml-2 text-blue-600 underline font-medium"
+                  onClick={() => { setForm(f => ({ ...f, voucherNumber: dupWarning.suggested })); setDupWarning(null); }}>
+                  Use suggested: {dupWarning.suggested}
+                </button>
+              </div>
             )}
           </div>
           <div>

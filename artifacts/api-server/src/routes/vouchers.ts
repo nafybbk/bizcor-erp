@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable, itemsTable, taxRatesTable, businessesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, isNotNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -39,7 +39,11 @@ function calcVoucher(items: Array<{
 async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
   const { page = "1", limit = "20", partyId, fromDate, toDate, status } = req.query;
   const businessId = req.user!.businessId!;
-  const conditions: any[] = [eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)];
+  const conditions: any[] = [
+    eq(vouchersTable.businessId, businessId),
+    eq(vouchersTable.voucherType, voucherType),
+    isNull(vouchersTable.deletedAt),
+  ];
   if (partyId) conditions.push(eq(vouchersTable.partyId, Number(partyId)));
   if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
   if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
@@ -88,6 +92,13 @@ async function getVoucherById(req: any, res: any) {
   });
 }
 
+const START_NUM_FIELD: Record<string, string> = {
+  sales_invoice: "siStartNumber",
+  credit_note: "cnStartNumber",
+  purchase_bill: "pbStartNumber",
+  debit_note: "dnStartNumber",
+};
+
 async function generateVoucherNumber(businessId: number, voucherType: VoucherType): Promise<string> {
   const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
   const prefixMap: Record<string, string> = {
@@ -96,13 +107,21 @@ async function generateVoucherNumber(businessId: number, voucherType: VoucherTyp
     purchase_bill: business?.billPrefix || "PB",
     debit_note: business?.debitNotePrefix || "DN",
   };
+  const startNumField = START_NUM_FIELD[voucherType];
+  const startNum = Number((business as any)?.[startNumField] ?? 1);
   const prefix = prefixMap[voucherType];
   const sep = business?.numberSeparator ?? "-";
   const digits = Number(business?.numberDigits ?? 4);
   const series = Number(business?.numberSeries ?? 1);
-  const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
-  // Screen format: SI-1-00001 (prefix + sep + series + sep + padded_serial)
-  return `${prefix}${sep}${series}${sep}${String(Number(cnt) + 1).padStart(digits, "0")}`;
+  // Count ALL vouchers (including soft-deleted) to prevent number reuse
+  const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable)
+    .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
+  const serial = startNum + Number(cnt);
+  return `${prefix}${sep}${series}${sep}${String(serial).padStart(digits, "0")}`;
+}
+
+async function getNextVoucherNumber(businessId: number, voucherType: VoucherType): Promise<string> {
+  return generateVoucherNumber(businessId, voucherType);
 }
 
 async function createVoucher(req: any, res: any, voucherType: VoucherType) {
@@ -127,7 +146,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   try {
     taxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
   } catch {
-    // tax_rates query failed (e.g. missing column in DB) — custom rates from frontend will be used
+    // tax_rates query failed — custom rates from frontend will be used
   }
   const itemDetails = rawItems.map((ri: any) => ({
     quantity: Number(ri.quantity), rate: Number(ri.rate),
@@ -139,7 +158,31 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const transport = Number(transportCharges || 0);
   const round = Number(roundOff || 0);
   const grandTotal = calc.taxableAmount + calc.totalTax + transport + round;
-  const voucherNum = customNumber || await generateVoucherNumber(businessId, voucherType);
+
+  let voucherNum: string;
+  if (customNumber) {
+    // Check duplicate — only among non-deleted vouchers
+    const existing = await db.query.vouchersTable.findFirst({
+      where: and(
+        eq(vouchersTable.businessId, businessId),
+        eq(vouchersTable.voucherType, voucherType),
+        eq(vouchersTable.voucherNumber, customNumber),
+        isNull(vouchersTable.deletedAt),
+      ),
+    });
+    if (existing) {
+      const suggested = await generateVoucherNumber(businessId, voucherType);
+      res.status(409).json({
+        error: "duplicate_number",
+        message: `Voucher number "${customNumber}" pehle se exist karta hai. Suggested: ${suggested}`,
+        suggestedNumber: suggested,
+      });
+      return;
+    }
+    voucherNum = customNumber;
+  } else {
+    voucherNum = await generateVoucherNumber(businessId, voucherType);
+  }
 
   const voucherInsert: Record<string, any> = {
     businessId, voucherType, voucherNumber: voucherNum, date, partyId: parsedPartyId,
@@ -193,8 +236,11 @@ async function updateVoucher(req: any, res: any) {
 
 async function deleteVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
-  await db.delete(voucherItemsTable).where(eq(voucherItemsTable.voucherId, Number(req.params.id)));
-  await db.delete(vouchersTable).where(and(eq(vouchersTable.id, Number(req.params.id)), eq(vouchersTable.businessId, businessId)));
+  const id = Number(req.params.id);
+  // Soft delete — move to Bin
+  await db.update(vouchersTable)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
   res.json({ success: true });
 }
 
@@ -204,6 +250,80 @@ function errHandler(req: any, res: any) {
     res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
   };
 }
+
+// ─── NEXT NUMBER PREVIEW ──────────────────────────────────────────────────────
+const API_TYPE_MAP: Record<string, VoucherType> = {
+  "sales/invoices": "sales_invoice",
+  "credit-notes": "credit_note",
+  "purchases/bills": "purchase_bill",
+  "debit-notes": "debit_note",
+  "sales_invoice": "sales_invoice",
+  "credit_note": "credit_note",
+  "purchase_bill": "purchase_bill",
+  "debit_note": "debit_note",
+};
+
+router.get("/next-number", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const typeParam = String(req.query.type || "sales_invoice");
+    const voucherType = API_TYPE_MAP[typeParam] || "sales_invoice";
+    const nextNum = await getNextVoucherNumber(businessId, voucherType);
+    res.json({ nextNumber: nextNum });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── BIN (Deleted Vouchers) ───────────────────────────────────────────────────
+router.get("/bin", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const vouchers = await db.select({
+      id: vouchersTable.id, voucherType: vouchersTable.voucherType,
+      voucherNumber: vouchersTable.voucherNumber, date: vouchersTable.date,
+      partyName: partiesTable.name, grandTotal: vouchersTable.grandTotal,
+      status: vouchersTable.status, deletedAt: vouchersTable.deletedAt,
+    }).from(vouchersTable)
+      .leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
+      .where(and(eq(vouchersTable.businessId, businessId), isNotNull(vouchersTable.deletedAt)))
+      .orderBy(desc(vouchersTable.deletedAt));
+    res.json(vouchers.map(v => ({ ...v, grandTotal: Number(v.grandTotal) })));
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.patch("/bin/restore/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    const [restored] = await db.update(vouchersTable)
+      .set({ deletedAt: null })
+      .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
+      .returning();
+    if (!restored) { res.status(404).json({ error: "Not Found" }); return; }
+    res.json({ success: true, id: restored.id });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/bin/delete/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    await db.delete(voucherItemsTable).where(eq(voucherItemsTable.voucherId, id));
+    await db.delete(vouchersTable).where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 // SALES INVOICES
 router.get("/sales/invoices", (req, res) => getVoucherList(req, res, "sales_invoice").catch(errHandler(req, res)));
