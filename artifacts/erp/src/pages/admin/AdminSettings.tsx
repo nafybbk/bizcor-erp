@@ -256,15 +256,37 @@ export default function AdminSettings() {
             {fpMsg.text}
           </div>
         )}
-        <button
-          type="button"
-          onClick={setupFingerprint}
-          disabled={fpLoading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
-        >
-          {fpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
-          {fpLoading ? "Setup ho raha hai..." : "Fingerprint Register Karo"}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={setupFingerprint}
+            disabled={fpLoading}
+            className="flex items-center gap-2 px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
+          >
+            {fpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+            {fpLoading ? "Setup ho raha hai..." : "Fingerprint Register Karo"}
+          </button>
+          <button
+            type="button"
+            disabled={fpLoading}
+            onClick={async () => {
+              if (!confirm("Purana fingerprint delete ho jaayega. Confirm?")) return;
+              setFpMsg(null);
+              try {
+                await api.post("/auth/webauthn/reset-credential", {});
+                setFpMsg({ type: "ok", text: "Purana fingerprint hata diya. Ab 'Register Karo' button se dobara add karo." });
+              } catch (err: any) {
+                setFpMsg({ type: "err", text: err.message || "Reset mein problem aayi" });
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
+          >
+            Reset / Dobara Register Karo
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">
+          Agar "timed out" ya "not allowed" error aa raha hai toh pehle Reset karo, phir dobara usi device/browser par register karo.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">

@@ -49,11 +49,21 @@ export default function TechLogin() {
     } catch (err: any) {
       const msg = err?.message || "";
       if (msg.includes("404") || msg.includes("register nahi")) {
-        setFpError("Pehle Admin Panel > Settings mein fingerprint register karo");
-      } else if (msg.includes("cancel") || msg.includes("Cancel") || msg.includes("NotAllowed")) {
-        setFpError("Fingerprint cancel ho gaya");
+        setFpError("Fingerprint abhi register nahi hai. Tech Login karke Admin Settings > Fingerprint Setup mein pehle register karo.");
+      } else if (
+        msg.includes("timed out") ||
+        msg.includes("not allowed") ||
+        msg.includes("NotAllowed") ||
+        msg.includes("InvalidState") ||
+        msg.includes("operation")
+      ) {
+        setFpError("Fingerprint is device/browser par register nahi hai. Usi device par try karo jis par register kiya tha — ya Admin Settings mein Reset karke dobara register karo.");
+      } else if (msg.includes("cancel") || msg.includes("Cancel")) {
+        setFpError("Fingerprint cancel ho gaya — dobara try karo.");
+      } else if (msg.includes("expire") || msg.includes("Challenge")) {
+        setFpError("Session expire ho gaya — fingerprint button dobara dabao.");
       } else {
-        setFpError(msg || "Fingerprint verify nahi ho saka");
+        setFpError(msg || "Fingerprint verify nahi ho saka — dobara try karo.");
       }
     } finally { setFpLoading(false); }
   };
