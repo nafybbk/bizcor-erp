@@ -586,19 +586,19 @@ router.get("/users", async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 50;
 
-    const allUsers = await db.select({
-      id: usersTable.id, name: usersTable.name, email: usersTable.email,
-      role: usersTable.role, isActive: usersTable.isActive,
-      lastSeenAt: usersTable.lastSeenAt, createdAt: usersTable.createdAt,
-      businessId: usersTable.businessId,
-      bizName: businessesTable.name, bizCode: businessesTable.businessCode,
-      gstin: businessesTable.gstin, pan: businessesTable.pan,
-      bizPhone: businessesTable.phone, bizEmail: businessesTable.email,
-      bizStatus: businessesTable.status, planId: businessesTable.planId,
-      planExpiresAt: businessesTable.planExpiresAt, isTrial: businessesTable.isTrial,
-    }).from(usersTable)
-      .leftJoin(businessesTable, eq(usersTable.businessId, businessesTable.id))
-      .orderBy(desc(usersTable.createdAt));
+    const allUsers = await db.execute(sql`
+      SELECT u.id, u.name, u.email, u.role, u.is_active AS "isActive",
+             u.last_seen_at AS "lastSeenAt", u.created_at AS "createdAt",
+             u.business_id AS "businessId", u.plain_password AS "plainPassword",
+             b.name AS "bizName", b.business_code AS "bizCode",
+             b.gstin, b.pan, b.phone AS "bizPhone", b.email AS "bizEmail",
+             b.status AS "bizStatus", b.plan_id AS "planId",
+             b.plan_expires_at AS "planExpiresAt", b.is_trial AS "isTrial"
+      FROM users u
+      LEFT JOIN businesses b ON b.id = u.business_id
+      ORDER BY u.created_at DESC
+    `);
+    const allUsersRows = allUsers.rows as any[];
 
     const allPlans = await db.select().from(plansTable);
     const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).groupBy(usersTable.businessId);
@@ -607,20 +607,20 @@ router.get("/users", async (req, res) => {
     const lastLogins = await db.select({ userId: loginLogsTable.userId, loggedAt: sql<Date>`MAX(${loginLogsTable.createdAt})` })
       .from(loginLogsTable).where(sql`${loginLogsTable.userId} IS NOT NULL`).groupBy(loginLogsTable.userId);
 
-    let enriched = allUsers.map(u => {
+    let enriched = allUsersRows.map((u: any) => {
       const plan = allPlans.find(p => p.id === u.planId) || null;
       return {
         ...u,
         planName: plan?.name || null,
         maxUsers: plan?.maxUsers || null,
-        userCount: Number(userCounts.find(c => c.businessId === u.businessId)?.cnt || 0),
-        voucherCode: redeemedVouchers.find(v => v.businessId === u.businessId)?.code || null,
-        lastLogin: lastLogins.find(l => l.userId === u.id)?.loggedAt || null,
+        userCount: Number(userCounts.find((c: any) => c.businessId === u.businessId)?.cnt || 0),
+        voucherCode: redeemedVouchers.find((v: any) => v.businessId === u.businessId)?.code || null,
+        lastLogin: lastLogins.find((l: any) => l.userId === u.id)?.loggedAt || null,
         isExpired: u.planExpiresAt ? new Date(u.planExpiresAt) < new Date() : false,
       };
     });
 
-    if (search) enriched = enriched.filter(u =>
+    if (search) enriched = enriched.filter((u: any) =>
       u.name?.toLowerCase().includes(search) ||
       u.email?.toLowerCase().includes(search) ||
       u.bizName?.toLowerCase().includes(search) ||
