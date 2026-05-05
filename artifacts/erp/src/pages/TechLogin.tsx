@@ -1,22 +1,23 @@
 import { useState } from "react";
 import { api, setAdminToken } from "@/lib/api";
-import { Eye, EyeOff, Loader2, Headphones, Fingerprint, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Loader2, Headphones, ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
-import { PasswordListDrawer } from "@/components/PasswordListDrawer";
-import { startAuthentication } from "@simplewebauthn/browser";
+
+type View = "login" | "forgot";
 
 export default function TechLogin() {
+  const [view, setView] = useState<View>("login");
   const [form, setForm] = useState({ phone: "", password: "" });
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [fpLoading, setFpLoading] = useState(false);
-  const [fpError, setFpError] = useState("");
-  const [pwdDrawer, setPwdDrawer] = useState(false);
-  const [pwdData, setPwdData] = useState<{ superAdmins: any[]; users: any[] }>({
-    superAdmins: [],
-    users: [],
-  });
+
+  const [fPhone, setFPhone] = useState("");
+  const [fNew, setFNew] = useState("");
+  const [fShow, setFShow] = useState(false);
+  const [fLoading, setFLoading] = useState(false);
+  const [fError, setFError] = useState("");
+  const [fSuccess, setFSuccess] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,40 +37,22 @@ export default function TechLogin() {
     } finally { setLoading(false); }
   };
 
-  const handleFingerprint = async () => {
-    setFpError(""); setFpLoading(true);
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFError(""); setFSuccess(""); setFLoading(true);
     try {
-      const options = await api.post<any>("/auth/webauthn/auth-options", {});
-      const credential = await startAuthentication({ optionsJSON: options });
-      const result = await api.post<any>("/auth/webauthn/auth-verify", credential);
-      if (result.success) {
-        setPwdData({ superAdmins: result.superAdmins || [], users: result.users || [] });
-        setPwdDrawer(true);
-      }
+      const res = await api.post<any>("/auth/forgot-password/tech", {
+        phone: fPhone.trim(),
+        newPassword: fNew,
+      });
+      setFSuccess(res.message || "Password reset ho gaya!");
+      setFPhone(""); setFNew("");
     } catch (err: any) {
-      const msg = err?.message || "";
-      if (msg.includes("404") || msg.includes("register nahi")) {
-        setFpError("Fingerprint abhi register nahi hai. Tech Login karke Admin Settings > Fingerprint Setup mein pehle register karo.");
-      } else if (
-        msg.includes("timed out") ||
-        msg.includes("not allowed") ||
-        msg.includes("NotAllowed") ||
-        msg.includes("InvalidState") ||
-        msg.includes("operation")
-      ) {
-        setFpError("Fingerprint is device/browser par register nahi hai. Usi device par try karo jis par register kiya tha — ya Admin Settings mein Reset karke dobara register karo.");
-      } else if (msg.includes("cancel") || msg.includes("Cancel")) {
-        setFpError("Fingerprint cancel ho gaya — dobara try karo.");
-      } else if (msg.includes("expire") || msg.includes("Challenge")) {
-        setFpError("Session expire ho gaya — fingerprint button dobara dabao.");
-      } else {
-        setFpError(msg || "Fingerprint verify nahi ho saka — dobara try karo.");
-      }
-    } finally { setFpLoading(false); }
+      setFError(err.message || "Kuch problem ho gaya — dobara try karo");
+    } finally { setFLoading(false); }
   };
 
-  const inputCls =
-    "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm";
+  const inputCls = "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-orange-50 flex items-center justify-center p-4">
@@ -83,113 +66,162 @@ export default function TechLogin() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Tech Login</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Sirf authorized staff ke liye</p>
-          </div>
+          {view === "login" ? (
+            <>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Tech Login</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Sirf authorized staff ke liye</p>
+              </div>
 
-          {/* Fingerprint button */}
-          <button
-            type="button"
-            onClick={handleFingerprint}
-            disabled={fpLoading}
-            className="w-full py-3.5 border-2 border-dashed border-yellow-300 hover:border-yellow-500 hover:bg-yellow-50 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all group disabled:opacity-60"
-          >
-            {fpLoading ? (
-              <Loader2 className="w-7 h-7 text-yellow-500 animate-spin" />
-            ) : (
-              <Fingerprint className="w-7 h-7 text-yellow-500 group-hover:scale-110 transition-transform" />
-            )}
-            <span className="text-sm font-medium text-yellow-700">
-              {fpLoading ? "Verify ho raha hai..." : "Fingerprint se Password List"}
-            </span>
-            <span className="text-xs text-yellow-500">Tap karo</span>
-          </button>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mobile Number / Email
+                  </label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder="Mobile ya email"
+                    value={form.phone}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setForm(f => ({ ...f, phone: v.includes("@") ? v : v.replace(/\D/g, "").slice(0, 10) }));
+                    }}
+                    required
+                  />
+                </div>
 
-          {fpError && (
-            <div className="bg-orange-50 border border-orange-200 text-orange-700 text-xs px-3 py-2 rounded-lg">
-              {fpError}
-            </div>
-          )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? "text" : "password"}
+                      className={`${inputCls} pr-10`}
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      onClick={() => setShowPass(!showPass)}
+                    >
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-gray-200" />
-            <span className="text-xs text-gray-400">ya password se login karo</span>
-            <div className="flex-1 h-px bg-gray-200" />
-          </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setView("forgot"); setError(""); }}
+                    className="text-xs text-yellow-600 hover:underline"
+                  >
+                    Password bhool gaye?
+                  </button>
+                </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mobile Number / Email
-              </label>
-              <input
-                type="text"
-                className={inputCls}
-                placeholder="Mobile ya email"
-                value={form.phone}
-                onChange={e => {
-                  const v = e.target.value;
-                  setForm(f => ({ ...f, phone: v.includes("@") ? v : v.replace(/\D/g, "").slice(0, 10) }));
-                }}
-                required
-              />
-            </div>
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
+                    {error}
+                  </div>
+                )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  className={`${inputCls} pr-10`}
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  required
-                />
                 <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  onClick={() => setShowPass(!showPass)}
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Headphones className="w-4 h-4" />
+                  Login Karo
                 </button>
+              </form>
+
+              <div className="pt-2 text-center">
+                <a href="/login" className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
+                  ← Business Login pe jaao
+                </a>
               </div>
-            </div>
-
-            <div className="flex justify-end">
-              <a
-                href="https://wa.me/917905282816?text=Mera%20BizCor%20Tech%20login%20password%20reset%20karna%20hai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-yellow-600 hover:underline"
-              >
-                Password bhool gaye?
-              </a>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
-                {error}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setView("login"); setFError(""); setFSuccess(""); }}
+                  className="text-gray-400 hover:text-gray-600">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-yellow-500" /> Password Reset
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Tech staff ka password reset karo</p>
+                </div>
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              <Headphones className="w-4 h-4" />
-              Login Karo
-            </button>
-          </form>
+              {fSuccess ? (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg text-center">
+                    ✓ {fSuccess}
+                  </div>
+                  <button onClick={() => { setView("login"); setFSuccess(""); }}
+                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors">
+                    Login Page pe jaao
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgot} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number / Email</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      placeholder="Registered mobile ya email"
+                      value={fPhone}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setFPhone(v.includes("@") ? v : v.replace(/\D/g, "").slice(0, 10));
+                      }}
+                      required
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Jo mobile/email account se linked hai woh daalo</p>
+                  </div>
 
-          <div className="pt-2 text-center">
-            <a href="/login" className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
-              ← Business Login pe jaao
-            </a>
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Naya Password</label>
+                    <div className="relative">
+                      <input
+                        type={fShow ? "text" : "password"}
+                        className={`${inputCls} pr-10`}
+                        placeholder="Naya password choose karo"
+                        value={fNew}
+                        onChange={e => setFNew(e.target.value)}
+                        minLength={4}
+                        required
+                      />
+                      <button type="button" onClick={() => setFShow(s => !s)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                        {fShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {fError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
+                      {fError}
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={fLoading}
+                    className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+                    {fLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Password Reset Karo
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </div>
 
         <div className="mt-4 flex justify-center">
@@ -198,13 +230,6 @@ export default function TechLogin() {
           </span>
         </div>
       </div>
-
-      <PasswordListDrawer
-        open={pwdDrawer}
-        onClose={() => setPwdDrawer(false)}
-        superAdmins={pwdData.superAdmins}
-        users={pwdData.users}
-      />
     </div>
   );
 }
