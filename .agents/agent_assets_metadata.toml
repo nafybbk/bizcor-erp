@@ -12,3 +12,9 @@ id = "IVVzdcVy6Yx6qP4OANCxs"
 uri = "file://bizcor-erp-backup.tar.gz"
 type = "unspecified"
 title = "BizCor ERP — Source Code Backup"
+
+[[outputs]]
+id = "PXEhG2kGs7n6twc0w0Rra"
+uri = "file://bizcor-cloud-info.txt"
+type = "text"
+title = "BizCor Cloud Info — Har Session Mein Paste Karo"

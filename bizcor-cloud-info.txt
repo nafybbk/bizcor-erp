@@ -1,0 +1,39 @@
+========================================
+BizCor Cloud Infrastructure (May 2026)
+========================================
+
+CODEBASE:
+GitHub repo: nafybbk/bizcor-erp
+GitHub token: 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
+
+HOSTING:
+Frontend + Backend dono Vercel pe hain
+GitHub push hote hi Vercel auto-deploy kar leta hai
+
+DATABASE:
+Supabase (Replit ka local DB production mein kaam nahi aata)
+Host: aws-1-ap-south-1.pooler.supabase.com:6543
+Password: @Nafees2816@
+Naye columns/tables ke liye: Supabase Dashboard > SQL Editor mein manually run karo
+
+PRODUCTION URLS:
+Business login: erp.naewtgroup.com
+Tech/Admin login: erpa.naewtgroup.com
+
+REPLIT KA ROLE:
+Sirf development/testing ke liye hai
+Replit ka "Publish" button BizCor production se connected NAHI hai — use mat karo
+Replit ka DATABASE_URL local PostgreSQL hai jo production se alag hai
+
+CODE DEPLOY FLOW:
+1. Code change hoti hai → GitHub pe push hota hai
+2. Vercel auto-deploy kar leta hai (frontend + backend dono)
+3. Naya DB column chahiye → Supabase SQL Editor mein alag se run karo
+
+TECH LOGIN CREDENTIALS:
+Phone: 9999999999
+Password: 031975
+
+========================================
+Har naye session mein ye text paste karo
+========================================
