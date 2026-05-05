@@ -12,22 +12,9 @@ import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
 
-const challenges = new Map<string, { challenge: string; expires: number }>();
+// ── DB-backed challenge + credential storage (works across Vercel serverless instances) ──
 
-function getRpInfo(req: any): { rpID: string; origin: string } {
-  const originHeader = (req.headers["origin"] as string) || "";
-  const hostHeader = (req.headers["host"] as string) || "erp.naewtgroup.com";
-  const origin = originHeader || `https://${hostHeader}`;
-  let rpID: string;
-  try {
-    rpID = new URL(origin).hostname;
-  } catch {
-    rpID = "erp.naewtgroup.com";
-  }
-  return { rpID, origin };
-}
-
-async function ensureTable() {
+async function ensureTables() {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS webauthn_credentials (
       id SERIAL PRIMARY KEY,
@@ -38,13 +25,56 @@ async function ensureTable() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS webauthn_challenges (
+      id SERIAL PRIMARY KEY,
+      challenge_key TEXT NOT NULL UNIQUE,
+      challenge TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+async function saveChallenge(key: string, challenge: string) {
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  await db.execute(sql`
+    INSERT INTO webauthn_challenges (challenge_key, challenge, expires_at)
+    VALUES (${key}, ${challenge}, ${expiresAt})
+    ON CONFLICT (challenge_key) DO UPDATE SET challenge = EXCLUDED.challenge, expires_at = EXCLUDED.expires_at
+  `);
+}
+
+async function consumeChallenge(key: string): Promise<string | null> {
+  const rows = await db.execute(sql`
+    SELECT challenge, expires_at FROM webauthn_challenges WHERE challenge_key = ${key} LIMIT 1
+  `);
+  if (!rows.rows.length) return null;
+  const row = rows.rows[0] as any;
+  // Delete regardless (one-time use)
+  await db.execute(sql`DELETE FROM webauthn_challenges WHERE challenge_key = ${key}`);
+  if (new Date(row.expires_at) < new Date()) return null;
+  return row.challenge as string;
+}
+
+function getRpInfo(req: any): { rpID: string; origin: string } {
+  const originHeader = (req.headers["origin"] as string) || "";
+  const hostHeader = (req.headers["host"] as string) || "erpa.naewtgroup.com";
+  const origin = originHeader || `https://${hostHeader}`;
+  let rpID: string;
+  try {
+    rpID = new URL(origin).hostname;
+  } catch {
+    rpID = "erpa.naewtgroup.com";
+  }
+  return { rpID, origin };
 }
 
 // ── Register options (logged-in super admin) ──────────────────────────────────
 
 router.post("/register-options", requireSuperAdmin, async (req, res) => {
   try {
-    await ensureTable();
+    await ensureTables();
     const adminId = req.user!.id;
     const { rpID, origin } = getRpInfo(req);
 
@@ -70,10 +100,7 @@ router.post("/register-options", requireSuperAdmin, async (req, res) => {
       },
     });
 
-    challenges.set(`reg_${adminId}`, {
-      challenge: options.challenge,
-      expires: Date.now() + 5 * 60 * 1000,
-    });
+    await saveChallenge(`reg_${adminId}`, options.challenge);
     res.json(options);
   } catch (err) {
     req.log.error(err);
@@ -85,20 +112,19 @@ router.post("/register-options", requireSuperAdmin, async (req, res) => {
 
 router.post("/register-verify", requireSuperAdmin, async (req, res) => {
   try {
-    await ensureTable();
+    await ensureTables();
     const adminId = req.user!.id;
     const { rpID, origin } = getRpInfo(req);
-    const stored = challenges.get(`reg_${adminId}`);
 
-    if (!stored || stored.expires < Date.now()) {
+    const challenge = await consumeChallenge(`reg_${adminId}`);
+    if (!challenge) {
       res.status(400).json({ error: "Challenge expire ho gaya, dobara try karo" });
       return;
     }
-    challenges.delete(`reg_${adminId}`);
 
     const verification = await verifyRegistrationResponse({
       response: req.body,
-      expectedChallenge: stored.challenge,
+      expectedChallenge: challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
       requireUserVerification: true,
@@ -126,11 +152,25 @@ router.post("/register-verify", requireSuperAdmin, async (req, res) => {
   }
 });
 
+// ── Delete & re-register (logged-in super admin) ──────────────────────────────
+
+router.post("/reset-credential", requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureTables();
+    const adminId = req.user!.id;
+    await db.execute(sql`DELETE FROM webauthn_credentials WHERE super_admin_id = ${adminId}`);
+    res.json({ success: true, message: "Purana fingerprint hata diya. Ab dobara register karo." });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ── Auth options (public — for login page) ────────────────────────────────────
 
 router.post("/auth-options", async (req, res) => {
   try {
-    await ensureTable();
+    await ensureTables();
     const { rpID } = getRpInfo(req);
 
     const allCreds = await db.execute(
@@ -138,7 +178,7 @@ router.post("/auth-options", async (req, res) => {
     );
 
     if ((allCreds.rows as any[]).length === 0) {
-      res.status(404).json({ error: "Koi fingerprint register nahi hai" });
+      res.status(404).json({ error: "Koi fingerprint register nahi hai. Pehle Admin Settings mein register karo." });
       return;
     }
 
@@ -148,13 +188,10 @@ router.post("/auth-options", async (req, res) => {
         id: c.credential_id as string,
         transports: ["internal", "hybrid"] as AuthenticatorTransportFuture[],
       })),
-      userVerification: "required",
+      userVerification: "preferred",
     });
 
-    challenges.set("auth_global", {
-      challenge: options.challenge,
-      expires: Date.now() + 5 * 60 * 1000,
-    });
+    await saveChallenge("auth_global", options.challenge);
     res.json(options);
   } catch (err) {
     req.log.error(err);
@@ -166,12 +203,12 @@ router.post("/auth-options", async (req, res) => {
 
 router.post("/auth-verify", async (req, res) => {
   try {
-    await ensureTable();
+    await ensureTables();
     const { rpID, origin } = getRpInfo(req);
-    const stored = challenges.get("auth_global");
 
-    if (!stored || stored.expires < Date.now()) {
-      res.status(400).json({ error: "Challenge expire ho gaya, dobara try karo" });
+    const challenge = await consumeChallenge("auth_global");
+    if (!challenge) {
+      res.status(400).json({ error: "Challenge expire ho gaya — dobara fingerprint button dabao." });
       return;
     }
 
@@ -181,7 +218,7 @@ router.post("/auth-verify", async (req, res) => {
     );
 
     if (!credRow.rows.length) {
-      res.status(404).json({ error: "Credential nahi mila" });
+      res.status(404).json({ error: "Credential nahi mila. Dobara register karo." });
       return;
     }
 
@@ -189,10 +226,10 @@ router.post("/auth-verify", async (req, res) => {
 
     const verification = await verifyAuthenticationResponse({
       response: req.body,
-      expectedChallenge: stored.challenge,
+      expectedChallenge: challenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
-      requireUserVerification: true,
+      requireUserVerification: false,
       credential: {
         id: cred.credential_id as string,
         publicKey: Buffer.from(cred.public_key as string, "base64url"),
@@ -202,11 +239,9 @@ router.post("/auth-verify", async (req, res) => {
     });
 
     if (!verification.verified) {
-      res.status(401).json({ error: "Fingerprint verify nahi ho saka" });
+      res.status(401).json({ error: "Fingerprint verify nahi ho saka. Dobara try karo." });
       return;
     }
-
-    challenges.delete("auth_global");
 
     await db.execute(sql`
       UPDATE webauthn_credentials SET counter = ${verification.authenticationInfo.newCounter}
