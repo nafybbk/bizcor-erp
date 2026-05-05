@@ -210,7 +210,7 @@ export default function PartyLedger() {
                   {(ledger.entries || []).map((e: any, i: number) => (
                     <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
                       {show("date") && <td className="px-4 py-2.5 text-gray-600">{fmt.date(e.date)}</td>}
-                      {show(type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
+                      {show("type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
                       {show("ref") && <td className="px-4 py-2.5 font-mono text-xs text-blue-600">{e.voucherNumber}</td>}
                       {show("debit") && <td className="px-4 py-2.5 text-right text-blue-700">{e.debit > 0 ? fmt.currency(e.debit) : ""}</td>}
                       {show("credit") && <td className="px-4 py-2.5 text-right text-green-700">{e.credit > 0 ? fmt.currency(e.credit) : ""}</td>}
