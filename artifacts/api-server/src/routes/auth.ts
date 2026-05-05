@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { superAdminsTable, businessesTable, usersTable, loginLogsTable, plansTable } from "@workspace/db";
-import { eq, and, inArray, count } from "drizzle-orm";
+import { eq, and, inArray, count, sql } from "drizzle-orm";
 import { signToken, requireAuth } from "../middlewares/auth";
 
 const router = Router();
@@ -149,6 +149,46 @@ router.post("/login", async (req, res) => {
     }
     req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+router.post("/forgot-password/tech", async (req, res) => {
+  try {
+    const { phone, newPassword } = req.body;
+    if (!phone || !newPassword) { res.status(400).json({ error: "Phone aur naya password required hai" }); return; }
+    if (newPassword.length < 4) { res.status(400).json({ error: "Password kam se kam 4 characters ka hona chahiye" }); return; }
+    const input = phone.trim();
+    let admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.phone, input) });
+    if (!admin) admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.email, input.toLowerCase()) });
+    if (!admin) { res.status(404).json({ error: "Is phone/email se koi account nahi mila" }); return; }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(superAdminsTable).set({ passwordHash }).where(eq(superAdminsTable.id, admin.id));
+    try { await db.execute(sql`UPDATE super_admins SET plain_password = ${newPassword} WHERE id = ${admin!.id}`); } catch { }
+    res.json({ success: true, message: "Password reset ho gaya — ab naye password se login karo" });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/forgot-password/user", async (req, res) => {
+  try {
+    const { email, businessCode, newPassword } = req.body;
+    if (!email || !newPassword) { res.status(400).json({ error: "Email aur naya password required hai" }); return; }
+    if (newPassword.length < 4) { res.status(400).json({ error: "Password kam se kam 4 characters ka hona chahiye" }); return; }
+    let user: any = null;
+    let business: any = null;
+    if (businessCode) {
+      business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode.toUpperCase()) });
+      if (!business) { res.status(404).json({ error: "Business Code galat hai" }); return; }
+      user = await db.query.usersTable.findFirst({ where: and(eq(usersTable.businessId, business.id), eq(usersTable.email, email.toLowerCase())) });
+    } else {
+      const users = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+      if (users.length === 1) user = users[0];
+      else if (users.length > 1) { res.status(400).json({ error: "Kai businesses se linked email hai — Business Code bhi daalo" }); return; }
+    }
+    if (!user) { res.status(404).json({ error: "Is email se koi account nahi mila" }); return; }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
+    try { await db.execute(sql`UPDATE users SET plain_password = ${newPassword} WHERE id = ${user.id}`); } catch { }
+    res.json({ success: true, message: "Password reset ho gaya — ab naye password se login karo" });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.post("/logout", (_req, res) => { res.json({ success: true, message: "Logged out" }); });
