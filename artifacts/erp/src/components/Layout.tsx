@@ -201,13 +201,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
     const cached = localStorage.getItem("erp_app_name");
     if (cached) setSoftwareName(cached);
-    if (isSuperAdmin()) {
+
+    // Read role directly from storage — avoids stale closure issue with isSuperAdmin()
+    const _userStr = sessionStorage.getItem("erp_user") || localStorage.getItem("erp_user");
+    const _role = _userStr ? (() => { try { return JSON.parse(_userStr)?.role; } catch { return null; } })() : null;
+    if (_role === "super_admin") {
       api.get<any>("/super-admin/settings").then(s => {
         if (s.softwareName) { setSoftwareName(s.softwareName); localStorage.setItem("erp_app_name", s.softwareName); }
+        if (s.logoUrl) setBizLogo(s.logoUrl);
+        else if (_role === "super_admin") setBizLogo(null); // reset to default icon
       }).catch(() => {});
     }
 
-    return () => clearInterval(interval);
+    // Listen for immediate update when admin saves settings
+    const onSettingsChanged = (e: Event) => {
+      const s = (e as CustomEvent).detail;
+      if (s?.softwareName) { setSoftwareName(s.softwareName); localStorage.setItem("erp_app_name", s.softwareName); }
+      if (s?.logoUrl) setBizLogo(s.logoUrl);
+      else setBizLogo(null);
+    };
+    window.addEventListener("app-settings-changed", onSettingsChanged);
+
+    return () => { clearInterval(interval); window.removeEventListener("app-settings-changed", onSettingsChanged); };
   }, []);
 
   // Close sidebar on mobile when route changes
