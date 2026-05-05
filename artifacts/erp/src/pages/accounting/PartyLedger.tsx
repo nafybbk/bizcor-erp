@@ -15,6 +15,14 @@ const ALL_COLS: ColDef[] = [
 ];
 const REPORT_KEY = "party_ledger";
 
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  paid:      { label: "Paid",     cls: "bg-green-100 text-green-700" },
+  partial:   { label: "Partial",  cls: "bg-yellow-100 text-yellow-700" },
+  posted:    { label: "Due",      cls: "bg-blue-100 text-blue-700" },
+  draft:     { label: "Draft",    cls: "bg-gray-100 text-gray-500" },
+  cancelled: { label: "Cancelled",cls: "bg-red-100 text-red-500" },
+};
+
 export default function PartyLedger() {
   const [parties, setParties] = useState<any[]>([]);
   const [selectedParty, setSelectedParty] = useState<any>(null);
@@ -23,6 +31,7 @@ export default function PartyLedger() {
   const [loading, setLoading] = useState(false);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [billWise, setBillWise] = useState(false);
   const [visibleCols, setVisibleCols] = useState<string[]>(() =>
     getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
   );
@@ -53,14 +62,21 @@ export default function PartyLedger() {
     if (selectedParty) loadLedger(selectedParty.id);
   }, [fromDate, toDate]);
 
+  const bills: any[] = ledger?.bills || [];
+  const totalBillAmount = bills.reduce((s: number, b: any) => s + b.billAmount, 0);
+  const totalPaid = bills.reduce((s: number, b: any) => s + b.paidAmount, 0);
+  const totalBalance = bills.reduce((s: number, b: any) => s + b.balance, 0);
+
   return (
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Party Ledger</h1>
-        {ledger && <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />}
+        <h1 className="text-2xl font-bold text-gray-900">Party Statement</h1>
+        {ledger && !billWise && (
+          <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
+        )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap gap-4 items-end">
         <div className="flex-1 min-w-48">
           <label className="block text-sm font-medium text-gray-700 mb-1">Select Party</label>
           <PartySelect
@@ -80,72 +96,142 @@ export default function PartyLedger() {
           <input type="date" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={toDate} onChange={e => setToDate(e.target.value)} />
         </div>
+        {ledger && (
+          <div className="flex items-center gap-2 pb-0.5">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div
+                onClick={() => setBillWise(v => !v)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${billWise ? "bg-blue-600" : "bg-gray-300"}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${billWise ? "translate-x-5" : "translate-x-0"}`} />
+              </div>
+              <span className="text-sm font-medium text-gray-700">Bill-wise</span>
+            </label>
+          </div>
+        )}
       </div>
 
       {loading && <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>}
 
       {ledger && !loading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
             <div>
               <h2 className="font-semibold text-gray-900">{ledger.party?.name}</h2>
               {ledger.party?.gstin && <div className="text-xs text-gray-400 font-mono">GSTIN: {ledger.party.gstin}</div>}
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">Closing Balance</div>
-              <div className={`text-lg font-bold ${ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700"}`}>
-                {fmt.currency(Math.abs(ledger.closingBalance))} {ledger.closingBalance >= 0 ? "Dr" : "Cr"}
+              <div className="text-sm text-gray-500">{billWise ? "Total Outstanding" : "Closing Balance"}</div>
+              <div className={`text-lg font-bold ${billWise ? (totalBalance > 0 ? "text-blue-700" : "text-green-700") : (ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700")}`}>
+                {billWise
+                  ? `${fmt.currency(totalBalance)} ${totalBalance >= 0 ? "Dr" : "Cr"}`
+                  : `${fmt.currency(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
+                }
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  {show("date") && <th className="text-left px-4 py-3 font-medium">Date</th>}
-                  {show("type") && <th className="text-left px-4 py-3 font-medium">Type</th>}
-                  {show("ref") && <th className="text-left px-4 py-3 font-medium">Reference</th>}
-                  {show("debit") && <th className="text-right px-4 py-3 font-medium">Debit (Dr)</th>}
-                  {show("credit") && <th className="text-right px-4 py-3 font-medium">Credit (Cr)</th>}
-                  {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance</th>}
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="bg-blue-50">
-                  <td className="px-4 py-2.5 text-gray-600" colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)}>Opening Balance</td>
-                  {show("debit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance >= 0 ? fmt.currency(ledger.openingBalance) : ""}</td>}
-                  {show("credit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance < 0 ? fmt.currency(-ledger.openingBalance) : ""}</td>}
-                  {show("balance") && (
-                    <td className="px-4 py-2.5 text-right font-semibold">
-                      {fmt.currency(Math.abs(ledger.openingBalance))} {ledger.openingBalance >= 0 ? "Dr" : "Cr"}
-                    </td>
-                  )}
-                </tr>
-                {(ledger.entries || []).map((e: any, i: number) => (
-                  <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
-                    {show("date") && <td className="px-4 py-2.5 text-gray-600">{fmt.date(e.date)}</td>}
-                    {show("type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
-                    {show("ref") && <td className="px-4 py-2.5 font-mono text-xs text-blue-600">{e.voucherNumber}</td>}
-                    {show("debit") && <td className="px-4 py-2.5 text-right text-blue-700">{e.debit > 0 ? fmt.currency(e.debit) : ""}</td>}
-                    {show("credit") && <td className="px-4 py-2.5 text-right text-green-700">{e.credit > 0 ? fmt.currency(e.credit) : ""}</td>}
+          {/* Bill-wise View */}
+          {billWise ? (
+            <div className="overflow-x-auto">
+              {bills.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">No invoices/bills found for this party</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium">Date</th>
+                      <th className="text-left px-4 py-3 font-medium">Bill No.</th>
+                      <th className="text-left px-4 py-3 font-medium">Type</th>
+                      <th className="text-right px-4 py-3 font-medium">Bill Amount</th>
+                      <th className="text-right px-4 py-3 font-medium">Paid</th>
+                      <th className="text-right px-4 py-3 font-medium">Balance</th>
+                      <th className="text-center px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bills.map((b: any, i: number) => {
+                      const badge = STATUS_BADGE[b.status] || STATUS_BADGE["posted"];
+                      return (
+                        <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-600">{fmt.date(b.date)}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-blue-600">{b.voucherNumber}</td>
+                          <td className="px-4 py-3 text-xs text-gray-500 capitalize">{b.voucherType.replace(/_/g, " ")}</td>
+                          <td className="px-4 py-3 text-right font-medium text-gray-900">{fmt.currency(b.billAmount)}</td>
+                          <td className="px-4 py-3 text-right text-green-700">{b.paidAmount > 0 ? fmt.currency(b.paidAmount) : <span className="text-gray-300">—</span>}</td>
+                          <td className={`px-4 py-3 text-right font-semibold ${b.balance > 0 ? "text-red-600" : "text-green-600"}`}>
+                            {b.balance > 0 ? fmt.currency(b.balance) : <span className="text-green-600">✓ Cleared</span>}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-gray-700">Total</td>
+                      <td className="px-4 py-3 text-right text-gray-900">{fmt.currency(totalBillAmount)}</td>
+                      <td className="px-4 py-3 text-right text-green-700">{fmt.currency(totalPaid)}</td>
+                      <td className="px-4 py-3 text-right text-red-600">{fmt.currency(totalBalance)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          ) : (
+            /* Running Balance View */
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    {show("date") && <th className="text-left px-4 py-3 font-medium">Date</th>}
+                    {show("type") && <th className="text-left px-4 py-3 font-medium">Type</th>}
+                    {show("ref") && <th className="text-left px-4 py-3 font-medium">Reference</th>}
+                    {show("debit") && <th className="text-right px-4 py-3 font-medium">Debit (Dr)</th>}
+                    {show("credit") && <th className="text-right px-4 py-3 font-medium">Credit (Cr)</th>}
+                    {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-blue-50">
+                    <td className="px-4 py-2.5 text-gray-600" colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)}>Opening Balance</td>
+                    {show("debit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance >= 0 ? fmt.currency(ledger.openingBalance) : ""}</td>}
+                    {show("credit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance < 0 ? fmt.currency(-ledger.openingBalance) : ""}</td>}
                     {show("balance") && (
-                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">
-                        {fmt.currency(Math.abs(e.balance))} {e.balance >= 0 ? "Dr" : "Cr"}
+                      <td className="px-4 py-2.5 text-right font-semibold">
+                        {fmt.currency(Math.abs(ledger.openingBalance))} {ledger.openingBalance >= 0 ? "Dr" : "Cr"}
                       </td>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  {(ledger.entries || []).map((e: any, i: number) => (
+                    <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                      {show("date") && <td className="px-4 py-2.5 text-gray-600">{fmt.date(e.date)}</td>}
+                      {show("type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
+                      {show("ref") && <td className="px-4 py-2.5 font-mono text-xs text-blue-600">{e.voucherNumber}</td>}
+                      {show("debit") && <td className="px-4 py-2.5 text-right text-blue-700">{e.debit > 0 ? fmt.currency(e.debit) : ""}</td>}
+                      {show("credit") && <td className="px-4 py-2.5 text-right text-green-700">{e.credit > 0 ? fmt.currency(e.credit) : ""}</td>}
+                      {show("balance") && (
+                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">
+                          {fmt.currency(Math.abs(e.balance))} {e.balance >= 0 ? "Dr" : "Cr"}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
       {!selectedParty && !loading && (
         <div className="text-center py-16 text-gray-400 bg-white rounded-xl border border-gray-200">
           <div className="text-4xl mb-3">📒</div>
-          <div className="font-medium">Select a party to view their ledger</div>
+          <div className="font-medium">Select a party to view their statement</div>
         </div>
       )}
     </div>
