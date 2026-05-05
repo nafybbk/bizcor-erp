@@ -244,14 +244,28 @@ DELETE /api/users/:id
 5. Offline item/party creation — LAN version ke saath
 
 ### 🟣 BIG / FUTURE FEATURES
-**LAN SERVER VERSION:**
-1. Windows installer (.exe) — ek click install
-2. http://bizcor.local hostname — IP yaad nahi rakhna
+
+**LAN SERVER VERSION (Aaj discuss hua — May 2026):**
+Architecture: Ek PC = Server (Node.js + PostgreSQL local), baaki PCs = Clients (browser se connect)
+1. Windows installer (.exe) — ek click install, Node + PostgreSQL sab bundle mein
+2. http://bizcor.local hostname — IP yaad nahi rakhna, mDNS se resolve
 3. QR code — scan karo, app khule (same WiFi zaroori)
-4. Windows Firewall auto-configure
-5. Cloud = Read only, invoices sirf local se
-6. Backup schedule — auto raat ko, manual button se
+4. Windows Firewall auto-configure — installer setup ke waqt
+5. Cloud = Read only, invoices sirf local se banen
+6. Backup schedule — auto raat ko, manual button se bhi
 7. Restore — ek click se backup se wapas
+
+**LOCAL DB (Aaj discuss hua):**
+- Server PC pe PostgreSQL locally install hoga
+- Clients sirf browser se connect karenge (koi install nahi)
+- Offline: sirf server PC pe data, baaki clients internet chahte hain (LAN pe)
+- Data kabhi cloud pe nahi jaata jab tak user manually backup share na kare
+
+**LOCAL CHAT / INTERNAL MESSAGING (Aaj discuss hua):**
+- LAN pe staff-to-staff chat — internet ki zaroorat nahi
+- Text + file + image send karna
+- WebSocket based (server PC host kare, clients connect karein)
+- Cloud version mein bhi chahiye (Supabase Realtime use hoga)
 
 **LICENSING SYSTEM:**
 8. 30-day trial timer
@@ -260,12 +274,21 @@ DELETE /api/users/:id
 11. Heartbeat — ghost server prevent
 12. Format/PC change = online reactivation
 13. Tech panel se sab manage
+14. License → Plan visibility: Tech panel mein voucher group tick hone par hi buyer ko plans dikhein (aaj discuss hua)
 
-**OFFLINE-FIRST / SYNC:**
-14. Local data first (IndexedDB), cloud backup
-15. Internet aane par auto sync
-16. Invoice number same rahe, UUID sirf internal
-17. 3 PC pe LAN sync — local network pe real-time
+**OFFLINE-FIRST / SYNC (Aaj discuss hua — strategy):**
+Strategy: IndexedDB + Background Sync
+- Phase 1: IndexedDB setup — parties, items, vouchers locally store hon
+- Phase 2: Reads local se, writes local mein + sync queue
+- Phase 3: Background sync — online hone par auto push to server
+- Phase 4: Conflict resolution UI (newer timestamp jite, ya user se pucha jaaye)
+- Phase 5: Multi-device sync (ek business, alag devices)
+
+Details:
+- Har record pe synced / pending / conflict status dikhega
+- Doc numbers: offline mein temporary UUID, server pe real number milega
+- 3 PC pe LAN sync — local network pe real-time WebSocket
+- Single-device offline pehle (Phase 1-3), multi-device sync baad mein
 
 ---
 
