@@ -25,6 +25,19 @@ export function clearToken() {
   localStorage.removeItem("erp_business");
 }
 
+export class ApiError extends Error {
+  status: number;
+  code: string;
+  data: any;
+  constructor(message: string, status: number, data: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = data?.error || "";
+    this.data = data;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -33,10 +46,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: "Request failed" }));
-    const base = err.message || err.error || "Request failed";
-    const detail = err.detail ? ` — ${err.detail}` : "";
-    throw new Error(base + detail);
+    const errData = await res.json().catch(() => ({ message: "Request failed" }));
+    const base = errData.message || errData.error || "Request failed";
+    const detail = errData.detail ? ` — ${errData.detail}` : "";
+    throw new ApiError(base + detail, res.status, errData);
   }
   return res.json();
 }

@@ -49,6 +49,7 @@ import Subscription from "@/pages/settings/Subscription";
 import Users from "@/pages/settings/Users";
 import FirmProfile from "@/pages/FirmProfile";
 import OfflineDrafts from "@/pages/OfflineDrafts";
+import VoucherBin from "@/pages/VoucherBin";
 
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminBusinesses from "@/pages/admin/AdminBusinesses";
@@ -255,6 +256,9 @@ function AppRoutes() {
       </Route>
       <Route path="/offline-drafts">
         <ProtectedRoute><OfflineDrafts /></ProtectedRoute>
+      </Route>
+      <Route path="/vouchers/bin">
+        <ProtectedRoute><VoucherBin /></ProtectedRoute>
       </Route>
 
       {/* Settings */}

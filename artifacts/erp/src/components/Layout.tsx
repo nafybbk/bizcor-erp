@@ -11,7 +11,7 @@ import {
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -305,6 +305,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: L.myPlan, href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
     { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
     { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" /> },
+    { label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> },
   ];
 
   const superAdminNav: NavItem[] = [

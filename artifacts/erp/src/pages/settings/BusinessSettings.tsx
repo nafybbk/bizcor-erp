@@ -408,6 +408,41 @@ export default function BusinessSettings() {
             <input className={inputCls} value={form.financialYearStart || "04-01"} onChange={e => setForm((f: any) => ({ ...f, financialYearStart: e.target.value }))} placeholder="04-01" />
           </div>
         </div>
+
+        {/* Doc Start Numbers */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="text-sm font-semibold text-gray-700 mb-1">Document Start Numbers</div>
+          <p className="text-xs text-gray-400 mb-3">Naye financial year ya fresh start par yahan se numbering shuru hogi. Default 1 hai.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sales Invoice shuru hoga</label>
+              <input type="number" min="1" className={inputCls} value={form.siStartNumber ?? 1}
+                onChange={e => setForm((f: any) => ({ ...f, siStartNumber: Number(e.target.value) }))} />
+              <p className="text-xs text-gray-400 mt-0.5">SI-1-<span className="font-mono font-bold">{String(form.siStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Credit Note shuru hoga</label>
+              <input type="number" min="1" className={inputCls} value={form.cnStartNumber ?? 1}
+                onChange={e => setForm((f: any) => ({ ...f, cnStartNumber: Number(e.target.value) }))} />
+              <p className="text-xs text-gray-400 mt-0.5">CN-1-<span className="font-mono font-bold">{String(form.cnStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Bill shuru hoga</label>
+              <input type="number" min="1" className={inputCls} value={form.pbStartNumber ?? 1}
+                onChange={e => setForm((f: any) => ({ ...f, pbStartNumber: Number(e.target.value) }))} />
+              <p className="text-xs text-gray-400 mt-0.5">PB-1-<span className="font-mono font-bold">{String(form.pbStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Debit Note shuru hoga</label>
+              <input type="number" min="1" className={inputCls} value={form.dnStartNumber ?? 1}
+                onChange={e => setForm((f: any) => ({ ...f, dnStartNumber: Number(e.target.value) }))} />
+              <p className="text-xs text-gray-400 mt-0.5">DN-1-<span className="font-mono font-bold">{String(form.dnStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
+            </div>
+          </div>
+          <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
+            ⚠️ Start number change karne ke baad jo bhi naye documents banenge unka number wahan se start hoga. Purane documents ka number nahi badlega.
+          </div>
+        </div>
       </div>
 
       {/* Connection */}

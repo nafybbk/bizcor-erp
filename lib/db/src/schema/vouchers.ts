@@ -35,6 +35,7 @@ export const vouchersTable = pgTable("vouchers", {
   placeOfSupply: text("place_of_supply"),
   customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const voucherItemsTable = pgTable("voucher_items", {
