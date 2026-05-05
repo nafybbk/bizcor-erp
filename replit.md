@@ -197,6 +197,78 @@ DELETE /api/users/:id
 - `payment_allocations` — bill-wise payment linking
 - `custom_fields` — configurable custom fields per entity
 
+## BIZCOR MASTER TASK LIST (Last updated: May 2026)
+
+### ✅ KAAM HO CHUKA HAI
+1. Business Login (erp.naewtgroup.com) aur Tech Login (erpa.naewtgroup.com) alag
+2. Tech Login fingerprint (WebAuthn) — code bana, fix pending
+3. Admin profile image upload
+4. Plain password storage — tech panel mein dikhta hai
+5. Login logs
+6. Service Worker fix — API calls intercept band
+7. CORS fix — erpa.naewtgroup.com allow hua
+8. erpa domain Vercel + Hostinger DNS configured
+9. Party Ledger running balance bug fix
+10. Trial Balance standard format (Debtors/Creditors/Sales/Purchase/Bank/Cash)
+11. Bill-wise toggle UI added to Party Statement
+
+### 🔴 BUG FIXES — PRIORITY
+1. Zero clear — input tap/click pe 0 hat jaaye
+2. Enter = next line — Add Item pe nahi jaaye
+3. Manual doc number — manual ON hone par bhi auto le raha hai
+4. Tax field order — Rate se pehle aaye ya drag-reorder
+5. Fingerprint register band ho gayi, login par error
+6. Password List Drawer — kahin dikh nahi rahi
+7. Admin profile pic save nahi ho rahi
+8. Business logo ke andar "BizCor" likh jaata hai
+9. Receipt/Payment edit form — galat amount dikhna (outstanding balance instead of voucher amount)
+10. Bill-wise toggle — kisi bhi party ka invoice nahi dikha raha (blank)
+11. Outstanding Receivables/Payables pages — blank aa rahi hain
+12. Party Select dropdown — click pe immediately list khule (bina type kiye)
+
+### 🟡 NAYE FEATURES — JALDI CHAHIYE
+1. Doc start number setting — series shuru kahan se
+2. Duplicate doc number — "Already exists" message + dropdown se choose
+3. Deleted docs Bin — restore ya permanent delete
+4. License → Plan visibility — voucher group tick ho tabhi buyer ko plans dikhein
+5. Item image upload — Supabase cloud pe, compressed 100KB
+6. Barcode generate — item save hote hi auto, scanner se invoice mein add
+7. Barcode label print — single ya bulk (quantity per item)
+8. Custom label designer — drag & drop, templates, logo, fields
+
+### 🔵 MEDIUM TERM FEATURES
+1. Print template editor — invoice/report layout customize
+2. Report Designer — Crystal Reports jaisa, client ke liye custom reports
+3. Internal chat — staff-to-staff message LAN pe
+4. Print queue — kisi bhi client se server printer pe print
+5. Offline item/party creation — LAN version ke saath
+
+### 🟣 BIG / FUTURE FEATURES
+**LAN SERVER VERSION:**
+1. Windows installer (.exe) — ek click install
+2. http://bizcor.local hostname — IP yaad nahi rakhna
+3. QR code — scan karo, app khule (same WiFi zaroori)
+4. Windows Firewall auto-configure
+5. Cloud = Read only, invoices sirf local se
+6. Backup schedule — auto raat ko, manual button se
+7. Restore — ek click se backup se wapas
+
+**LICENSING SYSTEM:**
+8. 30-day trial timer
+9. Online activation — hardware bound
+10. Client limit as per plan
+11. Heartbeat — ghost server prevent
+12. Format/PC change = online reactivation
+13. Tech panel se sab manage
+
+**OFFLINE-FIRST / SYNC:**
+14. Local data first (IndexedDB), cloud backup
+15. Internet aane par auto sync
+16. Invoice number same rahe, UUID sirf internal
+17. 3 PC pe LAN sync — local network pe real-time
+
+---
+
 ## Demo Credentials
 
 Test business: code `7MJ18V`, email `raj@demo.com`, password `demo1234`
