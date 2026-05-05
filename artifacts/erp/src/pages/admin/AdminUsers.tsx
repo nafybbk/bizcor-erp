@@ -16,6 +16,7 @@ interface UserRow {
   maxUsers: number | null; userCount: number;
   voucherCode: string | null; lastLogin: string | null;
   isExpired: boolean; isTrial: boolean; planExpiresAt: string | null;
+  plainPassword: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -131,6 +132,10 @@ export default function AdminUsers() {
   const [page, setPage] = useState(1);
   const [passwordUser, setPasswordUser] = useState<UserRow | null>(null);
   const [blockingId, setBlockingId] = useState<number | null>(null);
+  const [shownPasswords, setShownPasswords] = useState<Set<number>>(new Set());
+  const togglePwVisible = (id: number) => setShownPasswords(prev => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s;
+  });
   const limit = 50;
 
   const load = useCallback(async (p = page, q = search, sf = statusFilter) => {
@@ -249,6 +254,20 @@ export default function AdminUsers() {
                           <div className="font-medium text-gray-900 truncate">{u.name}</div>
                           <div className="text-xs text-gray-400 flex items-center gap-1 truncate">
                             <Mail className="w-3 h-3 flex-shrink-0" />{u.email}
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-xs text-gray-400 font-mono select-all">
+                              {shownPasswords.has(u.id)
+                                ? (u.plainPassword || <span className="italic text-gray-300">password nahi</span>)
+                                : "••••••••"}
+                            </span>
+                            <button onClick={() => togglePwVisible(u.id)}
+                              className="text-gray-300 hover:text-indigo-500 transition-colors"
+                              title={shownPasswords.has(u.id) ? "Hide password" : "Show password"}>
+                              {shownPasswords.has(u.id)
+                                ? <EyeOff className="w-3 h-3" />
+                                : <Eye className="w-3 h-3" />}
+                            </button>
                           </div>
                           <span className={`mt-0.5 inline-block text-xs px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLORS[u.role] || "bg-gray-100 text-gray-600"}`}>
                             {ROLE_LABELS[u.role] || u.role}
