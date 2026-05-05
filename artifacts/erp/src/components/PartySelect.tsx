@@ -52,8 +52,10 @@ export default function PartySelect({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const [showAll, setShowAll] = useState(false);
+
   const filtered = parties
-    .filter(p => !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => showAll || !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()))
     .slice(0, 50);
 
   const isNew =
@@ -85,9 +87,10 @@ export default function PartySelect({
           placeholder={placeholder}
           onChange={e => {
             setSearch(e.target.value);
+            setShowAll(false);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); setShowAll(true); }}
           onKeyDown={e => {
             if (e.key === "Enter" && filtered.length > 0) {
               e.preventDefault();

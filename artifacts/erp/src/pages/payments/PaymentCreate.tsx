@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { Loader2, Trash2 } from "lucide-react";
@@ -20,6 +20,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const [allocations, setAllocations] = useState<Array<{ voucherId: number; allocatedAmount: number }>>(
     initialData?.allocations?.map((a: any) => ({ voucherId: a.voucherId, allocatedAmount: a.allocatedAmount })) || []
   );
+  const userChangedAllocations = useRef(false);
 
   const [form, setForm] = useState({
     date: initialData?.date || fmt.today(),
@@ -58,6 +59,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   };
 
   const toggleAllocation = (voucherId: number, balanceDue: number) => {
+    userChangedAllocations.current = true;
     setAllocations(prev => {
       const exists = prev.find(a => a.voucherId === voucherId);
       if (exists) return prev.filter(a => a.voucherId !== voucherId);
@@ -66,13 +68,14 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   };
 
   const updateAllocAmount = (voucherId: number, amount: number) => {
+    userChangedAllocations.current = true;
     setAllocations(prev => prev.map(a => a.voucherId === voucherId ? { ...a, allocatedAmount: amount } : a));
   };
 
   const totalAllocated = allocations.reduce((s, a) => s + Number(a.allocatedAmount), 0);
 
   useEffect(() => {
-    if (!form.isOnAccount) {
+    if (!form.isOnAccount && (!editId || userChangedAllocations.current)) {
       setForm(f => ({ ...f, amount: String(totalAllocated) }));
     }
   }, [totalAllocated, form.isOnAccount]);

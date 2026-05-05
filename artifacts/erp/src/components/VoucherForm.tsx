@@ -448,10 +448,31 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     setLineItems(prev => prev.map(i => calcItem(i, isInterState)));
   }, [isInterState]);
 
-  const addRow = () => {
+  const addRow = (focusAfter = false) => {
     const newIdx = lineItems.length;
     setLineItems(prev => [...prev, emptyItem()]);
     setSelectedItems(prev => new Set([...prev, newIdx]));
+    if (focusAfter) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-row="${newIdx}"][data-field="qty"]`) as HTMLInputElement;
+        if (el) el.focus();
+      }, 50);
+    }
+  };
+
+  const handleNumericFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (parseFloat(e.target.value) === 0) e.target.select();
+  };
+
+  const handleItemEnter = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (idx === lineItems.length - 1) {
+      addRow(true);
+    } else {
+      const nextEl = document.querySelector(`[data-row="${idx + 1}"][data-field="qty"]`) as HTMLInputElement;
+      if (nextEl) nextEl.focus();
+    }
   };
 
   const removeRow = (idx: number) => {
@@ -1154,8 +1175,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           value={item.hsnCode} onChange={e => updateItem(idx, "hsnCode", e.target.value)} placeholder="HSN" />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input type="number" min="0" step="0.001" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          value={item.quantity} onChange={e => updateItem(idx, "quantity", Number(e.target.value))} />
+                        <input type="number" min="0" step="0.001"
+                          className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          data-row={idx} data-field="qty"
+                          value={item.quantity}
+                          onFocus={handleNumericFocus}
+                          onKeyDown={e => handleItemEnter(e, idx)}
+                          onChange={e => updateItem(idx, "quantity", Number(e.target.value))} />
                       </td>
                       <td className="px-2 py-1.5">
                         <select className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1171,6 +1197,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           <input type="number" min="0" step="any"
                             className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                             value={item.rate}
+                            onFocus={handleNumericFocus}
+                            onKeyDown={e => handleItemEnter(e, idx)}
                             onChange={e => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} />
                         </div>
                         {/* Rate After GST — auto-computes from rate + taxRate */}
@@ -1192,7 +1220,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       <td className="px-2 py-1.5">
                         <div className="flex gap-1">
                           <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-16 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.discount} onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
+                            value={item.discount}
+                            onFocus={handleNumericFocus}
+                            onKeyDown={e => handleItemEnter(e, idx)}
+                            onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
                           <select className="border border-gray-200 rounded px-1 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                             value={item.discountType} onChange={e => updateItem(idx, "discountType", e.target.value)}>
                             <option value="percent">%</option>
