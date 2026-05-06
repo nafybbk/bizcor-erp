@@ -32,7 +32,7 @@ export default function VoucherBin() {
 
   const load = () => {
     setLoading(true);
-    api.get<any[]>("/vouchers/bin")
+    api.get<any[]>("/bin")
       .then(setVouchers)
       .catch(e => setError(e.message || "Load failed"))
       .finally(() => setLoading(false));
@@ -44,7 +44,7 @@ export default function VoucherBin() {
     setRestoring(id);
     setError(""); setSuccess("");
     try {
-      await api.patch(`/vouchers/bin/restore/${id}`, {});
+      await api.patch(`/bin/restore/${id}`, {});
       setSuccess("Voucher restore ho gaya!");
       setVouchers(v => v.filter(x => x.id !== id));
     } catch (e: any) {
@@ -57,7 +57,7 @@ export default function VoucherBin() {
     setConfirmDel(null);
     setError(""); setSuccess("");
     try {
-      await api.delete(`/vouchers/bin/delete/${id}`);
+      await api.delete(`/bin/delete/${id}`);
       setSuccess("Voucher permanently delete ho gaya.");
       setVouchers(v => v.filter(x => x.id !== id));
     } catch (e: any) {
