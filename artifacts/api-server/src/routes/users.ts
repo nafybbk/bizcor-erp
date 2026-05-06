@@ -10,14 +10,26 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const result = await db.execute(sql`
-      SELECT id, name, email, role, permissions, is_active AS "isActive", created_at AS "createdAt",
-             CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS "hasPin"
-      FROM users WHERE business_id = ${req.user!.businessId!}
-      ORDER BY created_at ASC
-    `);
-    const rows: any[] = (result as any).rows ?? result;
-    res.json({ data: rows });
+    const biz = req.user!.businessId!;
+    // Use Drizzle ORM for safety — won't break if login_pin column missing yet
+    const users = await db.select({
+      id: usersTable.id, name: usersTable.name, email: usersTable.email,
+      role: usersTable.role, permissions: usersTable.permissions,
+      isActive: usersTable.isActive, createdAt: usersTable.createdAt,
+    }).from(usersTable).where(eq(usersTable.businessId, biz));
+
+    // Separately fetch PIN status — silently ignore if column not yet migrated
+    let pinMap: Record<number, boolean> = {};
+    try {
+      const pinRes = await db.execute(sql`
+        SELECT id, CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS has_pin
+        FROM users WHERE business_id = ${biz}
+      `);
+      const pinRows: any[] = (pinRes as any).rows ?? pinRes;
+      for (const r of pinRows) pinMap[Number(r.id)] = Boolean(r.has_pin);
+    } catch { /* login_pin column not yet migrated — hasPin will be false for all */ }
+
+    res.json({ data: users.map(u => ({ ...u, hasPin: pinMap[u.id] || false })) });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
