@@ -136,11 +136,19 @@ router.post("/login", async (req, res) => {
     if (!business || (business.status !== "active" && business.status !== "trial")) {
       res.status(401).json({ error: "Unauthorized", message: "Business not found or inactive" }); return;
     }
-    const user = await db.query.usersTable.findFirst({ where: and(eq(usersTable.businessId, business.id), eq(usersTable.email, email)) });
-    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
+    // Get ALL users with this email in this business — same email, different passwords = different users
+    const candidates = await db.select().from(usersTable)
+      .where(and(eq(usersTable.businessId, business.id), eq(usersTable.email, email)));
+    let matchedUser: typeof candidates[0] | null = null;
+    for (const u of candidates) {
+      if (u.passwordHash && await bcrypt.compare(password, u.passwordHash)) {
+        matchedUser = u; break;
+      }
+    }
+    if (!matchedUser) {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
-    const result = await doLogin(user, business);
+    const result = await doLogin(matchedUser, business);
     if (!result) { res.status(401).json({ error: "Unauthorized", message: "User account is inactive" }); return; }
     res.json(result);
   } catch (err: any) {
