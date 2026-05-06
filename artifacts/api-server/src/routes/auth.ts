@@ -109,12 +109,16 @@ router.post("/login", async (req, res) => {
       // Generate new sessionToken and save to DB
       const newSessionToken = crypto.randomUUID();
       const ipAddr = getIp(req);
-      await db.update(usersTable).set({
-        sessionToken: newSessionToken,
-        lastLoginAt: new Date(),
-        lastLoginIp: ipAddr,
-        lastSeenAt: new Date(),
-      }).where(eq(usersTable.id, fullUser.id));
+      try {
+        await db.update(usersTable).set({
+          sessionToken: newSessionToken,
+          lastLoginAt: new Date(),
+          lastLoginIp: ipAddr,
+          lastSeenAt: new Date(),
+        }).where(eq(usersTable.id, fullUser.id));
+      } catch {
+        // Non-fatal: if DB columns missing (older schema), still allow login
+      }
 
       const token = signToken(
         { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: newSessionToken },
