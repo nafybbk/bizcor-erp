@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { db } from "@workspace/db";
+import { usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
 
@@ -11,6 +14,7 @@ export interface AuthUser {
   businessId?: number;
   planExpiresAt?: string;
   isTrial?: boolean;
+  sessionToken?: string;
 }
 
 declare global {
@@ -52,6 +56,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
     req.user = decoded;
+    // For business users: verify sessionToken against DB (single-session enforcement)
+    if (decoded.role !== "super_admin" && decoded.sessionToken) {
+      db.query.usersTable.findFirst({ where: eq(usersTable.id, decoded.id) })
+        .then(dbUser => {
+          if (!dbUser) {
+            res.status(401).json({ error: "SESSION_INVALIDATED", message: "Aapka session band ho gaya hai. Dobara login karein." });
+            return;
+          }
+          if (dbUser.sessionToken !== decoded.sessionToken) {
+            res.status(401).json({ error: "SESSION_INVALIDATED", message: "Aap kisi aur jagah se login ho gaye hain. Yeh session band ho gaya hai." });
+            return;
+          }
+          next();
+        })
+        .catch(() => next()); // DB error — allow through (fail-open)
+      return;
+    }
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized", message: "Invalid or expired token" });

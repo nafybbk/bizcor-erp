@@ -61,11 +61,23 @@ router.post("/tech-login", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password, businessCode, latitude, longitude, loginName } = req.body;
+    const { email, password, businessCode, latitude, longitude, loginName, forceLogin } = req.body;
     if (!email || !password) { res.status(400).json({ error: "Bad Request", message: "Email and password required" }); return; }
 
     const doLogin = async (fullUser: any, business: any) => {
       if (!fullUser || !fullUser.isActive) return null;
+
+      // Single-session enforcement: if user already has an active session, block unless forceLogin
+      if (fullUser.sessionToken && !forceLogin) {
+        const lastAt = fullUser.lastLoginAt ? new Date(fullUser.lastLoginAt).toLocaleString("en-IN") : null;
+        throw {
+          code: "ALREADY_LOGGED_IN",
+          message: "Aap pehle se login hain",
+          lastLoginAt: lastAt,
+          lastLoginIp: fullUser.lastLoginIp || null,
+          userName: fullUser.name,
+        };
+      }
 
       // License enforcement: plan/trial expiry
       if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date()) {
@@ -94,21 +106,29 @@ router.post("/login", async (req, res) => {
         }
       }
 
+      // Generate new sessionToken and save to DB
+      const newSessionToken = crypto.randomUUID();
+      const ipAddr = getIp(req);
+      await db.update(usersTable).set({
+        sessionToken: newSessionToken,
+        lastLoginAt: new Date(),
+        lastLoginIp: ipAddr,
+        lastSeenAt: new Date(),
+      }).where(eq(usersTable.id, fullUser.id));
+
       const token = signToken(
-        { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId },
+        { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: newSessionToken },
         business.planExpiresAt,
         business.isTrial,
       );
       logLogin({
         userId: fullUser.id, businessId: business.id,
         userName: fullUser.name, businessName: business.name,
-        role: fullUser.role, ipAddress: getIp(req),
+        role: fullUser.role, ipAddress: ipAddr,
         userAgent: req.headers["user-agent"],
         latitude: latitude ? String(latitude) : undefined,
         longitude: longitude ? String(longitude) : undefined,
       });
-      // Update lastSeenAt
-      db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, fullUser.id)).catch(() => {});
       return {
         token,
         user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, permissions: fullUser.permissions || [] },
@@ -206,6 +226,9 @@ router.post("/login", async (req, res) => {
   } catch (err: any) {
     if (err?.code === "PLAN_EXPIRED" || err?.code === "USER_LIMIT_EXCEEDED") {
       res.status(403).json({ error: err.code, message: err.message }); return;
+    }
+    if (err?.code === "ALREADY_LOGGED_IN") {
+      res.status(409).json({ error: "ALREADY_LOGGED_IN", message: err.message, lastLoginAt: err.lastLoginAt, lastLoginIp: err.lastLoginIp, userName: err.userName }); return;
     }
     req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
   }

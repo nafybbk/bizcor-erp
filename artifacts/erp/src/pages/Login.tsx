@@ -23,6 +23,7 @@ export default function Login() {
   const [showLookup, setShowLookup] = useState(false);
   const [multiUsers, setMultiUsers] = useState<{ id: number; name: string; hasPin: boolean }[]>([]);
   const [pins, setPins] = useState<Record<number, string>>({});
+  const [alreadyLoggedIn, setAlreadyLoggedIn] = useState<{ lastLoginAt: string | null; lastLoginIp: string | null; loginName?: string; pin?: string } | null>(null);
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
 
   const [fEmail, setFEmail] = useState("");
@@ -32,6 +33,13 @@ export default function Login() {
   const [fLoading, setFLoading] = useState(false);
   const [fError, setFError] = useState("");
   const [fSuccess, setFSuccess] = useState("");
+
+  // Show session-invalidated message if redirected from another session
+  const [sessionMsg, setSessionMsg] = useState(() => {
+    const msg = localStorage.getItem("erp_session_invalidated_msg");
+    if (msg) localStorage.removeItem("erp_session_invalidated_msg");
+    return msg || "";
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem(SAVED_CODE_KEY);
@@ -54,15 +62,18 @@ export default function Login() {
       );
     });
 
-  const doLogin = async (loginName?: string, pin?: string) => {
+  const doLogin = async (loginName?: string, pin?: string, forceLogin?: boolean) => {
     setError(""); setLoading(true);
     try {
       const coords = await getGPS();
-      await login(form.email, form.password, form.businessCode || undefined, coords, loginName, pin);
+      await login(form.email, form.password, form.businessCode || undefined, coords, loginName, pin, forceLogin);
       if (form.businessCode) localStorage.setItem(SAVED_CODE_KEY, form.businessCode.toUpperCase());
       navigate("/");
     } catch (err: any) {
-      if (err.data?.error === "multiple_users" && err.data?.users?.length > 0) {
+      if (err.data?.error === "ALREADY_LOGGED_IN") {
+        setAlreadyLoggedIn({ lastLoginAt: err.data.lastLoginAt, lastLoginIp: err.data.lastLoginIp, loginName, pin });
+        setError("");
+      } else if (err.data?.error === "multiple_users" && err.data?.users?.length > 0) {
         setMultiUsers(err.data.users);
         setPins({});
         setError("");
@@ -81,11 +92,18 @@ export default function Login() {
     e.preventDefault();
     setMultiUsers([]);
     setPins({});
+    setAlreadyLoggedIn(null);
     await doLogin();
   };
 
   const handleSelectUser = async (userId: number, name: string) => {
     await doLogin(name, pins[userId] || undefined);
+  };
+
+  const handleForceLogin = async () => {
+    const { loginName, pin } = alreadyLoggedIn || {};
+    setAlreadyLoggedIn(null);
+    await doLogin(loginName, pin, true);
   };
 
   const lookupBusinesses = async () => {
@@ -256,6 +274,49 @@ export default function Login() {
                         </button>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {sessionMsg && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2 rounded-lg flex items-start gap-2">
+                    <span className="mt-0.5">⚠️</span>
+                    <span>{sessionMsg}</span>
+                  </div>
+                )}
+
+                {alreadyLoggedIn && (
+                  <div className="border border-orange-200 bg-orange-50 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-orange-500 text-lg leading-none">⚠</span>
+                      <div>
+                        <p className="text-sm font-semibold text-orange-800">Aap pehle se kisi aur jagah login hain</p>
+                        {alreadyLoggedIn.lastLoginAt && (
+                          <p className="text-xs text-orange-600 mt-0.5">
+                            Pehla login: {alreadyLoggedIn.lastLoginAt}
+                            {alreadyLoggedIn.lastLoginIp ? ` (${alreadyLoggedIn.lastLoginIp})` : ""}
+                          </p>
+                        )}
+                        <p className="text-xs text-orange-700 mt-1">Kya aap naya session shuru karna chahte hain? Pehla session band ho jaayega.</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleForceLogin}
+                        disabled={loading}
+                        className="flex-1 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
+                      >
+                        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                        Haan, naya session shuru karo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAlreadyLoggedIn(null)}
+                        className="px-4 py-2 border border-gray-300 text-gray-600 text-sm rounded-lg hover:bg-gray-50"
+                      >
+                        Nahi
+                      </button>
+                    </div>
                   </div>
                 )}
 
