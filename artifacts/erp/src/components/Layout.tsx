@@ -17,6 +17,7 @@ import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import { WindowManagerProvider } from "@/components/WindowManager";
+import ReferralBanner from "@/components/ReferralBanner";
 
 interface NavItem {
   label: string;
@@ -566,6 +567,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </div>
     </div>
     {!isSuperAdmin() && <FloatingActionButton />}
+    {!isSuperAdmin() && <ReferralBanner />}
     </WindowManagerProvider>
   );
 }
