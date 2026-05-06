@@ -67,19 +67,20 @@ router.post("/login", async (req, res) => {
     const doLogin = async (fullUser: any, business: any) => {
       if (!fullUser || !fullUser.isActive) return null;
 
-      // Single-session enforcement: if user already has an active session, block unless forceLogin
+      // ── SINGLE-SESSION ENFORCEMENT (everyone: admin + staff) ──────────────
+      // If user already has a session token in DB, block login unless forceLogin=true
       if (fullUser.sessionToken && !forceLogin) {
         const lastAt = fullUser.lastLoginAt ? new Date(fullUser.lastLoginAt).toLocaleString("en-IN") : null;
         throw {
           code: "ALREADY_LOGGED_IN",
-          message: "Aap pehle se login hain",
+          message: "Aap pehle se kisi aur device pe login hain",
           lastLoginAt: lastAt,
           lastLoginIp: fullUser.lastLoginIp || null,
           userName: fullUser.name,
         };
       }
 
-      // License enforcement: plan/trial expiry
+      // ── PLAN / TRIAL EXPIRY ───────────────────────────────────────────────
       if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date()) {
         const msg = business.isTrial
           ? "Aapka 30-din ka trial khatam ho gaya hai. Plan lijiye ya admin se contact karein."
@@ -87,26 +88,35 @@ router.post("/login", async (req, res) => {
         throw { code: "PLAN_EXPIRED", message: msg };
       }
 
-      // License enforcement: max users (skip for business_admin)
-      // For trial businesses (no planId), allow max 3 users
+      // ── USER LIMIT ENFORCEMENT ────────────────────────────────────────────
+      // Rules:
+      //   Free (no plan, not trial) → max 2 users total (1 admin + 1 staff)
+      //   Trial                     → max 3 users total (1 admin + 2 staff)
+      //   Paid plan                 → plan.maxUsers
+      //   business_admin is always allowed (no limit on admin slot)
       if (fullUser.role !== "business_admin") {
-        let maxAllowed: number | null = null;
+        let maxAllowed = 2; // default free: admin + 1 staff
+
         if (business.planId) {
           const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) });
-          if (plan && plan.maxUsers) maxAllowed = plan.maxUsers;
+          if (plan?.maxUsers) maxAllowed = plan.maxUsers;
         } else if (business.isTrial) {
-          maxAllowed = 3; // trial mein max 3 users
+          maxAllowed = 3; // trial: admin + 2 staff
         }
-        if (maxAllowed !== null) {
-          const [{ total }] = await db.select({ total: count() }).from(usersTable)
-            .where(and(eq(usersTable.businessId, business.id), eq(usersTable.isActive, true)));
-          if (Number(total) > maxAllowed) {
-            throw { code: "USER_LIMIT_EXCEEDED", message: `Is business mein sirf ${maxAllowed} users allowed hain. Plan upgrade karein ya admin se contact karein.` };
-          }
+
+        const [{ total }] = await db.select({ total: count() }).from(usersTable)
+          .where(and(eq(usersTable.businessId, business.id), eq(usersTable.isActive, true)));
+
+        if (Number(total) > maxAllowed) {
+          const planLabel = business.planId ? "Plan upgrade karein" : business.isTrial ? "Trial mein sirf 3 users allowed hain" : "Free mein sirf 2 users allowed hain";
+          throw {
+            code: "USER_LIMIT_EXCEEDED",
+            message: `${planLabel}. Abhi ${total} active users hain, limit ${maxAllowed} hai. Admin se contact karein.`,
+          };
         }
       }
 
-      // Generate new sessionToken and save to DB
+      // ── SAVE SESSION TOKEN ────────────────────────────────────────────────
       const newSessionToken = crypto.randomUUID();
       const ipAddr = getIp(req);
       try {
@@ -117,7 +127,7 @@ router.post("/login", async (req, res) => {
           lastSeenAt: new Date(),
         }).where(eq(usersTable.id, fullUser.id));
       } catch {
-        // Non-fatal: if DB columns missing (older schema), still allow login
+        // Non-fatal if columns missing on older schema
       }
 
       const token = signToken(
@@ -170,13 +180,12 @@ router.post("/login", async (req, res) => {
     if (!business || (business.status !== "active" && business.status !== "trial")) {
       res.status(401).json({ error: "Unauthorized", message: "Business not found or inactive" }); return;
     }
-    // Case-insensitive email match — get ALL users in this business with matching email
+
     const allCandidates = await db.execute(sql`
       SELECT * FROM users WHERE business_id = ${business.id} AND LOWER(email) = LOWER(${email})
     `);
     const candidates: any[] = (allCandidates as any).rows ?? allCandidates;
 
-    // Check password for all candidates
     const passwordMatches: any[] = [];
     for (const u of candidates) {
       if (u.password_hash && await bcrypt.compare(password, u.password_hash)) {
@@ -188,7 +197,9 @@ router.post("/login", async (req, res) => {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 
-    // Multiple users match same email+password — ask which one (with PIN info)
+    const { pin } = req.body;
+
+    // Multiple users with same email+password — ask which one
     if (passwordMatches.length > 1 && !loginName) {
       res.status(300).json({
         error: "multiple_users",
@@ -202,8 +213,6 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    // Pick user: if loginName given, match by name (case-insensitive)
-    const { pin } = req.body;
     let matched = passwordMatches[0];
     if (loginName && passwordMatches.length > 1) {
       const byName = passwordMatches.find(u => u.name?.toLowerCase() === loginName.toLowerCase());
@@ -213,20 +222,20 @@ router.post("/login", async (req, res) => {
       matched = byName;
     }
 
-    // PIN check: if this user has a PIN set, verify it
+    // PIN check
     if (matched.login_pin && matched.login_pin.trim() !== "") {
       if (!pin || pin.trim() !== matched.login_pin.trim()) {
         res.status(401).json({ error: "wrong_pin", message: "PIN galat hai" }); return;
       }
     }
 
-    // Re-fetch via Drizzle to get full typed object
     const matchedUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, matched.id) });
     if (!matchedUser) { res.status(401).json({ error: "Unauthorized", message: "User not found" }); return; }
 
     const result = await doLogin(matchedUser, business);
     if (!result) { res.status(401).json({ error: "Unauthorized", message: "User account is inactive" }); return; }
     res.json(result);
+
   } catch (err: any) {
     if (err?.code === "PLAN_EXPIRED" || err?.code === "USER_LIMIT_EXCEEDED") {
       res.status(403).json({ error: err.code, message: err.message }); return;
@@ -278,7 +287,16 @@ router.post("/forgot-password/user", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
-router.post("/logout", (_req, res) => { res.json({ success: true, message: "Logged out" }); });
+router.post("/logout", requireAuth, async (req, res) => {
+  try {
+    const user = req.user!;
+    if (user.role !== "super_admin" && user.id) {
+      // Clear session token so no other device remains "logged in"
+      await db.update(usersTable).set({ sessionToken: null }).where(eq(usersTable.id, user.id));
+    }
+  } catch { /* non-fatal */ }
+  res.json({ success: true, message: "Logged out" });
+});
 
 router.get("/me", requireAuth, async (req, res) => {
   try {
@@ -287,7 +305,6 @@ router.get("/me", requireAuth, async (req, res) => {
     const dbUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, user.id) });
     if (!dbUser) { res.status(404).json({ error: "Not Found" }); return; }
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, dbUser.businessId) });
-    // Update lastSeenAt
     db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
     res.json({ id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, businessId: dbUser.businessId, businessName: business?.name, permissions: dbUser.permissions || [] });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
