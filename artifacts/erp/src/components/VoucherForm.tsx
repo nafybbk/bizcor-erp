@@ -474,7 +474,11 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   };
 
   const handleNumericFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (parseFloat(e.target.value) === 0) e.target.select();
+    if (Number(e.target.value) === 0) {
+      e.target.value = "";
+    } else {
+      e.target.select();
+    }
   };
 
   const handleItemEnter = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
@@ -825,7 +829,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           font-size: ${fieldSize === "sm" ? "11px" : fieldSize === "lg" ? "15px" : "13px"} !important;
         }
       `}</style>
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }} className="space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1123,9 +1127,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 <col style={{ width: colWidths.hsn }} />
                 <col style={{ width: colWidths.qty }} />
                 <col style={{ width: colWidths.unit }} />
+                <col style={{ width: colWidths.tax }} />
                 <col style={{ width: colWidths.rate }} />
                 <col style={{ width: colWidths.discount }} />
-                <col style={{ width: colWidths.tax }} />
                 <col style={{ width: colWidths.taxable }} />
                 <col style={{ width: colWidths.gst }} />
                 <col style={{ width: colWidths.total }} />
@@ -1149,6 +1153,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </div>
                     </th>
                   ))}
+                  <th className="relative py-2.5 px-2 text-center overflow-hidden">
+                    <span>Tax</span>
+                    <div onMouseDown={e => doStartResize("tax", e)}
+                      className="absolute right-0 top-0 h-full w-2 cursor-col-resize flex items-center justify-end pr-0.5 hover:bg-blue-100 group"
+                      title="Drag to resize">
+                      <div className="w-px h-4 bg-gray-300 group-hover:bg-blue-500 rounded" />
+                    </div>
+                  </th>
                   <th className="relative py-2.5 px-2 text-right overflow-hidden">
                     <div>Rate (Before GST)</div>
                     <div className="font-normal text-gray-400 text-[10px]">Rate (After GST)</div>
@@ -1160,7 +1172,6 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                   </th>
                   {([
                     { key: "discount", label: "Discount", align: "right" },
-                    { key: "tax", label: "Tax", align: "center" },
                     { key: "taxable", label: "Taxable", align: "right" },
                     { key: "gst", label: isInterState ? "IGST" : "CGST+SGST", align: "right" },
                     { key: "total", label: "Total", align: "right" },
@@ -1238,47 +1249,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           <option value={item.unit}>{item.unit}</option>
                         </select>
                       </td>
-                      <td className="px-2 py-1.5">
-                        {/* Rate Before GST */}
-                        <div className="relative mb-1">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">B</span>
-                          <input type="number" min="0" step="any"
-                            className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.rate}
-                            onFocus={handleNumericFocus}
-                            onKeyDown={e => handleItemEnter(e, idx)}
-                            onChange={e => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} />
-                        </div>
-                        {/* Rate After GST — auto-computes from rate + taxRate */}
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-500 pointer-events-none">A</span>
-                          <input type="number" min="0" step="any"
-                            className="border border-green-200 bg-green-50 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-green-400"
-                            value={item.taxRate > 0 ? parseFloat(((item.rate) * (1 + item.taxRate / 100)).toFixed(2)) : item.rate}
-                            onChange={e => {
-                              const afterGst = parseFloat(e.target.value) || 0;
-                              const beforeGst = item.taxRate > 0 ? afterGst / (1 + item.taxRate / 100) : afterGst;
-                              updateItem(idx, "rate", parseFloat(beforeGst.toFixed(2)));
-                            }} />
-                        </div>
-                        {item.taxRate > 0 && (
-                          <div className="text-[10px] text-gray-400 mt-0.5 text-right">GST {item.taxRate}%</div>
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <div className="flex gap-1">
-                          <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-16 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.discount}
-                            onFocus={handleNumericFocus}
-                            onKeyDown={e => handleItemEnter(e, idx)}
-                            onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
-                          <select className="border border-gray-200 rounded px-1 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.discountType} onChange={e => updateItem(idx, "discountType", e.target.value)}>
-                            <option value="percent">%</option>
-                            <option value="amount">₹</option>
-                          </select>
-                        </div>
-                      </td>
+                      {/* Tax column — moved before Rate */}
                       <td className="px-2 py-1.5">
                         {taxRates.length === 0 || item.taxRateId === -1 ? (
                           <div className={taxRates.length > 0 ? "flex items-center gap-1" : ""}>
@@ -1308,6 +1279,48 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                             <option value="-1">Custom %…</option>
                           </select>
                         )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {/* Rate Before GST */}
+                        <div className="relative mb-1">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">B</span>
+                          <input type="number" min="0" step="any"
+                            className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={parseFloat(item.rate.toFixed(2))}
+                            onFocus={handleNumericFocus}
+                            onKeyDown={e => handleItemEnter(e, idx)}
+                            onChange={e => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} />
+                        </div>
+                        {/* Rate After GST — auto-computes from rate + taxRate */}
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-500 pointer-events-none">A</span>
+                          <input type="number" min="0" step="any"
+                            className="border border-green-200 bg-green-50 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-green-400"
+                            value={item.taxRate > 0 ? parseFloat((item.rate * (1 + item.taxRate / 100)).toFixed(2)) : parseFloat(item.rate.toFixed(2))}
+                            onChange={e => {
+                              const afterGst = parseFloat(e.target.value) || 0;
+                              // Store full precision to avoid back-rounding errors (e.g. 40→38.0952→40.00 not 38.10→40.01)
+                              const beforeGst = item.taxRate > 0 ? afterGst / (1 + item.taxRate / 100) : afterGst;
+                              updateItem(idx, "rate", parseFloat(beforeGst.toFixed(6)));
+                            }} />
+                        </div>
+                        {item.taxRate > 0 && (
+                          <div className="text-[10px] text-gray-400 mt-0.5 text-right">GST {item.taxRate}%</div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <div className="flex gap-1">
+                          <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-16 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={item.discount}
+                            onFocus={handleNumericFocus}
+                            onKeyDown={e => handleItemEnter(e, idx)}
+                            onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
+                          <select className="border border-gray-200 rounded px-1 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={item.discountType} onChange={e => updateItem(idx, "discountType", e.target.value)}>
+                            <option value="percent">%</option>
+                            <option value="amount">₹</option>
+                          </select>
+                        </div>
                       </td>
                       <td className="px-2 py-1.5 text-right text-xs text-gray-600">{fmt.number(item.taxableAmount)}</td>
                       <td className="px-2 py-1.5 text-right text-xs">
