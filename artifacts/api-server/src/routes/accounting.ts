@@ -62,37 +62,50 @@ router.get("/ledger/:partyId", async (req, res) => {
       return { date: e.date, voucherType: e.voucherType, voucherNumber: e.voucherNumber, debit: e.debit, credit: e.credit, balance };
     });
 
-    // --- Bill-wise data: use paymentAllocationsTable for accurate paid amounts ---
-    const billTypes = ["sales_invoice", "purchase_bill"];
-    const billVouchers = vouchers.filter(v => billTypes.includes(v.voucherType));
-    const billIds = billVouchers.map(v => v.id);
-    const billAllocSums = billIds.length > 0
-      ? await db.select({
-          voucherId: paymentAllocationsTable.voucherId,
-          paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)`,
-        }).from(paymentAllocationsTable)
-          .where(inArray(paymentAllocationsTable.voucherId, billIds))
-          .groupBy(paymentAllocationsTable.voucherId)
-      : [];
-    const billPaidMap = new Map(billAllocSums.map(a => [a.voucherId, Number(a.paid)]));
+    // --- Bill-wise: FIFO distribution using ALL historical data (ignore date filter) ---
+    // Fetch ALL bills + payments for this party (no date filter) for correct FIFO
+    const allBillVouchers = await db.select().from(vouchersTable).where(
+      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt),
+        sql`${vouchersTable.voucherType} IN ('sales_invoice','purchase_bill')`
+      )
+    );
+    const allPayments = await db.select().from(paymentsTable).where(
+      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId))
+    );
 
-    const bills = billVouchers
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map(v => {
-        const billAmount = Number(v.grandTotal);
-        const paidAmount = billPaidMap.get(v.id) || 0;
-        const balance = billAmount - paidAmount;
-        const status = paidAmount >= billAmount ? "paid" : paidAmount > 0 ? "partial" : "posted";
-        return {
-          voucherNumber: v.voucherNumber,
-          voucherType: v.voucherType,
-          date: v.date,
-          billAmount,
-          paidAmount,
-          balance,
-          status,
-        };
-      });
+    // Sort bills and payments by date ascending (FIFO)
+    const sortedBills = [...allBillVouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    const sortedPayments = [...allPayments].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+    // Total cash received/paid
+    // For customer: receipts reduce balance (credit). For supplier: payments reduce balance.
+    const totalCashReceived = sortedPayments.reduce((s, p) => s + Number(p.amount), 0);
+
+    // FIFO: distribute totalCashReceived across bills oldest first
+    let poolRemaining = totalCashReceived;
+    const billResults = sortedBills.map(v => {
+      const billAmount = Number(v.grandTotal);
+      const paidNow = Math.min(poolRemaining, billAmount);
+      poolRemaining = Math.max(0, poolRemaining - paidNow);
+      const balanceAmt = billAmount - paidNow;
+      const status = paidNow >= billAmount - 0.001 ? "paid" : paidNow > 0 ? "partial" : "posted";
+      return {
+        voucherNumber: v.voucherNumber,
+        voucherType: v.voucherType,
+        date: v.date,
+        billAmount,
+        paidAmount: paidNow,
+        balance: balanceAmt,
+        status,
+      };
+    });
+
+    // Only show bills in the date filter range for the bill-wise table
+    const bills = billResults.filter(b => {
+      if (fromDate && b.date < String(fromDate)) return false;
+      if (toDate && b.date > String(toDate)) return false;
+      return true;
+    });
 
     res.json({ party, openingBalance, closingBalance: balance, entries, bills });
   } catch (err) {
