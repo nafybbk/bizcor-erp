@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, sql, gte, lte, inArray, isNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -18,7 +18,7 @@ router.get("/ledger/:partyId", async (req, res) => {
     });
     if (!party) { res.status(404).json({ error: "Not Found" }); return; }
 
-    const vConditions: any[] = [eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId)];
+    const vConditions: any[] = [eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt)];
     if (fromDate) vConditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) vConditions.push(lte(vouchersTable.date, String(toDate)));
     const vouchers = await db.select().from(vouchersTable).where(and(...vConditions));
@@ -118,7 +118,7 @@ router.get("/trial-balance", async (req, res) => {
         creditTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'credit_note' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
         purchaseTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'purchase_bill' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
         debitTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'debit_note' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
-      }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, party.id)));
+      }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, party.id), isNull(vouchersTable.deletedAt)));
 
       const [pResult] = await db.select({
         receiptTotal: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' then ${paymentsTable.amount}::numeric else 0 end), 0)`,
@@ -141,12 +141,12 @@ router.get("/trial-balance", async (req, res) => {
     // Get Sales total (sum of all sales invoice grandTotals)
     const [salesResult] = await db.select({
       total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`,
-    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice")));
+    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt)));
 
     // Get Purchase total
     const [purchaseResult] = await db.select({
       total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`,
-    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill")));
+    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), isNull(vouchersTable.deletedAt)));
 
     // Get Bank receipts (mode = bank/upi/cheque/neft/rtgs)
     const [bankResult] = await db.select({
@@ -189,7 +189,7 @@ router.get("/outstanding-receivables", async (req, res) => {
     const businessId = req.user!.businessId!;
 
     const vouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"))
+      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt))
     );
     if (vouchers.length === 0) { res.json({ data: [], totalOutstanding: 0, totalOverdue: 0 }); return; }
 
@@ -233,7 +233,7 @@ router.get("/outstanding-payables", async (req, res) => {
     const businessId = req.user!.businessId!;
 
     const vouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"))
+      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), isNull(vouchersTable.deletedAt))
     );
     if (vouchers.length === 0) { res.json({ data: [], totalOutstanding: 0, totalOverdue: 0 }); return; }
 
@@ -266,6 +266,59 @@ router.get("/outstanding-payables", async (req, res) => {
 
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Data repair: recalculate paidAmount on all vouchers from actual payment amounts
+router.post("/repair-voucher-balances", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    // Get all payments for this business
+    const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
+    const allAllocs = await db.select().from(paymentAllocationsTable);
+    const paymentMap = new Map(payments.map(p => [p.id, Number(p.amount)]));
+
+    // Group allocs by voucher. For each payment, cap allocated at payment.amount proportionally
+    const voucherPaid = new Map<number, number>();
+    // Per payment: sum allocations, then distribute proportionally if over-allocated
+    const allocsByPayment = new Map<number, typeof allAllocs>();
+    for (const a of allAllocs) {
+      const g = allocsByPayment.get(a.paymentId) || [];
+      g.push(a);
+      allocsByPayment.set(a.paymentId, g);
+    }
+
+    for (const [paymentId, allocs] of allocsByPayment) {
+      const payAmt = paymentMap.get(paymentId) ?? 0;
+      const totalAlloc = allocs.reduce((s, a) => s + Number(a.allocatedAmount), 0);
+      for (const a of allocs) {
+        const raw = Number(a.allocatedAmount);
+        // Cap: if totalAlloc > payAmt, scale down proportionally
+        const safe = totalAlloc > payAmt + 0.001 ? (raw / totalAlloc) * payAmt : raw;
+        const prev = voucherPaid.get(a.voucherId) ?? 0;
+        voucherPaid.set(a.voucherId, prev + safe);
+        // Update alloc record with corrected amount
+        await db.update(paymentAllocationsTable)
+          .set({ allocatedAmount: String(safe.toFixed(2)) })
+          .where(and(eq(paymentAllocationsTable.paymentId, paymentId), eq(paymentAllocationsTable.voucherId, a.voucherId)));
+      }
+    }
+
+    // Update each voucher's paidAmount and status
+    let fixed = 0;
+    for (const [voucherId, paid] of voucherPaid) {
+      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, voucherId) });
+      if (!voucher || voucher.businessId !== businessId) continue;
+      const grandTotal = Number(voucher.grandTotal);
+      const safePaid = Math.min(paid, grandTotal);
+      const status = safePaid >= grandTotal - 0.001 ? "paid" : safePaid > 0 ? "partial" : "posted";
+      await db.update(vouchersTable).set({ paidAmount: String(safePaid.toFixed(2)), status }).where(eq(vouchersTable.id, voucherId));
+      fixed++;
+    }
+    res.json({ ok: true, vouchersFixed: fixed });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
