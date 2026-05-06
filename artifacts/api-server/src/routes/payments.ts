@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, asc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -82,11 +82,20 @@ router.get("/outstanding", async (req, res) => {
       eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, Number(partyId)),
       sql`${vouchersTable.voucherType} = ANY(${sql.raw(`ARRAY['${voucherTypes.join("','")}']::voucher_type[]`)})`
     ));
-    const outstanding = vouchers.filter(v => v.status !== "paid" && v.status !== "cancelled").map(v => ({
-      voucherId: v.id, voucherNumber: v.voucherNumber, date: v.date,
-      originalAmount: Number(v.grandTotal), paidAmount: Number(v.paidAmount || 0),
-      balanceDue: Number(v.grandTotal) - Number(v.paidAmount || 0), daysOverdue: 0,
-    }));
+    // Use FIFO to correctly compute per-bill balance (independent of payment_allocations)
+    const allPayments = await db.select().from(paymentsTable).where(
+      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, Number(partyId)))
+    ).orderBy(asc(paymentsTable.date));
+    const totalReceived = allPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const sortedVouchers = [...vouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    let pool = totalReceived;
+    const outstanding = sortedVouchers.map(v => {
+      const billAmount = Number(v.grandTotal);
+      const paidNow = Math.min(pool, billAmount);
+      pool = Math.max(0, pool - paidNow);
+      const balanceDue = billAmount - paidNow;
+      return { voucherId: v.id, voucherNumber: v.voucherNumber, date: v.date, originalAmount: billAmount, paidAmount: paidNow, balanceDue, daysOverdue: 0 };
+    }).filter(b => b.balanceDue > 0.001);
     const totalOutstanding = outstanding.reduce((s, b) => s + b.balanceDue, 0);
     res.json({ party, totalOutstanding, bills: outstanding });
   } catch (err) {
