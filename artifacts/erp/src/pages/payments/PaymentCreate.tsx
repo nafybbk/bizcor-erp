@@ -176,7 +176,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹) *</label>
             <input type="number" min="0" step="0.01" className={inputCls} value={form.amount}
-              onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }}
+              onFocus={e => e.target.select()}
               onChange={e => {
                 setForm(f => ({ ...f, amount: e.target.value }));
                 setAllocations([]);
@@ -221,7 +221,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
                       <input type="number" min="0" step="0.01" max={bill.balanceDue}
                         className={`w-28 text-right border rounded px-2 py-1 text-sm focus:outline-none ${Number(alloc.allocatedAmount) > bill.balanceDue ? "border-red-400 bg-red-50" : "border-blue-300"}`}
                         value={alloc.allocatedAmount}
-                        onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }}
+                        onFocus={e => e.target.select()}
                         onChange={e => updateAllocAmount(bill.voucherId, Number(e.target.value))} />
                       {Number(alloc.allocatedAmount) > bill.balanceDue && (
                         <span className="text-xs text-red-500">Max: {fmt.currency(bill.balanceDue)}</span>
