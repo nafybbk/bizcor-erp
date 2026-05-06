@@ -262,14 +262,14 @@ export default function Parties({ defaultType }: Props) {
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance (₹)</label>
                     <div className="flex gap-2">
-                      <input type="number" className={inputCls} value={form.openingBalance} onChange={e => setForm(f => ({ ...f, openingBalance: e.target.value }))} />
+                      <input type="number" className={inputCls} value={form.openingBalance} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, openingBalance: e.target.value }))} />
                       <select className="border border-gray-300 rounded-lg px-2 py-2 text-sm" value={form.openingBalanceType} onChange={e => setForm(f => ({ ...f, openingBalanceType: e.target.value as any }))}>
                         <option value="debit">Dr</option><option value="credit">Cr</option>
                       </select>
                     </div>
                   </div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Limit (₹)</label><input type="number" className={inputCls} value={form.creditLimit} onChange={e => setForm(f => ({ ...f, creditLimit: e.target.value }))} placeholder="0 = No limit" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Days</label><input type="number" className={inputCls} value={form.creditDays} onChange={e => setForm(f => ({ ...f, creditDays: e.target.value }))} placeholder="e.g. 30" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Limit (₹)</label><input type="number" className={inputCls} value={form.creditLimit} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, creditLimit: e.target.value }))} placeholder="0 = No limit" /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Days</label><input type="number" className={inputCls} value={form.creditDays} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, creditDays: e.target.value }))} placeholder="e.g. 30" /></div>
                 </div>
               </div>
 

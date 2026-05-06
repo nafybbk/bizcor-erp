@@ -1261,6 +1261,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                             <input type="number" min="0" max="100" step="0.5" placeholder="GST %"
                               className="border border-blue-300 rounded px-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                               value={item.taxRate || ""}
+                              onFocus={handleNumericFocus}
                               onChange={e => {
                                 const rate = parseFloat(e.target.value) || 0;
                                 setLineItems(prev => {
@@ -1382,7 +1383,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Transport Charges</span>
               <input type="number" step="0.01" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.transportCharges} onChange={e => setForm(f => ({ ...f, transportCharges: Number(e.target.value) }))} />
+                value={form.transportCharges}
+                onFocus={handleNumericFocus}
+                onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
             </div>
             <div className="flex justify-between items-center gap-2">
               <div className="flex items-center gap-1.5">
@@ -1400,7 +1403,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 >Auto</button>
               </div>
               <input type="number" step="any" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.roundOff} onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
+                value={form.roundOff}
+                onFocus={handleNumericFocus}
+                onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
             </div>
             <div className="border-t pt-2 flex justify-between font-bold text-base">
               <span>Grand Total</span>
