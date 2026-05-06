@@ -280,19 +280,24 @@ router.get("/next-number", async (req, res) => {
 router.get("/bin", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const vouchers = await db.select({
-      id: vouchersTable.id, voucherType: vouchersTable.voucherType,
-      voucherNumber: vouchersTable.voucherNumber, date: vouchersTable.date,
-      partyName: partiesTable.name, grandTotal: vouchersTable.grandTotal,
-      status: vouchersTable.status, deletedAt: vouchersTable.deletedAt,
-    }).from(vouchersTable)
-      .leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
-      .where(and(eq(vouchersTable.businessId, businessId), isNotNull(vouchersTable.deletedAt)))
-      .orderBy(desc(vouchersTable.deletedAt));
-    res.json(vouchers.map(v => ({ ...v, grandTotal: Number(v.grandTotal) })));
+    const rows = await db.execute(sql`
+      SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
+             v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
+             p.name AS "partyName"
+      FROM vouchers v
+      LEFT JOIN parties p ON p.id = v.party_id
+      WHERE v.business_id = ${businessId}
+        AND v.deleted_at IS NOT NULL
+      ORDER BY v.deleted_at DESC
+    `);
+    const vouchers = (rows as any[]).map((v: any) => ({
+      ...v,
+      grandTotal: Number(v.grandTotal || 0),
+    }));
+    res.json(vouchers);
   } catch (err: any) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: "Internal Server Error", detail: err?.message });
   }
 });
 
