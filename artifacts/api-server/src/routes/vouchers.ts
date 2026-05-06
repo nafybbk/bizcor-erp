@@ -230,11 +230,86 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
 
 async function updateVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
-  const allowed = ["date","status","notes","termsAndConditions","useShippingAddress","shippingAddress","placeOfSupply","customFields"];
-  const updateData: Record<string, unknown> = {};
-  for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
-  const [updated] = await db.update(vouchersTable).set(updateData).where(and(eq(vouchersTable.id, Number(req.params.id)), eq(vouchersTable.businessId, businessId))).returning();
-  res.json(updated);
+  const id = Number(req.params.id);
+  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status } = req.body;
+
+  const parsedPartyId = parseInt(String(partyId), 10);
+  if (!parsedPartyId || isNaN(parsedPartyId)) {
+    res.status(400).json({ error: "Bad Request", message: "Please select a valid party" });
+    return;
+  }
+  if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
+    res.status(400).json({ error: "Bad Request", message: "At least one item is required" });
+    return;
+  }
+
+  const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, parsedPartyId) });
+  const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+  const isInterState = !!(party?.stateCode && business?.stateCode && party.stateCode !== business.stateCode);
+
+  let taxRates: any[] = [];
+  try {
+    taxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
+  } catch { /* use frontend taxRate fallback */ }
+
+  const itemDetails = rawItems.map((ri: any) => ({
+    quantity: Number(ri.quantity), rate: Number(ri.rate),
+    discount: Number(ri.discount || 0), discountType: ri.discountType || "percent",
+    taxRate: Number(taxRates.find(t => t.id === ri.taxRateId)?.rate || ri.taxRate || 0),
+    isInterState,
+  }));
+  const calc = calcVoucher(itemDetails);
+  const transport = Number(transportCharges || 0);
+  const round = Number(roundOff || 0);
+  const grandTotal = calc.taxableAmount + calc.totalTax + transport + round;
+
+  const updateData: Record<string, any> = {
+    date, partyId: parsedPartyId,
+    billingAddress: billingAddress || party?.address || null,
+    useShippingAddress: useShippingAddress || false,
+    shippingAddress: shippingAddress || null,
+    subTotal: String(calc.subTotal), totalDiscount: String(calc.totalDiscount),
+    taxableAmount: String(calc.taxableAmount), totalCgst: String(calc.totalCgst),
+    totalSgst: String(calc.totalSgst), totalIgst: String(calc.totalIgst),
+    totalTax: String(calc.totalTax), transportCharges: String(transport),
+    roundOff: String(round), grandTotal: String(grandTotal),
+    status: status || "posted", notes: notes || null,
+    termsAndConditions: termsAndConditions || null,
+    linkedVoucherId: linkedVoucherId || null, isInterState,
+    placeOfSupply: placeOfSupply || party?.stateCode || null,
+  };
+  if (customFields && typeof customFields === "object" && Object.keys(customFields).length > 0) {
+    updateData.customFields = customFields;
+  }
+
+  const [updated] = await db.update(vouchersTable).set(updateData)
+    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Not Found" }); return; }
+
+  // Replace all voucher items
+  await db.delete(voucherItemsTable).where(eq(voucherItemsTable.voucherId, id));
+  const voucherItemRows = rawItems.map((ri: any, idx: number) => {
+    const pi = calc.processedItems[idx];
+    const taxRateId = (ri.taxRateId && Number(ri.taxRateId) > 0) ? Number(ri.taxRateId) : null;
+    const row: Record<string, any> = {
+      voucherId: id, itemId: ri.itemId ? Number(ri.itemId) : null,
+      itemName: ri.itemName || "Item",
+      description: ri.description || null, hsnCode: ri.hsnCode || null,
+      quantity: String(Number(ri.quantity) || 0),
+      unit: ri.unit || null, rate: String(Number(ri.rate) || 0),
+      discount: String(pi.discount), discountType: ri.discountType || "percent",
+      taxableAmount: String(pi.taxable), taxRateId,
+      taxRate: String(pi.taxRate), cgst: String(pi.cgst), sgst: String(pi.sgst),
+      igst: String(pi.igst), taxAmount: String(pi.tax), total: String(pi.total),
+    };
+    if (ri.customFields && typeof ri.customFields === "object" && Object.keys(ri.customFields).length > 0) {
+      row.customFields = ri.customFields;
+    }
+    return row;
+  });
+  await db.insert(voucherItemsTable).values(voucherItemRows);
+  res.json({ ...updated, grandTotal: Number(updated.grandTotal) });
 }
 
 async function deleteVoucher(req: any, res: any) {
