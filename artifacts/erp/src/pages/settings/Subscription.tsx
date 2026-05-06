@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import {
   CreditCard, Check, Users, FileText, Package, Building2,
   Calendar, AlertCircle, Clock, Ticket, Loader2, X, CheckCircle2, Crown, Zap,
+  Gift, Copy, Share2, Trophy, Star,
 } from "lucide-react";
 
 const MODULE_LABELS: Record<string, string> = {
@@ -36,7 +37,6 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           </span>
         </div>
       )}
-
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
@@ -51,8 +51,6 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           )}
         </div>
       </div>
-
-      {/* Limits */}
       <div className="space-y-1.5 text-sm">
         <div className="flex items-center gap-2 text-gray-700">
           <Users className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -81,8 +79,6 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           </div>
         )}
       </div>
-
-      {/* Modules */}
       {plan.features && plan.features.length > 0 && (
         <div className="space-y-1 pt-2 border-t border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Modules</p>
@@ -91,9 +87,7 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
               const has = plan.features.includes(mod);
               return (
                 <div key={mod} className={`flex items-center gap-1.5 text-xs ${has ? "text-gray-700" : "text-gray-300"}`}>
-                  {has
-                    ? <Check className="w-3 h-3 text-green-500 shrink-0" />
-                    : <X className="w-3 h-3 text-gray-200 shrink-0" />}
+                  {has ? <Check className="w-3 h-3 text-green-500 shrink-0" /> : <X className="w-3 h-3 text-gray-200 shrink-0" />}
                   {MODULE_LABELS[mod]}
                 </div>
               );
@@ -101,16 +95,152 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           </div>
         </div>
       )}
-
       {!isCurrentPlan && (
         <button onClick={onActivate}
           className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2
-            ${isPro
-              ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-              : "border-2 border-gray-300 hover:border-indigo-400 text-gray-700 hover:text-indigo-700"}`}>
+            ${isPro ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "border-2 border-gray-300 hover:border-indigo-400 text-gray-700 hover:text-indigo-700"}`}>
           <Zap className="w-4 h-4" /> Is plan ke liye voucher code daalo
         </button>
       )}
+    </div>
+  );
+}
+
+function ReferralSection() {
+  const [referral, setReferral] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  useEffect(() => {
+    api.get<any>("/businesses/referral-status").then(setReferral).catch(() => {});
+  }, []);
+
+  const copyCode = () => {
+    if (!referral?.referralCode) return;
+    navigator.clipboard.writeText(referral.referralCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const shareMsg = () => {
+    if (!referral?.referralCode) return;
+    const msg = `Maine BizCor ERP use kar raha/rahi hoon — India ka best business software!\n\nIs referral code se register karo aur free mein use karo:\n🎁 Code: ${referral.referralCode}\n🔗 https://erp.naewtgroup.com/register`;
+    if (navigator.share) {
+      navigator.share({ text: msg }).then(() => setShared(true)).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(msg).then(() => { setShared(true); setTimeout(() => setShared(false), 2000); });
+    }
+  };
+
+  if (!referral) return null;
+
+  const { referralCode, referralCount, rewardCount, progressToNext, maxRewardsReached } = referral;
+  const pct = Math.min(100, (progressToNext / 5) * 100);
+
+  return (
+    <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-2xl border-2 border-emerald-200 p-5 space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
+            <Gift className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-base">Referral Program</h3>
+            <p className="text-xs text-gray-500">Dosto ko invite karo — free plan pao</p>
+          </div>
+        </div>
+        {rewardCount > 0 && (
+          <div className="flex items-center gap-1 bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            <Trophy className="w-3 h-3" /> {rewardCount}/2 rewards
+          </div>
+        )}
+      </div>
+
+      {/* Reward explanation */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { step: "1", title: "Share karo", desc: "Apna referral code dosto ko bhejo", icon: <Share2 className="w-4 h-4 text-emerald-600" /> },
+          { step: "2", title: "5 log register karein", desc: "Woh aapka code daalein registration mein", icon: <Users className="w-4 h-4 text-blue-500" /> },
+          { step: "3", title: "Referral Plan milega!", desc: "Aapka plan auto-activate — congratulations!", icon: <Trophy className="w-4 h-4 text-yellow-500" /> },
+        ].map(s => (
+          <div key={s.step} className="bg-white/70 rounded-xl p-3 flex items-start gap-2.5 border border-emerald-100">
+            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0 mt-0.5">{s.step}</div>
+            <div>
+              <div className="flex items-center gap-1.5 mb-0.5">{s.icon}<span className="text-sm font-semibold text-gray-800">{s.title}</span></div>
+              <p className="text-xs text-gray-500">{s.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Your Code */}
+      <div className="bg-white rounded-xl border border-emerald-200 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-gray-500 font-medium mb-1">Aapka Referral Code</p>
+            <div className="text-3xl font-black tracking-[0.2em] text-emerald-700 font-mono">{referralCode}</div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <button onClick={copyCode}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors">
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <button onClick={shareMsg}
+              className="flex items-center gap-1.5 px-3 py-2 border border-emerald-300 text-emerald-700 text-sm font-medium rounded-lg hover:bg-emerald-50 transition-colors">
+              {shared ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+              {shared ? "Shared!" : "Share"}
+            </button>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        {!maxRewardsReached && (
+          <div>
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+              <span>Progress to next reward</span>
+              <span className="font-semibold text-emerald-700">{progressToNext}/5 referrals</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div
+                className="h-3 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">
+              {5 - progressToNext} aur referral chahiye → Referral Plan free milega
+              {rewardCount === 0 && referralCount === 0 ? " (pehli baar!)" : ""}
+            </p>
+          </div>
+        )}
+
+        {maxRewardsReached && (
+          <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm text-yellow-800">
+            <Star className="w-4 h-4 text-yellow-500 shrink-0" />
+            <span>Aapne dono referral rewards le liye hain — shukriya! 🎉</span>
+          </div>
+        )}
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Referrals", value: String(referralCount), color: "text-blue-600" },
+          { label: "Rewards Earned", value: `${rewardCount}/2`, color: "text-emerald-600" },
+          { label: "Bonus Days", value: String(referral.bonusDaysAdded || 0), color: "text-purple-600" },
+        ].map(s => (
+          <div key={s.label} className="bg-white/70 rounded-xl p-3 text-center border border-emerald-100">
+            <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
+            <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-400 text-center">
+        Referral Plan sirf tab milega jab aapka referral code use ho — seedha share karo
+      </p>
     </div>
   );
 }
@@ -168,10 +298,10 @@ export default function Subscription() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <CreditCard className="w-6 h-6 text-indigo-500" /> Mera Subscription
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Aapka current plan aur available plans</p>
+        <p className="text-sm text-gray-500 mt-0.5">Aapka current plan, referral program aur available plans</p>
       </div>
 
-      {/* Current Plan Status Card */}
+      {/* Current Plan Status */}
       <div className={`rounded-2xl border-2 p-5 ${
         !currentPlan ? "border-amber-200 bg-amber-50"
         : daysLeft !== null && daysLeft <= 15 ? "border-red-200 bg-red-50"
@@ -235,6 +365,9 @@ export default function Subscription() {
         </div>
       </div>
 
+      {/* Referral Program */}
+      <ReferralSection />
+
       {/* Voucher activation */}
       <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 p-5 space-y-3">
         <h3 className="font-semibold text-indigo-800 text-sm flex items-center gap-2">
@@ -277,7 +410,6 @@ export default function Subscription() {
                 onActivate={() => {
                   setShowVoucherFor(plan.id);
                   window.scrollTo({ top: 0, behavior: "smooth" });
-                  document.querySelector<HTMLInputElement>('input[placeholder*="BAS"]')?.focus();
                 }}
               />
             ))}
