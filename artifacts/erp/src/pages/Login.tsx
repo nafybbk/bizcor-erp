@@ -21,6 +21,7 @@ export default function Login() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [showLookup, setShowLookup] = useState(false);
+  const [multiUsers, setMultiUsers] = useState<{ id: number; name: string }[]>([]);
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
 
   const [fEmail, setFEmail] = useState("");
@@ -52,22 +53,35 @@ export default function Login() {
       );
     });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLogin = async (loginName?: string) => {
     setError(""); setLoading(true);
     try {
       const coords = await getGPS();
-      await login(form.email, form.password, form.businessCode || undefined, coords);
+      await login(form.email, form.password, form.businessCode || undefined, coords, loginName);
       if (form.businessCode) localStorage.setItem(SAVED_CODE_KEY, form.businessCode.toUpperCase());
       navigate("/");
     } catch (err: any) {
-      if (err.message?.includes("multiple_businesses")) {
+      if (err.data?.error === "multiple_users" && err.data?.users?.length > 0) {
+        setMultiUsers(err.data.users);
+        setError("");
+      } else if (err.message?.includes("multiple_businesses")) {
         setError("Aapka email kai businesses se linked hai. Business Code daalo.");
         setShowLookup(true);
       } else {
         setError(err.message || "Invalid email ya password");
       }
     } finally { setLoading(false); }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMultiUsers([]);
+    await doLogin();
+  };
+
+  const handleSelectUser = async (name: string) => {
+    setMultiUsers([]);
+    await doLogin(name);
   };
 
   const lookupBusinesses = async () => {
@@ -203,6 +217,26 @@ export default function Login() {
                           <span className="font-mono text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded">{b.businessCode}</span>
                           <ChevronRight className="w-4 h-4 text-gray-400" />
                         </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {multiUsers.length > 0 && (
+                  <div className="border border-amber-200 rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-amber-50 text-xs font-medium text-amber-800 flex items-center gap-1.5">
+                      <span>⚠️</span> Is email pe kai accounts hain — aap kaun hain?
+                    </div>
+                    {multiUsers.map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => handleSelectUser(u.name)}
+                        disabled={loading}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-50 border-t border-gray-100 text-left disabled:opacity-50"
+                      >
+                        <span className="text-sm font-semibold text-gray-900">{u.name}</span>
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
                       </button>
                     ))}
                   </div>
