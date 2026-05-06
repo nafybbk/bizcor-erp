@@ -47,6 +47,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ message: "Request failed" }));
+    // Global SESSION_INVALIDATED handler — clear session and reload to login page
+    if (res.status === 401 && errData?.error === "SESSION_INVALIDATED") {
+      clearToken();
+      localStorage.removeItem("erp_user");
+      localStorage.removeItem("erp_business");
+      localStorage.setItem("erp_session_invalidated_msg", errData.message || "Aapka session kisi aur jagah se login ki wajah se band ho gaya. Dobara login karein.");
+      window.location.href = "/";
+      throw new ApiError(errData.message, res.status, errData);
+    }
     const base = errData.message || errData.error || "Request failed";
     const detail = errData.detail ? ` — ${errData.detail}` : "";
     throw new ApiError(base + detail, res.status, errData);
