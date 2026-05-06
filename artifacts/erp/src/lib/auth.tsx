@@ -90,6 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Tell server to clear sessionToken (so this device is fully logged out)
+    api.post("/auth/logout", {}).catch(() => {});
     clearToken();
     setUser(null);
     setBusiness(null);
