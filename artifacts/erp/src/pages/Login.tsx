@@ -21,7 +21,8 @@ export default function Login() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [showLookup, setShowLookup] = useState(false);
-  const [multiUsers, setMultiUsers] = useState<{ id: number; name: string }[]>([]);
+  const [multiUsers, setMultiUsers] = useState<{ id: number; name: string; hasPin: boolean }[]>([]);
+  const [pins, setPins] = useState<Record<number, string>>({});
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
 
   const [fEmail, setFEmail] = useState("");
@@ -53,17 +54,20 @@ export default function Login() {
       );
     });
 
-  const doLogin = async (loginName?: string) => {
+  const doLogin = async (loginName?: string, pin?: string) => {
     setError(""); setLoading(true);
     try {
       const coords = await getGPS();
-      await login(form.email, form.password, form.businessCode || undefined, coords, loginName);
+      await login(form.email, form.password, form.businessCode || undefined, coords, loginName, pin);
       if (form.businessCode) localStorage.setItem(SAVED_CODE_KEY, form.businessCode.toUpperCase());
       navigate("/");
     } catch (err: any) {
       if (err.data?.error === "multiple_users" && err.data?.users?.length > 0) {
         setMultiUsers(err.data.users);
+        setPins({});
         setError("");
+      } else if (err.data?.error === "wrong_pin") {
+        setError("PIN galat hai — dobara try karein");
       } else if (err.message?.includes("multiple_businesses")) {
         setError("Aapka email kai businesses se linked hai. Business Code daalo.");
         setShowLookup(true);
@@ -76,12 +80,12 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMultiUsers([]);
+    setPins({});
     await doLogin();
   };
 
-  const handleSelectUser = async (name: string) => {
-    setMultiUsers([]);
-    await doLogin(name);
+  const handleSelectUser = async (userId: number, name: string) => {
+    await doLogin(name, pins[userId] || undefined);
   };
 
   const lookupBusinesses = async () => {
@@ -228,16 +232,29 @@ export default function Login() {
                       <span>⚠️</span> Is email pe kai accounts hain — aap kaun hain?
                     </div>
                     {multiUsers.map(u => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => handleSelectUser(u.name)}
-                        disabled={loading}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-50 border-t border-gray-100 text-left disabled:opacity-50"
-                      >
-                        <span className="text-sm font-semibold text-gray-900">{u.name}</span>
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      </button>
+                      <div key={u.id} className="border-t border-gray-100 px-4 py-3 flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-900 flex-1">{u.name}</span>
+                        {u.hasPin && (
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            maxLength={8}
+                            placeholder="PIN"
+                            value={pins[u.id] || ""}
+                            onChange={e => setPins(p => ({ ...p, [u.id]: e.target.value }))}
+                            className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleSelectUser(u.id, u.name)}
+                          disabled={loading || (u.hasPin && !(pins[u.id] || "").trim())}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg disabled:opacity-40"
+                        >
+                          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
+                          Login
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

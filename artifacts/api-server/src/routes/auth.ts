@@ -154,21 +154,36 @@ router.post("/login", async (req, res) => {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
 
-    // Multiple users match same email+password — ask which one
+    // Multiple users match same email+password — ask which one (with PIN info)
     if (passwordMatches.length > 1 && !loginName) {
       res.status(300).json({
         error: "multiple_users",
         message: "Aapka account select karo",
-        users: passwordMatches.map(u => ({ id: u.id, name: u.name })),
+        users: passwordMatches.map(u => ({
+          id: u.id,
+          name: u.name,
+          hasPin: !!(u.login_pin && u.login_pin.trim() !== ""),
+        })),
       });
       return;
     }
 
-    // Pick user: if loginName given, match by name (case-insensitive); else take first match
+    // Pick user: if loginName given, match by name (case-insensitive)
+    const { pin } = req.body;
     let matched = passwordMatches[0];
     if (loginName && passwordMatches.length > 1) {
       const byName = passwordMatches.find(u => u.name?.toLowerCase() === loginName.toLowerCase());
-      if (byName) matched = byName;
+      if (!byName) {
+        res.status(401).json({ error: "Unauthorized", message: "User nahi mila" }); return;
+      }
+      matched = byName;
+    }
+
+    // PIN check: if this user has a PIN set, verify it
+    if (matched.login_pin && matched.login_pin.trim() !== "") {
+      if (!pin || pin.trim() !== matched.login_pin.trim()) {
+        res.status(401).json({ error: "wrong_pin", message: "PIN galat hai" }); return;
+      }
     }
 
     // Re-fetch via Drizzle to get full typed object
