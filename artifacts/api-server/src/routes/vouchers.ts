@@ -282,7 +282,7 @@ router.get("/next-number", async (req, res) => {
 router.get("/bin", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const rows = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
              v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
              p.name AS "partyName"
@@ -292,7 +292,8 @@ router.get("/bin", async (req, res) => {
         AND v.deleted_at IS NOT NULL
       ORDER BY v.deleted_at DESC
     `);
-    const vouchers = (rows as any[]).map((v: any) => ({
+    const rows: any[] = (result as any).rows ?? result;
+    const vouchers = rows.map((v: any) => ({
       ...v,
       grandTotal: Number(v.grandTotal || 0),
     }));
@@ -313,7 +314,7 @@ router.patch("/bin/restore/:id", async (req, res) => {
       WHERE id = ${id} AND business_id = ${businessId}
       RETURNING id
     `);
-    const rows = result as any[];
+    const rows: any[] = (result as any).rows ?? result;
     if (!rows.length) { res.status(404).json({ error: "Not Found" }); return; }
     res.json({ success: true, id: rows[0].id });
   } catch (err: any) {
