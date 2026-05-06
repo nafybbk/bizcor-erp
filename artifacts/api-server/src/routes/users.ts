@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -10,11 +10,14 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const users = await db.select({
-      id: usersTable.id, name: usersTable.name, email: usersTable.email,
-      role: usersTable.role, permissions: usersTable.permissions, isActive: usersTable.isActive, createdAt: usersTable.createdAt,
-    }).from(usersTable).where(eq(usersTable.businessId, req.user!.businessId!));
-    res.json({ data: users });
+    const result = await db.execute(sql`
+      SELECT id, name, email, role, permissions, is_active AS "isActive", created_at AS "createdAt",
+             CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS "hasPin"
+      FROM users WHERE business_id = ${req.user!.businessId!}
+      ORDER BY created_at ASC
+    `);
+    const rows: any[] = (result as any).rows ?? result;
+    res.json({ data: rows });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -23,18 +26,19 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { name, email, password, role, permissions } = req.body;
+    const { name, email, password, role, permissions, loginPin } = req.body;
     if (!name || !email || !password) {
       res.status(400).json({ error: "Bad Request", message: "Name, email and password required" });
       return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(usersTable).values({
-      businessId: req.user!.businessId!, name, email, passwordHash,
-      role: role || "staff", permissions: permissions || [],
-    }).returning();
-    const { passwordHash: _, ...safeUser } = user;
-    res.status(201).json(safeUser);
+    await db.execute(sql`
+      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password)
+      VALUES (${req.user!.businessId!}, ${name}, ${email}, ${passwordHash},
+              ${role || "staff"}, ${JSON.stringify(permissions || [])},
+              ${loginPin || null}, ${password})
+    `);
+    res.status(201).json({ success: true });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -57,17 +61,29 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const { name, role, permissions, isActive, password } = req.body;
+    const { name, role, permissions, isActive, password, loginPin } = req.body;
+    const id = Number(req.params.id);
+    const biz = req.user!.businessId!;
+    // Build update with Drizzle ORM for standard fields
     const updateData: Record<string, unknown> = {};
-    if (name) updateData.name = name;
-    if (role) updateData.role = role;
-    if (permissions) updateData.permissions = permissions;
-    if (isActive !== undefined) updateData.isActive = isActive;
-    if (password) updateData.passwordHash = await bcrypt.hash(password, 10);
-    const [updated] = await db.update(usersTable).set(updateData)
-      .where(and(eq(usersTable.id, Number(req.params.id)), eq(usersTable.businessId, req.user!.businessId!))).returning();
-    const { passwordHash, ...safeUser } = updated;
-    res.json(safeUser);
+    if (name !== undefined)        updateData.name = name;
+    if (role !== undefined)        updateData.role = role;
+    if (permissions !== undefined) updateData.permissions = permissions;
+    if (isActive !== undefined)    updateData.isActive = isActive;
+    if (password) {
+      updateData.passwordHash = await bcrypt.hash(password, 10);
+      // also store plain (non-critical, for admin panel)
+      await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE id = ${id} AND business_id = ${biz}`);
+    }
+    if (Object.keys(updateData).length > 0) {
+      await db.update(usersTable).set(updateData)
+        .where(and(eq(usersTable.id, id), eq(usersTable.businessId, biz)));
+    }
+    // Handle loginPin separately via raw SQL (column not in Drizzle schema yet)
+    if (loginPin !== undefined) {
+      await db.execute(sql`UPDATE users SET login_pin = ${loginPin || null} WHERE id = ${id} AND business_id = ${biz}`);
+    }
+    res.json({ success: true });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
