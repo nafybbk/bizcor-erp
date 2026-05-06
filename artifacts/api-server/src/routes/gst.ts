@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable } from "@workspace/db";
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { eq, and, sql, gte, lte, isNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -27,7 +27,7 @@ router.get("/gstr1", async (req, res) => {
       isInterState: vouchersTable.isInterState, placeOfSupply: vouchersTable.placeOfSupply,
       partyName: partiesTable.name, partyGstin: partiesTable.gstin,
     }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
-      .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), eq(vouchersTable.status, "posted")));
+      .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
     const b2b = invoices.filter(i => i.partyGstin).map(i => ({
       gstin: i.partyGstin!, partyName: i.partyName || "", invoiceNumber: i.voucherNumber, invoiceDate: i.date,
       invoiceValue: Number(i.grandTotal), placeOfSupply: i.placeOfSupply || "", reverseCharge: "N",
@@ -63,13 +63,13 @@ router.get("/gstr3b", async (req, res) => {
       cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}::numeric), 0)`,
       sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}::numeric), 0)`,
       igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}::numeric), 0)`,
-    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)));
+    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
     const [purchases] = await db.select({
       taxableAmount: sql<number>`coalesce(sum(${vouchersTable.taxableAmount}::numeric), 0)`,
       cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}::numeric), 0)`,
       sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}::numeric), 0)`,
       igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}::numeric), 0)`,
-    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)));
+    }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
     const taxPayable = {
       cgst: Math.max(0, Number(sales.cgst) - Number(purchases.cgst)),
       sgst: Math.max(0, Number(sales.sgst) - Number(purchases.sgst)),
