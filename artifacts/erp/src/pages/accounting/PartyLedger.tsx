@@ -23,6 +23,9 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   cancelled: { label: "Cancelled",cls: "bg-red-100 text-red-500" },
 };
 
+function fmtCur(n: number) { return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtDt(d: string) { if (!d) return ""; const dt = new Date(d); return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+
 export default function PartyLedger() {
   const [parties, setParties] = useState<any[]>([]);
   const [selectedParty, setSelectedParty] = useState<any>(null);
@@ -35,6 +38,126 @@ export default function PartyLedger() {
   const [visibleCols, setVisibleCols] = useState<string[]>(() =>
     getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
   );
+
+  const printStatement = () => {
+    if (!ledger) return;
+    const bizName = localStorage.getItem("erp_business") ? JSON.parse(localStorage.getItem("erp_business")!).name : "";
+    const party = ledger.party;
+    const entries: any[] = ledger.entries || [];
+    const bills: any[] = ledger.bills || [];
+    const period = fromDate || toDate ? `${fromDate ? fmtDt(fromDate) : "Beginning"} to ${toDate ? fmtDt(toDate) : "Today"}` : "All Dates";
+
+    const tableRows = billWise
+      ? bills.map(b => `
+          <tr>
+            <td>${fmtDt(b.date)}</td>
+            <td>${b.voucherNumber}</td>
+            <td>${b.voucherType.replace(/_/g, " ")}</td>
+            <td class="num">${fmtCur(b.billAmount)}</td>
+            <td class="num">${b.paidAmount > 0 ? fmtCur(b.paidAmount) : "—"}</td>
+            <td class="num ${b.balance > 0 ? "red" : "green"}">${b.balance > 0 ? fmtCur(b.balance) : "Cleared"}</td>
+            <td class="center">${b.status}</td>
+          </tr>`).join("")
+      : entries.map(e => `
+          <tr>
+            <td>${fmtDt(e.date)}</td>
+            <td>${e.voucherType?.replace(/_/g, " ") || ""}</td>
+            <td>${e.voucherNumber || ""}</td>
+            <td class="num blue">${e.debit > 0 ? fmtCur(e.debit) : ""}</td>
+            <td class="num green">${e.credit > 0 ? fmtCur(e.credit) : ""}</td>
+            <td class="num"><b>${fmtCur(Math.abs(e.balance))} ${e.balance >= 0 ? "Dr" : "Cr"}</b></td>
+          </tr>`).join("");
+
+    const billWiseFoot = billWise ? `
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="3"><b>Total</b></td>
+          <td class="num"><b>${fmtCur(bills.reduce((s, b) => s + b.billAmount, 0))}</b></td>
+          <td class="num green"><b>${fmtCur(bills.reduce((s, b) => s + b.paidAmount, 0))}</b></td>
+          <td class="num red"><b>${fmtCur(bills.reduce((s, b) => s + b.balance, 0))}</b></td>
+          <td></td>
+        </tr>
+      </tfoot>` : "";
+
+    const openingRow = !billWise ? `
+      <tr class="opening-row">
+        <td colspan="3"><b>Opening Balance</b></td>
+        <td class="num">${ledger.openingBalance >= 0 ? fmtCur(ledger.openingBalance) : ""}</td>
+        <td class="num">${ledger.openingBalance < 0 ? fmtCur(-ledger.openingBalance) : ""}</td>
+        <td class="num"><b>${fmtCur(Math.abs(ledger.openingBalance))} ${ledger.openingBalance >= 0 ? "Dr" : "Cr"}</b></td>
+      </tr>` : "";
+
+    const closingRow = !billWise ? `
+      <tr class="total-row">
+        <td colspan="3"><b>Closing Balance</b></td>
+        <td class="num"><b>${ledger.closingBalance >= 0 ? fmtCur(ledger.closingBalance) : ""}</b></td>
+        <td class="num"><b>${ledger.closingBalance < 0 ? fmtCur(-ledger.closingBalance) : ""}</b></td>
+        <td class="num"><b>${fmtCur(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}</b></td>
+      </tr>` : "";
+
+    const headers = billWise
+      ? `<th>Date</th><th>Bill No.</th><th>Type</th><th class="num">Bill Amt</th><th class="num">Paid</th><th class="num">Balance</th><th class="center">Status</th>`
+      : `<th>Date</th><th>Type</th><th>Reference</th><th class="num">Debit (Dr)</th><th class="num">Credit (Cr)</th><th class="num">Balance</th>`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Party Statement - ${party?.name}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 20px; }
+      .header { border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
+      .header h1 { font-size: 18px; font-weight: bold; }
+      .header .sub { font-size: 11px; color: #555; margin-top: 2px; }
+      .party-info { display: flex; justify-content: space-between; margin-bottom: 14px; padding: 10px; background: #f5f5f5; border-radius: 4px; }
+      .party-info .name { font-size: 14px; font-weight: bold; }
+      .party-info .gstin { font-size: 10px; color: #777; font-family: monospace; }
+      .party-info .balance { text-align: right; }
+      .party-info .balance .label { font-size: 10px; color: #777; }
+      .party-info .balance .amount { font-size: 15px; font-weight: bold; color: #1a56db; }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #f0f0f0; padding: 7px 8px; text-align: left; font-size: 11px; border: 1px solid #ddd; }
+      td { padding: 6px 8px; border: 1px solid #eee; font-size: 11px; }
+      tr:nth-child(even) td { background: #fafafa; }
+      .num { text-align: right; }
+      .center { text-align: center; }
+      .blue { color: #1a56db; }
+      .green { color: #057a55; }
+      .red { color: #c81e1e; }
+      .opening-row td { background: #eff6ff; font-weight: 500; }
+      .total-row td { background: #f3f4f6; border-top: 2px solid #ccc; }
+      .footer { margin-top: 14px; font-size: 10px; color: #999; text-align: right; }
+      @media print { body { padding: 10px; } }
+    </style></head><body>
+    <div class="header">
+      <h1>${bizName}</h1>
+      <div class="sub">Party Statement &mdash; ${period}</div>
+    </div>
+    <div class="party-info">
+      <div>
+        <div class="name">${party?.name || ""}</div>
+        ${party?.gstin ? `<div class="gstin">GSTIN: ${party.gstin}</div>` : ""}
+        ${party?.phone ? `<div class="gstin">Ph: ${party.phone}</div>` : ""}
+      </div>
+      <div class="balance">
+        <div class="label">${billWise ? "Total Outstanding" : "Closing Balance"}</div>
+        <div class="amount">${billWise
+          ? `${fmtCur(bills.reduce((s, b) => s + b.balance, 0))} ${bills.reduce((s, b) => s + b.balance, 0) >= 0 ? "Dr" : "Cr"}`
+          : `${fmtCur(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
+        }</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr>${headers}</tr></thead>
+      <tbody>${openingRow}${tableRows}</tbody>
+      ${billWiseFoot || (closingRow ? `<tfoot>${closingRow}</tfoot>` : "")}
+    </table>
+    <div class="footer">Printed on ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+    </body></html>`;
+
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return;
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => { w.focus(); w.print(); };
+  };
 
   const handleColChange = (cols: string[]) => { setVisibleCols(cols); saveVisibleCols(REPORT_KEY, cols); };
   const show = (key: string) => visibleCols.includes(key);
@@ -76,7 +199,7 @@ export default function PartyLedger() {
             <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
           )}
           {ledger && (
-            <button onClick={() => window.print()}
+            <button onClick={printStatement}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium rounded-lg transition-colors">
               <Printer className="w-4 h-4" /> Print
             </button>
