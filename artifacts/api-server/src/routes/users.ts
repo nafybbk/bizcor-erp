@@ -91,8 +91,9 @@ router.patch("/:id", async (req, res) => {
       await db.update(usersTable).set(updateData)
         .where(and(eq(usersTable.id, id), eq(usersTable.businessId, biz)));
     }
-    // Handle loginPin separately via raw SQL (column not in Drizzle schema yet)
+    // Handle loginPin — ensure column exists first (lazy migration), then update
     if (loginPin !== undefined) {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT`).catch(() => {});
       await db.execute(sql`UPDATE users SET login_pin = ${loginPin || null} WHERE id = ${id} AND business_id = ${biz}`);
     }
     res.json({ success: true });
