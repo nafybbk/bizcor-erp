@@ -1286,7 +1286,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">B</span>
                           <input type="number" min="0" step="any"
                             className="border border-gray-200 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.rate}
+                            value={parseFloat(item.rate.toFixed(2))}
                             onFocus={handleNumericFocus}
                             onKeyDown={e => handleItemEnter(e, idx)}
                             onChange={e => updateItem(idx, "rate", parseFloat(e.target.value) || 0)} />
@@ -1296,11 +1296,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-green-500 pointer-events-none">A</span>
                           <input type="number" min="0" step="any"
                             className="border border-green-200 bg-green-50 rounded pl-5 pr-2 py-1.5 text-sm w-full text-right focus:outline-none focus:ring-1 focus:ring-green-400"
-                            value={item.taxRate > 0 ? parseFloat(((item.rate) * (1 + item.taxRate / 100)).toFixed(2)) : item.rate}
+                            value={item.taxRate > 0 ? parseFloat((item.rate * (1 + item.taxRate / 100)).toFixed(2)) : parseFloat(item.rate.toFixed(2))}
                             onChange={e => {
                               const afterGst = parseFloat(e.target.value) || 0;
+                              // Store full precision to avoid back-rounding errors (e.g. 40→38.0952→40.00 not 38.10→40.01)
                               const beforeGst = item.taxRate > 0 ? afterGst / (1 + item.taxRate / 100) : afterGst;
-                              updateItem(idx, "rate", parseFloat(beforeGst.toFixed(2)));
+                              updateItem(idx, "rate", parseFloat(beforeGst.toFixed(6)));
                             }} />
                         </div>
                         {item.taxRate > 0 && (
