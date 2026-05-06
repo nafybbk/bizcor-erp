@@ -249,33 +249,39 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const L = T[lang];
 
-  const businessNav: NavItem[] = [
+  // Permission check — business_admin sees everything; staff sees only permitted modules
+  const hasPerm = (key: string): boolean => {
+    if (user?.role === "business_admin") return true;
+    return Array.isArray(user?.permissions) && user.permissions.includes(key);
+  };
+
+  const businessNavFull: (NavItem & { permKey?: string })[] = [
     { label: L.dashboard, href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
     {
-      label: L.sales, icon: <TrendingUp className="w-4 h-4" />,
+      label: L.sales, icon: <TrendingUp className="w-4 h-4" />, permKey: "sales",
       children: [
         { label: L.invoices, href: "/sales/invoices" },
         { label: L.creditNotes, href: "/sales/credit-notes" },
       ],
     },
     {
-      label: L.purchases, icon: <ShoppingCart className="w-4 h-4" />,
+      label: L.purchases, icon: <ShoppingCart className="w-4 h-4" />, permKey: "purchases",
       children: [
         { label: L.bills, href: "/purchases/bills" },
         { label: L.debitNotes, href: "/purchases/debit-notes" },
       ],
     },
     {
-      label: L.payments, icon: <Wallet className="w-4 h-4" />,
+      label: L.payments, icon: <Wallet className="w-4 h-4" />, permKey: "payments",
       children: [
         { label: L.receipts, href: "/payments/receipts" },
         { label: L.payments, href: "/payments/payments" },
         { label: L.outstanding, href: "/payments/outstanding" },
       ],
     },
-    { label: L.inventory, href: "/inventory", icon: <Package className="w-4 h-4" /> },
+    { label: L.inventory, href: "/inventory", icon: <Package className="w-4 h-4" />, permKey: "inventory" },
     {
-      label: L.accounting, icon: <BookOpen className="w-4 h-4" />,
+      label: L.accounting, icon: <BookOpen className="w-4 h-4" />, permKey: "accounting",
       children: [
         { label: L.partyLedger, href: "/accounting/ledger" },
         { label: L.trialBalance, href: "/accounting/trial-balance" },
@@ -284,14 +290,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     {
-      label: L.gstReports, icon: <FileBarChart2 className="w-4 h-4" />,
+      label: L.gstReports, icon: <FileBarChart2 className="w-4 h-4" />, permKey: "gst",
       children: [
         { label: L.gstr1, href: "/gst/gstr1" },
         { label: L.gstr3b, href: "/gst/gstr3b" },
       ],
     },
     {
-      label: L.masters, icon: <ClipboardList className="w-4 h-4" />,
+      label: L.masters, icon: <ClipboardList className="w-4 h-4" />, permKey: "masters",
       children: [
         { label: L.customers, href: "/masters/customers" },
         { label: L.suppliers, href: "/masters/suppliers" },
@@ -303,10 +309,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     { label: L.myPlan, href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
-    { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
-    { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" /> },
-    { label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> },
+    ...(user?.role === "business_admin" ? [
+      { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
+    ] : []),
+    { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" />, permKey: "settings" },
+    ...(hasPerm("sales") ? [{ label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> }] : []),
   ];
+
+  const businessNav: NavItem[] = businessNavFull.filter(item =>
+    !item.permKey || hasPerm(item.permKey)
+  );
 
   const superAdminNav: NavItem[] = [
     { label: L.dashboard, href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
