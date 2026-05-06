@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable, plansTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
@@ -69,20 +69,48 @@ router.post("/register", async (req, res) => {
       referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
     }).returning();
 
-    // Handle referral bonus — every 2 referrals = 30 days free for referrer
+    // ── REFERRAL REWARD LOGIC ──────────────────────────────────────────────
+    // Every 5 referrals → assign "Referral Plan" (max 2 rewards total)
     if (referredBy && referredBy.trim()) {
       const referrer = await db.query.businessesTable.findFirst({
         where: eq(businessesTable.referralCode, referredBy.toUpperCase().trim()),
       });
       if (referrer) {
         const newCount = (referrer.referralCount || 0) + 1;
+        const rewardCount = (referrer as any).referralRewardCount || 0;
         const updates: Record<string, unknown> = { referralCount: newCount };
-        if (newCount % 2 === 0) {
-          const baseDate = referrer.planExpiresAt && referrer.planExpiresAt > now ? referrer.planExpiresAt : now;
-          updates.planExpiresAt = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-          updates.bonusDaysAdded = (referrer.bonusDaysAdded || 0) + 30;
+
+        const milestone = Math.floor(newCount / 5); // 5 = first reward, 10 = second
+        if (milestone > rewardCount && rewardCount < 2) {
+          // Find "Referral Plan" by name
+          const referralPlan = await db.query.plansTable.findFirst({
+            where: eq(plansTable.name, "Referral Plan"),
+          });
+          if (referralPlan) {
+            const validityMs = (referralPlan.validityDays || 180) * 24 * 60 * 60 * 1000;
+            const baseDate = referrer.planExpiresAt && referrer.planExpiresAt > now ? referrer.planExpiresAt : now;
+            updates.planId = referralPlan.id;
+            updates.planExpiresAt = new Date(baseDate.getTime() + validityMs);
+            updates.isTrial = false;
+            updates.status = "active";
+            updates.bonusDaysAdded = (referrer.bonusDaysAdded || 0) + (referralPlan.validityDays || 180);
+          }
+          updates.referralRewardCount = rewardCount + 1;
+          // Flag for congratulations banner (timestamp so frontend knows it's new)
+          updates.referralRewardedAt = now;
         }
-        await db.update(businessesTable).set(updates).where(eq(businessesTable.id, referrer.id));
+        await db.execute(sql`
+          UPDATE businesses SET
+            referral_count = ${newCount},
+            referral_reward_count = COALESCE(${(updates as any).referralRewardCount ?? null}, referral_reward_count),
+            plan_id = COALESCE(${(updates as any).planId ?? null}, plan_id),
+            plan_expires_at = COALESCE(${(updates as any).planExpiresAt ?? null}, plan_expires_at),
+            is_trial = COALESCE(${(updates as any).isTrial ?? null}, is_trial),
+            status = COALESCE(${(updates as any).status ?? null}, status),
+            bonus_days_added = COALESCE(${(updates as any).bonusDaysAdded ?? null}, bonus_days_added),
+            referral_rewarded_at = COALESCE(${(updates as any).referralRewardedAt ?? null}, referral_rewarded_at)
+          WHERE id = ${referrer.id}
+        `);
       }
     }
 
@@ -118,6 +146,42 @@ router.post("/register", async (req, res) => {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+// Referral status — aapka code, count, reward info
+router.get("/referral-status", requireBusiness, async (req, res) => {
+  try {
+    const result = await db.execute(sql`
+      SELECT referral_code, referral_count, referral_reward_count, referral_rewarded_at, bonus_days_added,
+             plan_id, plan_expires_at, is_trial
+      FROM businesses WHERE id = ${req.user!.businessId!}
+    `);
+    const rows = (result as any).rows ?? result;
+    const b = rows[0];
+    if (!b) { res.status(404).json({ error: "Not Found" }); return; }
+
+    const rewardCount = Number(b.referral_reward_count || 0);
+    const referralCount = Number(b.referral_count || 0);
+    const nextMilestone = (rewardCount + 1) * 5;
+    const progressToNext = rewardCount < 2 ? referralCount % 5 : 5;
+    const maxRewardsReached = rewardCount >= 2;
+
+    // Congratulations flag — reward happened within last 24 hrs
+    const rewardedAt = b.referral_rewarded_at ? new Date(b.referral_rewarded_at) : null;
+    const showCongrats = rewardedAt && (Date.now() - rewardedAt.getTime() < 24 * 60 * 60 * 1000);
+
+    res.json({
+      referralCode: b.referral_code,
+      referralCount,
+      rewardCount,
+      progressToNext,
+      nextMilestone,
+      maxRewardsReached,
+      showCongrats: !!showCongrats,
+      rewardedAt: rewardedAt?.toISOString() || null,
+      bonusDaysAdded: Number(b.bonus_days_added || 0),
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.get("/current", requireBusiness, async (req, res) => {
