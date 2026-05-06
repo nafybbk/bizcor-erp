@@ -199,12 +199,12 @@ export default function Items() {
                   <option value="">None</option>{taxRates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Sale Price (₹)</label><input type="number" className={inputCls} value={form.salePrice} onChange={e => setForm(f => ({ ...f, salePrice: e.target.value }))} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label><input type="number" className={inputCls} value={form.purchasePrice} onChange={e => setForm(f => ({ ...f, purchasePrice: e.target.value }))} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Sale Price (₹)</label><input type="number" className={inputCls} value={form.salePrice} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, salePrice: e.target.value }))} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label><input type="number" className={inputCls} value={form.purchasePrice} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, purchasePrice: e.target.value }))} /></div>
               {form.type === "goods" && (
                 <>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock</label><input type="number" className={inputCls} value={form.openingStock} onChange={e => setForm(f => ({ ...f, openingStock: e.target.value }))} /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Alert</label><input type="number" className={inputCls} value={form.lowStockAlert} onChange={e => setForm(f => ({ ...f, lowStockAlert: e.target.value }))} /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock</label><input type="number" className={inputCls} value={form.openingStock} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, openingStock: e.target.value }))} /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Alert</label><input type="number" className={inputCls} value={form.lowStockAlert} onFocus={e => { if (!e.target.value || Number(e.target.value) === 0) e.target.value = ""; else e.target.select(); }} onChange={e => setForm(f => ({ ...f, lowStockAlert: e.target.value }))} /></div>
                 </>
               )}
               <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea className={inputCls} rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
