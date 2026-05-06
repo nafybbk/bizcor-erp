@@ -474,11 +474,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   };
 
   const handleNumericFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (Number(e.target.value) === 0) {
-      e.target.value = "";
-    } else {
-      e.target.select();
-    }
+    e.target.select();
   };
 
   const handleItemEnter = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
