@@ -152,11 +152,28 @@ export default function PartyLedger() {
     <div class="footer">Printed on ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
     </body></html>`;
 
-    const w = window.open("", "_blank", "width=900,height=700");
+    const htmlWithBtn = html.replace(
+      "</style>",
+      `  .print-bar { position: fixed; top: 0; left: 0; right: 0; background: #1e293b; padding: 8px 16px; display: flex; align-items: center; justify-between; gap: 12px; z-index: 999; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  .print-bar span { color: #94a3b8; font-size: 12px; flex: 1; }
+  .print-bar button { padding: 6px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .btn-print { background: #2563eb; color: white; }
+  .btn-print:hover { background: #1d4ed8; }
+  .btn-close { background: #475569; color: white; }
+  .btn-close:hover { background: #334155; }
+  body { padding-top: 48px; }
+  @media print { .print-bar { display: none !important; } body { padding-top: 0; } }
+</style>`
+    ).replace(
+      "<body>",
+      `<body><div class="print-bar"><span>Party Statement — Preview</span><button class="btn-print" onclick="window.print()">🖨 Print</button><button class="btn-close" onclick="window.close()">✕ Close</button></div>`
+    );
+
+    const w = window.open("", "_blank", "width=960,height=750");
     if (!w) return;
-    w.document.write(html);
+    w.document.write(htmlWithBtn);
     w.document.close();
-    w.onload = () => { w.focus(); w.print(); };
+    w.focus();
   };
 
   const handleColChange = (cols: string[]) => { setVisibleCols(cols); saveVisibleCols(REPORT_KEY, cols); };
