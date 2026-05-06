@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { vouchersTable, paymentsTable, partiesTable, itemsTable } from "@workspace/db";
-import { eq, and, sql, gte, lte, desc } from "drizzle-orm";
+import { eq, and, sql, gte, lte, desc, isNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -25,17 +25,28 @@ router.get("/summary", async (req, res) => {
       fromDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     }
     const [sales] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`, cnt: sql<number>`count(*)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, fromDate), lte(vouchersTable.date, toDate)));
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, fromDate), lte(vouchersTable.date, toDate), isNull(vouchersTable.deletedAt)));
     const [purchases] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`, cnt: sql<number>`count(*)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, fromDate), lte(vouchersTable.date, toDate)));
-    const [receivables] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric - ${vouchersTable.paidAmount}::numeric), 0)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), sql`${vouchersTable.status} != 'paid'`, sql`${vouchersTable.status} != 'cancelled'`));
-    const [payables] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric - ${vouchersTable.paidAmount}::numeric), 0)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), sql`${vouchersTable.status} != 'paid'`, sql`${vouchersTable.status} != 'cancelled'`));
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, fromDate), lte(vouchersTable.date, toDate), isNull(vouchersTable.deletedAt)));
+    // Receivables = total invoiced - total credit notes - total receipts (net, always correct)
+    const [totalInvoiced] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt)));
+    const [totalCreditNotes] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "credit_note"), isNull(vouchersTable.deletedAt)));
+    const [totalReceipts] = await db.select({ total: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric), 0)` })
+      .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, "receipt")));
+    const [totalPurchased] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), isNull(vouchersTable.deletedAt)));
+    const [totalDebitNotes] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "debit_note"), isNull(vouchersTable.deletedAt)));
+    const [totalPayments] = await db.select({ total: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric), 0)` })
+      .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, "payment")));
+    const receivables = { total: Math.max(0, Number(totalInvoiced.total) - Number(totalCreditNotes.total) - Number(totalReceipts.total)) };
+    const payables = { total: Math.max(0, Number(totalPurchased.total) - Number(totalDebitNotes.total) - Number(totalPayments.total)) };
     const [gstOut] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.totalTax}::numeric), 0)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, fromDate)));
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, fromDate), isNull(vouchersTable.deletedAt)));
     const [gstIn] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.totalTax}::numeric), 0)` })
-      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, fromDate)));
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, fromDate), isNull(vouchersTable.deletedAt)));
     const [lowStock] = await db.select({ cnt: sql<number>`count(*)` }).from(itemsTable).where(and(eq(itemsTable.businessId, businessId), sql`${itemsTable.openingStock}::numeric <= ${itemsTable.lowStockAlert}::numeric`));
     res.json({
       totalSales: Number(sales.total), totalPurchases: Number(purchases.total),
@@ -63,9 +74,9 @@ router.get("/sales-trend", async (req, res) => {
       const from = `${y}-${String(m).padStart(2, "0")}-01`;
       const to = `${y}-${String(m).padStart(2, "0")}-${new Date(y, m, 0).getDate()}`;
       const [s] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
-        .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)));
+        .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
       const [p] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
-        .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)));
+        .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
       months.push({ month: `${y}-${String(m).padStart(2, "0")}`, sales: Number(s.total), purchases: Number(p.total) });
     }
     res.json({ data: months });
@@ -85,7 +96,7 @@ router.get("/top-parties", async (req, res) => {
       totalAmount: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`,
       invoiceCount: sql<number>`count(*)`,
     }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
-      .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, vType as any)))
+      .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, vType as any), isNull(vouchersTable.deletedAt)))
       .groupBy(vouchersTable.partyId, partiesTable.name).orderBy(desc(sql`sum(${vouchersTable.grandTotal}::numeric)`)).limit(Number(limit));
     res.json({ data: results.map(r => ({ ...r, totalAmount: Number(r.totalAmount), invoiceCount: Number(r.invoiceCount) })) });
   } catch (err) {

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { itemsTable, voucherItemsTable, vouchersTable, partiesTable, unitsTable } from "@workspace/db";
-import { eq, and, sql, ilike, gte, lte } from "drizzle-orm";
+import { eq, and, sql, ilike, gte, lte, isNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -25,7 +25,7 @@ router.get("/stock", async (req, res) => {
       qty: sql<number>`sum(${voucherItemsTable.quantity}::numeric)`,
       avgRate: sql<number>`avg(${voucherItemsTable.rate}::numeric)`,
     }).from(voucherItemsTable).innerJoin(vouchersTable, eq(voucherItemsTable.voucherId, vouchersTable.id))
-      .where(eq(vouchersTable.businessId, businessId)).groupBy(voucherItemsTable.itemId, vouchersTable.voucherType);
+      .where(and(eq(vouchersTable.businessId, businessId), isNull(vouchersTable.deletedAt))).groupBy(voucherItemsTable.itemId, vouchersTable.voucherType);
     const stockMap = new Map<number, { in: number; out: number; avgRate: number }>();
     for (const s of stockMovements) {
       if (!s.itemId) continue;
@@ -58,7 +58,7 @@ router.get("/stock/:itemId", async (req, res) => {
     const { fromDate, toDate } = req.query;
     const item = await db.query.itemsTable.findFirst({ where: and(eq(itemsTable.id, itemId), eq(itemsTable.businessId, businessId)) });
     if (!item) { res.status(404).json({ error: "Not Found" }); return; }
-    const conditions: any[] = [eq(voucherItemsTable.itemId, itemId), eq(vouchersTable.businessId, businessId)];
+    const conditions: any[] = [eq(voucherItemsTable.itemId, itemId), eq(vouchersTable.businessId, businessId), isNull(vouchersTable.deletedAt)];
     if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
     const movements = await db.select({

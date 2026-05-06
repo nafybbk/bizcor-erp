@@ -197,42 +197,47 @@ router.get("/trial-balance", async (req, res) => {
   }
 });
 
+// Helper: compute per-party outstanding using net formula (invoices - credit notes - receipts)
+// This is always correct regardless of payment_allocations data quality
+async function computeOutstanding(businessId: number, invoiceType: "sales_invoice" | "purchase_bill", paymentType: "receipt" | "payment", creditType: "credit_note" | "debit_note") {
+  const allParties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
+
+  const [invoiceRows] = await Promise.all([
+    db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric),0)` })
+      .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, invoiceType), isNull(vouchersTable.deletedAt))).groupBy(vouchersTable.partyId),
+  ]);
+  const cnRows = await db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric),0)` })
+    .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, creditType), isNull(vouchersTable.deletedAt))).groupBy(vouchersTable.partyId);
+  const payRows = await db.select({ partyId: paymentsTable.partyId, total: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric),0)` })
+    .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, paymentType))).groupBy(paymentsTable.partyId);
+
+  const invoiceMap = new Map(invoiceRows.map(r => [r.partyId, Number(r.total)]));
+  const cnMap = new Map(cnRows.map(r => [r.partyId, Number(r.total)]));
+  const payMap = new Map(payRows.map(r => [r.partyId, Number(r.total)]));
+  const partyMap = new Map(allParties.map(p => [p.id, p]));
+
+  const data: any[] = [];
+  for (const [partyId, invoiceTotal] of invoiceMap) {
+    const cn = cnMap.get(partyId) || 0;
+    const received = payMap.get(partyId) || 0;
+    const party = partyMap.get(partyId);
+    const openingBal = Number(party?.openingBalance || 0);
+    const openingType = party?.openingBalanceType || "debit";
+    const opening = invoiceType === "sales_invoice"
+      ? (openingType === "debit" ? openingBal : -openingBal)
+      : (openingType === "credit" ? openingBal : -openingBal);
+    const balanceDue = opening + invoiceTotal - cn - received;
+    if (balanceDue > 0.001) {
+      data.push({ partyId, partyName: party?.name || "Unknown", totalAmount: invoiceTotal, paidAmount: received, balanceDue, overdue: balanceDue });
+    }
+  }
+  return data.sort((a, b) => b.balanceDue - a.balanceDue);
+}
+
 router.get("/outstanding-receivables", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-
-    const vouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt))
-    );
-    if (vouchers.length === 0) { res.json({ data: [], totalOutstanding: 0, totalOverdue: 0 }); return; }
-
-    const vIds = vouchers.map(v => v.id);
-    const allocSums = await db.select({
-      voucherId: paymentAllocationsTable.voucherId,
-      paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)`,
-    }).from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.voucherId, vIds)).groupBy(paymentAllocationsTable.voucherId);
-    const paidMap = new Map(allocSums.map(a => [a.voucherId, Number(a.paid)]));
-
-    const partyIds = [...new Set(vouchers.map(v => v.partyId))];
-    const parties = await db.select().from(partiesTable).where(inArray(partiesTable.id, partyIds));
-    const partyMap = new Map(parties.map(p => [p.id, p.name]));
-
-    const partyTotals = new Map<number, { total: number; paid: number }>();
-    for (const v of vouchers) {
-      const grand = Number(v.grandTotal);
-      const paid = paidMap.get(v.id) || 0;
-      const prev = partyTotals.get(v.partyId) || { total: 0, paid: 0 };
-      partyTotals.set(v.partyId, { total: prev.total + grand, paid: prev.paid + paid });
-    }
-
-    const data = [...partyTotals.entries()]
-      .map(([partyId, { total, paid }]) => ({
-        partyId, partyName: partyMap.get(partyId) || "Unknown",
-        totalAmount: total, paidAmount: paid, balanceDue: total - paid, overdue: total - paid,
-      }))
-      .filter(r => r.balanceDue > 0.001)
-      .sort((a, b) => b.balanceDue - a.balanceDue);
-
+    const data = await computeOutstanding(businessId, "sales_invoice", "receipt", "credit_note");
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
   } catch (err) {
@@ -244,39 +249,7 @@ router.get("/outstanding-receivables", async (req, res) => {
 router.get("/outstanding-payables", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-
-    const vouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), isNull(vouchersTable.deletedAt))
-    );
-    if (vouchers.length === 0) { res.json({ data: [], totalOutstanding: 0, totalOverdue: 0 }); return; }
-
-    const vIds = vouchers.map(v => v.id);
-    const allocSums = await db.select({
-      voucherId: paymentAllocationsTable.voucherId,
-      paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)`,
-    }).from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.voucherId, vIds)).groupBy(paymentAllocationsTable.voucherId);
-    const paidMap = new Map(allocSums.map(a => [a.voucherId, Number(a.paid)]));
-
-    const partyIds = [...new Set(vouchers.map(v => v.partyId))];
-    const parties = await db.select().from(partiesTable).where(inArray(partiesTable.id, partyIds));
-    const partyMap = new Map(parties.map(p => [p.id, p.name]));
-
-    const partyTotals = new Map<number, { total: number; paid: number }>();
-    for (const v of vouchers) {
-      const grand = Number(v.grandTotal);
-      const paid = paidMap.get(v.id) || 0;
-      const prev = partyTotals.get(v.partyId) || { total: 0, paid: 0 };
-      partyTotals.set(v.partyId, { total: prev.total + grand, paid: prev.paid + paid });
-    }
-
-    const data = [...partyTotals.entries()]
-      .map(([partyId, { total, paid }]) => ({
-        partyId, partyName: partyMap.get(partyId) || "Unknown",
-        totalAmount: total, paidAmount: paid, balanceDue: total - paid, overdue: total - paid,
-      }))
-      .filter(r => r.balanceDue > 0.001)
-      .sort((a, b) => b.balanceDue - a.balanceDue);
-
+    const data = await computeOutstanding(businessId, "purchase_bill", "payment", "debit_note");
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
   } catch (err) {
