@@ -3,7 +3,7 @@ import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, Printer } from "lucide-react";
 
 const ALL_COLS: ColDef[] = [
   { key: "account", label: "Account", required: true },
@@ -47,11 +47,15 @@ export default function TrialBalance() {
     <div className="max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Trial Balance</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 print:hidden">
           <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
           <button onClick={exportCSV} disabled={loading || data.length === 0}
             className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
             <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={() => window.print()} disabled={loading || data.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+            <Printer className="w-4 h-4" /> Print
           </button>
         </div>
       </div>
