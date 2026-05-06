@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
-import { Loader2 } from "lucide-react";
+import { Loader2, Printer } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
 const ALL_COLS: ColDef[] = [
@@ -71,9 +71,17 @@ export default function PartyLedger() {
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Party Statement</h1>
-        {ledger && !billWise && (
-          <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
-        )}
+        <div className="flex items-center gap-2 print:hidden">
+          {ledger && !billWise && (
+            <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
+          )}
+          {ledger && (
+            <button onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 text-sm font-medium rounded-lg transition-colors">
+              <Printer className="w-4 h-4" /> Print
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap gap-4 items-end">
