@@ -45,16 +45,23 @@ router.post("/", async (req, res) => {
       isOnAccount: isOnAccount || false,
     }).returning();
     if (!isOnAccount && allocations && allocations.length > 0) {
+      const paymentAmt = Number(amount);
+      let remainingPayment = paymentAmt;
       for (const alloc of allocations) {
-        await db.insert(paymentAllocationsTable).values({ paymentId: payment.id, voucherId: alloc.voucherId, allocatedAmount: String(alloc.allocatedAmount) });
+        if (remainingPayment <= 0.001) break;
+        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        if (!voucher) continue;
+        const grandTotal = Number(voucher.grandTotal);
+        const alreadyPaid = Number(voucher.paidAmount || 0);
+        const billBalance = Math.max(0, grandTotal - alreadyPaid);
+        const safeAlloc = Math.min(Number(alloc.allocatedAmount), billBalance, remainingPayment);
+        if (safeAlloc <= 0.001) continue;
+        remainingPayment -= safeAlloc;
+        await db.insert(paymentAllocationsTable).values({ paymentId: payment.id, voucherId: alloc.voucherId, allocatedAmount: String(safeAlloc) });
         const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` }).from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
         const totalPaid = Number(currentPaid[0]?.paid || 0);
-        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
-        if (voucher) {
-          const grandTotal = Number(voucher.grandTotal);
-          const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
-          await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
-        }
+        const newStatus = totalPaid >= grandTotal - 0.001 ? "paid" : totalPaid > 0 ? "partial" : "posted";
+        await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
       }
     }
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
@@ -137,17 +144,24 @@ router.patch("/:id", async (req, res) => {
       .where(eq(paymentsTable.id, paymentId));
 
     if (!isOnAccount && allocations && allocations.length > 0) {
+      const paymentAmt = Number(amount);
+      let remainingPayment = paymentAmt;
       for (const alloc of allocations) {
-        await db.insert(paymentAllocationsTable).values({ paymentId, voucherId: alloc.voucherId, allocatedAmount: String(alloc.allocatedAmount) });
+        if (remainingPayment <= 0.001) break;
+        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        if (!voucher) continue;
+        const grandTotal = Number(voucher.grandTotal);
+        const alreadyPaid = Number(voucher.paidAmount || 0);
+        const billBalance = Math.max(0, grandTotal - alreadyPaid);
+        const safeAlloc = Math.min(Number(alloc.allocatedAmount), billBalance, remainingPayment);
+        if (safeAlloc <= 0.001) continue;
+        remainingPayment -= safeAlloc;
+        await db.insert(paymentAllocationsTable).values({ paymentId, voucherId: alloc.voucherId, allocatedAmount: String(safeAlloc) });
         const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
           .from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
         const totalPaid = Number(currentPaid[0]?.paid || 0);
-        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
-        if (voucher) {
-          const grandTotal = Number(voucher.grandTotal);
-          const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
-          await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
-        }
+        const newStatus = totalPaid >= grandTotal - 0.001 ? "paid" : totalPaid > 0 ? "partial" : "posted";
+        await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
       }
     }
 
