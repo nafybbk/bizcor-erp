@@ -104,6 +104,8 @@ export default function BusinessSettings() {
   const [success, setSuccess] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [repairLoading, setRepairLoading] = useState(false);
+  const [repairResult, setRepairResult] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [voucherCode, setVoucherCode] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
@@ -145,6 +147,18 @@ export default function BusinessSettings() {
     const reader = new FileReader();
     reader.onload = (ev) => setForm((f: any) => ({ ...f, logo: ev.target?.result as string }));
     reader.readAsDataURL(file);
+  };
+
+  const repairData = async () => {
+    if (!confirm("Yeh sab vouchers ke paidAmount aur status recalculate karega. Proceed?")) return;
+    setRepairLoading(true);
+    setRepairResult(null);
+    try {
+      const r = await api.post<any>("/accounting/repair-voucher-balances", {});
+      setRepairResult(`✅ ${r.vouchersFixed} vouchers fix ho gaye`);
+    } catch {
+      setRepairResult("❌ Repair failed — console check karo");
+    } finally { setRepairLoading(false); }
   };
 
   const downloadBackup = async () => {
@@ -471,6 +485,18 @@ export default function BusinessSettings() {
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
             {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Download
+          </button>
+        </div>
+        <div className="flex items-center justify-between py-2 border-t border-gray-100">
+          <div>
+            <div className="text-sm font-medium text-gray-700">Voucher Status Repair</div>
+            <div className="text-xs text-gray-500 mt-0.5">Galat paid/partial/unpaid status fix karo</div>
+            {repairResult && <div className={`text-xs mt-1 font-medium ${repairResult.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>{repairResult}</div>}
+          </div>
+          <button type="button" onClick={repairData} disabled={repairLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+            {repairLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🔧</span>}
+            Repair
           </button>
         </div>
 
