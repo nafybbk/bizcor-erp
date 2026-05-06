@@ -15,6 +15,9 @@ export const usersTable = pgTable("users", {
   permissions: text("permissions").array().default([]),
   isActive: boolean("is_active").notNull().default(true),
   lastSeenAt: timestamp("last_seen_at"),
+  sessionToken: text("session_token"),
+  lastLoginAt: timestamp("last_login_at"),
+  lastLoginIp: text("last_login_ip"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
