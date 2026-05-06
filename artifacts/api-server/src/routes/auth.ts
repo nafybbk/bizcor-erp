@@ -67,19 +67,29 @@ router.post("/login", async (req, res) => {
     const doLogin = async (fullUser: any, business: any) => {
       if (!fullUser || !fullUser.isActive) return null;
 
-      // License enforcement: plan expiry
-      if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date() && business.status !== "trial") {
-        throw { code: "PLAN_EXPIRED", message: "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein." };
+      // License enforcement: plan/trial expiry
+      if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date()) {
+        const msg = business.isTrial
+          ? "Aapka 30-din ka trial khatam ho gaya hai. Plan lijiye ya admin se contact karein."
+          : "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein.";
+        throw { code: "PLAN_EXPIRED", message: msg };
       }
 
       // License enforcement: max users (skip for business_admin)
-      if (fullUser.role !== "business_admin" && business.planId) {
-        const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) });
-        if (plan && plan.maxUsers) {
+      // For trial businesses (no planId), allow max 3 users
+      if (fullUser.role !== "business_admin") {
+        let maxAllowed: number | null = null;
+        if (business.planId) {
+          const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) });
+          if (plan && plan.maxUsers) maxAllowed = plan.maxUsers;
+        } else if (business.isTrial) {
+          maxAllowed = 3; // trial mein max 3 users
+        }
+        if (maxAllowed !== null) {
           const [{ total }] = await db.select({ total: count() }).from(usersTable)
             .where(and(eq(usersTable.businessId, business.id), eq(usersTable.isActive, true)));
-          if (Number(total) > plan.maxUsers) {
-            throw { code: "USER_LIMIT_EXCEEDED", message: `Is business mein sirf ${plan.maxUsers} users allowed hain. Admin se contact karein.` };
+          if (Number(total) > maxAllowed) {
+            throw { code: "USER_LIMIT_EXCEEDED", message: `Is business mein sirf ${maxAllowed} users allowed hain. Plan upgrade karein ya admin se contact karein.` };
           }
         }
       }
