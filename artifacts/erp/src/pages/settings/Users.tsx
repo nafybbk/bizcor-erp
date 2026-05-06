@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Loader2, Trash2, Edit2, X } from "lucide-react";
 
-const emptyForm = { name: "", email: "", password: "", role: "staff" as "business_admin"|"staff", permissions: [] as string[] };
+const emptyForm = { name: "", email: "", password: "", role: "staff" as "business_admin"|"staff", permissions: [] as string[], loginPin: "" };
 
 const PERMISSIONS = ["sales", "purchases", "payments", "inventory", "accounting", "gst", "masters", "settings"];
 
@@ -25,7 +25,7 @@ export default function Users() {
   const openCreate = () => { setEditId(null); setForm({ ...emptyForm }); setError(""); setShowModal(true); };
   const openEdit = (u: any) => {
     setEditId(u.id);
-    setForm({ name: u.name, email: u.email, password: "", role: u.role, permissions: u.permissions || [] });
+    setForm({ name: u.name, email: u.email, password: "", role: u.role, permissions: u.permissions || [], loginPin: "" });
     setError(""); setShowModal(true);
   };
 
@@ -34,6 +34,7 @@ export default function Users() {
     try {
       const payload: any = { ...form };
       if (!payload.password) delete payload.password;
+      if (!payload.loginPin) delete payload.loginPin;
       if (editId) await api.patch(`/users/${editId}`, payload);
       else await api.post("/users", payload);
       setShowModal(false); load();
@@ -72,6 +73,7 @@ export default function Users() {
                 <th className="text-left px-4 py-3 font-medium">Name</th>
                 <th className="text-left px-4 py-3 font-medium">Email</th>
                 <th className="text-left px-4 py-3 font-medium">Role</th>
+                <th className="text-left px-4 py-3 font-medium">PIN</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -84,6 +86,11 @@ export default function Users() {
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${u.role === "business_admin" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
                       {u.role?.replace("_", " ")}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.hasPin ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400"}`}>
+                      {u.hasPin ? "✓ Set" : "—"}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -115,6 +122,10 @@ export default function Users() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (leave blank to keep)" : "Password *"}</label><input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Login PIN <span className="text-gray-400 font-normal">(same email+password pe distinguish karne ke liye)</span></label>
+                <input type="password" inputMode="numeric" maxLength={8} placeholder={editId ? "Naya PIN (blank = change nahi)" : "4–8 digit PIN"} className={inputCls} value={form.loginPin} onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))} />
+              </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select className={inputCls} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as any }))}>
                   <option value="staff">Staff</option>
