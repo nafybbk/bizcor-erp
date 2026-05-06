@@ -1329,7 +1329,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </table>
           </div>
           <div className="px-4 py-3 border-t border-gray-100">
-            <button type="button" onClick={addRow} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <button type="button" onClick={() => addRow()} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
               <Plus className="w-4 h-4" /> Add Item Row
             </button>
           </div>
