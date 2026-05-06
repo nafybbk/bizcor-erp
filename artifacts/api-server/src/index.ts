@@ -46,6 +46,9 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS bank_branch TEXT`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY,
