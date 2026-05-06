@@ -3,6 +3,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
+import PrintPreviewModal from "@/components/PrintPreviewModal";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -55,6 +56,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [voucher, setVoucher] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -69,13 +71,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   // Auto-print when opened with ?print=1 (from list print button)
   useEffect(() => {
     if (autoPrint && !loading && voucher) {
-      const t = setTimeout(() => { window.print(); }, 400);
+      const t = setTimeout(() => setShowPrintPreview(true), 400);
       return () => clearTimeout(t);
     }
     return undefined;
   }, [autoPrint, loading, voucher]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => setShowPrintPreview(true);
 
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
 
@@ -114,6 +116,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
+      {showPrintPreview && (
+        <PrintPreviewModal
+          printableId="printable"
+          title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
