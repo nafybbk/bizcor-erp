@@ -61,7 +61,7 @@ router.post("/tech-login", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password, businessCode, latitude, longitude } = req.body;
+    const { email, password, businessCode, latitude, longitude, loginName } = req.body;
     if (!email || !password) { res.status(400).json({ error: "Bad Request", message: "Email and password required" }); return; }
 
     const doLogin = async (fullUser: any, business: any) => {
@@ -136,18 +136,45 @@ router.post("/login", async (req, res) => {
     if (!business || (business.status !== "active" && business.status !== "trial")) {
       res.status(401).json({ error: "Unauthorized", message: "Business not found or inactive" }); return;
     }
-    // Get ALL users with this email in this business — same email, different passwords = different users
-    const candidates = await db.select().from(usersTable)
-      .where(and(eq(usersTable.businessId, business.id), eq(usersTable.email, email)));
-    let matchedUser: typeof candidates[0] | null = null;
+    // Case-insensitive email match — get ALL users in this business with matching email
+    const allCandidates = await db.execute(sql`
+      SELECT * FROM users WHERE business_id = ${business.id} AND LOWER(email) = LOWER(${email})
+    `);
+    const candidates: any[] = (allCandidates as any).rows ?? allCandidates;
+
+    // Check password for all candidates
+    const passwordMatches: any[] = [];
     for (const u of candidates) {
-      if (u.passwordHash && await bcrypt.compare(password, u.passwordHash)) {
-        matchedUser = u; break;
+      if (u.password_hash && await bcrypt.compare(password, u.password_hash)) {
+        passwordMatches.push(u);
       }
     }
-    if (!matchedUser) {
+
+    if (passwordMatches.length === 0) {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" }); return;
     }
+
+    // Multiple users match same email+password — ask which one
+    if (passwordMatches.length > 1 && !loginName) {
+      res.status(300).json({
+        error: "multiple_users",
+        message: "Aapka account select karo",
+        users: passwordMatches.map(u => ({ id: u.id, name: u.name })),
+      });
+      return;
+    }
+
+    // Pick user: if loginName given, match by name (case-insensitive); else take first match
+    let matched = passwordMatches[0];
+    if (loginName && passwordMatches.length > 1) {
+      const byName = passwordMatches.find(u => u.name?.toLowerCase() === loginName.toLowerCase());
+      if (byName) matched = byName;
+    }
+
+    // Re-fetch via Drizzle to get full typed object
+    const matchedUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, matched.id) });
+    if (!matchedUser) { res.status(401).json({ error: "Unauthorized", message: "User not found" }); return; }
+
     const result = await doLogin(matchedUser, business);
     if (!result) { res.status(401).json({ error: "Unauthorized", message: "User account is inactive" }); return; }
     res.json(result);
