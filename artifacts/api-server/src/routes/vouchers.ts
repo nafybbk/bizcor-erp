@@ -237,10 +237,12 @@ async function updateVoucher(req: any, res: any) {
 async function deleteVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
   const id = Number(req.params.id);
-  // Soft delete — move to Bin
-  await db.update(vouchersTable)
-    .set({ deletedAt: new Date() })
-    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+  // Soft delete — move to Bin (raw SQL to avoid Drizzle column-mapping issues on Supabase)
+  await db.execute(sql`
+    UPDATE vouchers
+    SET deleted_at = NOW()
+    WHERE id = ${id} AND business_id = ${businessId}
+  `);
   res.json({ success: true });
 }
 
@@ -305,12 +307,15 @@ router.patch("/bin/restore/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
-    const [restored] = await db.update(vouchersTable)
-      .set({ deletedAt: null })
-      .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
-      .returning();
-    if (!restored) { res.status(404).json({ error: "Not Found" }); return; }
-    res.json({ success: true, id: restored.id });
+    const result = await db.execute(sql`
+      UPDATE vouchers
+      SET deleted_at = NULL
+      WHERE id = ${id} AND business_id = ${businessId}
+      RETURNING id
+    `);
+    const rows = result as any[];
+    if (!rows.length) { res.status(404).json({ error: "Not Found" }); return; }
+    res.json({ success: true, id: rows[0].id });
   } catch (err: any) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -321,8 +326,8 @@ router.delete("/bin/delete/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
-    await db.delete(voucherItemsTable).where(eq(voucherItemsTable.voucherId, id));
-    await db.delete(vouchersTable).where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+    await db.execute(sql`DELETE FROM voucher_items WHERE voucher_id = ${id}`);
+    await db.execute(sql`DELETE FROM vouchers WHERE id = ${id} AND business_id = ${businessId}`);
     res.json({ success: true });
   } catch (err: any) {
     req.log.error(err);
