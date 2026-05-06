@@ -63,10 +63,15 @@ router.get("/ledger/:partyId", async (req, res) => {
     });
 
     // --- Bill-wise: FIFO distribution using ALL historical data (ignore date filter) ---
-    // Fetch ALL bills + payments for this party (no date filter) for correct FIFO
+    // Fetch ALL bills + payments + credit/debit notes for this party (no date filter) for correct FIFO
     const allBillVouchers = await db.select().from(vouchersTable).where(
       and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt),
         sql`${vouchersTable.voucherType} IN ('sales_invoice','purchase_bill')`
+      )
+    );
+    const allCreditDebitVouchers = await db.select().from(vouchersTable).where(
+      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt),
+        sql`${vouchersTable.voucherType} IN ('credit_note','debit_note')`
       )
     );
     const allPayments = await db.select().from(paymentsTable).where(
@@ -77,12 +82,13 @@ router.get("/ledger/:partyId", async (req, res) => {
     const sortedBills = [...allBillVouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
     const sortedPayments = [...allPayments].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
 
-    // Total cash received/paid
-    // For customer: receipts reduce balance (credit). For supplier: payments reduce balance.
+    // Pool = cash received/paid + credit/debit note adjustments
+    // Credit notes (for sales) and debit notes (for purchases) reduce outstanding — include in pool
     const totalCashReceived = sortedPayments.reduce((s, p) => s + Number(p.amount), 0);
+    const totalCreditAdjustments = allCreditDebitVouchers.reduce((s, v) => s + Number(v.grandTotal), 0);
 
-    // FIFO: distribute totalCashReceived across bills oldest first
-    let poolRemaining = totalCashReceived;
+    // FIFO: distribute (payments + credit/debit notes) across bills oldest first
+    let poolRemaining = totalCashReceived + totalCreditAdjustments;
     const billResults = sortedBills.map(v => {
       const billAmount = Number(v.grandTotal);
       const paidNow = Math.min(poolRemaining, billAmount);

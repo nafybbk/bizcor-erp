@@ -270,12 +270,9 @@ export default function PartyLedger() {
               {ledger.party?.gstin && <div className="text-xs text-gray-400 font-mono">GSTIN: {ledger.party.gstin}</div>}
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">{billWise ? "Total Outstanding" : "Closing Balance"}</div>
-              <div className={`text-lg font-bold ${billWise ? (totalBalance > 0 ? "text-blue-700" : "text-green-700") : (ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700")}`}>
-                {billWise
-                  ? `${fmt.currency(totalBalance)} ${totalBalance >= 0 ? "Dr" : "Cr"}`
-                  : `${fmt.currency(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
-                }
+              <div className="text-sm text-gray-500">{billWise ? "Net Outstanding" : "Closing Balance"}</div>
+              <div className={`text-lg font-bold ${ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700"}`}>
+                {`${fmt.currency(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`}
               </div>
             </div>
           </div>

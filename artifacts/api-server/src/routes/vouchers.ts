@@ -117,7 +117,10 @@ async function generateVoucherNumber(businessId: number, voucherType: VoucherTyp
   const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable)
     .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
   const serial = startNum + Number(cnt);
-  return `${prefix}${sep}${series}${sep}${String(serial).padStart(digits, "0")}`;
+  // Only include series in number if explicitly set to > 1 (default=1 means no series prefix)
+  return series > 1
+    ? `${prefix}${sep}${series}${sep}${String(serial).padStart(digits, "0")}`
+    : `${prefix}${sep}${String(serial).padStart(digits, "0")}`;
 }
 
 async function getNextVoucherNumber(businessId: number, voucherType: VoucherType): Promise<string> {
