@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
+import FloatingActionButton from "@/components/FloatingActionButton";
+import { WindowManagerProvider } from "@/components/WindowManager";
 
 interface NavItem {
   label: string;
@@ -335,6 +337,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
 
   return (
+    <WindowManagerProvider>
     <div className="flex h-screen bg-background overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
 
       {/* Mobile overlay — tap to close */}
@@ -562,5 +565,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    {!isSuperAdmin() && <FloatingActionButton />}
+    </WindowManagerProvider>
   );
 }
