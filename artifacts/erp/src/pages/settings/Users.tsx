@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Plus, Loader2, Trash2, Edit2, X } from "lucide-react";
+import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound } from "lucide-react";
 
 const emptyForm = { name: "", email: "", password: "", role: "staff" as "business_admin"|"staff", permissions: [] as string[], loginPin: "" };
 
@@ -43,7 +43,7 @@ export default function Users() {
   };
 
   const del = async (id: number) => {
-    if (!confirm("Delete user?")) return;
+    if (!confirm("Is user ko delete karna chahte hain?")) return;
     await api.delete(`/users/${id}`);
     load();
   };
@@ -63,53 +63,59 @@ export default function Users() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium">Name</th>
-                <th className="text-left px-4 py-3 font-medium">Email</th>
-                <th className="text-left px-4 py-3 font-medium">Role</th>
-                <th className="text-left px-4 py-3 font-medium">PIN</th>
-                <th className="text-left px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${u.role === "business_admin" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-                      {u.role?.replace("_", " ")}
+      {loading ? (
+        <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
+      ) : users.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center h-32 text-gray-400 text-sm">
+          Koi user nahi mila
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {users.map(u => (
+            <div key={u.id} className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+              {/* Avatar */}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm ${u.role === "business_admin" ? "bg-blue-500" : "bg-gray-400"}`}>
+                {u.name?.charAt(0)?.toUpperCase() || "?"}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-gray-900 text-sm truncate">{u.name}</span>
+                  {u.role === "business_admin" ? (
+                    <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                      <ShieldCheck className="w-3 h-3" /> Admin
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.hasPin ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-400"}`}>
-                      {u.hasPin ? "✓ Set" : "—"}
+                  ) : (
+                    <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 flex-shrink-0">
+                      <User className="w-3 h-3" /> Staff
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                      {u.isActive ? "Active" : "Inactive"}
+                  )}
+                  {u.hasPin && (
+                    <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
+                      <KeyRound className="w-3 h-3" /> PIN
                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEdit(u)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => del(u.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  )}
+                  {!u.isActive && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 flex-shrink-0">Inactive</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 truncate mt-0.5">{u.email}</p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => openEdit(u)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => del(u.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
@@ -121,10 +127,21 @@ export default function Users() {
             <div className="p-6 space-y-4">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (leave blank to keep)" : "Password *"}</label><input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (blank = change nahi)" : "Password *"}</label><input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Login PIN <span className="text-gray-400 font-normal">(same email+password pe distinguish karne ke liye)</span></label>
-                <input type="password" inputMode="numeric" maxLength={8} placeholder={editId ? "Naya PIN (blank = change nahi)" : "4–8 digit PIN"} className={inputCls} value={form.loginPin} onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Login PIN
+                  <span className="text-gray-400 font-normal text-xs ml-1">(same email+password wale users ke liye)</span>
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder={editId ? "Naya PIN daalo (blank = change nahi)" : "4–8 digit PIN"}
+                  className={inputCls}
+                  value={form.loginPin}
+                  onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))}
+                />
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select className={inputCls} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as any }))}>
