@@ -21,6 +21,29 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 
+// TEMP: one-time migration runner (remove after use)
+router.get("/run-db-fix-20260506", async (_req, res) => {
+  try {
+    const { db } = await import("@workspace/db");
+    const { sql } = await import("drizzle-orm");
+    const fixes = [
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT",
+    ];
+    const results: string[] = [];
+    for (const s of fixes) {
+      try { await db.execute(sql.raw(s)); results.push("OK: " + s); }
+      catch (e: any) { results.push("SKIP: " + e.message); }
+    }
+    const check = await db.execute(sql`SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name IN ('session_token','last_login_at','last_login_ip','last_seen_at','login_pin') ORDER BY column_name`);
+    const cols = ((check as any).rows ?? check).map((r: any) => r.column_name);
+    res.json({ done: true, results, columnsInDb: cols });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 // Public — available plans list (for subscription page)
 router.get("/public-plans", async (_req, res) => {
   try {
