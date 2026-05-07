@@ -4,8 +4,6 @@ import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties } from "@/lib/masterCache";
 import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
-import { useAuth } from "@/lib/auth";
-
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
   { name: "Goa", code: "30" }, { name: "Gujarat", code: "24" }, { name: "Haryana", code: "06" },
@@ -20,9 +18,6 @@ const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", 
 interface Props { defaultType?: "customer" | "supplier" | "both" }
 
 export default function Parties({ defaultType }: Props) {
-  const { user } = useAuth();
-  const canEdit = user?.canEdit !== false;
-  const canDelete = user?.canDelete !== false;
   const [parties, setParties] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -206,8 +201,8 @@ export default function Parties({ defaultType }: Props) {
                     <td className="px-4 py-3 text-right text-gray-500">{p.creditDays > 0 ? `${p.creditDays}d` : "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
-                        {canEdit && <button onClick={() => openEdit(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>}
-                        {canDelete && <button onClick={() => del(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => del(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
