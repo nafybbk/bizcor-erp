@@ -45,17 +45,18 @@ jobs:
           New-Item -ItemType Directory -Force -Path "artifacts/desktop/server-bundle"
           Copy-Item -Path "artifacts/api-server/dist/*" -Destination "artifacts/desktop/server-bundle/" -Recurse -Force
 
-      - name: Install @electric-sql/pglite in server-bundle node_modules
+      - name: Install offline deps in server-bundle node_modules
         shell: pwsh
         run: |
-          $dst = "artifacts/desktop/server-bundle/node_modules"
-          New-Item -ItemType Directory -Force -Path $dst
           Push-Location "artifacts/desktop/server-bundle"
           if (-not (Test-Path "package.json")) {
             '{"name":"server-bundle","private":true}' | Out-File -FilePath "package.json" -Encoding utf8
           }
-          npm install @electric-sql/pglite --save --legacy-peer-deps
-          Write-Host "PGlite installed in server-bundle"
+          # PGlite: offline PostgreSQL-in-WASM (needed at runtime for offline mode)
+          # drizzle-orm: needed because drizzle-orm/pglite is marked external in esbuild
+          npm install @electric-sql/pglite drizzle-orm --save --legacy-peer-deps
+          Write-Host "Offline deps installed:"
+          node -e "const p=require('./package.json');console.log(JSON.stringify(p.dependencies,null,2))"
           Pop-Location
 
       - name: Build ERP frontend
