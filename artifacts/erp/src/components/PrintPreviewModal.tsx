@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Printer, ZoomIn, ZoomOut, Share2 } from "lucide-react";
+import { X, Printer, ZoomIn, ZoomOut, Download, MessageCircle } from "lucide-react";
 
 interface Props {
   printableId?: string;
   onClose: () => void;
   title?: string;
   initialZoom?: number;
+  shareText?: string;
 }
 
 // A4 width in pixels at 96dpi ≈ 794px
@@ -33,8 +34,6 @@ function buildSrcdoc(printableId: string, zoom: number): string {
       } catch { /* cross-origin */ }
     }
   } catch {}
-  // The scaled width of the A4 page = 210mm * zoom. We set body min-width to this
-  // so the iframe's scrollable area matches the visual content width.
   const scaledWidthMm = Math.round(210 * zoom);
   return `<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
@@ -61,12 +60,22 @@ body{
 .no-print{display:none!important;}
 .print-only{display:block!important;}
 .screen-only{display:none!important;}
+@media print{
+  html,body{background:white!important;padding:0!important;margin:0!important;}
+  #preview-root{
+    transform:none!important;
+    width:100%!important;
+    box-shadow:none!important;
+    border-radius:0!important;
+    margin:0!important;
+  }
+}
 ${css}
 </style>
 </head><body>${html}</body></html>`;
 }
 
-export default function PrintPreviewModal({ printableId = "printable", onClose, title = "Print Preview", initialZoom }: Props) {
+export default function PrintPreviewModal({ printableId = "printable", onClose, title = "Print Preview", initialZoom, shareText }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [zoom, setZoom] = useState(() => initialZoom ?? calcDefaultZoom());
   const [srcdoc, setSrcdoc] = useState("");
@@ -75,7 +84,6 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
     setSrcdoc(buildSrcdoc(printableId, zoom));
   }, [printableId, zoom]);
 
-  // Iframe needs dynamic width to allow horizontal scroll when zoomed
   const iframeWidth = `max(100%, calc(${Math.round(210 * zoom)}mm + 24px))`;
 
   // Ctrl+Scroll to zoom
@@ -96,29 +104,27 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
     return () => window.removeEventListener("keydown", fn);
   }, [onClose]);
 
+  // Print directly from the iframe (modal stays open, no new tab)
   const handlePrint = useCallback(() => {
-    onClose();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => window.print());
-    });
-  }, [onClose]);
-
-  const handleSharePdf = useCallback(() => {
-    const html = buildSrcdoc(printableId, 1.0);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (win) {
-      win.addEventListener("load", () => {
-        setTimeout(() => {
-          win.print();
-          URL.revokeObjectURL(url);
-        }, 600);
-      });
-    } else {
-      URL.revokeObjectURL(url);
+    const iframe = iframeRef.current;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.print();
     }
-  }, [printableId]);
+  }, []);
+
+  // Save as PDF = same as print (browser shows "Save as PDF" option in print dialog)
+  const handleSavePdf = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.print();
+    }
+  }, []);
+
+  // WhatsApp share (text summary of invoice)
+  const handleWhatsApp = useCallback(() => {
+    if (!shareText) return;
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank");
+  }, [shareText]);
 
   const zoomIn  = () => setZoom(z => parseFloat(Math.min(3, z + 0.1).toFixed(1)));
   const zoomOut = () => setZoom(z => parseFloat(Math.max(0.2, z - 0.1).toFixed(1)));
@@ -151,15 +157,25 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
           </button>
         </div>
 
-        {/* Right: share + print + close */}
+        {/* Right: whatsapp + save pdf + print + close */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {shareText && (
+            <button
+              onClick={handleWhatsApp}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors"
+              title="Share on WhatsApp"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
+          )}
           <button
-            onClick={handleSharePdf}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors"
-            title="Share / Save as PDF"
+            onClick={handleSavePdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            title="Save as PDF — Print dialog mein 'Save as PDF' select karein"
           >
-            <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Share PDF</span>
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Save PDF</span>
           </button>
           <button
             onClick={handlePrint}
@@ -182,7 +198,7 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
             srcDoc={srcdoc}
             title="Invoice Preview"
             style={{ width: iframeWidth, height: "100%", border: "none", minHeight: "100%", display: "block" }}
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts allow-modals"
           />
         ) : (
           <div className="flex items-center justify-center h-full">

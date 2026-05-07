@@ -123,6 +123,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
           onClose={() => setShowPrintPreview(false)}
           initialZoom={autoPrint ? 0.6 : undefined}
+          shareText={voucher ? [
+            `*${voucher.voucherNumber}*`,
+            `Party: ${voucher.partyName}`,
+            `Date: ${fmt.date(voucher.date)}`,
+            `Amount: ${fmt.currency(voucher.grandTotal)}`,
+            voucher.balanceDue > 0 ? `Balance Due: ${fmt.currency(voucher.balanceDue)}` : `Status: Paid`,
+            ``, `_Sent via BizCor ERP_`,
+          ].join("\n") : undefined}
         />
       )}
       <style>{`
