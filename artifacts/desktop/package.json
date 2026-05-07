@@ -5,13 +5,11 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "build:server": "node scripts/prepare.mjs",
-    "build:win": "npm run build:server && electron-builder --win --publish never",
-    "build:win:publish": "npm run build:server && electron-builder --win --publish always",
+    "build:win": "electron-builder --win --publish never",
+    "build:win:publish": "electron-builder --win --publish always",
     "dist": "electron-builder"
   },
   "dependencies": {
-    "embedded-postgres": "^16.4.2",
     "electron-updater": "^6.3.9",
     "qrcode": "^1.5.4"
   },
@@ -29,8 +27,7 @@
       "buildResources": "assets"
     },
     "files": [
-      "electron/**/*",
-      "!electron/node_modules"
+      "electron/**/*"
     ],
     "extraResources": [
       {
@@ -43,12 +40,7 @@
       }
     ],
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ],
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
       "icon": "assets/icon.ico",
       "requestedExecutionLevel": "requireAdministrator"
     },
@@ -59,9 +51,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "BizCor ERP",
-      "installerIcon": "assets/icon.ico",
-      "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico",
       "deleteAppDataOnUninstall": false
     },
     "publish": {
