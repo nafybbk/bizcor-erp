@@ -145,7 +145,12 @@ router.post("/login", async (req, res) => {
       });
       return {
         token,
-        user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, permissions: fullUser.permissions || [] },
+        user: {
+          id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role,
+          businessId: fullUser.businessId, permissions: fullUser.permissions || [],
+          canEdit: fullUser.canEdit !== false,
+          canDelete: fullUser.canDelete !== false,
+        },
         business: {
           id: business.id, name: business.name, businessCode: business.businessCode,
           planExpiresAt: business.planExpiresAt?.toISOString() || null,

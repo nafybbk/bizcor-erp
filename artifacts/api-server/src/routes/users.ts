@@ -8,28 +8,35 @@ import { requireBusiness } from "../middlewares/auth";
 const router = Router();
 router.use(requireBusiness);
 
+// Lazy migration: ensure can_edit and can_delete columns exist
+async function ensureRightsCols() {
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete BOOLEAN NOT NULL DEFAULT TRUE`);
+  } catch { /* already exists or non-fatal */ }
+}
+
 router.get("/", async (req, res) => {
   try {
     const biz = req.user!.businessId!;
-    // Use Drizzle ORM for safety — won't break if login_pin column missing yet
-    const users = await db.select({
-      id: usersTable.id, name: usersTable.name, email: usersTable.email,
-      role: usersTable.role, permissions: usersTable.permissions,
-      isActive: usersTable.isActive, createdAt: usersTable.createdAt,
-    }).from(usersTable).where(eq(usersTable.businessId, biz));
+    await ensureRightsCols();
+    const rows: any[] = await db.execute(sql`
+      SELECT id, name, email, role, permissions, is_active AS "isActive", created_at AS "createdAt",
+             COALESCE(can_edit, TRUE) AS "canEdit",
+             COALESCE(can_delete, TRUE) AS "canDelete",
+             CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN TRUE ELSE FALSE END AS "hasPin"
+      FROM users WHERE business_id = ${biz}
+      ORDER BY created_at ASC
+    `).then((r: any) => r.rows ?? r);
 
-    // Separately fetch PIN status — silently ignore if column not yet migrated
-    let pinMap: Record<number, boolean> = {};
-    try {
-      const pinRes = await db.execute(sql`
-        SELECT id, CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS has_pin
-        FROM users WHERE business_id = ${biz}
-      `);
-      const pinRows: any[] = (pinRes as any).rows ?? pinRes;
-      for (const r of pinRows) pinMap[Number(r.id)] = Boolean(r.has_pin);
-    } catch { /* login_pin column not yet migrated — hasPin will be false for all */ }
+    const users = rows.map(u => ({
+      ...u,
+      permissions: Array.isArray(u.permissions) ? u.permissions : (u.permissions ? JSON.parse(u.permissions) : []),
+      canEdit: u.canEdit !== false,
+      canDelete: u.canDelete !== false,
+    }));
 
-    res.json({ data: users.map(u => ({ ...u, hasPin: pinMap[u.id] || false })) });
+    res.json({ data: users });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -38,17 +45,19 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { name, email, password, role, permissions, loginPin } = req.body;
+    await ensureRightsCols();
+    const { name, email, password, role, permissions, loginPin, canEdit, canDelete } = req.body;
     if (!name || !email || !password) {
       res.status(400).json({ error: "Bad Request", message: "Name, email and password required" });
       return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
     await db.execute(sql`
-      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password)
+      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password, can_edit, can_delete)
       VALUES (${req.user!.businessId!}, ${name}, ${email}, ${passwordHash},
               ${role || "staff"}, ${JSON.stringify(permissions || [])},
-              ${loginPin || null}, ${password})
+              ${loginPin || null}, ${password},
+              ${canEdit !== false}, ${canDelete !== false})
     `);
     res.status(201).json({ success: true });
   } catch (err) {
@@ -73,25 +82,28 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const { name, role, permissions, isActive, password, loginPin } = req.body;
+    await ensureRightsCols();
+    const { name, role, permissions, isActive, password, loginPin, canEdit, canDelete } = req.body;
     const id = Number(req.params.id);
     const biz = req.user!.businessId!;
-    // Build update with Drizzle ORM for standard fields
+
     const updateData: Record<string, unknown> = {};
     if (name !== undefined)        updateData.name = name;
     if (role !== undefined)        updateData.role = role;
     if (permissions !== undefined) updateData.permissions = permissions;
     if (isActive !== undefined)    updateData.isActive = isActive;
+    if (canEdit !== undefined)     updateData.canEdit = canEdit !== false;
+    if (canDelete !== undefined)   updateData.canDelete = canDelete !== false;
+
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 10);
-      // also store plain (non-critical, for admin panel)
       await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE id = ${id} AND business_id = ${biz}`);
     }
     if (Object.keys(updateData).length > 0) {
       await db.update(usersTable).set(updateData)
         .where(and(eq(usersTable.id, id), eq(usersTable.businessId, biz)));
     }
-    // Handle loginPin — ensure column exists first (lazy migration), then update
+    // Handle loginPin separately (lazy column)
     if (loginPin !== undefined) {
       await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT`).catch(() => {});
       await db.execute(sql`UPDATE users SET login_pin = ${loginPin || null} WHERE id = ${id} AND business_id = ${biz}`);

@@ -8,6 +8,8 @@ export interface AuthUser {
   role: "super_admin" | "business_admin" | "staff";
   businessId?: number;
   permissions?: string[];
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface AuthBusiness {
