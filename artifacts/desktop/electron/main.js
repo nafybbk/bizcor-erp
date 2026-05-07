@@ -140,14 +140,50 @@ async function showQRWindow() {
   .hint{margin-top:8px;font-size:11px;color:#94a3b8}
 </style></head><body>
 <h2>BizCor ERP — LAN</h2>
-<p>Same WiFi pe kisi bhi device se kholen</p>
+<p>Open on any device on the same WiFi</p>
 ${qrDataURL ? `<img src="${qrDataURL}" />` : `<div style="height:200px;line-height:200px;color:#94a3b8">QR unavailable</div>`}
 <div class="url">${serverURL}</div>
-<div class="hint">Browser mein ye URL type karein</div>
+<div class="hint">Type this URL in any browser on your network</div>
 </body></html>`;
 
   qrWindow.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
   qrWindow.on("closed", () => { qrWindow = null; });
+}
+
+// ─── Error Dialog ─────────────────────────────────────────────────────────────
+
+function showServerError() {
+  const errDetail = server.getLastError() || "(no error details captured)";
+  const logPath = server.getLogPath();
+
+  dialog.showMessageBox({
+    type: "error",
+    title: "Server Error — BizCor ERP",
+    message: "The server could not start.",
+    detail:
+      "Error details:\n" +
+      "─────────────────────────────\n" +
+      errDetail +
+      "\n─────────────────────────────\n\n" +
+      "Full log saved at:\n" + logPath + "\n\n" +
+      "What to do:\n" +
+      "1. Click 'Try Again' — may work on second attempt\n" +
+      "2. Allow BizCor ERP in Windows Defender / Antivirus\n" +
+      "3. Send the log file above to support",
+    buttons: ["Try Again", "Open Log Folder", "Close"],
+    defaultId: 0,
+  }).then(result => {
+    if (result.response === 0) {
+      showSplash();
+      server.start(resourcesPath);
+    } else if (result.response === 1) {
+      const { shell } = require("electron");
+      shell.showItemInFolder(logPath);
+    } else {
+      isQuitting = true;
+      app.quit();
+    }
+  });
 }
 
 // ─── Tray ─────────────────────────────────────────────────────────────────────
@@ -185,6 +221,7 @@ function refreshTray() {
     { label: "Open in Browser", enabled: st === "running", click: () => shell.openExternal(url) },
     { label: "Show QR Code (LAN)", enabled: st === "running", click: () => showQRWindow() },
     { label: "Cloud Sync Setup", click: () => showSetupWindow() },
+    { label: "Open Log File", click: () => shell.showItemInFolder(server.getLogPath()) },
     { type: "separator" },
     { label: "Quit", click: () => { isQuitting = true; app.quit(); } },
   ]));
@@ -214,7 +251,6 @@ ipcMain.handle("save-db-url", async (_, dbUrl) => {
       "Could not connect to the cloud database:\n\n" + err.message +
       "\n\nPlease check your connection URL. The app is running in offline mode."
     );
-    // Restart in offline mode
     await server.start(resourcesPath);
     openMainWindow();
     refreshTray();
@@ -227,13 +263,10 @@ ipcMain.handle("skip-cloud-setup", async () => {
 });
 
 // ─── Single Instance Lock ─────────────────────────────────────────────────────
-// Ek se zyada instances nahi honge — duplicate click pe existing window focus hoga
 
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Doosra instance already chal raha hai — user ko batao aur quit karo
-  const { dialog } = require("electron");
   dialog.showErrorBox(
     "BizCor ERP — Already Running",
     "BizCor ERP is already running.\n\n" +
@@ -244,7 +277,6 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    // Koi doosra instance kholne ki koshish kare → existing window focus karo
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -259,7 +291,6 @@ if (!gotTheLock) {
   app.whenReady().then(async () => {
     buildTray();
 
-    // Forward progress updates from server-manager to splash screen
     server.onProgress((pct, step, sub) => {
       updateSplashProgress(pct, step, sub);
     });
@@ -271,31 +302,8 @@ if (!gotTheLock) {
         openMainWindow();
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
       } else if (status === "error") {
-        // Close splash FIRST — then show error (splash was alwaysOnTop before, fixed now)
         closeSplash();
-        dialog.showMessageBox({
-          type: "error",
-          title: "Server Error — BizCor ERP",
-          message: "The server could not start.",
-          detail:
-            "Possible reasons:\n" +
-            "• First launch: local database is still initializing\n" +
-            "• Antivirus may have blocked the app\n\n" +
-            "What to do:\n" +
-            "1. Click 'Try Again' — second launch is much faster\n" +
-            "2. Allow BizCor ERP in your antivirus / Windows Defender\n" +
-            "3. If it keeps failing: right-click the tray icon → Quit, then reopen",
-          buttons: ["Try Again", "Close"],
-          defaultId: 0,
-        }).then(result => {
-          if (result.response === 0) {
-            showSplash();
-            server.start(resourcesPath);
-          } else {
-            isQuitting = true;
-            app.quit();
-          }
-        });
+        showServerError();
       }
     });
 
@@ -313,8 +321,8 @@ autoUpdater.on("update-downloaded", () => {
   dialog.showMessageBox({
     type: "info",
     title: "Update Ready — BizCor ERP",
-    message: "Naya version download ho gaya hai.",
-    detail: "App restart karo to update lag jaayega.",
-    buttons: ["Abhi Restart", "Baad Mein"],
+    message: "A new version has been downloaded.",
+    detail: "Restart the app to apply the update.",
+    buttons: ["Restart Now", "Later"],
   }).then(r => { if (r.response === 0) autoUpdater.quitAndInstall(); });
 });
