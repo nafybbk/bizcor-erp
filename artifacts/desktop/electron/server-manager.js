@@ -12,6 +12,7 @@ const CONFIG_FILE = () => path.join(app.getPath("userData"), "db-config.dat");
 
 let serverProcess = null;
 let _status = "stopped";
+let _lastError = null;
 let _onStatusChange = null;
 let _onProgress = null;
 
@@ -27,7 +28,41 @@ function setProgress(pct, step, sub) {
 function onStatusChange(fn) { _onStatusChange = fn; }
 function onProgress(fn) { _onProgress = fn; }
 function getStatus() { return _status; }
+function getLastError() { return _lastError; }
 function getServerPort() { return SERVER_PORT; }
+
+// ─── Log File ────────────────────────────────────────────────────────────────
+
+function getLogPath() {
+  return path.join(app.getPath("userData"), "bizcor-server.log");
+}
+
+let _logStream = null;
+
+function openLog() {
+  try {
+    const logPath = getLogPath();
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    _logStream = fs.createWriteStream(logPath, { flags: "a" });
+    _logStream.write(`\n\n========== BizCor ERP started at ${new Date().toISOString()} ==========\n`);
+  } catch (_) {}
+}
+
+function writeLog(line) {
+  if (_logStream) {
+    try { _logStream.write(line + "\n"); } catch (_) {}
+  }
+  console.log(line);
+}
+
+function closeLog() {
+  if (_logStream) {
+    try { _logStream.end(); } catch (_) {}
+    _logStream = null;
+  }
+}
+
+// ─── Crypto ──────────────────────────────────────────────────────────────────
 
 function encrypt(text) {
   const iv = crypto.randomBytes(16);
@@ -70,35 +105,44 @@ function clearCloudUrl() {
 }
 
 function isCloudConfigured() { return !!loadCloudUrl(); }
-
-// Keep backward compat
 const saveDbUrl = saveCloudUrl;
 const loadDbUrl = loadCloudUrl;
 const isConfigured = () => true;
 
-// Use bundled node.exe (real Node.js runtime) so PGlite WASM works correctly.
-// Fallback to process.execPath (Electron runtime) if bundled node not found.
+// ─── Node Binary ─────────────────────────────────────────────────────────────
+
 function getNodeBin(resourcesPath) {
   if (process.platform === "win32") {
     const bundled = path.join(resourcesPath, "server-bundle", "node.exe");
     if (fs.existsSync(bundled)) {
-      console.log("[server-manager] Using bundled node.exe:", bundled);
+      writeLog("[node] Using bundled node.exe: " + bundled);
       return bundled;
     }
-    console.warn("[server-manager] Bundled node.exe not found, falling back to Electron runtime");
+    writeLog("[node] WARNING: bundled node.exe not found at " + bundled);
   }
+  writeLog("[node] Falling back to Electron runtime: " + process.execPath);
   return process.execPath;
 }
 
+// ─── Server Start ─────────────────────────────────────────────────────────────
+
 async function startServer(options, resourcesPath) {
   const { cloudUrl, pglitePath } = options;
+
+  openLog();
+  writeLog("[start] resourcesPath: " + resourcesPath);
+  writeLog("[start] cloudUrl: " + (cloudUrl ? "set" : "none"));
+  writeLog("[start] pglitePath: " + (pglitePath || "none"));
 
   let serverBundle = path.join(resourcesPath, "server-bundle", "index.mjs");
   if (!fs.existsSync(serverBundle)) {
     serverBundle = path.join(resourcesPath, "server-bundle", "index.js");
   }
+
+  writeLog("[start] serverBundle: " + serverBundle + " exists=" + fs.existsSync(serverBundle));
+
   if (!fs.existsSync(serverBundle)) {
-    throw new Error("Server bundle not found at: " + serverBundle);
+    throw new Error("Server bundle not found.\nLooked at: " + serverBundle);
   }
 
   setStatus("starting");
@@ -106,6 +150,12 @@ async function startServer(options, resourcesPath) {
 
   const nodeBin = getNodeBin(resourcesPath);
   const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
+
+  writeLog("[start] nodeModulesInBundle exists: " + fs.existsSync(nodeModulesInBundle));
+
+  // Check pglite exists
+  const pgliteDir = path.join(nodeModulesInBundle, "@electric-sql", "pglite");
+  writeLog("[start] pglite package exists: " + fs.existsSync(pgliteDir));
 
   const env = {
     ...process.env,
@@ -115,7 +165,6 @@ async function startServer(options, resourcesPath) {
     FRONTEND_PATH: path.join(resourcesPath, "frontend-dist"),
     SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
     CORS_ORIGIN: "",
-    // NODE_PATH helps CJS resolution; ESM uses directory-based lookup
     NODE_PATH: nodeModulesInBundle,
   };
 
@@ -128,13 +177,16 @@ async function startServer(options, resourcesPath) {
     delete env.SUPABASE_DATABASE_URL;
   }
 
+  writeLog("[start] Spawning: " + nodeBin + " " + serverBundle);
+  writeLog("[start] env.PGLITE_PATH: " + (env.PGLITE_PATH || ""));
+
   // Collect output for error reporting
   const outputLines = [];
   const pushLine = (prefix, line) => {
     const entry = `[${prefix}] ${line}`;
-    console.log(entry);
+    writeLog(entry);
     outputLines.push(entry);
-    if (outputLines.length > 80) outputLines.shift();
+    if (outputLines.length > 100) outputLines.shift();
   };
 
   serverProcess = spawn(nodeBin, [serverBundle], {
@@ -142,9 +194,11 @@ async function startServer(options, resourcesPath) {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
+  writeLog("[start] PID: " + (serverProcess.pid || "failed to get"));
+
   serverProcess.stdout.on("data", d => {
     d.toString().split("\n").filter(Boolean).forEach(line => {
-      pushLine("server", line);
+      pushLine("stdout", line);
       if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
         setProgress(40, "Initializing local database...", line.substring(0, 80));
       } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
@@ -156,22 +210,21 @@ async function startServer(options, resourcesPath) {
   });
 
   serverProcess.stderr.on("data", d => {
-    d.toString().split("\n").filter(Boolean).forEach(line => pushLine("err", line));
+    d.toString().split("\n").filter(Boolean).forEach(line => pushLine("stderr", line));
   });
 
-  serverProcess.on("exit", code => {
-    pushLine("server", `process exited with code ${code}`);
+  serverProcess.on("exit", (code, signal) => {
+    pushLine("process", `exited — code=${code} signal=${signal}`);
     if (_status !== "stopped") setStatus("stopped");
   });
 
   serverProcess.on("error", err => {
-    pushLine("server", `spawn error: ${err.message}`);
+    pushLine("process", "spawn error: " + err.message);
     setStatus("error");
   });
 
   setProgress(30, "Initializing database...", "First launch may take 30–60 seconds");
 
-  // Wait up to 90s for server health check
   const TIMEOUT_MS = 90000;
   await new Promise((resolve, reject) => {
     const http = require("http");
@@ -186,12 +239,13 @@ async function startServer(options, resourcesPath) {
         setProgress(
           Math.min(30 + attempt * 2, 80),
           "Waiting for server to be ready...",
-          `${elapsed} seconds elapsed — please wait`
+          `${elapsed}s elapsed — please wait`
         );
       }
 
       http.get(`http://localhost:${SERVER_PORT}/api/health`, res => {
         if (res.statusCode < 500) {
+          writeLog("[health] OK at attempt " + attempt);
           setProgress(95, "Almost done...", "");
           resolve();
         } else {
@@ -199,12 +253,16 @@ async function startServer(options, resourcesPath) {
         }
       }).on("error", () => {
         if (Date.now() - start > TIMEOUT_MS) {
-          const lastOutput = outputLines.slice(-10).join("\n") || "(no output)";
-          reject(new Error(
-            `Server did not respond within ${TIMEOUT_MS / 1000} seconds.\n\n` +
-            `Runtime: ${path.basename(nodeBin)}\n\n` +
-            `Last output:\n${lastOutput}`
-          ));
+          const lastOutput = outputLines.slice(-15).join("\n") || "(no output captured)";
+          const logPath = getLogPath();
+          const msg =
+            `Server did not respond after ${TIMEOUT_MS / 1000}s.\n\n` +
+            `Runtime: ${path.basename(nodeBin)}\n` +
+            `Bundle: ${path.basename(serverBundle)}\n` +
+            `PGlite: ${fs.existsSync(pgliteDir) ? "found" : "MISSING"}\n\n` +
+            `Last output:\n${lastOutput}\n\n` +
+            `Full log: ${logPath}`;
+          reject(new Error(msg));
         } else {
           setTimeout(check, 1000);
         }
@@ -215,9 +273,11 @@ async function startServer(options, resourcesPath) {
 
   setProgress(100, "Ready!", "");
   setStatus("running");
+  closeLog();
 }
 
-// Start offline (PGlite local DB — no internet needed)
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 async function start(resourcesPath) {
   const pglitePath = path.join(app.getPath("userData"), "bizcor-db");
   fs.mkdirSync(pglitePath, { recursive: true });
@@ -225,18 +285,17 @@ async function start(resourcesPath) {
   try {
     await startServer({ pglitePath }, resourcesPath);
   } catch (err) {
-    console.error("Offline server start failed:", err.message);
+    _lastError = err.message;
+    writeLog("[ERROR] " + err.message);
     setStatus("error");
   }
 }
 
-// Start with cloud URL (Supabase / Neon)
 async function startWithCloudUrl(cloudUrl, resourcesPath) {
   saveCloudUrl(cloudUrl);
   await startServer({ cloudUrl }, resourcesPath);
 }
 
-// Legacy: called from setup screen save-db-url IPC
 async function startWithUrl(dbUrl, resourcesPath) {
   return startWithCloudUrl(dbUrl, resourcesPath);
 }
@@ -246,12 +305,13 @@ async function stop() {
     serverProcess.kill("SIGTERM");
     serverProcess = null;
   }
+  closeLog();
   setStatus("stopped");
 }
 
 module.exports = {
   start, startWithUrl, startWithCloudUrl, stop,
-  getStatus, onStatusChange, onProgress, getServerPort,
-  isConfigured, isCloudConfigured,
+  getStatus, getLastError, onStatusChange, onProgress, getServerPort,
+  isConfigured, isCloudConfigured, getLogPath,
   loadDbUrl, loadCloudUrl, saveCloudUrl, clearCloudUrl,
 };
