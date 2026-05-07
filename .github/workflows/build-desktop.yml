@@ -33,7 +33,7 @@ jobs:
         with:
           version: 9
 
-      - name: Install workspace dependencies
+      - name: Install workspace dependencies (excluding desktop)
         run: pnpm install --frozen-lockfile
 
       - name: Build API server bundle
@@ -58,17 +58,23 @@ jobs:
         working-directory: artifacts/desktop
         run: npm install
 
-      - name: Create placeholder icon if missing
+      - name: Create assets directory and placeholder icon
         working-directory: artifacts/desktop
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "assets"
           if (-not (Test-Path "assets/icon.ico")) {
-            # Download a simple placeholder icon
             try {
-              Invoke-WebRequest -Uri "https://raw.githubusercontent.com/electron/electron/main/default_app/icon.ico" -OutFile "assets/icon.ico" -ErrorAction SilentlyContinue
+              Invoke-WebRequest -Uri "https://raw.githubusercontent.com/electron/electron/main/default_app/icon.ico" -OutFile "assets/icon.ico" -TimeoutSec 10 -ErrorAction SilentlyContinue
             } catch {
-              Write-Host "Could not download icon, building without icon"
+              Write-Host "Could not download icon, using no icon"
+            }
+          }
+          if (-not (Test-Path "assets/tray.png")) {
+            try {
+              Invoke-WebRequest -Uri "https://raw.githubusercontent.com/electron/electron/main/default_app/icon.png" -OutFile "assets/tray.png" -TimeoutSec 10 -ErrorAction SilentlyContinue
+            } catch {
+              Write-Host "Could not download tray icon"
             }
           }
 
