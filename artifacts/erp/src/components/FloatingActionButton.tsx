@@ -40,6 +40,7 @@ export default function FloatingActionButton() {
           </div>
         ))}
         <button
+          tabIndex={-1}
           onClick={() => setOpen(o => !o)}
           className={`w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white transition-all duration-200 ${
             open ? "bg-slate-700 rotate-45" : "bg-blue-600 hover:bg-blue-700 hover:scale-105"
