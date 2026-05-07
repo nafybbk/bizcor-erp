@@ -18,6 +18,7 @@ import LocationModal from "@/components/LocationModal";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import { WindowManagerProvider } from "@/components/WindowManager";
 import ReferralBanner from "@/components/ReferralBanner";
+import TrialBanner from "@/components/TrialBanner";
 
 interface NavItem {
   label: string;
@@ -556,6 +557,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
         </header>
 
+
+        {/* Trial banner */}
+        {!isSuperAdmin() && <TrialBanner />}
 
         {/* Auto-sync banner */}
         {autoSyncing && (

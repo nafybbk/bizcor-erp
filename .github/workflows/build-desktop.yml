@@ -1,0 +1,79 @@
+name: Build Desktop EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to GitHub Releases?'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API server bundle
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Copy server bundle to desktop
+        run: |
+          New-Item -ItemType Directory -Force -Path "artifacts/desktop/server-bundle"
+          Copy-Item -Path "artifacts/api-server/dist/*" -Destination "artifacts/desktop/server-bundle/" -Recurse -Force
+        shell: pwsh
+
+      - name: Build ERP frontend
+        run: pnpm --filter @workspace/erp run build
+
+      - name: Copy frontend dist to desktop
+        run: |
+          New-Item -ItemType Directory -Force -Path "artifacts/desktop/frontend-dist"
+          Copy-Item -Path "artifacts/erp/dist/*" -Destination "artifacts/desktop/frontend-dist/" -Recurse -Force
+        shell: pwsh
+
+      - name: Install desktop npm dependencies
+        working-directory: artifacts/desktop
+        run: npm install
+
+      - name: Build Windows EXE (publish on tag)
+        working-directory: artifacts/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          if ("${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -like "refs/tags/*") {
+            npx electron-builder --win --publish always
+          } else {
+            npx electron-builder --win --publish never
+          }
+        shell: pwsh
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BizCor-ERP-Windows
+          path: artifacts/desktop/release/*.exe
+          if-no-files-found: warn
+          retention-days: 30
