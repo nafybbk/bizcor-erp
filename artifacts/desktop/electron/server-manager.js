@@ -42,13 +42,13 @@ function decrypt(text) {
   return dec;
 }
 
-function saveDbUrl(dbUrl) {
+function saveCloudUrl(dbUrl) {
   const file = CONFIG_FILE();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, encrypt(JSON.stringify({ dbUrl })), "utf8");
 }
 
-function loadDbUrl() {
+function loadCloudUrl() {
   const file = CONFIG_FILE();
   try {
     if (!fs.existsSync(file)) return null;
@@ -58,37 +58,58 @@ function loadDbUrl() {
   } catch (_) { return null; }
 }
 
-function isConfigured() {
-  return !!loadDbUrl();
+function clearCloudUrl() {
+  const file = CONFIG_FILE();
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch (_) {}
 }
 
-async function startServer(databaseUrl, resourcesPath) {
-  // API server builds as index.mjs (ESM), fallback to index.js for older builds
+function isCloudConfigured() {
+  return !!loadCloudUrl();
+}
+
+// Keep backward compat
+const saveDbUrl = saveCloudUrl;
+const loadDbUrl = loadCloudUrl;
+const isConfigured = () => true; // Always starts (offline mode always works)
+
+async function startServer(options, resourcesPath) {
+  const { cloudUrl, pglitePath } = options;
+
   let serverBundle = path.join(resourcesPath, "server-bundle", "index.mjs");
   if (!fs.existsSync(serverBundle)) {
     serverBundle = path.join(resourcesPath, "server-bundle", "index.js");
   }
-
   if (!fs.existsSync(serverBundle)) {
     throw new Error("Server bundle not found at: " + serverBundle);
   }
 
   setStatus("starting");
 
-  // Use node path from process (works in Electron's bundled Node)
   const nodeBin = process.execPath;
+  const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
+
+  const env = {
+    ...process.env,
+    PORT: String(SERVER_PORT),
+    NODE_ENV: "production",
+    DESKTOP_MODE: "true",
+    FRONTEND_PATH: path.join(resourcesPath, "frontend-dist"),
+    SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
+    CORS_ORIGIN: "",
+    NODE_PATH: nodeModulesInBundle,
+  };
+
+  if (cloudUrl) {
+    env.DATABASE_URL = cloudUrl;
+    delete env.PGLITE_PATH;
+  } else {
+    env.PGLITE_PATH = pglitePath;
+    delete env.DATABASE_URL;
+    delete env.SUPABASE_DATABASE_URL;
+  }
 
   serverProcess = spawn(nodeBin, [serverBundle], {
-    env: {
-      ...process.env,
-      PORT: String(SERVER_PORT),
-      DATABASE_URL: databaseUrl,
-      NODE_ENV: "production",
-      DESKTOP_MODE: "true",
-      FRONTEND_PATH: path.join(resourcesPath, "frontend-dist"),
-      SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
-      CORS_ORIGIN: "",
-    },
+    env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -103,17 +124,16 @@ async function startServer(databaseUrl, resourcesPath) {
     setStatus("error");
   });
 
-  // Wait up to 8 seconds for server to be ready
+  // Wait up to 15s for server to be ready
   await new Promise((resolve, reject) => {
-    let ready = false;
     const http = require("http");
     const start = Date.now();
     const check = () => {
       http.get(`http://localhost:${SERVER_PORT}/api/health`, res => {
-        if (res.statusCode < 500) { ready = true; resolve(); }
+        if (res.statusCode < 500) resolve();
         else setTimeout(check, 800);
       }).on("error", () => {
-        if (Date.now() - start > 12000) reject(new Error("Server timeout — 12s ke andar ready nahi hua"));
+        if (Date.now() - start > 15000) reject(new Error("Server 15s ke andar ready nahi hua"));
         else setTimeout(check, 800);
       });
     };
@@ -123,23 +143,30 @@ async function startServer(databaseUrl, resourcesPath) {
   setStatus("running");
 }
 
+// Start offline (PGlite local DB — no internet needed)
 async function start(resourcesPath) {
-  const dbUrl = loadDbUrl();
-  if (!dbUrl) {
-    setStatus("needs-setup");
-    return;
-  }
+  const pglitePath = path.join(app.getPath("userData"), "bizcor-db");
+  fs.mkdirSync(pglitePath, { recursive: true });
+
   try {
-    await startServer(dbUrl, resourcesPath);
+    await startServer({ pglitePath }, resourcesPath);
   } catch (err) {
-    console.error("Server start failed:", err);
+    console.error("Offline server start failed:", err);
     setStatus("error");
   }
 }
 
+// Start with cloud URL (Supabase / Neon)
+async function startWithCloudUrl(cloudUrl, resourcesPath) {
+  saveCloudUrl(cloudUrl);
+  const pglitePath = path.join(app.getPath("userData"), "bizcor-db");
+  fs.mkdirSync(pglitePath, { recursive: true });
+  await startServer({ cloudUrl }, resourcesPath);
+}
+
+// Legacy: called from setup screen save-db-url IPC
 async function startWithUrl(dbUrl, resourcesPath) {
-  saveDbUrl(dbUrl);
-  await startServer(dbUrl, resourcesPath);
+  return startWithCloudUrl(dbUrl, resourcesPath);
 }
 
 async function stop() {
@@ -150,4 +177,9 @@ async function stop() {
   setStatus("stopped");
 }
 
-module.exports = { start, startWithUrl, stop, getStatus, onStatusChange, getServerPort, isConfigured, loadDbUrl };
+module.exports = {
+  start, startWithUrl, startWithCloudUrl, stop,
+  getStatus, onStatusChange, getServerPort,
+  isConfigured, isCloudConfigured,
+  loadDbUrl, loadCloudUrl, saveCloudUrl, clearCloudUrl,
+};
