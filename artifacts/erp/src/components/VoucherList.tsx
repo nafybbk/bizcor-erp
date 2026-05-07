@@ -5,6 +5,7 @@ import { downloadCSV } from "@/lib/export";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
 import { Plus, Search, Eye, Trash2, Loader2, Download, Printer, Pencil } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 interface VoucherListProps {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -36,6 +37,9 @@ const ALL_COLS: ColDef[] = [
 const REPORT_KEY = "voucher_list";
 
 export default function VoucherList({ voucherType, title, createHref, viewHref, isIncome = true }: VoucherListProps) {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
@@ -186,9 +190,11 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
                           <Link href={viewHref(v.id)}>
                             <button title="View" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Eye className="w-4 h-4" /></button>
                           </Link>
-                          <Link href={`${viewHref(v.id)}/edit`}>
-                            <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
-                          </Link>
+                          {canEdit && (
+                            <Link href={`${viewHref(v.id)}/edit`}>
+                              <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
+                            </Link>
+                          )}
                           <button
                             title="Print"
                             onClick={() => window.open(`${viewHref(v.id)}?print=1`, "_blank")}
@@ -196,7 +202,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
                           >
                             <Printer className="w-4 h-4" />
                           </button>
-                          <button onClick={() => del(v.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                          {canDelete && <button onClick={() => del(v.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
                         </div>
                       </td>
                     )}

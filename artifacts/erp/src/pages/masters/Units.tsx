@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Trash2, Loader2, Edit2, X, Check, GripVertical } from "lucide-react";
-import { useAuth } from "@/lib/auth";
-
 export default function Units() {
-  const { user } = useAuth();
-  const canEdit = user?.canEdit !== false;
-  const canDelete = user?.canDelete !== false;
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -167,8 +162,8 @@ export default function Units() {
                         <td className="px-4 py-3 font-mono font-bold text-blue-600">{u.symbol}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {canEdit && <button onClick={() => startEdit(u)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>}
-                            {canDelete && <button onClick={() => del(u.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
+                            <button onClick={() => startEdit(u)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => del(u.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </td>
                       </>
