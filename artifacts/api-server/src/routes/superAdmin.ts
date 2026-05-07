@@ -15,14 +15,14 @@ router.get("/settings", async (req, res) => {
     const rows = await db.select().from(appSettingsTable);
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value || "";
-    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP" };
+    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" };
     res.json({ ...defaults, ...settings });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.post("/settings", async (req, res) => {
   try {
-    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText"];
+    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) })

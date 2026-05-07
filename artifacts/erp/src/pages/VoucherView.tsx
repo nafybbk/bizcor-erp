@@ -56,6 +56,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const autoPrint = new URLSearchParams(search).get("print") === "1";
   const [voucher, setVoucher] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
+  const [printFooter, setPrintFooter] = useState<{ text: string; logo: string }>({ text: "", logo: "" });
   const [loading, setLoading] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
@@ -63,9 +64,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
     Promise.all([
       api.get<any>(`/${voucherType}/${params.id}`),
       api.get<any>("/businesses/current"),
-    ]).then(([v, b]) => {
+      api.get<any>("/public-settings"),
+    ]).then(([v, b, s]) => {
       setVoucher(v);
       setBusiness(b);
+      setPrintFooter({ text: s.printFooterText || "", logo: s.printFooterLogo || "" });
     }).catch(console.error).finally(() => setLoading(false));
   }, [params.id]);
 
@@ -519,6 +522,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               </div>
             </div>
           </div>
+
+          {/* ---- GLOBAL PRINT FOOTER (Tech Panel se set hota hai) ---- */}
+          {(printFooter.text || printFooter.logo) && (
+            <div className="border-t border-gray-100 px-7 py-2 flex items-center justify-center gap-3 print-only" style={{ display: "flex" }}>
+              {printFooter.logo && <img src={printFooter.logo} alt="" className="h-6 object-contain" style={{ maxHeight: "24px" }} />}
+              {printFooter.text && <span className="text-xs text-gray-500">{printFooter.text}</span>}
+            </div>
+          )}
 
           {/* ---- BOTTOM STRIP ---- */}
           <div className="bg-gray-900 text-white text-center py-2 text-xs tracking-widest font-medium">

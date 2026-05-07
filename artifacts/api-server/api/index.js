@@ -84209,7 +84209,7 @@ router3.get("/settings", async (req, res) => {
     const rows = await db.select().from(appSettingsTable);
     const settings = {};
     for (const row of rows) settings[row.key] = row.value || "";
-    const defaults2 = { softwareName: "BizERP", supportEmail: "", supportPhone: "", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP" };
+    const defaults2 = { softwareName: "BizERP", supportEmail: "", supportPhone: "", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" };
     res.json({ ...defaults2, ...settings });
   } catch (err) {
     req.log.error(err);
@@ -84218,7 +84218,7 @@ router3.get("/settings", async (req, res) => {
 });
 router3.post("/settings", async (req, res) => {
   try {
-    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText"];
+    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo"];
     for (const key of allowed) {
       if (req.body[key] !== void 0) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) }).onConflictDoUpdate({ target: appSettingsTable.key, set: { value: String(req.body[key]), updatedAt: /* @__PURE__ */ new Date() } });
@@ -95064,10 +95064,12 @@ router17.get("/public-settings", async (_req, res) => {
       softwareName: settings.softwareName || "BizERP",
       logoUrl: settings.logoUrl || "",
       primaryColor: settings.primaryColor || "#2563eb",
-      footerText: settings.footerText || "Powered by BizERP"
+      footerText: settings.footerText || "Powered by BizERP",
+      printFooterText: settings.printFooterText || "",
+      printFooterLogo: settings.printFooterLogo || ""
     });
   } catch {
-    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP" });
+    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" });
   }
 });
 router17.use("/auth", auth_default);
