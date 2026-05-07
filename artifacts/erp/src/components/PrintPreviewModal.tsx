@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Printer, ZoomIn, ZoomOut, Download, MessageCircle } from "lucide-react";
+import { X, Printer, ZoomIn, ZoomOut, MessageCircle } from "lucide-react";
 
 interface Props {
   printableId?: string;
@@ -112,14 +112,6 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
     }
   }, []);
 
-  // Save as PDF = same as print (browser shows "Save as PDF" option in print dialog)
-  const handleSavePdf = useCallback(() => {
-    const iframe = iframeRef.current;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.print();
-    }
-  }, []);
-
   // WhatsApp share (text summary of invoice)
   const handleWhatsApp = useCallback(() => {
     if (!shareText) return;
@@ -169,14 +161,6 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
               <span className="hidden sm:inline">WhatsApp</span>
             </button>
           )}
-          <button
-            onClick={handleSavePdf}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white rounded-lg text-sm font-semibold transition-colors"
-            title="Save as PDF — Print dialog mein 'Save as PDF' select karein"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden sm:inline">Save PDF</span>
-          </button>
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
