@@ -51,9 +51,11 @@ router.get("/public-settings", async (_req, res) => {
       logoUrl: settings.logoUrl || "",
       primaryColor: settings.primaryColor || "#2563eb",
       footerText: settings.footerText || "Powered by BizERP",
+      printFooterText: settings.printFooterText || "",
+      printFooterLogo: settings.printFooterLogo || "",
     });
   } catch {
-    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP" });
+    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" });
   }
 });
 

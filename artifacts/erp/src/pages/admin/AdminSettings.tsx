@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2 } from "lucide-react";
+import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2, FileText } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 
 export default function AdminSettings() {
@@ -11,7 +11,10 @@ export default function AdminSettings() {
     logoUrl: "",
     primaryColor: "#2563eb",
     footerText: "Powered by BizERP",
+    printFooterText: "",
+    printFooterLogo: "",
   });
+  const printLogoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -287,6 +290,69 @@ export default function AdminSettings() {
         <p className="text-xs text-gray-400">
           Agar "timed out" ya "not allowed" error aa raha hai toh pehle Reset karo, phir dobara usi device/browser par register karo.
         </p>
+      </div>
+
+      {/* ── Print Footer ── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-purple-500" /> Print Footer (Har Invoice / PDF Pe)
+        </h3>
+        <p className="text-xs text-gray-500">Yeh text aur logo <strong>sabhi businesses</strong> ke har print/PDF ke neeche dikhayi dega.</p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Footer Line (Text)</label>
+          <input
+            className={inputCls}
+            value={form.printFooterText}
+            onChange={e => setForm(f => ({ ...f, printFooterText: e.target.value }))}
+            placeholder="e.g. Powered by BizCor | support@naewtgroup.com | +91 99999 99999"
+          />
+          <p className="text-xs text-gray-400 mt-1">Yeh line print mein sab se neeche aayegi</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Footer Logo (Image)</label>
+          <div className="flex items-center gap-4">
+            <div className="w-32 h-12 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
+              {form.printFooterLogo
+                ? <img src={form.printFooterLogo} alt="Footer Logo" className="max-h-full max-w-full object-contain p-1" />
+                : <span className="text-xs text-gray-400">No logo</span>}
+            </div>
+            <div className="space-y-1.5">
+              <button type="button" onClick={() => printLogoInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors">
+                <Upload className="w-3.5 h-3.5" />
+                {form.printFooterLogo ? "Logo Badlo" : "Logo Upload Karo"}
+              </button>
+              {form.printFooterLogo && (
+                <button type="button" onClick={() => setForm(f => ({ ...f, printFooterLogo: "" }))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
+                  <X className="w-3.5 h-3.5" /> Hatao
+                </button>
+              )}
+              <input
+                ref={printLogoInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 500_000) { alert("Logo 500KB se chhota hona chahiye"); return; }
+                  const reader = new FileReader();
+                  reader.onload = ev => setForm(f => ({ ...f, printFooterLogo: ev.target?.result as string }));
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <p className="text-xs text-gray-400">PNG/JPG/SVG — max 500KB</p>
+            </div>
+          </div>
+        </div>
+        {(form.printFooterText || form.printFooterLogo) && (
+          <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50">
+            <div className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wider">Preview:</div>
+            <div className="flex items-center justify-center gap-3 py-1">
+              {form.printFooterLogo && <img src={form.printFooterLogo} alt="" className="h-6 object-contain" />}
+              {form.printFooterText && <span className="text-xs text-gray-600">{form.printFooterText}</span>}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
