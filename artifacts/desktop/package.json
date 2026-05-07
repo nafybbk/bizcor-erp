@@ -1,6 +1,6 @@
 {
   "name": "bizcor-erp",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "BizCor ERP - LAN Server for Indian Businesses",
   "main": "electron/main.js",
   "scripts": {
@@ -51,7 +51,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "BizCor ERP",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "installer.nsh"
     },
     "publish": {
       "provider": "github",

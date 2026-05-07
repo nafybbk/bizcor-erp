@@ -226,7 +226,15 @@ ipcMain.handle("skip-cloud-setup", async () => {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // Doosra instance already chal raha hai — ye naya instance band ho jaayega
+  // Doosra instance already chal raha hai — user ko batao aur quit karo
+  const { dialog } = require("electron");
+  dialog.showErrorBox(
+    "BizCor ERP — Already Running",
+    "BizCor ERP pehle se chal raha hai.\n\n" +
+    "Taskbar ke system tray (neeche daayein corner) mein BizCor icon dhundhen,\n" +
+    "usse right-click karein aur 'Quit' chunein.\n\n" +
+    "Phir dobara BizCor ERP kholein."
+  );
   app.quit();
 } else {
   app.on("second-instance", () => {
