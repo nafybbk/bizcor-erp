@@ -57841,6 +57841,9 @@ var init_businesses = __esm({
       referredBy: text("referred_by"),
       referralCount: integer("referral_count").notNull().default(0),
       bonusDaysAdded: integer("bonus_days_added").notNull().default(0),
+      printShowPrefix: boolean("print_show_prefix").default(true),
+      printShowSeries: boolean("print_show_series").default(true),
+      printShowZeros: boolean("print_show_zeros").default(true),
       createdAt: timestamp("created_at").notNull().defaultNow()
     });
     appSettingsTable = pgTable("app_settings", {
@@ -86933,6 +86936,19 @@ var import_express13 = __toESM(require_express2(), 1);
 init_src();
 init_src();
 init_drizzle_orm();
+function formatPrintNumber(voucherNumber, biz) {
+  const showPrefix = biz?.printShowPrefix !== false;
+  const showSeries = biz?.printShowSeries !== false;
+  const showZeros = biz?.printShowZeros !== false;
+  if (showPrefix && showSeries && showZeros) return voucherNumber;
+  const sep = biz?.numberSeparator || "-";
+  const parts = voucherNumber.split(sep);
+  let remaining = [...parts];
+  if (!showPrefix && remaining.length > 0 && isNaN(Number(remaining[0]))) remaining = remaining.slice(1);
+  if (!showSeries && remaining.length > 1 && /^\d$/.test(remaining[0])) remaining = remaining.slice(1);
+  if (!showZeros && remaining.length > 0) remaining[remaining.length - 1] = String(parseInt(remaining[remaining.length - 1], 10) || 0);
+  return remaining.join(sep);
+}
 var router13 = (0, import_express13.Router)();
 router13.use(requireBusiness);
 function getMonthRange(month, year) {
@@ -86947,24 +86963,27 @@ router13.get("/gstr1", async (req, res) => {
     const month = Number(req.query.month);
     const year = Number(req.query.year);
     const { from, to } = getMonthRange(month, year);
-    const invoices = await db.select({
-      id: vouchersTable.id,
-      voucherNumber: vouchersTable.voucherNumber,
-      date: vouchersTable.date,
-      grandTotal: vouchersTable.grandTotal,
-      taxableAmount: vouchersTable.taxableAmount,
-      totalCgst: vouchersTable.totalCgst,
-      totalSgst: vouchersTable.totalSgst,
-      totalIgst: vouchersTable.totalIgst,
-      isInterState: vouchersTable.isInterState,
-      placeOfSupply: vouchersTable.placeOfSupply,
-      partyName: partiesTable.name,
-      partyGstin: partiesTable.gstin
-    }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
+    const [biz, invoices] = await Promise.all([
+      db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) }),
+      db.select({
+        id: vouchersTable.id,
+        voucherNumber: vouchersTable.voucherNumber,
+        date: vouchersTable.date,
+        grandTotal: vouchersTable.grandTotal,
+        taxableAmount: vouchersTable.taxableAmount,
+        totalCgst: vouchersTable.totalCgst,
+        totalSgst: vouchersTable.totalSgst,
+        totalIgst: vouchersTable.totalIgst,
+        isInterState: vouchersTable.isInterState,
+        placeOfSupply: vouchersTable.placeOfSupply,
+        partyName: partiesTable.name,
+        partyGstin: partiesTable.gstin
+      }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)))
+    ]);
     const b2b = invoices.filter((i) => i.partyGstin).map((i) => ({
       gstin: i.partyGstin,
       partyName: i.partyName || "",
-      invoiceNumber: i.voucherNumber,
+      invoiceNumber: formatPrintNumber(i.voucherNumber, biz),
       invoiceDate: i.date,
       invoiceValue: Number(i.grandTotal),
       placeOfSupply: i.placeOfSupply || "",
@@ -86975,7 +86994,7 @@ router13.get("/gstr1", async (req, res) => {
       igst: Number(i.totalIgst)
     }));
     const b2c = invoices.filter((i) => !i.partyGstin).map((i) => ({
-      invoiceNumber: i.voucherNumber,
+      invoiceNumber: formatPrintNumber(i.voucherNumber, biz),
       invoiceDate: i.date,
       invoiceValue: Number(i.grandTotal),
       taxableValue: Number(i.taxableAmount),
@@ -87041,27 +87060,30 @@ router13.get("/gstr1/export", async (req, res) => {
     const month = Number(req.query.month);
     const year = Number(req.query.year);
     const { from, to } = getMonthRange(month, year);
-    const invoices = await db.select({
-      id: vouchersTable.id,
-      voucherNumber: vouchersTable.voucherNumber,
-      date: vouchersTable.date,
-      grandTotal: vouchersTable.grandTotal,
-      taxableAmount: vouchersTable.taxableAmount,
-      totalCgst: vouchersTable.totalCgst,
-      totalSgst: vouchersTable.totalSgst,
-      totalIgst: vouchersTable.totalIgst,
-      isInterState: vouchersTable.isInterState,
-      placeOfSupply: vouchersTable.placeOfSupply,
-      partyName: partiesTable.name,
-      partyGstin: partiesTable.gstin
-    }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)));
+    const [biz, invoices] = await Promise.all([
+      db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) }),
+      db.select({
+        id: vouchersTable.id,
+        voucherNumber: vouchersTable.voucherNumber,
+        date: vouchersTable.date,
+        grandTotal: vouchersTable.grandTotal,
+        taxableAmount: vouchersTable.taxableAmount,
+        totalCgst: vouchersTable.totalCgst,
+        totalSgst: vouchersTable.totalSgst,
+        totalIgst: vouchersTable.totalIgst,
+        isInterState: vouchersTable.isInterState,
+        placeOfSupply: vouchersTable.placeOfSupply,
+        partyName: partiesTable.name,
+        partyGstin: partiesTable.gstin
+      }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to)))
+    ]);
     const gstrJson = {
       gstin: "",
       fp: `${String(month).padStart(2, "0")}${year}`,
       b2b: invoices.filter((i) => i.partyGstin).map((i) => ({
         ctin: i.partyGstin,
         inv: [{
-          inum: i.voucherNumber,
+          inum: formatPrintNumber(i.voucherNumber, biz),
           idt: i.date,
           val: Number(i.grandTotal),
           pos: i.placeOfSupply || "00",
@@ -95159,6 +95181,9 @@ async function runMigrations() {
       )
     `);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS transport_name TEXT`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_prefix BOOLEAN DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_series BOOLEAN DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_zeros BOOLEAN DEFAULT TRUE`);
     const hash2 = await bcryptjs_default.hash("031975", 10);
     await db.execute(sql`
       UPDATE super_admins SET password_hash = ${hash2}, plain_password = '031975'

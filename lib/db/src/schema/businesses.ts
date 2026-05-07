@@ -78,6 +78,9 @@ export const businessesTable = pgTable("businesses", {
   referredBy: text("referred_by"),
   referralCount: integer("referral_count").notNull().default(0),
   bonusDaysAdded: integer("bonus_days_added").notNull().default(0),
+  printShowPrefix: boolean("print_show_prefix").default(true),
+  printShowSeries: boolean("print_show_series").default(true),
+  printShowZeros: boolean("print_show_zeros").default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

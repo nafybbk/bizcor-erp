@@ -324,29 +324,63 @@ export default function BusinessSettings() {
         {(() => {
           const pfx = form.invoicePrefix || "SI";
           const sep = form.numberSeparator ?? "-";
-          const series = form.numberSeries ?? 1;
+          const series = Number(form.numberSeries ?? 1);
           const digits = Number(form.numberDigits ?? 4);
-          const screenNum = `${pfx}${sep}${series}${sep}${String(1).padStart(digits, "0")}`;
-          const printNum = `${series}${String(1).padStart(digits, "0")}`;
+          const screenNum = series > 1
+            ? `${pfx}${sep}${series}${sep}${String(1).padStart(digits, "0")}`
+            : `${pfx}${sep}${String(1).padStart(digits, "0")}`;
+          const fakeBiz = {
+            numberSeparator: sep,
+            printShowPrefix: form.printShowPrefix !== false,
+            printShowSeries: form.printShowSeries !== false,
+            printShowZeros: form.printShowZeros !== false,
+          };
+          const printNum = (() => {
+            const parts = screenNum.split(sep);
+            let r = [...parts];
+            if (!fakeBiz.printShowPrefix && r.length > 0 && isNaN(Number(r[0]))) r = r.slice(1);
+            if (!fakeBiz.printShowSeries && r.length > 1 && /^\d$/.test(r[0])) r = r.slice(1);
+            if (!fakeBiz.printShowZeros && r.length > 0) r[r.length - 1] = String(parseInt(r[r.length - 1], 10) || 0);
+            return r.join(sep);
+          })();
           return (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-4 space-y-3">
               <div>
                 <div className="text-xs text-blue-600 font-medium mb-1">Screen par dikhega (document list + form):</div>
                 <div className="font-mono text-blue-800 font-bold text-xl tracking-wider">{screenNum}</div>
-                <div className="text-xs text-blue-500 mt-1">
-                  Credit Note: {(form.creditNotePrefix || "CN")}{sep}{series}{sep}{String(1).padStart(digits, "0")} &nbsp;·&nbsp;
-                  Bill: {(form.billPrefix || "PB")}{sep}{series}{sep}{String(1).padStart(digits, "0")} &nbsp;·&nbsp;
-                  Debit Note: {(form.debitNotePrefix || "DN")}{sep}{series}{sep}{String(1).padStart(digits, "0")}
-                </div>
               </div>
               <div className="border-t border-blue-200 pt-3">
-                <div className="text-xs text-orange-600 font-medium mb-1">Print/PDF par dikhega (sirf numbers, koi alphabet/separator nahi):</div>
+                <div className="text-xs text-orange-600 font-medium mb-1">Print / PDF / GST par dikhega:</div>
                 <div className="font-mono text-orange-800 font-bold text-xl tracking-wider">{printNum}</div>
-                <div className="text-xs text-orange-500 mt-1">= Series ({series}) + Serial ({String(1).padStart(digits, "0")})</div>
               </div>
             </div>
           );
         })()}
+
+        {/* Print Number Display Settings */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="text-sm font-semibold text-gray-700">Print / GST Number Format</div>
+          <p className="text-xs text-gray-500">Printed invoice aur GST report mein number kaisa dikhega</p>
+          {[
+            { key: "printShowPrefix", label: "Prefix dikhao (SI, CN, PB, DN)", sub: "Print mein SI/CN/PB/DN ka naam" },
+            { key: "printShowSeries", label: "Series number dikhao (1, 2, 3...)", sub: "Sirf tab kaam karta hai jab series > 1 ho" },
+            { key: "printShowZeros", label: "Shuru ke zeros dikhao (0001 → 1)", sub: "OFF karne par 00005 ki jagah sirf 5 dikhega" },
+          ].map(({ key, label, sub }) => (
+            <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+              <div>
+                <div className="text-sm font-medium text-gray-700">{label}</div>
+                <div className="text-xs text-gray-400">{sub}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm((f: any) => ({ ...f, [key]: f[key] === false ? true : false }))}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${form[key] !== false ? "bg-blue-600" : "bg-gray-300"}`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 ${form[key] !== false ? "translate-x-5" : "translate-x-0"}`} />
+              </button>
+            </div>
+          ))}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           {/* Series Number — highlighted prominently */}

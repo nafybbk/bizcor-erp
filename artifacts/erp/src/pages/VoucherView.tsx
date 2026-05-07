@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
+import { formatPrintNumber } from "@/lib/numberFormat";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
 
@@ -235,8 +236,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 <div>
                   {/* Screen: full number e.g. SI-1-00001 */}
                   <div className="screen-only text-xl font-bold text-gray-900">{voucher.voucherNumber}</div>
-                  {/* Print: digits only e.g. 100001 */}
-                  <div className="print-only text-xl font-bold text-gray-900">{voucher.voucherNumber.replace(/[^0-9]/g, "")}</div>
+                  {/* Print: formatted per business settings */}
+                  <div className="print-only text-xl font-bold text-gray-900">{formatPrintNumber(voucher.voucherNumber, biz)}</div>
                   <div className="text-sm text-gray-500 mt-0.5">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
                   {voucher.placeOfSupply && (
                     <div className="text-xs text-gray-500 mt-0.5">Place of Supply: {voucher.placeOfSupply}</div>
