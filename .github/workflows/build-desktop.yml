@@ -85,7 +85,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "artifacts/desktop/frontend-dist"
-          Copy-Item -Path "artifacts/erp/dist/*" -Destination "artifacts/desktop/frontend-dist/" -Recurse -Force
+          Copy-Item -Path "artifacts/erp/dist/public/*" -Destination "artifacts/desktop/frontend-dist/" -Recurse -Force
 
       - name: Install desktop npm dependencies
         working-directory: artifacts/desktop
