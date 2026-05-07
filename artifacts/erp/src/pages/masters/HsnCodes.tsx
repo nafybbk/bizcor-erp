@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Loader2, Edit2, Trash2, X, Check } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function HsnCodes() {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({ code: "", description: "", taxRate: "" });
@@ -94,8 +98,8 @@ export default function HsnCodes() {
                       <td className="px-4 py-3 text-right text-gray-500">{c.taxRate ? `${c.taxRate}%` : "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => startEdit(c)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                          <button onClick={() => del(c.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          {canEdit && <button onClick={() => startEdit(c)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>}
+                          {canDelete && <button onClick={() => del(c.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
                         </div>
                       </td>
                     </>

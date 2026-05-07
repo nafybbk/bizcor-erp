@@ -4,10 +4,14 @@ import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheItems } from "@/lib/masterCache";
 import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 const emptyForm = { name: "", description: "", type: "goods" as "goods"|"service", hsnCode: "", unitId: "", taxRateId: "", salePrice: "", purchasePrice: "", openingStock: "", lowStockAlert: "" };
 
 export default function Items() {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -163,8 +167,8 @@ export default function Items() {
                   <td className="px-4 py-3 text-right text-gray-500">{it.taxRate ? `${it.taxRate}%` : "-"}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => openEdit(it)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => del(it.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      {canEdit && <button onClick={() => openEdit(it)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>}
+                      {canDelete && <button onClick={() => del(it.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </td>
                 </tr>

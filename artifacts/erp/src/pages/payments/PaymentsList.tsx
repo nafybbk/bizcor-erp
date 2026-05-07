@@ -3,10 +3,14 @@ import { Link } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { Plus, Search, Loader2, Trash2, Eye, Download, Pencil } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 interface Props { type: "receipt" | "payment" }
 
 export default function PaymentsList({ type }: Props) {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const [payments, setPayments] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
@@ -108,10 +112,12 @@ export default function PaymentsList({ type }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <Link href={`/payments/${type === "receipt" ? "receipts" : "payments"}/${p.id}/edit`}>
-                        <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
-                      </Link>
-                      <button onClick={() => del(p.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      {canEdit && (
+                        <Link href={`/payments/${type === "receipt" ? "receipts" : "payments"}/${p.id}/edit`}>
+                          <button title="Edit" className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg"><Pencil className="w-4 h-4" /></button>
+                        </Link>
+                      )}
+                      {canDelete && <button onClick={() => del(p.id)} title="Delete" className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </td>
                 </tr>

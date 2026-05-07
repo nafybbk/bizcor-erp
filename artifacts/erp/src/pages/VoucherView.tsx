@@ -4,6 +4,7 @@ import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { formatPrintNumber } from "@/lib/numberFormat";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
 
 interface Props {
@@ -50,6 +51,9 @@ function toWords(n: number): string {
 }
 
 export default function VoucherView({ voucherType, listHref }: Props) {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const search = useSearch();
@@ -193,14 +197,18 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="flex gap-2">
-            <button onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
-              <Trash2 className="w-4 h-4" /> Delete
-            </button>
-            <button onClick={handleEdit}
-              className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
-              <Pencil className="w-4 h-4" /> Edit
-            </button>
+            {canDelete && (
+              <button onClick={handleDelete}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
+                <Trash2 className="w-4 h-4" /> Delete
+              </button>
+            )}
+            {canEdit && (
+              <button onClick={handleEdit}
+                className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
+                <Pencil className="w-4 h-4" /> Edit
+              </button>
+            )}
             <button onClick={handleWhatsApp}
               className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
               <Share2 className="w-4 h-4" /> WhatsApp
