@@ -13,13 +13,19 @@ const CONFIG_FILE = () => path.join(app.getPath("userData"), "db-config.dat");
 let serverProcess = null;
 let _status = "stopped";
 let _onStatusChange = null;
+let _onProgress = null;
 
 function setStatus(s) {
   _status = s;
   if (_onStatusChange) _onStatusChange(s);
 }
 
+function setProgress(pct, step, sub) {
+  if (_onProgress) _onProgress(pct, step, sub);
+}
+
 function onStatusChange(fn) { _onStatusChange = fn; }
+function onProgress(fn) { _onProgress = fn; }
 function getStatus() { return _status; }
 function getServerPort() { return SERVER_PORT; }
 
@@ -70,7 +76,7 @@ function isCloudConfigured() {
 // Keep backward compat
 const saveDbUrl = saveCloudUrl;
 const loadDbUrl = loadCloudUrl;
-const isConfigured = () => true; // Always starts (offline mode always works)
+const isConfigured = () => true;
 
 async function startServer(options, resourcesPath) {
   const { cloudUrl, pglitePath } = options;
@@ -84,6 +90,7 @@ async function startServer(options, resourcesPath) {
   }
 
   setStatus("starting");
+  setProgress(10, "Server shuru ho raha hai...", "Files load ho rahi hain");
 
   const nodeBin = process.execPath;
   const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
@@ -113,33 +120,76 @@ async function startServer(options, resourcesPath) {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  serverProcess.stdout.on("data", d => console.log("[server]", d.toString().trim()));
-  serverProcess.stderr.on("data", d => console.error("[server-err]", d.toString().trim()));
+  let lastLog = "";
+  serverProcess.stdout.on("data", d => {
+    const line = d.toString().trim();
+    console.log("[server]", line);
+    lastLog = line;
+    // Forward key log lines as progress hints
+    if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
+      setProgress(40, "Database initialize ho rahi hai...", line.substring(0, 80));
+    } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
+      setProgress(65, "Tables ready ho rahi hain...", line.substring(0, 80));
+    } else if (line.includes("listen") || line.includes("port") || line.includes("ready") || line.includes("started")) {
+      setProgress(85, "Almost ready...", "Server port pe aa raha hai");
+    }
+  });
+  serverProcess.stderr.on("data", d => {
+    const line = d.toString().trim();
+    console.error("[server-err]", line);
+    lastLog = line;
+  });
   serverProcess.on("exit", code => {
     console.log("[server] exited with code", code);
-    setStatus("stopped");
+    if (_status !== "stopped") setStatus("stopped");
   });
   serverProcess.on("error", err => {
     console.error("[server] spawn error", err);
     setStatus("error");
   });
 
-  // Wait up to 15s for server to be ready
+  setProgress(30, "Database shuru ho rahi hai...", "Pehli baar 30-60 second lag sakte hain");
+
+  // Wait up to 90s — PGlite WASM takes 30-60s on first launch
+  const TIMEOUT_MS = 90000;
   await new Promise((resolve, reject) => {
     const http = require("http");
     const start = Date.now();
+    let attempt = 0;
+
     const check = () => {
+      attempt++;
+      const elapsed = Math.round((Date.now() - start) / 1000);
+
+      if (attempt % 5 === 0) {
+        setProgress(
+          Math.min(30 + attempt * 2, 80),
+          "App ready ho rahi hai...",
+          `${elapsed} seconds ho gaye — please wait`
+        );
+      }
+
       http.get(`http://localhost:${SERVER_PORT}/api/health`, res => {
-        if (res.statusCode < 500) resolve();
-        else setTimeout(check, 800);
+        if (res.statusCode < 500) {
+          setProgress(95, "Almost done...", "");
+          resolve();
+        } else {
+          setTimeout(check, 1000);
+        }
       }).on("error", () => {
-        if (Date.now() - start > 15000) reject(new Error("Server 15s ke andar ready nahi hua"));
-        else setTimeout(check, 800);
+        if (Date.now() - start > TIMEOUT_MS) {
+          reject(new Error(
+            `Server ${TIMEOUT_MS / 1000} seconds mein ready nahi hua.\n\nLast log: ${lastLog || "(koi output nahi)"}`
+          ));
+        } else {
+          setTimeout(check, 1000);
+        }
       });
     };
     check();
   });
 
+  setProgress(100, "Ready!", "");
   setStatus("running");
 }
 
@@ -159,8 +209,6 @@ async function start(resourcesPath) {
 // Start with cloud URL (Supabase / Neon)
 async function startWithCloudUrl(cloudUrl, resourcesPath) {
   saveCloudUrl(cloudUrl);
-  const pglitePath = path.join(app.getPath("userData"), "bizcor-db");
-  fs.mkdirSync(pglitePath, { recursive: true });
   await startServer({ cloudUrl }, resourcesPath);
 }
 
@@ -179,7 +227,7 @@ async function stop() {
 
 module.exports = {
   start, startWithUrl, startWithCloudUrl, stop,
-  getStatus, onStatusChange, getServerPort,
+  getStatus, onStatusChange, onProgress, getServerPort,
   isConfigured, isCloudConfigured,
   loadDbUrl, loadCloudUrl, saveCloudUrl, clearCloudUrl,
 };

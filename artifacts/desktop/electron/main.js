@@ -41,12 +41,18 @@ function htmlFile(name) {
 function showSplash() {
   if (splashWindow) return;
   splashWindow = new BrowserWindow({
-    width: 420, height: 260, frame: false, transparent: false,
-    alwaysOnTop: true, center: true, resizable: false,
+    width: 420, height: 310, frame: false, transparent: false,
+    alwaysOnTop: false, center: true, resizable: false,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
     backgroundColor: "#1e40af",
   });
   splashWindow.loadFile(htmlFile("splash.html"));
+}
+
+function updateSplashProgress(pct, step, sub) {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+  const js = `setProgress(${pct}, ${JSON.stringify(step)}, ${JSON.stringify(sub)})`;
+  splashWindow.webContents.executeJavaScript(js).catch(() => {});
 }
 
 function closeSplash() {
@@ -253,6 +259,11 @@ if (!gotTheLock) {
   app.whenReady().then(async () => {
     buildTray();
 
+    // Forward progress updates from server-manager to splash screen
+    server.onProgress((pct, step, sub) => {
+      updateSplashProgress(pct, step, sub);
+    });
+
     server.onStatusChange(status => {
       refreshTray();
       if (status === "running") {
@@ -260,11 +271,32 @@ if (!gotTheLock) {
         openMainWindow();
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
       } else if (status === "error") {
+        // Close splash FIRST — then show error (splash was alwaysOnTop before, fixed now)
         closeSplash();
-        dialog.showErrorBox(
-          "Server Error",
-          "Server shuru nahi ho saka.\nApp band karke dobara kholen."
-        );
+        dialog.showMessageBox({
+          type: "error",
+          title: "Server Error — BizCor ERP",
+          message: "Server shuru nahi ho saka.",
+          detail:
+            "Possible reasons:\n" +
+            "• Pehli baar mein database load hone mein time laga\n" +
+            "• Antivirus ne block kiya ho sakta hai\n\n" +
+            "Kya karein:\n" +
+            "1. App dobara kholein (2nd try mein jaldi khulega)\n" +
+            "2. Antivirus mein BizCor ERP ko allow karein\n" +
+            "3. Agar phir bhi na khule — tray icon → Quit karein aur dobara kholein",
+          buttons: ["Dobara Try Karein", "Band Karein"],
+          defaultId: 0,
+        }).then(result => {
+          if (result.response === 0) {
+            // Retry
+            showSplash();
+            server.start(resourcesPath);
+          } else {
+            isQuitting = true;
+            app.quit();
+          }
+        });
       }
     });
 

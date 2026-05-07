@@ -4,30 +4,90 @@
 <meta charset="utf-8">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:#1e40af; color:#fff;
+  body {
+    background:#1e40af; color:#fff;
     font-family:'Segoe UI',Arial,sans-serif;
     display:flex; flex-direction:column;
     align-items:center; justify-content:center;
-    height:100vh; user-select:none; }
-  h1 { font-size:32px; font-weight:800; letter-spacing:-1px; }
-  .sub { font-size:12px; opacity:.6; margin-top:5px; }
-  .msg { margin-top:28px; font-size:13px; opacity:.85; }
-  .spin { width:22px; height:22px;
-    border:3px solid rgba(255,255,255,.3);
+    height:100vh; user-select:none;
+  }
+  h1 { font-size:34px; font-weight:800; letter-spacing:-1px; }
+  .tagline { font-size:12px; opacity:.55; margin-top:4px; }
+
+  .progress-bar-wrap {
+    width:260px; height:5px;
+    background:rgba(255,255,255,.2);
+    border-radius:99px; margin-top:28px; overflow:hidden;
+  }
+  .progress-bar {
+    height:100%; background:#fff; border-radius:99px;
+    width:0%; transition:width .6s ease;
+  }
+
+  .step-msg {
+    margin-top:14px; font-size:14px;
+    opacity:.9; font-weight:600;
+    text-align:center; min-height:20px;
+  }
+  .sub-msg {
+    margin-top:6px; font-size:11px;
+    opacity:.55; text-align:center;
+    max-width:300px; line-height:1.5;
+    min-height:16px;
+  }
+  .timer {
+    margin-top:18px; font-size:11px; opacity:.4;
+  }
+  .spin {
+    width:20px; height:20px;
+    border:2px solid rgba(255,255,255,.25);
     border-top-color:#fff; border-radius:50%;
-    animation:s .8s linear infinite; margin-top:14px; }
-  @keyframes s { to { transform:rotate(360deg); } }
+    animation:sp .7s linear infinite;
+    margin-top:16px;
+  }
+  @keyframes sp { to { transform:rotate(360deg); } }
+
+  .warn {
+    display:none; margin-top:10px;
+    background:rgba(0,0,0,.25); border-radius:8px;
+    padding:8px 14px; font-size:11px;
+    opacity:.8; text-align:center; max-width:300px; line-height:1.6;
+  }
 </style>
 </head>
 <body>
   <h1>BizCor ERP</h1>
-  <div class="sub">LAN Server for Indian Businesses</div>
-  <div class="msg" id="msg">Shuru ho raha hai...</div>
-  <div class="spin"></div>
+  <div class="tagline">LAN Server for Indian Businesses</div>
+
+  <div class="progress-bar-wrap">
+    <div class="progress-bar" id="bar"></div>
+  </div>
+
+  <div class="step-msg" id="step">Shuru ho raha hai...</div>
+  <div class="sub-msg" id="sub"></div>
+  <div class="spin" id="spin"></div>
+  <div class="timer" id="timer">0 seconds</div>
+  <div class="warn" id="warn">
+    Pehli baar thoda time lagta hai — database initialize ho rahi hai.<br>
+    Please wait karo, app khud khulega.
+  </div>
+
   <script>
-    // Allow main process to update message
-    if (window.location.hash) {
-      document.getElementById('msg').textContent = decodeURIComponent(window.location.hash.slice(1));
+    let elapsed = 0;
+    const timerEl = document.getElementById('timer');
+    const warnEl  = document.getElementById('warn');
+
+    setInterval(() => {
+      elapsed++;
+      timerEl.textContent = elapsed + ' second' + (elapsed === 1 ? '' : 's') + ' ho gaye';
+      if (elapsed >= 20) warnEl.style.display = 'block';
+    }, 1000);
+
+    // Called from main process via executeJavaScript
+    function setProgress(pct, stepText, subText) {
+      document.getElementById('bar').style.width = pct + '%';
+      document.getElementById('step').textContent = stepText || '';
+      document.getElementById('sub').textContent  = subText  || '';
     }
   </script>
 </body>
