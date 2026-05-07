@@ -2,51 +2,58 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>BizCor ERP Setup</title>
+<title>BizCor ERP — Cloud Sync</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:'Segoe UI',Arial,sans-serif; background:#f8fafc; padding:28px; color:#1e293b; }
-  .logo { font-size:24px; font-weight:800; color:#1e40af; margin-bottom:3px; }
-  .sub { font-size:12px; color:#64748b; margin-bottom:22px; }
+  .logo { font-size:22px; font-weight:800; color:#1e40af; margin-bottom:3px; }
+  .sub { font-size:12px; color:#64748b; margin-bottom:20px; }
+  .badge { display:inline-block; background:#dcfce7; color:#15803d; font-size:11px;
+    font-weight:600; padding:3px 10px; border-radius:20px; margin-bottom:18px; }
   .card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:20px; margin-bottom:14px; }
-  h3 { font-size:13px; font-weight:700; margin-bottom:12px; color:#1e293b; }
+  h3 { font-size:13px; font-weight:700; margin-bottom:10px; color:#1e293b; }
   label { display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:5px; }
   textarea { width:100%; border:1.5px solid #d1d5db; border-radius:8px; padding:9px 11px;
-    font-size:11px; font-family:monospace; height:90px; resize:vertical; outline:none; transition:border .2s; }
+    font-size:11px; font-family:monospace; height:80px; resize:vertical; outline:none; transition:border .2s; }
   textarea:focus { border-color:#3b82f6; }
-  .hint { font-size:11px; color:#94a3b8; margin-top:8px; line-height:1.7; }
+  .hint { font-size:11px; color:#94a3b8; margin-top:6px; line-height:1.7; }
   .hint strong { color:#64748b; }
   .btn { display:block; width:100%; background:#1e40af; color:#fff; border:none;
-    border-radius:8px; padding:11px; font-size:14px; font-weight:600; cursor:pointer;
-    margin-top:16px; transition:background .2s; }
+    border-radius:8px; padding:10px; font-size:13px; font-weight:600; cursor:pointer;
+    margin-top:12px; transition:background .2s; }
   .btn:hover { background:#1d4ed8; }
   .btn:disabled { background:#94a3b8; cursor:not-allowed; }
+  .btn-skip { background:#f1f5f9; color:#64748b; margin-top:8px; }
+  .btn-skip:hover { background:#e2e8f0; }
   .err { color:#dc2626; font-size:12px; margin-top:6px; display:none; }
-  .note { font-size:11px; color:#64748b; margin-top:12px; background:#f1f5f9;
-    border-radius:8px; padding:10px 12px; line-height:1.7; }
-  .note b { color:#1e40af; }
+  .info { font-size:11px; color:#64748b; background:#f0f9ff; border:1px solid #bae6fd;
+    border-radius:8px; padding:10px 12px; margin-bottom:16px; line-height:1.7; }
+  .info b { color:#0369a1; }
 </style>
 </head>
 <body>
   <div class="logo">BizCor ERP</div>
-  <div class="sub">Pehli baar setup — database configure karein</div>
+  <div class="sub">Cloud Sync Setup</div>
+  <div class="badge">✓ Offline mode active — app chal raha hai</div>
+
+  <div class="info">
+    App <b>local database</b> ke saath chal raha hai — internet ki zaroorat nahi.<br>
+    Supabase se data sync karna ho to niche URL dalo, warna <b>Skip</b> karein.
+  </div>
 
   <div class="card">
-    <h3>PostgreSQL Database URL</h3>
+    <h3>Supabase Cloud Sync (Optional)</h3>
     <label>Connection String</label>
     <textarea id="dbUrl" placeholder="postgresql://user:password@host:5432/dbname"></textarea>
     <div class="hint">
-      <strong>Supabase:</strong> Settings → Database → Connection Pooling → Connection string copy karein<br>
+      <strong>Supabase:</strong> Settings → Database → Connection Pooling → copy karein<br>
       <strong>Password mein @ ho to:</strong> @ ki jagah %40 likhein
     </div>
     <div class="err" id="err">URL sahi nahi — postgresql:// se shuru hona chahiye</div>
   </div>
 
-  <div class="note">
-    ⚠️ <b>Zaroori:</b> URL exactly wahi paste karein jo Supabase ne diya ho — koi bhi character change mat karein
-  </div>
-
-  <button class="btn" id="saveBtn" onclick="save()">Connect karein aur Shuru Karein</button>
+  <button class="btn" id="saveBtn" onclick="save()">Cloud se Connect karein</button>
+  <button class="btn btn-skip" onclick="skip()">Skip — Local Database use karein</button>
 
   <script>
     function save() {
@@ -60,6 +67,10 @@
       btn.disabled = true;
       btn.textContent = 'Connect ho raha hai...';
       window.bizcorDesktop.saveDbUrl(url);
+    }
+
+    function skip() {
+      window.bizcorDesktop.skipCloudSetup();
     }
 
     document.getElementById('dbUrl').addEventListener('keydown', e => {

@@ -196,6 +196,7 @@ ipcMain.handle("save-db-url", async (_, dbUrl) => {
   if (setupWindow) { setupWindow.close(); setupWindow = null; }
   showSplash();
   try {
+    await server.stop();
     await server.startWithUrl(dbUrl, resourcesPath);
     closeSplash();
     openMainWindow();
@@ -203,12 +204,20 @@ ipcMain.handle("save-db-url", async (_, dbUrl) => {
   } catch (err) {
     closeSplash();
     dialog.showErrorBox(
-      "Database Error",
-      "Database se connect nahi ho saka:\n\n" + err.message +
-      "\n\nURL dobara check karein aur phir try karein."
+      "Cloud Connect Error",
+      "Cloud database se connect nahi ho saka:\n\n" + err.message +
+      "\n\nURL dobara check karein. App local mode mein chal raha hai."
     );
-    showSetupWindow();
+    // Restart in offline mode
+    await server.start(resourcesPath);
+    openMainWindow();
+    refreshTray();
   }
+});
+
+ipcMain.handle("skip-cloud-setup", async () => {
+  if (setupWindow) { setupWindow.close(); setupWindow = null; }
+  openMainWindow();
 });
 
 // ─── App Lifecycle ───────────────────────────────────────────────────────────
@@ -222,16 +231,12 @@ app.whenReady().then(async () => {
       closeSplash();
       openMainWindow();
       setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
-    } else if (status === "needs-setup") {
-      closeSplash();
-      showSetupWindow();
     } else if (status === "error") {
       closeSplash();
       dialog.showErrorBox(
         "Server Error",
-        "Server shuru nahi ho saka.\nDatabase URL check karein ya dobara setup karein."
+        "Server shuru nahi ho saka.\nApp band karke dobara kholen."
       );
-      showSetupWindow();
     }
   });
 

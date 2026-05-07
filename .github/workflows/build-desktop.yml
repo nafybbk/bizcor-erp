@@ -45,6 +45,19 @@ jobs:
           New-Item -ItemType Directory -Force -Path "artifacts/desktop/server-bundle"
           Copy-Item -Path "artifacts/api-server/dist/*" -Destination "artifacts/desktop/server-bundle/" -Recurse -Force
 
+      - name: Install @electric-sql/pglite in server-bundle node_modules
+        shell: pwsh
+        run: |
+          $dst = "artifacts/desktop/server-bundle/node_modules"
+          New-Item -ItemType Directory -Force -Path $dst
+          Push-Location "artifacts/desktop/server-bundle"
+          if (-not (Test-Path "package.json")) {
+            '{"name":"server-bundle","private":true}' | Out-File -FilePath "package.json" -Encoding utf8
+          }
+          npm install @electric-sql/pglite --save --legacy-peer-deps
+          Write-Host "PGlite installed in server-bundle"
+          Pop-Location
+
       - name: Build ERP frontend
         run: pnpm --filter @workspace/erp run build
 
