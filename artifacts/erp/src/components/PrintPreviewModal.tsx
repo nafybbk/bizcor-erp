@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Printer, ZoomIn, ZoomOut } from "lucide-react";
+import { X, Printer, ZoomIn, ZoomOut, Share2 } from "lucide-react";
 
 interface Props {
   printableId?: string;
   onClose: () => void;
   title?: string;
+  initialZoom?: number;
 }
 
 // A4 width in pixels at 96dpi ≈ 794px
@@ -65,9 +66,9 @@ ${css}
 </head><body>${html}</body></html>`;
 }
 
-export default function PrintPreviewModal({ printableId = "printable", onClose, title = "Print Preview" }: Props) {
+export default function PrintPreviewModal({ printableId = "printable", onClose, title = "Print Preview", initialZoom }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [zoom, setZoom] = useState(calcDefaultZoom);
+  const [zoom, setZoom] = useState(() => initialZoom ?? calcDefaultZoom());
   const [srcdoc, setSrcdoc] = useState("");
 
   useEffect(() => {
@@ -102,6 +103,23 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
     });
   }, [onClose]);
 
+  const handleSharePdf = useCallback(() => {
+    const html = buildSrcdoc(printableId, 1.0);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (win) {
+      win.addEventListener("load", () => {
+        setTimeout(() => {
+          win.print();
+          URL.revokeObjectURL(url);
+        }, 600);
+      });
+    } else {
+      URL.revokeObjectURL(url);
+    }
+  }, [printableId]);
+
   const zoomIn  = () => setZoom(z => parseFloat(Math.min(3, z + 0.1).toFixed(1)));
   const zoomOut = () => setZoom(z => parseFloat(Math.max(0.2, z - 0.1).toFixed(1)));
 
@@ -133,15 +151,22 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
           </button>
         </div>
 
-        {/* Right: print + close */}
+        {/* Right: share + print + close */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={handleSharePdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors"
+            title="Share / Save as PDF"
+          >
+            <Share2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Share PDF</span>
+          </button>
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
           >
             <Printer className="w-4 h-4" />
-            <span className="hidden sm:inline">Print / PDF</span>
-            <span className="sm:hidden">Print</span>
+            <span className="hidden sm:inline">Print</span>
           </button>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white" title="Close (Esc)">
             <X className="w-5 h-5" />

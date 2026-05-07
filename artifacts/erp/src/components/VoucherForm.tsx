@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
 import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
-import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock } from "lucide-react";
+import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock, CheckCircle } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
 // Business type → invoice-level and item-level custom fields config
@@ -174,6 +174,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const isSales = voucherType.startsWith("sales");
+  const [showPrintPrompt, setShowPrintPrompt] = useState(false);
+  const [savedInfo, setSavedInfo] = useState<{ id: number; number: string }>({ id: 0, number: "" });
 
   const [parties, setParties] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
@@ -617,8 +619,17 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       payload.items = updatedItems;
 
       const targetId = activeBinDocId || editId;
-      if (targetId) await api.patch(`/${voucherType}/${targetId}`, payload);
-      else await api.post(`/${voucherType}`, payload);
+      let savedVoucherId: number | null = null;
+      let savedVoucherNum = "";
+      if (targetId) {
+        const updated = await api.patch<any>(`/${voucherType}/${targetId}`, payload);
+        savedVoucherId = targetId;
+        savedVoucherNum = updated?.voucherNumber || "";
+      } else {
+        const created = await api.post<any>(`/${voucherType}`, payload);
+        savedVoucherId = created?.id || null;
+        savedVoucherNum = created?.voucherNumber || "";
+      }
       // Auto-save transport name for future suggestions
       if (form.transportName?.trim()) {
         const tName = form.transportName.trim();
@@ -637,7 +648,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           setSavedShipAddrs(updated);
         }
       }
-      navigate(listHref);
+      // Show print prompt instead of immediately navigating
+      if (savedVoucherId) {
+        setSavedInfo({ id: savedVoucherId, number: savedVoucherNum });
+        setShowPrintPrompt(true);
+      } else {
+        navigate(listHref);
+      }
     } catch (err: any) {
       // Duplicate number error from server
       if (err instanceof ApiError && err.status === 409) {
@@ -777,6 +794,34 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
   return (
     <>
+      {/* ── Print Prompt Modal (after save) ── */}
+      {showPrintPrompt && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center">
+            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">Save Ho Gayi!</h3>
+            {savedInfo.number && <p className="text-sm text-gray-500 mt-1 font-mono">{savedInfo.number}</p>}
+            <p className="text-gray-500 text-sm mt-3 mb-5">Print ya PDF banana chahte hain?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowPrintPrompt(false); navigate(listHref); }}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100"
+              >
+                Baad Mein
+              </button>
+              <button
+                onClick={() => { setShowPrintPrompt(false); navigate(`/${voucherType}/${savedInfo.id}?print=1`); }}
+                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 active:bg-blue-800"
+              >
+                Print / PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Credit limit warning modal */}
       {creditWarning && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
