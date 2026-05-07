@@ -95158,6 +95158,7 @@ async function runMigrations() {
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS transport_name TEXT`);
     const hash2 = await bcryptjs_default.hash("031975", 10);
     await db.execute(sql`
       UPDATE super_admins SET password_hash = ${hash2}, plain_password = '031975'
