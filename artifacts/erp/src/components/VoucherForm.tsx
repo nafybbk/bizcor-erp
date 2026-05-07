@@ -1429,41 +1429,29 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         )}
                       </td>
                       <td className="px-2 py-1.5">
-                        {(() => {
-                          const baseR = item.rateIncludesGst && item.taxRate > 0 ? item.rate / (1 + item.taxRate / 100) : item.rate;
-                          const gross = item.quantity * baseR;
-                          const pctVal = item.discountType === "percent" ? item.discount : (gross > 0 ? parseFloat((item.discount / gross * 100).toFixed(2)) : 0);
-                          const amtVal = item.discountType === "amount" ? item.discount : parseFloat((gross * item.discount / 100).toFixed(2));
-                          return (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-gray-400 w-4 text-right flex-shrink-0">%</span>
-                                <input type="number" min="0" step="0.01"
-                                  className="border border-gray-200 rounded px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
-                                  value={pctVal}
-                                  onFocus={handleNumericFocus}
-                                  onKeyDown={e => handleItemEnter(e, idx)}
-                                  onChange={e => {
-                                    const pct = parseFloat(e.target.value) || 0;
-                                    setLineItems(prev => { const next = [...prev]; next[idx] = calcItem({ ...next[idx], discount: pct, discountType: "percent" }, isInterState); return next; });
-                                  }} />
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-gray-400 w-4 text-right flex-shrink-0">₹</span>
-                                <input type="number" min="0" step="0.01"
-                                  className="border border-gray-200 rounded px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
-                                  value={amtVal}
-                                  onFocus={handleNumericFocus}
-                                  onChange={e => {
-                                    const amt = parseFloat(e.target.value) || 0;
-                                    setLineItems(prev => { const next = [...prev]; next[idx] = calcItem({ ...next[idx], discount: amt, discountType: "amount" }, isInterState); return next; });
-                                  }} />
-                              </div>
-                            </div>
-                          );
-                        })()}
+                        <div className="flex gap-1">
+                          <input type="number" min="0" step="0.01"
+                            className="border border-gray-200 rounded px-2 py-1.5 text-sm w-16 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            value={item.discount}
+                            onFocus={handleNumericFocus}
+                            onKeyDown={e => handleItemEnter(e, idx)}
+                            onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
+                          <select className="border border-gray-200 rounded px-1 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            tabIndex={-1}
+                            value={item.discountType} onChange={e => updateItem(idx, "discountType", e.target.value)}>
+                            <option value="percent">%</option>
+                            <option value="amount">₹</option>
+                          </select>
+                        </div>
                       </td>
-                      <td className="px-2 py-1.5 text-right text-xs text-gray-600">{fmt.number(item.taxableAmount)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {item.discount > 0 && (() => {
+                          const gross = item.quantity * item.rate;
+                          const discAmt = item.discountType === "amount" ? item.discount : parseFloat((gross * item.discount / 100).toFixed(2));
+                          return <div className="text-[10px] text-red-400 leading-tight">-{fmt.number(discAmt)}</div>;
+                        })()}
+                        <div className="text-xs text-gray-700">{fmt.number(item.taxableAmount)}</div>
+                      </td>
                       <td className="px-2 py-1.5 text-right text-xs">
                         {isInterState
                           ? <span className="text-orange-600">{fmt.number(item.igst)}</span>
@@ -1550,68 +1538,53 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </div>
           </div>
 
-          {/* Right panel — summary split into 2 blocks */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 text-sm space-y-0">
-            {/* Block 1 — Invoice value breakdown */}
-            <div className="space-y-2 pb-3">
-              {totalDiscount > 0 && <div className="flex justify-between text-red-500 text-xs"><span>Discount</span><span>-{fmt.currency(totalDiscount)}</span></div>}
-              <div className="flex justify-between">
-                <span className="text-gray-600">Taxable Amount</span>
-                <span className="font-medium">{fmt.currency(taxableAmount)}</span>
-              </div>
-              {!isInterState && totalCgst > 0 && (
-                <>
-                  <div className="flex justify-between text-blue-600 text-xs"><span>CGST</span><span>{fmt.currency(totalCgst)}</span></div>
-                  <div className="flex justify-between text-blue-600 text-xs"><span>SGST</span><span>{fmt.currency(totalSgst)}</span></div>
-                </>
-              )}
-              {isInterState && totalIgst > 0 && (
-                <div className="flex justify-between text-orange-600 text-xs"><span>IGST</span><span>{fmt.currency(totalIgst)}</span></div>
-              )}
-              {totalTax === 0 && <div className="flex justify-between text-gray-400 text-xs"><span>{isInterState ? "IGST" : "CGST+SGST"}</span><span>0.00</span></div>}
-              <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-100">
-                <span>Invoice Value</span>
-                <span>{fmt.currency(taxableAmount + totalTax)}</span>
-              </div>
+          {/* Right panel — summary */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-sm space-y-2">
+            {totalDiscount > 0 && (
+              <div className="flex justify-between text-red-500 text-xs"><span>Discount</span><span>-{fmt.currency(totalDiscount)}</span></div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-600">Taxable Amount</span>
+              <span className="font-medium">{fmt.currency(taxableAmount)}</span>
             </div>
-
-            {/* Divider */}
-            <div className="border-t-2 border-dashed border-gray-200 my-1" />
-
-            {/* Block 2 — payable breakdown */}
-            <div className="space-y-2 pt-3">
-              <div className="flex justify-between items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-gray-600">Round Off</span>
-                  <button type="button"
-                    onClick={() => {
-                      const baseTotal = taxableAmount + totalTax;
-                      const frac = baseTotal - Math.floor(baseTotal);
-                      const ro = frac < 0.5 ? -frac : (1 - frac);
-                      setForm(f => ({ ...f, roundOff: parseFloat(ro.toFixed(2)) }));
-                    }}
-                    className="text-[10px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium border border-blue-200">
-                    Auto
-                  </button>
-                </div>
-                <input type="number" step="any" className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  value={form.roundOff} onFocus={handleNumericFocus}
-                  onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
+            {!isInterState && totalCgst > 0 && (
+              <>
+                <div className="flex justify-between text-blue-600 text-xs"><span>CGST</span><span>{fmt.currency(totalCgst)}</span></div>
+                <div className="flex justify-between text-blue-600 text-xs"><span>SGST</span><span>{fmt.currency(totalSgst)}</span></div>
+              </>
+            )}
+            {isInterState && totalIgst > 0 && (
+              <div className="flex justify-between text-orange-600 text-xs"><span>IGST</span><span>{fmt.currency(totalIgst)}</span></div>
+            )}
+            <div className="flex justify-between items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-600">Round Off</span>
+                <button type="button" tabIndex={-1}
+                  onClick={() => {
+                    const baseTotal = taxableAmount + totalTax;
+                    const frac = baseTotal - Math.floor(baseTotal);
+                    const ro = frac < 0.5 ? -frac : (1 - frac);
+                    setForm(f => ({ ...f, roundOff: parseFloat(ro.toFixed(2)) }));
+                  }}
+                  className="text-[10px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium border border-blue-200">
+                  Auto
+                </button>
               </div>
-              <div className="flex justify-between text-gray-700">
-                <span>Invoice Amount</span>
-                <span className="font-medium">{fmt.currency(taxableAmount + totalTax + (form.roundOff || 0))}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Transport</span>
-                <input type="number" step="0.01" className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  value={form.transportCharges} onFocus={handleNumericFocus}
-                  onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2 mt-1">
-                <span>Net Total Payable</span>
-                <span className="text-blue-700">{fmt.currency(taxableAmount + totalTax + (form.roundOff || 0) + (form.transportCharges || 0))}</span>
-              </div>
+              <input type="number" step="any" tabIndex={-1}
+                className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={form.roundOff} onFocus={handleNumericFocus}
+                onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Transport</span>
+              <input type="number" step="0.01" tabIndex={-1}
+                className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={form.transportCharges} onFocus={handleNumericFocus}
+                onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
+            </div>
+            <div className="flex justify-between font-bold text-base border-t-2 border-gray-300 pt-2 mt-1">
+              <span>Grand Total</span>
+              <span className="text-blue-700">{fmt.currency(taxableAmount + totalTax + (form.roundOff || 0) + (form.transportCharges || 0))}</span>
             </div>
           </div>
         </div>

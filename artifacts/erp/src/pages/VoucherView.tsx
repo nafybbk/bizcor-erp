@@ -3,6 +3,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
+import PrintPreviewModal from "@/components/PrintPreviewModal";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -55,6 +56,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [voucher, setVoucher] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -69,13 +71,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   // Auto-print when opened with ?print=1 (from list print button)
   useEffect(() => {
     if (autoPrint && !loading && voucher) {
-      const t = setTimeout(() => { window.print(); }, 400);
+      const t = setTimeout(() => setShowPrintPreview(true), 400);
       return () => clearTimeout(t);
     }
     return undefined;
   }, [autoPrint, loading, voucher]);
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => setShowPrintPreview(true);
 
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
 
@@ -114,6 +116,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
+      {showPrintPreview && (
+        <PrintPreviewModal
+          printableId="printable"
+          title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
@@ -391,42 +400,73 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
             {/* Right: Tax summary */}
             <div className="px-7 py-5">
-              <div className="space-y-2 text-sm ml-auto max-w-xs">
+              <div className="space-y-1.5 text-sm ml-auto max-w-xs">
+                {/* Block 1 — tax breakdown */}
+                {Number(voucher.totalDiscount) > 0 && (
+                  <div className="flex justify-between text-red-500 text-xs">
+                    <span>Discount</span><span>-{fmt.currency(voucher.totalDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-600">
                   <span>Taxable Amount</span>
                   <span className="font-medium">{fmt.currency(voucher.taxableAmount)}</span>
                 </div>
-                {!isInterState && Number(voucher.totalCgst) > 0 && (
+                {!isInterState ? (
                   <>
-                    <div className="flex justify-between text-blue-600">
+                    <div className="flex justify-between text-blue-600 text-xs">
                       <span>CGST</span><span>{fmt.currency(voucher.totalCgst)}</span>
                     </div>
-                    <div className="flex justify-between text-blue-600">
+                    <div className="flex justify-between text-blue-600 text-xs">
                       <span>SGST</span><span>{fmt.currency(voucher.totalSgst)}</span>
                     </div>
                   </>
-                )}
-                {isInterState && Number(voucher.totalIgst) > 0 && (
-                  <div className="flex justify-between text-orange-600">
+                ) : (
+                  <div className="flex justify-between text-orange-600 text-xs">
                     <span>IGST</span><span>{fmt.currency(voucher.totalIgst)}</span>
                   </div>
                 )}
-                {Number(voucher.transportCharges) > 0 && (
-                  <div className="flex justify-between text-gray-600">
-                    <span>Transport Charges</span><span>{fmt.currency(voucher.transportCharges)}</span>
-                  </div>
-                )}
-                {Number(voucher.roundOff) !== 0 && (
-                  <div className="flex justify-between text-gray-500">
-                    <span>Round Off</span><span>{fmt.currency(voucher.roundOff)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-extrabold text-lg border-t-2 border-gray-800 pt-2 mt-2">
-                  <span>Grand Total</span>
-                  <span className="text-blue-700">{fmt.currency(voucher.grandTotal)}</span>
-                </div>
+                {/* Invoice Value = taxable + tax */}
+                {(() => {
+                  const invoiceValue = Number(voucher.taxableAmount) + Number(voucher.totalCgst || 0) + Number(voucher.totalSgst || 0) + Number(voucher.totalIgst || 0);
+                  const invoiceAmount = invoiceValue + Number(voucher.roundOff || 0);
+                  return (
+                    <>
+                      <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-300 pt-1.5 mt-0.5">
+                        <span>Invoice Value</span>
+                        <span>{fmt.currency(invoiceValue)}</span>
+                      </div>
+
+                      {/* Dashed divider */}
+                      <div className="border-t-2 border-dashed border-gray-300 my-1" />
+
+                      {/* Block 2 — payable breakdown */}
+                      {Number(voucher.roundOff) !== 0 && (
+                        <div className="flex justify-between text-gray-500 text-xs">
+                          <span>Round Off</span>
+                          <span>{Number(voucher.roundOff) > 0 ? "+" : ""}{fmt.currency(voucher.roundOff)}</span>
+                        </div>
+                      )}
+                      {Number(voucher.roundOff) !== 0 && (
+                        <div className="flex justify-between text-gray-700 text-xs">
+                          <span>Invoice Amount</span>
+                          <span className="font-medium">{fmt.currency(invoiceAmount)}</span>
+                        </div>
+                      )}
+                      {Number(voucher.transportCharges) > 0 && (
+                        <div className="flex justify-between text-gray-600 text-xs">
+                          <span>Transport{voucher.transportName ? ` (${voucher.transportName})` : ""}</span>
+                          <span>{fmt.currency(voucher.transportCharges)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-extrabold text-base border-t-2 border-gray-800 pt-2 mt-1">
+                        <span>Net Total Payable</span>
+                        <span className="text-blue-700">{fmt.currency(voucher.grandTotal)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 {Number(voucher.paidAmount) > 0 && (
-                  <div className="flex justify-between text-green-600 text-sm">
+                  <div className="flex justify-between text-green-600 text-sm border-t pt-1">
                     <span>Paid</span><span>{fmt.currency(voucher.paidAmount)}</span>
                   </div>
                 )}

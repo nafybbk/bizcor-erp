@@ -52,7 +52,7 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
 
   const [leftPct, setLeftPct] = useState(() => {
     const saved = localStorage.getItem("print_divider_pct");
-    return saved ? Number(saved) : 68;
+    return saved ? Number(saved) : 85;
   });
   const [zoom, setZoom] = useState(1);
   const [srcdoc, setSrcdoc] = useState("");
