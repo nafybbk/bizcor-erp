@@ -220,32 +220,53 @@ ipcMain.handle("skip-cloud-setup", async () => {
   openMainWindow();
 });
 
-// ─── App Lifecycle ───────────────────────────────────────────────────────────
+// ─── Single Instance Lock ─────────────────────────────────────────────────────
+// Ek se zyada instances nahi honge — duplicate click pe existing window focus hoga
 
-app.whenReady().then(async () => {
-  buildTray();
+const gotTheLock = app.requestSingleInstanceLock();
 
-  server.onStatusChange(status => {
-    refreshTray();
-    if (status === "running") {
-      closeSplash();
-      openMainWindow();
-      setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
-    } else if (status === "error") {
-      closeSplash();
-      dialog.showErrorBox(
-        "Server Error",
-        "Server shuru nahi ho saka.\nApp band karke dobara kholen."
-      );
+if (!gotTheLock) {
+  // Doosra instance already chal raha hai — ye naya instance band ho jaayega
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // Koi doosra instance kholne ki koshish kare → existing window focus karo
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else if (splashWindow) {
+      splashWindow.focus();
     }
   });
 
-  showSplash();
-  await server.start(resourcesPath);
-});
+  // ─── App Lifecycle ─────────────────────────────────────────────────────────
 
-app.on("window-all-closed", () => {});
-app.on("before-quit", async () => { isQuitting = true; await server.stop(); });
+  app.whenReady().then(async () => {
+    buildTray();
+
+    server.onStatusChange(status => {
+      refreshTray();
+      if (status === "running") {
+        closeSplash();
+        openMainWindow();
+        setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
+      } else if (status === "error") {
+        closeSplash();
+        dialog.showErrorBox(
+          "Server Error",
+          "Server shuru nahi ho saka.\nApp band karke dobara kholen."
+        );
+      }
+    });
+
+    showSplash();
+    await server.start(resourcesPath);
+  });
+
+  app.on("window-all-closed", () => {});
+  app.on("before-quit", async () => { isQuitting = true; await server.stop(); });
+}
 
 // ─── Auto Updater ─────────────────────────────────────────────────────────────
 
