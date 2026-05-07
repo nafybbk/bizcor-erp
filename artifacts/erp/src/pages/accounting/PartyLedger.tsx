@@ -49,6 +49,11 @@ export default function PartyLedger() {
   const isPurchaseSide = bills.some((b: any) => b.voucherType === "purchase_bill" || b.voucherType === "debit_note");
   const billsDrCr = isPurchaseSide ? "Cr" : "Dr";
 
+  const entries: any[] = ledger?.entries || [];
+  const ob = ledger?.openingBalance ?? 0;
+  const totalDebit  = entries.reduce((s: number, e: any) => s + (e.debit  || 0), 0) + (ob > 0 ? ob : 0);
+  const totalCredit = entries.reduce((s: number, e: any) => s + (e.credit || 0), 0) + (ob < 0 ? -ob : 0);
+
   const filteredParties = partyTypeFilter === "all"
     ? parties
     : parties.filter(p => p.type === partyTypeFilter || p.type === "both");
@@ -423,9 +428,9 @@ export default function PartyLedger() {
                 </tbody>
                 <tfoot className="bg-gray-50 border-t-2 border-gray-300 font-semibold">
                   <tr>
-                    <td colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)} className="px-4 py-3 text-gray-700">Closing Balance</td>
-                    {show("debit") && <td className="px-4 py-3 text-right text-blue-700">{ledger.closingBalance >= 0 ? fmt.currency(ledger.closingBalance) : ""}</td>}
-                    {show("credit") && <td className="px-4 py-3 text-right text-green-700">{ledger.closingBalance < 0 ? fmt.currency(-ledger.closingBalance) : ""}</td>}
+                    <td colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)} className="px-4 py-3 text-gray-700">Total</td>
+                    {show("debit") && <td className="px-4 py-3 text-right text-blue-800">{fmt.currency(totalDebit)}</td>}
+                    {show("credit") && <td className="px-4 py-3 text-right text-green-800">{fmt.currency(totalCredit)}</td>}
                     {show("balance") && (
                       <td className={`px-4 py-3 text-right text-base font-bold ${ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700"}`}>
                         {fmt.currency(Math.abs(ledger.closingBalance))} {ledger.closingBalance >= 0 ? "Dr" : "Cr"}
