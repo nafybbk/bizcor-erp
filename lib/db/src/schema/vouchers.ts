@@ -24,6 +24,7 @@ export const vouchersTable = pgTable("vouchers", {
   totalIgst: numeric("total_igst", { precision: 15, scale: 2 }).default("0"),
   totalTax: numeric("total_tax", { precision: 15, scale: 2 }).default("0"),
   transportCharges: numeric("transport_charges", { precision: 15, scale: 2 }).default("0"),
+  transportName: text("transport_name"),
   roundOff: numeric("round_off", { precision: 15, scale: 2 }).default("0"),
   grandTotal: numeric("grand_total", { precision: 15, scale: 2 }).notNull().default("0"),
   paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),

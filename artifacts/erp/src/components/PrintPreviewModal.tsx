@@ -7,6 +7,17 @@ interface Props {
   title?: string;
 }
 
+// A4 width in pixels at 96dpi ≈ 794px
+const A4_PX = 794;
+
+function calcDefaultZoom(): number {
+  const w = typeof window !== "undefined" ? window.innerWidth : 1280;
+  if (w < 480) return Math.max(0.28, parseFloat(((w - 24) / A4_PX).toFixed(2)));
+  if (w < 768) return 0.62;
+  if (w < 1100) return 0.82;
+  return 0.9;
+}
+
 function buildSrcdoc(printableId: string, zoom: number): string {
   const el = document.getElementById(printableId);
   if (!el) return "<body><p style='color:#999;padding:2rem'>Preview unavailable</p></body>";
@@ -21,12 +32,20 @@ function buildSrcdoc(printableId: string, zoom: number): string {
       } catch { /* cross-origin */ }
     }
   } catch {}
+  // The scaled width of the A4 page = 210mm * zoom. We set body min-width to this
+  // so the iframe's scrollable area matches the visual content width.
+  const scaledWidthMm = Math.round(210 * zoom);
   return `<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
 <style>
 *{box-sizing:border-box;}
-html,body{margin:0;padding:0;background:#6b7280;}
-body{padding:20px 16px 40px;}
+html{margin:0;padding:0;background:#6b7280;}
+body{
+  margin:0;
+  background:#6b7280;
+  padding:20px 12px 40px;
+  min-width:calc(${scaledWidthMm}mm + 24px);
+}
 #preview-root{
   background:white;
   width:210mm;
@@ -36,6 +55,7 @@ body{padding:20px 16px 40px;}
   overflow:hidden;
   transform:scale(${zoom});
   transform-origin:top center;
+  margin-bottom:calc(-210mm * ${1 - zoom});
 }
 .no-print{display:none!important;}
 .print-only{display:block!important;}
@@ -47,19 +67,22 @@ ${css}
 
 export default function PrintPreviewModal({ printableId = "printable", onClose, title = "Print Preview" }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [zoom, setZoom] = useState(0.75);
+  const [zoom, setZoom] = useState(calcDefaultZoom);
   const [srcdoc, setSrcdoc] = useState("");
 
   useEffect(() => {
     setSrcdoc(buildSrcdoc(printableId, zoom));
   }, [printableId, zoom]);
 
+  // Iframe needs dynamic width to allow horizontal scroll when zoomed
+  const iframeWidth = `max(100%, calc(${Math.round(210 * zoom)}mm + 24px))`;
+
   // Ctrl+Scroll to zoom
   useEffect(() => {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
-      setZoom(z => parseFloat(Math.min(2.5, Math.max(0.3, z - e.deltaY * 0.001)).toFixed(2)));
+      setZoom(z => parseFloat(Math.min(3, Math.max(0.2, z - e.deltaY * 0.001)).toFixed(2)));
     };
     window.addEventListener("wheel", onWheel, { passive: false });
     return () => window.removeEventListener("wheel", onWheel);
@@ -79,7 +102,7 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
     });
   }, [onClose]);
 
-  const zoomIn = () => setZoom(z => parseFloat(Math.min(2.5, z + 0.1).toFixed(1)));
+  const zoomIn  = () => setZoom(z => parseFloat(Math.min(3, z + 0.1).toFixed(1)));
   const zoomOut = () => setZoom(z => parseFloat(Math.max(0.2, z - 0.1).toFixed(1)));
 
   return (
@@ -95,17 +118,17 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
 
         {/* Center: zoom */}
         <div className="flex items-center gap-1 bg-gray-800 rounded-lg px-1 py-0.5 flex-shrink-0">
-          <button onClick={zoomOut} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom out">
+          <button onClick={zoomOut} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom out (-)">
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setZoom(0.75)}
+            onClick={() => setZoom(calcDefaultZoom())}
             className="px-2 py-0.5 text-xs text-gray-200 hover:bg-gray-700 rounded font-mono min-w-[52px] text-center"
-            title="Reset zoom"
+            title="Tap to reset zoom"
           >
             {Math.round(zoom * 100)}%
           </button>
-          <button onClick={zoomIn} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom in">
+          <button onClick={zoomIn} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom in (+)">
             <ZoomIn className="w-4 h-4" />
           </button>
         </div>
@@ -126,14 +149,14 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
         </div>
       </div>
 
-      {/* ── Full-screen iframe ── */}
+      {/* ── Full-screen iframe with horizontal scroll support ── */}
       <div className="flex-1 overflow-auto bg-gray-600">
         {srcdoc ? (
           <iframe
             ref={iframeRef}
             srcDoc={srcdoc}
             title="Invoice Preview"
-            style={{ width: "100%", height: "100%", border: "none", minHeight: "100%" }}
+            style={{ width: iframeWidth, height: "100%", border: "none", minHeight: "100%", display: "block" }}
             sandbox="allow-same-origin"
           />
         ) : (

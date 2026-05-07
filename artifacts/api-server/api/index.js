@@ -58033,6 +58033,7 @@ var init_vouchers = __esm({
       totalIgst: numeric("total_igst", { precision: 15, scale: 2 }).default("0"),
       totalTax: numeric("total_tax", { precision: 15, scale: 2 }).default("0"),
       transportCharges: numeric("transport_charges", { precision: 15, scale: 2 }).default("0"),
+      transportName: text("transport_name"),
       roundOff: numeric("round_off", { precision: 15, scale: 2 }).default("0"),
       grandTotal: numeric("grand_total", { precision: 15, scale: 2 }).notNull().default("0"),
       paidAmount: numeric("paid_amount", { precision: 15, scale: 2 }).default("0"),
@@ -86002,7 +86003,7 @@ async function getNextVoucherNumber(businessId, voucherType) {
 }
 async function createVoucher(req, res, voucherType) {
   const businessId = req.user.businessId;
-  const { date: date6, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber } = req.body;
+  const { date: date6, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber } = req.body;
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
     res.status(400).json({ error: "Bad Request", message: "Please select a valid party" });
@@ -86072,6 +86073,7 @@ async function createVoucher(req, res, voucherType) {
     totalIgst: String(calc.totalIgst),
     totalTax: String(calc.totalTax),
     transportCharges: String(transport),
+    transportName: transportName || null,
     roundOff: String(round),
     grandTotal: String(grandTotal),
     status: status || "posted",
@@ -86120,7 +86122,7 @@ async function createVoucher(req, res, voucherType) {
 async function updateVoucher(req, res) {
   const businessId = req.user.businessId;
   const id = Number(req.params.id);
-  const { date: date6, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status } = req.body;
+  const { date: date6, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status } = req.body;
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
     res.status(400).json({ error: "Bad Request", message: "Please select a valid party" });
@@ -86164,6 +86166,7 @@ async function updateVoucher(req, res) {
     totalIgst: String(calc.totalIgst),
     totalTax: String(calc.totalTax),
     transportCharges: String(transport),
+    transportName: transportName || null,
     roundOff: String(round),
     grandTotal: String(grandTotal),
     status: status || "posted",

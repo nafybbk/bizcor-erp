@@ -129,7 +129,7 @@ async function getNextVoucherNumber(businessId: number, voucherType: VoucherType
 
 async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const businessId = req.user!.businessId!;
-  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber } = req.body;
+  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber } = req.body;
 
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
@@ -195,6 +195,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
     taxableAmount: String(calc.taxableAmount), totalCgst: String(calc.totalCgst),
     totalSgst: String(calc.totalSgst), totalIgst: String(calc.totalIgst),
     totalTax: String(calc.totalTax), transportCharges: String(transport),
+    transportName: transportName || null,
     roundOff: String(round), grandTotal: String(grandTotal),
     status: status || "posted", notes: notes || null, termsAndConditions: termsAndConditions || null,
     linkedVoucherId: linkedVoucherId || null, isInterState,
@@ -231,7 +232,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
 async function updateVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
   const id = Number(req.params.id);
-  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status } = req.body;
+  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status } = req.body;
 
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
@@ -272,6 +273,7 @@ async function updateVoucher(req: any, res: any) {
     taxableAmount: String(calc.taxableAmount), totalCgst: String(calc.totalCgst),
     totalSgst: String(calc.totalSgst), totalIgst: String(calc.totalIgst),
     totalTax: String(calc.totalTax), transportCharges: String(transport),
+    transportName: transportName || null,
     roundOff: String(round), grandTotal: String(grandTotal),
     status: status || "posted", notes: notes || null,
     termsAndConditions: termsAndConditions || null,
