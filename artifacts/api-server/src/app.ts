@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
+import { createReadStream, existsSync } from "fs";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
@@ -45,5 +47,25 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// DESKTOP_MODE: serve built ERP frontend as static files
+if (process.env.DESKTOP_MODE === "true") {
+  const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, "../../frontend-dist");
+
+  if (existsSync(frontendPath)) {
+    app.use(express.static(frontendPath));
+    app.get("*", (_req, res) => {
+      const indexFile = path.join(frontendPath, "index.html");
+      if (existsSync(indexFile)) {
+        res.sendFile(indexFile);
+      } else {
+        res.status(404).send("Frontend not found");
+      }
+    });
+    logger.info({ frontendPath }, "Serving static frontend in DESKTOP_MODE");
+  } else {
+    logger.warn({ frontendPath }, "DESKTOP_MODE enabled but frontend-dist not found");
+  }
+}
 
 export default app;
