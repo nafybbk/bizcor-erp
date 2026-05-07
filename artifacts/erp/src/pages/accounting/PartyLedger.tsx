@@ -421,6 +421,18 @@ export default function PartyLedger() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-50 border-t-2 border-gray-300 font-semibold">
+                  <tr>
+                    <td colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)} className="px-4 py-3 text-gray-700">Closing Balance</td>
+                    {show("debit") && <td className="px-4 py-3 text-right text-blue-700">{ledger.closingBalance >= 0 ? fmt.currency(ledger.closingBalance) : ""}</td>}
+                    {show("credit") && <td className="px-4 py-3 text-right text-green-700">{ledger.closingBalance < 0 ? fmt.currency(-ledger.closingBalance) : ""}</td>}
+                    {show("balance") && (
+                      <td className={`px-4 py-3 text-right text-base font-bold ${ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700"}`}>
+                        {fmt.currency(Math.abs(ledger.closingBalance))} {ledger.closingBalance >= 0 ? "Dr" : "Cr"}
+                      </td>
+                    )}
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
