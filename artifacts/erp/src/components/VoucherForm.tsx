@@ -274,11 +274,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     shippingAddress: "",
     placeOfSupply: "",
     transportCharges: 0,
+    transportName: "",
     roundOff: 0,
     notes: "",
     termsAndConditions: "",
     status: "posted",
   });
+  const [savedTransportNames, setSavedTransportNames] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("erp_transport_names") || "[]"); } catch { return []; }
+  });
+  const [transportNameOpen, setTransportNameOpen] = useState(false);
   const [lineItems, setLineItems] = useState<VoucherItem[]>([emptyItem()]);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set([0]));
   const [isInterState, setIsInterState] = useState(false);
@@ -349,6 +354,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         shippingAddress: initialData.shippingAddress || "",
         placeOfSupply: initialData.placeOfSupply || "",
         transportCharges: Number(initialData.transportCharges || 0),
+        transportName: initialData.transportName || "",
         roundOff: Number(initialData.roundOff || 0),
         notes: initialData.notes || "",
         termsAndConditions: initialData.termsAndConditions || "",
@@ -556,6 +562,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         shippingAddress: full.shippingAddress || "",
         placeOfSupply: full.placeOfSupply || "",
         transportCharges: Number(full.transportCharges || 0),
+        transportName: full.transportName || "",
         roundOff: Number(full.roundOff || 0),
         notes: full.notes || "",
         termsAndConditions: full.termsAndConditions || "",
@@ -612,6 +619,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       const targetId = activeBinDocId || editId;
       if (targetId) await api.patch(`/${voucherType}/${targetId}`, payload);
       else await api.post(`/${voucherType}`, payload);
+      // Auto-save transport name for future suggestions
+      if (form.transportName?.trim()) {
+        const tName = form.transportName.trim();
+        if (!savedTransportNames.includes(tName)) {
+          const updated = [...savedTransportNames, tName];
+          setSavedTransportNames(updated);
+          try { localStorage.setItem("erp_transport_names", JSON.stringify(updated)); } catch {}
+        }
+      }
       // Auto-save new ship-to address to party (for future auto-fill)
       if (form.useShippingAddress && form.shippingAddress.trim() && form.partyId) {
         const newAddr = form.shippingAddress.trim();
@@ -1413,18 +1429,39 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <div className="flex gap-1">
-                          <input type="number" min="0" step="0.01" className="border border-gray-200 rounded px-2 py-1.5 text-sm w-16 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.discount}
-                            onFocus={handleNumericFocus}
-                            onKeyDown={e => handleItemEnter(e, idx)}
-                            onChange={e => updateItem(idx, "discount", Number(e.target.value))} />
-                          <select className="border border-gray-200 rounded px-1 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            value={item.discountType} onChange={e => updateItem(idx, "discountType", e.target.value)}>
-                            <option value="percent">%</option>
-                            <option value="amount">₹</option>
-                          </select>
-                        </div>
+                        {(() => {
+                          const baseR = item.rateIncludesGst && item.taxRate > 0 ? item.rate / (1 + item.taxRate / 100) : item.rate;
+                          const gross = item.quantity * baseR;
+                          const pctVal = item.discountType === "percent" ? item.discount : (gross > 0 ? parseFloat((item.discount / gross * 100).toFixed(2)) : 0);
+                          const amtVal = item.discountType === "amount" ? item.discount : parseFloat((gross * item.discount / 100).toFixed(2));
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-400 w-4 text-right flex-shrink-0">%</span>
+                                <input type="number" min="0" step="0.01"
+                                  className="border border-gray-200 rounded px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                                  value={pctVal}
+                                  onFocus={handleNumericFocus}
+                                  onKeyDown={e => handleItemEnter(e, idx)}
+                                  onChange={e => {
+                                    const pct = parseFloat(e.target.value) || 0;
+                                    setLineItems(prev => { const next = [...prev]; next[idx] = calcItem({ ...next[idx], discount: pct, discountType: "percent" }, isInterState); return next; });
+                                  }} />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-gray-400 w-4 text-right flex-shrink-0">₹</span>
+                                <input type="number" min="0" step="0.01"
+                                  className="border border-gray-200 rounded px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                                  value={amtVal}
+                                  onFocus={handleNumericFocus}
+                                  onChange={e => {
+                                    const amt = parseFloat(e.target.value) || 0;
+                                    setLineItems(prev => { const next = [...prev]; next[idx] = calcItem({ ...next[idx], discount: amt, discountType: "amount" }, isInterState); return next; });
+                                  }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-1.5 text-right text-xs text-gray-600">{fmt.number(item.taxableAmount)}</td>
                       <td className="px-2 py-1.5 text-right text-xs">
@@ -1454,69 +1491,127 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
         {/* Totals */}
         <div className="grid grid-cols-2 gap-5">
+          {/* Left panel — notes, transport name, T&C, status+save */}
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea className={inputCls + " bg-white"} rows={3} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes for customer..." />
             </div>
+            {/* Transport Name — autocomplete */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Transport Name</label>
+              <input
+                type="text"
+                className={inputCls + " bg-white"}
+                value={form.transportName}
+                placeholder="e.g. SAFEXPRESS, VRL..."
+                autoComplete="off"
+                onFocus={() => setTransportNameOpen(true)}
+                onBlur={() => setTimeout(() => setTransportNameOpen(false), 150)}
+                onChange={e => setForm(f => ({ ...f, transportName: e.target.value }))}
+              />
+              {transportNameOpen && (
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {savedTransportNames
+                    .filter(n => !form.transportName || n.toLowerCase().includes(form.transportName.toLowerCase()))
+                    .map(name => (
+                      <div key={name}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => { setForm(f => ({ ...f, transportName: name })); setTransportNameOpen(false); }}
+                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm text-gray-800">
+                        {name}
+                      </div>
+                    ))}
+                  {savedTransportNames.filter(n => !form.transportName || n.toLowerCase().includes(form.transportName.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-2 text-xs text-gray-400">Type karo — save hone par list mein aayega</div>
+                  )}
+                </div>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
               <textarea className={inputCls + " bg-white"} rows={2} value={form.termsAndConditions} onChange={e => setForm(f => ({ ...f, termsAndConditions: e.target.value }))} />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select className={inputCls + " bg-white"} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="draft">Draft</option>
-                <option value="posted">Posted</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+            {/* Status + Save side by side */}
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select className={inputCls + " bg-white"} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                  <option value="draft">Draft</option>
+                  <option value="posted">Posted</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <button type="submit" disabled={loading}
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60 whitespace-nowrap">
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editId ? "Update" : "Save"} {title}
+              </button>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-600">Sub Total</span><span className="font-medium">{fmt.currency(subTotal)}</span></div>
-            {totalDiscount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{fmt.currency(totalDiscount)}</span></div>}
-            <div className="flex justify-between"><span className="text-gray-600">Taxable Amount</span><span>{fmt.currency(taxableAmount)}</span></div>
-            {!isInterState && totalCgst > 0 && (
-              <>
-                <div className="flex justify-between text-blue-600"><span>CGST</span><span>{fmt.currency(totalCgst)}</span></div>
-                <div className="flex justify-between text-blue-600"><span>SGST</span><span>{fmt.currency(totalSgst)}</span></div>
-              </>
-            )}
-            {isInterState && totalIgst > 0 && <div className="flex justify-between text-orange-600"><span>IGST</span><span>{fmt.currency(totalIgst)}</span></div>}
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Transport Charges</span>
-              <input type="number" step="0.01" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.transportCharges}
-                onFocus={handleNumericFocus}
-                onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
-            </div>
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-600">Round Off</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const baseTotal = taxableAmount + totalTax + (form.transportCharges || 0);
-                    const frac = baseTotal - Math.floor(baseTotal);
-                    const ro = frac < 0.5 ? -frac : (1 - frac);
-                    setForm(f => ({ ...f, roundOff: parseFloat(ro.toFixed(2)) }));
-                  }}
-                  className="text-[10px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium border border-blue-200 transition-colors"
-                  title="Auto-calculate round off"
-                >Auto</button>
+
+          {/* Right panel — summary split into 2 blocks */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-sm space-y-0">
+            {/* Block 1 — Invoice value breakdown */}
+            <div className="space-y-2 pb-3">
+              {totalDiscount > 0 && <div className="flex justify-between text-red-500 text-xs"><span>Discount</span><span>-{fmt.currency(totalDiscount)}</span></div>}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Taxable Amount</span>
+                <span className="font-medium">{fmt.currency(taxableAmount)}</span>
               </div>
-              <input type="number" step="any" className="w-28 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.roundOff}
-                onFocus={handleNumericFocus}
-                onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
+              {!isInterState && totalCgst > 0 && (
+                <>
+                  <div className="flex justify-between text-blue-600 text-xs"><span>CGST</span><span>{fmt.currency(totalCgst)}</span></div>
+                  <div className="flex justify-between text-blue-600 text-xs"><span>SGST</span><span>{fmt.currency(totalSgst)}</span></div>
+                </>
+              )}
+              {isInterState && totalIgst > 0 && (
+                <div className="flex justify-between text-orange-600 text-xs"><span>IGST</span><span>{fmt.currency(totalIgst)}</span></div>
+              )}
+              {totalTax === 0 && <div className="flex justify-between text-gray-400 text-xs"><span>{isInterState ? "IGST" : "CGST+SGST"}</span><span>0.00</span></div>}
+              <div className="flex justify-between font-semibold text-gray-900 pt-1 border-t border-gray-100">
+                <span>Invoice Value</span>
+                <span>{fmt.currency(taxableAmount + totalTax)}</span>
+              </div>
             </div>
-            <div className="border-t pt-2 flex justify-between font-bold text-base">
-              <span>Grand Total</span>
-              <span className="text-blue-700">{fmt.currency(Math.round(grandTotal))}</span>
-            </div>
-            {/* GST breakdown */}
-            <div className={`text-xs text-center py-1 rounded-full font-medium ${isInterState ? "bg-orange-50 text-orange-600" : "bg-blue-50 text-blue-600"}`}>
-              {isInterState ? `IGST: ${fmt.currency(totalIgst)}` : `CGST: ${fmt.currency(totalCgst)}  +  SGST: ${fmt.currency(totalSgst)}`}
+
+            {/* Divider */}
+            <div className="border-t-2 border-dashed border-gray-200 my-1" />
+
+            {/* Block 2 — payable breakdown */}
+            <div className="space-y-2 pt-3">
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-600">Round Off</span>
+                  <button type="button"
+                    onClick={() => {
+                      const baseTotal = taxableAmount + totalTax;
+                      const frac = baseTotal - Math.floor(baseTotal);
+                      const ro = frac < 0.5 ? -frac : (1 - frac);
+                      setForm(f => ({ ...f, roundOff: parseFloat(ro.toFixed(2)) }));
+                    }}
+                    className="text-[10px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded font-medium border border-blue-200">
+                    Auto
+                  </button>
+                </div>
+                <input type="number" step="any" className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={form.roundOff} onFocus={handleNumericFocus}
+                  onChange={e => setForm(f => ({ ...f, roundOff: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="flex justify-between text-gray-700">
+                <span>Invoice Amount</span>
+                <span className="font-medium">{fmt.currency(taxableAmount + totalTax + (form.roundOff || 0))}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Transport</span>
+                <input type="number" step="0.01" className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={form.transportCharges} onFocus={handleNumericFocus}
+                  onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
+              </div>
+              <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2 mt-1">
+                <span>Net Total Payable</span>
+                <span className="text-blue-700">{fmt.currency(taxableAmount + totalTax + (form.roundOff || 0) + (form.transportCharges || 0))}</span>
+              </div>
             </div>
           </div>
         </div>
