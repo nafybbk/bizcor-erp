@@ -34,11 +34,11 @@
 <body>
   <div class="logo">BizCor ERP</div>
   <div class="sub">Cloud Sync Setup</div>
-  <div class="badge">✓ Offline mode active — app chal raha hai</div>
+  <div class="badge">✓ Offline mode active — app is running</div>
 
   <div class="info">
-    App <b>local database</b> ke saath chal raha hai — internet ki zaroorat nahi.<br>
-    Supabase se data sync karna ho to niche URL dalo, warna <b>Skip</b> karein.
+    The app is running with a <b>local database</b> — no internet required.<br>
+    To sync data with Supabase, enter the connection URL below, or click <b>Skip</b>.
   </div>
 
   <div class="card">
@@ -46,14 +46,14 @@
     <label>Connection String</label>
     <textarea id="dbUrl" placeholder="postgresql://user:password@host:5432/dbname"></textarea>
     <div class="hint">
-      <strong>Supabase:</strong> Settings → Database → Connection Pooling → copy karein<br>
-      <strong>Password mein @ ho to:</strong> @ ki jagah %40 likhein
+      <strong>Supabase:</strong> Settings → Database → Connection Pooling → copy the URL<br>
+      <strong>If password contains @:</strong> replace @ with %40
     </div>
-    <div class="err" id="err">URL sahi nahi — postgresql:// se shuru hona chahiye</div>
+    <div class="err" id="err">Invalid URL — must start with postgresql://</div>
   </div>
 
-  <button class="btn" id="saveBtn" onclick="save()">Cloud se Connect karein</button>
-  <button class="btn btn-skip" onclick="skip()">Skip — Local Database use karein</button>
+  <button class="btn" id="saveBtn" onclick="save()">Connect to Cloud</button>
+  <button class="btn btn-skip" onclick="skip()">Skip — Use Local Database</button>
 
   <script>
     function save() {
@@ -65,7 +65,7 @@
       }
       err.style.display = 'none';
       btn.disabled = true;
-      btn.textContent = 'Connect ho raha hai...';
+      btn.textContent = 'Connecting...';
       window.bizcorDesktop.saveDbUrl(url);
     }
 

@@ -69,14 +69,26 @@ function clearCloudUrl() {
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch (_) {}
 }
 
-function isCloudConfigured() {
-  return !!loadCloudUrl();
-}
+function isCloudConfigured() { return !!loadCloudUrl(); }
 
 // Keep backward compat
 const saveDbUrl = saveCloudUrl;
 const loadDbUrl = loadCloudUrl;
 const isConfigured = () => true;
+
+// Use bundled node.exe (real Node.js runtime) so PGlite WASM works correctly.
+// Fallback to process.execPath (Electron runtime) if bundled node not found.
+function getNodeBin(resourcesPath) {
+  if (process.platform === "win32") {
+    const bundled = path.join(resourcesPath, "server-bundle", "node.exe");
+    if (fs.existsSync(bundled)) {
+      console.log("[server-manager] Using bundled node.exe:", bundled);
+      return bundled;
+    }
+    console.warn("[server-manager] Bundled node.exe not found, falling back to Electron runtime");
+  }
+  return process.execPath;
+}
 
 async function startServer(options, resourcesPath) {
   const { cloudUrl, pglitePath } = options;
@@ -90,9 +102,9 @@ async function startServer(options, resourcesPath) {
   }
 
   setStatus("starting");
-  setProgress(10, "Server shuru ho raha hai...", "Files load ho rahi hain");
+  setProgress(10, "Starting server...", "Loading application files");
 
-  const nodeBin = process.execPath;
+  const nodeBin = getNodeBin(resourcesPath);
   const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
 
   const env = {
@@ -103,6 +115,7 @@ async function startServer(options, resourcesPath) {
     FRONTEND_PATH: path.join(resourcesPath, "frontend-dist"),
     SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
     CORS_ORIGIN: "",
+    // NODE_PATH helps CJS resolution; ESM uses directory-based lookup
     NODE_PATH: nodeModulesInBundle,
   };
 
@@ -115,42 +128,50 @@ async function startServer(options, resourcesPath) {
     delete env.SUPABASE_DATABASE_URL;
   }
 
+  // Collect output for error reporting
+  const outputLines = [];
+  const pushLine = (prefix, line) => {
+    const entry = `[${prefix}] ${line}`;
+    console.log(entry);
+    outputLines.push(entry);
+    if (outputLines.length > 80) outputLines.shift();
+  };
+
   serverProcess = spawn(nodeBin, [serverBundle], {
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  let lastLog = "";
   serverProcess.stdout.on("data", d => {
-    const line = d.toString().trim();
-    console.log("[server]", line);
-    lastLog = line;
-    // Forward key log lines as progress hints
-    if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
-      setProgress(40, "Database initialize ho rahi hai...", line.substring(0, 80));
-    } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
-      setProgress(65, "Tables ready ho rahi hain...", line.substring(0, 80));
-    } else if (line.includes("listen") || line.includes("port") || line.includes("ready") || line.includes("started")) {
-      setProgress(85, "Almost ready...", "Server port pe aa raha hai");
-    }
+    d.toString().split("\n").filter(Boolean).forEach(line => {
+      pushLine("server", line);
+      if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
+        setProgress(40, "Initializing local database...", line.substring(0, 80));
+      } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
+        setProgress(65, "Setting up tables...", line.substring(0, 80));
+      } else if (line.includes("listen") || line.includes("port") || line.includes("ready") || line.includes("started")) {
+        setProgress(85, "Almost ready...", "Server is binding to port");
+      }
+    });
   });
+
   serverProcess.stderr.on("data", d => {
-    const line = d.toString().trim();
-    console.error("[server-err]", line);
-    lastLog = line;
+    d.toString().split("\n").filter(Boolean).forEach(line => pushLine("err", line));
   });
+
   serverProcess.on("exit", code => {
-    console.log("[server] exited with code", code);
+    pushLine("server", `process exited with code ${code}`);
     if (_status !== "stopped") setStatus("stopped");
   });
+
   serverProcess.on("error", err => {
-    console.error("[server] spawn error", err);
+    pushLine("server", `spawn error: ${err.message}`);
     setStatus("error");
   });
 
-  setProgress(30, "Database shuru ho rahi hai...", "Pehli baar 30-60 second lag sakte hain");
+  setProgress(30, "Initializing database...", "First launch may take 30–60 seconds");
 
-  // Wait up to 90s — PGlite WASM takes 30-60s on first launch
+  // Wait up to 90s for server health check
   const TIMEOUT_MS = 90000;
   await new Promise((resolve, reject) => {
     const http = require("http");
@@ -164,8 +185,8 @@ async function startServer(options, resourcesPath) {
       if (attempt % 5 === 0) {
         setProgress(
           Math.min(30 + attempt * 2, 80),
-          "App ready ho rahi hai...",
-          `${elapsed} seconds ho gaye — please wait`
+          "Waiting for server to be ready...",
+          `${elapsed} seconds elapsed — please wait`
         );
       }
 
@@ -178,8 +199,11 @@ async function startServer(options, resourcesPath) {
         }
       }).on("error", () => {
         if (Date.now() - start > TIMEOUT_MS) {
+          const lastOutput = outputLines.slice(-10).join("\n") || "(no output)";
           reject(new Error(
-            `Server ${TIMEOUT_MS / 1000} seconds mein ready nahi hua.\n\nLast log: ${lastLog || "(koi output nahi)"}`
+            `Server did not respond within ${TIMEOUT_MS / 1000} seconds.\n\n` +
+            `Runtime: ${path.basename(nodeBin)}\n\n` +
+            `Last output:\n${lastOutput}`
           ));
         } else {
           setTimeout(check, 1000);
@@ -201,7 +225,7 @@ async function start(resourcesPath) {
   try {
     await startServer({ pglitePath }, resourcesPath);
   } catch (err) {
-    console.error("Offline server start failed:", err);
+    console.error("Offline server start failed:", err.message);
     setStatus("error");
   }
 }
