@@ -1,6 +1,6 @@
 "use strict";
 
-const { fork } = require("child_process");
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
@@ -75,7 +75,10 @@ async function startServer(databaseUrl, resourcesPath) {
 
   setStatus("starting");
 
-  serverProcess = fork(serverBundle, [], {
+  // Use node path from process (works in Electron's bundled Node)
+  const nodeBin = process.execPath;
+
+  serverProcess = spawn(nodeBin, [serverBundle], {
     env: {
       ...process.env,
       PORT: String(SERVER_PORT),
@@ -86,14 +89,37 @@ async function startServer(databaseUrl, resourcesPath) {
       SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
       CORS_ORIGIN: "",
     },
-    silent: false,
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
-  serverProcess.on("exit", () => setStatus("stopped"));
-  serverProcess.on("error", () => setStatus("error"));
+  serverProcess.stdout.on("data", d => console.log("[server]", d.toString().trim()));
+  serverProcess.stderr.on("data", d => console.error("[server-err]", d.toString().trim()));
+  serverProcess.on("exit", code => {
+    console.log("[server] exited with code", code);
+    setStatus("stopped");
+  });
+  serverProcess.on("error", err => {
+    console.error("[server] spawn error", err);
+    setStatus("error");
+  });
 
-  // Wait 4 seconds for server to be ready
-  await new Promise(r => setTimeout(r, 4000));
+  // Wait up to 8 seconds for server to be ready
+  await new Promise((resolve, reject) => {
+    let ready = false;
+    const http = require("http");
+    const start = Date.now();
+    const check = () => {
+      http.get(`http://localhost:${SERVER_PORT}/api/health`, res => {
+        if (res.statusCode < 500) { ready = true; resolve(); }
+        else setTimeout(check, 800);
+      }).on("error", () => {
+        if (Date.now() - start > 12000) reject(new Error("Server timeout — 12s ke andar ready nahi hua"));
+        else setTimeout(check, 800);
+      });
+    };
+    check();
+  });
+
   setStatus("running");
 }
 
