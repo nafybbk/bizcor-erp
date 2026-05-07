@@ -54,7 +54,7 @@ if (process.env.DESKTOP_MODE === "true") {
 
   if (existsSync(frontendPath)) {
     app.use(express.static(frontendPath));
-    app.get("*", (_req, res) => {
+    app.get("/{*splat}", (_req, res) => {
       const indexFile = path.join(frontendPath, "index.html");
       if (existsSync(indexFile)) {
         res.sendFile(indexFile);
