@@ -121,6 +121,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           printableId="printable"
           title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
           onClose={() => setShowPrintPreview(false)}
+          initialZoom={autoPrint ? 0.6 : undefined}
         />
       )}
       <style>{`
