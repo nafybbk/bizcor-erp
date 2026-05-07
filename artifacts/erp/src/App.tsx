@@ -51,6 +51,15 @@ import FirmProfile from "@/pages/FirmProfile";
 import OfflineDrafts from "@/pages/OfflineDrafts";
 import VoucherBin from "@/pages/VoucherBin";
 
+import CashBankDashboard from "@/pages/cash-bank/CashBankDashboard";
+import CashBankAccounts from "@/pages/cash-bank/CashBankAccounts";
+import ExpenseHeads from "@/pages/cash-bank/ExpenseHeads";
+import ExpenseList from "@/pages/cash-bank/ExpenseList";
+import ExpenseCreate from "@/pages/cash-bank/ExpenseCreate";
+import ExpenseEdit from "@/pages/cash-bank/ExpenseEdit";
+import ContraEntry from "@/pages/cash-bank/ContraEntry";
+import AccountStatement from "@/pages/cash-bank/AccountStatement";
+
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminBusinesses from "@/pages/admin/AdminBusinesses";
 import AdminPlans from "@/pages/admin/AdminPlans";
@@ -248,6 +257,32 @@ function AppRoutes() {
       </Route>
       <Route path="/masters/tax-rates">
         <ProtectedRoute><TaxRates /></ProtectedRoute>
+      </Route>
+
+      {/* Cash & Bank */}
+      <Route path="/cash-bank">
+        <ProtectedRoute><CashBankDashboard /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/accounts">
+        <ProtectedRoute><CashBankAccounts /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/expense-heads">
+        <ProtectedRoute><ExpenseHeads /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/expenses">
+        <ProtectedRoute><ExpenseList /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/expenses/new">
+        <ProtectedRoute><ExpenseCreate /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/expenses/:id/edit">
+        <ProtectedRoute><ExpenseEdit /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/contra">
+        <ProtectedRoute><ContraEntry /></ProtectedRoute>
+      </Route>
+      <Route path="/cash-bank/statement">
+        <ProtectedRoute><AccountStatement /></ProtectedRoute>
       </Route>
 
       {/* Profile & Offline Drafts */}

@@ -27,11 +27,11 @@ var __export = (target, all) => {
   for (var name2 in all)
     __defProp(target, name2, { get: all[name2], enumerable: true });
 };
-var __copyProps = (to, from, except2, desc4) => {
+var __copyProps = (to, from, except2, desc5) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except2)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc4 = __getOwnPropDesc(from, key)) || desc4.enumerable });
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc5 = __getOwnPropDesc(from, key)) || desc5.enumerable });
   }
   return to;
 };
@@ -1354,10 +1354,10 @@ var require_http_errors = __commonJS({
       return ServerError;
     }
     function nameFunc(func, name2) {
-      var desc4 = Object.getOwnPropertyDescriptor(func, "name");
-      if (desc4 && desc4.configurable) {
-        desc4.value = name2;
-        Object.defineProperty(func, "name", desc4);
+      var desc5 = Object.getOwnPropertyDescriptor(func, "name");
+      if (desc5 && desc5.configurable) {
+        desc5.value = name2;
+        Object.defineProperty(func, "name", desc5);
       }
     }
     function populateConstructorExports(exports2, codes, HttpError) {
@@ -16802,14 +16802,14 @@ var require_get = __commonJS({
         throw e;
       }
     }
-    var desc4 = !!hasProtoAccessor && gOPD && gOPD(
+    var desc5 = !!hasProtoAccessor && gOPD && gOPD(
       Object.prototype,
       /** @type {keyof typeof Object.prototype} */
       "__proto__"
     );
     var $Object = Object;
     var $getPrototypeOf = $Object.getPrototypeOf;
-    module.exports = desc4 && typeof desc4.get === "function" ? callBind([desc4.get]) : typeof $getPrototypeOf === "function" ? (
+    module.exports = desc5 && typeof desc5.get === "function" ? callBind([desc5.get]) : typeof $getPrototypeOf === "function" ? (
       /** @type {import('./get')} */
       function getDunder(value) {
         return $getPrototypeOf(value == null ? value : $Object(value));
@@ -17159,10 +17159,10 @@ var require_get_intrinsic = __commonJS({
             return void undefined2;
           }
           if ($gOPD && i + 1 >= parts.length) {
-            var desc4 = $gOPD(value, part);
-            isOwn = !!desc4;
-            if (isOwn && "get" in desc4 && !("originalValue" in desc4.get)) {
-              value = desc4.get;
+            var desc5 = $gOPD(value, part);
+            isOwn = !!desc5;
+            if (isOwn && "get" in desc5 && !("originalValue" in desc5.get)) {
+              value = desc5.get;
             } else {
               value = value[part];
             }
@@ -20488,27 +20488,27 @@ var require_router = __commonJS({
     var slice2 = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var methods = METHODS.map((method) => method.toLowerCase());
-    module.exports = Router18;
+    module.exports = Router19;
     module.exports.Route = Route;
-    function Router18(options) {
-      if (!(this instanceof Router18)) {
-        return new Router18(options);
+    function Router19(options) {
+      if (!(this instanceof Router19)) {
+        return new Router19(options);
       }
       const opts = options || {};
-      function router18(req, res, next) {
-        router18.handle(req, res, next);
+      function router19(req, res, next) {
+        router19.handle(req, res, next);
       }
-      Object.setPrototypeOf(router18, this);
-      router18.caseSensitive = opts.caseSensitive;
-      router18.mergeParams = opts.mergeParams;
-      router18.params = {};
-      router18.strict = opts.strict;
-      router18.stack = [];
-      return router18;
+      Object.setPrototypeOf(router19, this);
+      router19.caseSensitive = opts.caseSensitive;
+      router19.mergeParams = opts.mergeParams;
+      router19.params = {};
+      router19.strict = opts.strict;
+      router19.stack = [];
+      return router19;
     }
-    Router18.prototype = function() {
+    Router19.prototype = function() {
     };
-    Router18.prototype.param = function param2(name2, fn) {
+    Router19.prototype.param = function param2(name2, fn) {
       if (!name2) {
         throw new TypeError("argument name is required");
       }
@@ -20528,7 +20528,7 @@ var require_router = __commonJS({
       params.push(fn);
       return this;
     };
-    Router18.prototype.handle = function handle(req, res, callback) {
+    Router19.prototype.handle = function handle(req, res, callback) {
       if (!callback) {
         throw new TypeError("argument callback is required");
       }
@@ -20655,7 +20655,7 @@ var require_router = __commonJS({
         }
       }
     };
-    Router18.prototype.use = function use(handler) {
+    Router19.prototype.use = function use(handler) {
       let offset = 0;
       let path = "/";
       if (typeof handler !== "function") {
@@ -20688,7 +20688,7 @@ var require_router = __commonJS({
       }
       return this;
     };
-    Router18.prototype.route = function route(path) {
+    Router19.prototype.route = function route(path) {
       const route2 = new Route(path);
       const layer = new Layer(path, {
         sensitive: this.caseSensitive,
@@ -20703,7 +20703,7 @@ var require_router = __commonJS({
       return route2;
     };
     methods.concat("all").forEach(function(method) {
-      Router18.prototype[method] = function(path) {
+      Router19.prototype[method] = function(path) {
         const route = this.route(path);
         route[method].apply(route, slice2.call(arguments, 1));
         return this;
@@ -20886,13 +20886,13 @@ var require_application = __commonJS({
     var compileTrust = require_utils3().compileTrust;
     var resolve = __require("node:path").resolve;
     var once = require_once();
-    var Router18 = require_router();
+    var Router19 = require_router();
     var slice2 = Array.prototype.slice;
     var flatten = Array.prototype.flat;
     var app2 = exports = module.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
     app2.init = function init() {
-      var router18 = null;
+      var router19 = null;
       this.cache = /* @__PURE__ */ Object.create(null);
       this.engines = /* @__PURE__ */ Object.create(null);
       this.settings = /* @__PURE__ */ Object.create(null);
@@ -20901,13 +20901,13 @@ var require_application = __commonJS({
         configurable: true,
         enumerable: true,
         get: function getrouter() {
-          if (router18 === null) {
-            router18 = new Router18({
+          if (router19 === null) {
+            router19 = new Router19({
               caseSensitive: this.enabled("case sensitive routing"),
               strict: this.enabled("strict routing")
             });
           }
-          return router18;
+          return router19;
         }
       });
     };
@@ -20978,15 +20978,15 @@ var require_application = __commonJS({
       if (fns.length === 0) {
         throw new TypeError("app.use() requires a middleware function");
       }
-      var router18 = this.router;
+      var router19 = this.router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router18.use(path, fn2);
+          return router19.use(path, fn2);
         }
         debug(".use app under %s", path);
         fn2.mountpath = path;
         fn2.parent = this;
-        router18.use(path, function mounted_app(req, res, next) {
+        router19.use(path, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             Object.setPrototypeOf(req, orig.request);
@@ -23513,7 +23513,7 @@ var require_express = __commonJS({
     var EventEmitter = __require("node:events").EventEmitter;
     var mixin = require_merge_descriptors();
     var proto = require_application();
-    var Router18 = require_router();
+    var Router19 = require_router();
     var req = require_request();
     var res = require_response();
     exports = module.exports = createApplication;
@@ -23535,8 +23535,8 @@ var require_express = __commonJS({
     exports.application = proto;
     exports.request = req;
     exports.response = res;
-    exports.Route = Router18.Route;
-    exports.Router = Router18;
+    exports.Route = Router19.Route;
+    exports.Router = Router19;
     exports.json = bodyParser.json;
     exports.raw = bodyParser.raw;
     exports.static = require_serve_static();
@@ -34109,12 +34109,12 @@ var require_result = __commonJS({
         }
         const row = {};
         for (let i = 0; i < fieldDescriptions.length; i++) {
-          const desc4 = fieldDescriptions[i];
-          row[desc4.name] = null;
+          const desc5 = fieldDescriptions[i];
+          row[desc5.name] = null;
           if (this._types) {
-            this._parsers[i] = this._types.getTypeParser(desc4.dataTypeID, desc4.format || "text");
+            this._parsers[i] = this._types.getTypeParser(desc5.dataTypeID, desc5.format || "text");
           } else {
-            this._parsers[i] = types3.getTypeParser(desc4.dataTypeID, desc4.format || "text");
+            this._parsers[i] = types3.getTypeParser(desc5.dataTypeID, desc5.format || "text");
           }
         }
         this._prebuiltEmptyResultObject = { ...row };
@@ -58112,18 +58112,78 @@ var init_payments = __esm({
   }
 });
 
+// ../../lib/db/src/schema/cashBank.ts
+var accountTypeEnum, cashBankAccountsTable, expenseHeadsTable, expenseVouchersTable, contraEntriesTable;
+var init_cashBank = __esm({
+  "../../lib/db/src/schema/cashBank.ts"() {
+    "use strict";
+    init_pg_core();
+    init_businesses();
+    accountTypeEnum = pgEnum("account_type", ["cash", "bank"]);
+    cashBankAccountsTable = pgTable("cash_bank_accounts", {
+      id: serial("id").primaryKey(),
+      businessId: integer("business_id").notNull().references(() => businessesTable.id),
+      name: text("name").notNull(),
+      type: accountTypeEnum("type").notNull().default("cash"),
+      bankName: text("bank_name"),
+      accountNumber: text("account_number"),
+      ifscCode: text("ifsc_code"),
+      openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).notNull().default("0"),
+      isDefault: boolean("is_default").notNull().default(false),
+      isActive: boolean("is_active").notNull().default(true),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    expenseHeadsTable = pgTable("expense_heads", {
+      id: serial("id").primaryKey(),
+      businessId: integer("business_id").notNull().references(() => businessesTable.id),
+      name: text("name").notNull(),
+      isActive: boolean("is_active").notNull().default(true),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    expenseVouchersTable = pgTable("expense_vouchers", {
+      id: serial("id").primaryKey(),
+      businessId: integer("business_id").notNull().references(() => businessesTable.id),
+      expenseNumber: text("expense_number").notNull(),
+      date: text("date").notNull(),
+      expenseHeadId: integer("expense_head_id").references(() => expenseHeadsTable.id),
+      accountId: integer("account_id").references(() => cashBankAccountsTable.id),
+      amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+      paymentMode: text("payment_mode").notNull().default("cash"),
+      referenceNumber: text("reference_number"),
+      notes: text("notes"),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+    contraEntriesTable = pgTable("contra_entries", {
+      id: serial("id").primaryKey(),
+      businessId: integer("business_id").notNull().references(() => businessesTable.id),
+      contraNumber: text("contra_number").notNull(),
+      date: text("date").notNull(),
+      fromAccountId: integer("from_account_id").notNull().references(() => cashBankAccountsTable.id),
+      toAccountId: integer("to_account_id").notNull().references(() => cashBankAccountsTable.id),
+      amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+      notes: text("notes"),
+      createdAt: timestamp("created_at").notNull().defaultNow()
+    });
+  }
+});
+
 // ../../lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  accountTypeEnum: () => accountTypeEnum,
   appSettingsTable: () => appSettingsTable,
   balanceTypeEnum: () => balanceTypeEnum,
   billingCycleEnum: () => billingCycleEnum,
   businessStatusEnum: () => businessStatusEnum,
   businessesTable: () => businessesTable,
+  cashBankAccountsTable: () => cashBankAccountsTable,
+  contraEntriesTable: () => contraEntriesTable,
   customFieldEntityEnum: () => customFieldEntityEnum,
   customFieldTypeEnum: () => customFieldTypeEnum,
   customFieldsTable: () => customFieldsTable,
   discountTypeEnum: () => discountTypeEnum,
+  expenseHeadsTable: () => expenseHeadsTable,
+  expenseVouchersTable: () => expenseVouchersTable,
   hsnCodesTable: () => hsnCodesTable,
   insertBusinessSchema: () => insertBusinessSchema,
   insertItemSchema: () => insertItemSchema,
@@ -58160,22 +58220,28 @@ var init_schema2 = __esm({
     init_masters();
     init_vouchers();
     init_payments();
+    init_cashBank();
   }
 });
 
 // ../../lib/db/src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  accountTypeEnum: () => accountTypeEnum,
   appSettingsTable: () => appSettingsTable,
   balanceTypeEnum: () => balanceTypeEnum,
   billingCycleEnum: () => billingCycleEnum,
   businessStatusEnum: () => businessStatusEnum,
   businessesTable: () => businessesTable,
+  cashBankAccountsTable: () => cashBankAccountsTable,
+  contraEntriesTable: () => contraEntriesTable,
   customFieldEntityEnum: () => customFieldEntityEnum,
   customFieldTypeEnum: () => customFieldTypeEnum,
   customFieldsTable: () => customFieldsTable,
   db: () => db,
   discountTypeEnum: () => discountTypeEnum,
+  expenseHeadsTable: () => expenseHeadsTable,
+  expenseVouchersTable: () => expenseVouchersTable,
   hsnCodesTable: () => hsnCodesTable,
   insertBusinessSchema: () => insertBusinessSchema,
   insertItemSchema: () => insertItemSchema,
@@ -62121,9 +62187,9 @@ function __rest(s, e) {
     }
   return t;
 }
-function __decorate(decorators, target, key, desc4) {
-  var c = arguments.length, r = c < 3 ? target : desc4 === null ? desc4 = Object.getOwnPropertyDescriptor(target, key) : desc4, d;
-  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc4);
+function __decorate(decorators, target, key, desc5) {
+  var c = arguments.length, r = c < 3 ? target : desc5 === null ? desc5 = Object.getOwnPropertyDescriptor(target, key) : desc5, d;
+  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc5);
   else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
   return c > 3 && r && Object.defineProperty(target, key, r), r;
 }
@@ -62524,13 +62590,13 @@ var init_tslib_es6 = __esm({
     };
     __createBinding = Object.create ? (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
-      var desc4 = Object.getOwnPropertyDescriptor(m, k);
-      if (!desc4 || ("get" in desc4 ? !m.__esModule : desc4.writable || desc4.configurable)) {
-        desc4 = { enumerable: true, get: function() {
+      var desc5 = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc5 || ("get" in desc5 ? !m.__esModule : desc5.writable || desc5.configurable)) {
+        desc5 = { enumerable: true, get: function() {
           return m[k];
         } };
       }
-      Object.defineProperty(o, k2, desc4);
+      Object.defineProperty(o, k2, desc5);
     }) : (function(o, m, k, k2) {
       if (k2 === void 0) k2 = k;
       o[k2] = m[k];
@@ -70650,9 +70716,9 @@ function __rest2(s, e) {
     }
   return t;
 }
-function __decorate2(decorators, target, key, desc4) {
-  var c = arguments.length, r = c < 3 ? target : desc4 === null ? desc4 = Object.getOwnPropertyDescriptor(target, key) : desc4, d;
-  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc4);
+function __decorate2(decorators, target, key, desc5) {
+  var c = arguments.length, r = c < 3 ? target : desc5 === null ? desc5 = Object.getOwnPropertyDescriptor(target, key) : desc5, d;
+  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc5);
   else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
   return c > 3 && r && Object.defineProperty(target, key, r), r;
 }
@@ -76158,12 +76224,12 @@ var require_x509_cjs = __commonJS({
 });
 
 // src/app.ts
-var import_express18 = __toESM(require_express2(), 1);
+var import_express19 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_pino_http = __toESM(require_logger(), 1);
 
 // src/routes/index.ts
-var import_express17 = __toESM(require_express2(), 1);
+var import_express18 = __toESM(require_express2(), 1);
 
 // src/middlewares/auth.ts
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
@@ -95047,10 +95113,480 @@ router16.post("/auth-verify", async (req, res) => {
 });
 var webauthn_default = router16;
 
-// src/routes/index.ts
+// src/routes/cashBank.ts
+var import_express17 = __toESM(require_express2(), 1);
+init_src();
+init_src();
+init_drizzle_orm();
 var router17 = (0, import_express17.Router)();
-router17.use(health_default);
-router17.get("/public-plans", async (_req, res) => {
+router17.use(requireBusiness);
+var migrated = false;
+async function ensureTables2() {
+  if (migrated) return;
+  migrated = true;
+  await pool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_type') THEN
+        CREATE TYPE account_type AS ENUM ('cash', 'bank');
+      END IF;
+    END $$;
+
+    CREATE TABLE IF NOT EXISTS cash_bank_accounts (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      name TEXT NOT NULL,
+      type account_type NOT NULL DEFAULT 'cash',
+      bank_name TEXT,
+      account_number TEXT,
+      ifsc_code TEXT,
+      opening_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS expense_heads (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      name TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS expense_vouchers (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      expense_number TEXT NOT NULL,
+      date TEXT NOT NULL,
+      expense_head_id INTEGER REFERENCES expense_heads(id),
+      account_id INTEGER REFERENCES cash_bank_accounts(id),
+      amount NUMERIC(15,2) NOT NULL,
+      payment_mode TEXT NOT NULL DEFAULT 'cash',
+      reference_number TEXT,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS contra_entries (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      contra_number TEXT NOT NULL,
+      date TEXT NOT NULL,
+      from_account_id INTEGER NOT NULL REFERENCES cash_bank_accounts(id),
+      to_account_id INTEGER NOT NULL REFERENCES cash_bank_accounts(id),
+      amount NUMERIC(15,2) NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES cash_bank_accounts(id);
+  `);
+}
+router17.get("/accounts", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const accounts = await db.select().from(cashBankAccountsTable).where(and(eq(cashBankAccountsTable.businessId, businessId), eq(cashBankAccountsTable.isActive, true))).orderBy(asc(cashBankAccountsTable.createdAt));
+    res.json(accounts.map((a) => ({ ...a, openingBalance: Number(a.openingBalance) })));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.post("/accounts", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { name: name2, type, bankName, accountNumber, ifscCode, openingBalance, isDefault } = req.body;
+    if (isDefault) {
+      await db.update(cashBankAccountsTable).set({ isDefault: false }).where(eq(cashBankAccountsTable.businessId, businessId));
+    }
+    const [acc] = await db.insert(cashBankAccountsTable).values({
+      businessId,
+      name: name2,
+      type,
+      bankName,
+      accountNumber,
+      ifscCode,
+      openingBalance: String(openingBalance || 0),
+      isDefault: !!isDefault
+    }).returning();
+    res.status(201).json({ ...acc, openingBalance: Number(acc.openingBalance) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.patch("/accounts/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { name: name2, type, bankName, accountNumber, ifscCode, openingBalance, isDefault } = req.body;
+    if (isDefault) {
+      await db.update(cashBankAccountsTable).set({ isDefault: false }).where(eq(cashBankAccountsTable.businessId, businessId));
+    }
+    const [acc] = await db.update(cashBankAccountsTable).set({
+      name: name2,
+      type,
+      bankName,
+      accountNumber,
+      ifscCode,
+      openingBalance: String(openingBalance || 0),
+      isDefault: !!isDefault
+    }).where(and(eq(cashBankAccountsTable.id, Number(req.params.id)), eq(cashBankAccountsTable.businessId, businessId))).returning();
+    if (!acc) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+    res.json({ ...acc, openingBalance: Number(acc.openingBalance) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.delete("/accounts/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    await db.update(cashBankAccountsTable).set({ isActive: false }).where(and(eq(cashBankAccountsTable.id, Number(req.params.id)), eq(cashBankAccountsTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/expense-heads", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const heads = await db.select().from(expenseHeadsTable).where(and(eq(expenseHeadsTable.businessId, businessId), eq(expenseHeadsTable.isActive, true))).orderBy(asc(expenseHeadsTable.name));
+    res.json(heads);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.post("/expense-heads", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { name: name2 } = req.body;
+    const [head] = await db.insert(expenseHeadsTable).values({ businessId, name: name2 }).returning();
+    res.status(201).json(head);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.patch("/expense-heads/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { name: name2 } = req.body;
+    const [head] = await db.update(expenseHeadsTable).set({ name: name2 }).where(and(eq(expenseHeadsTable.id, Number(req.params.id)), eq(expenseHeadsTable.businessId, businessId))).returning();
+    if (!head) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+    res.json(head);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.delete("/expense-heads/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    await db.update(expenseHeadsTable).set({ isActive: false }).where(and(eq(expenseHeadsTable.id, Number(req.params.id)), eq(expenseHeadsTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/expenses", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { fromDate, toDate, accountId, expenseHeadId, page = "1", limit = "50" } = req.query;
+    const conditions = [eq(expenseVouchersTable.businessId, businessId)];
+    if (fromDate) conditions.push(gte(expenseVouchersTable.date, String(fromDate)));
+    if (toDate) conditions.push(lte(expenseVouchersTable.date, String(toDate)));
+    if (accountId) conditions.push(eq(expenseVouchersTable.accountId, Number(accountId)));
+    if (expenseHeadId) conditions.push(eq(expenseVouchersTable.expenseHeadId, Number(expenseHeadId)));
+    const rows = await pool.query(`
+      SELECT ev.*, eh.name as expense_head_name, cb.name as account_name
+      FROM expense_vouchers ev
+      LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
+      LEFT JOIN cash_bank_accounts cb ON ev.account_id = cb.id
+      WHERE ev.business_id = $1
+      ${fromDate ? `AND ev.date >= '${String(fromDate)}'` : ""}
+      ${toDate ? `AND ev.date <= '${String(toDate)}'` : ""}
+      ${accountId ? `AND ev.account_id = ${Number(accountId)}` : ""}
+      ${expenseHeadId ? `AND ev.expense_head_id = ${Number(expenseHeadId)}` : ""}
+      ORDER BY ev.date DESC, ev.id DESC
+      LIMIT ${Number(limit)} OFFSET ${(Number(page) - 1) * Number(limit)}
+    `, [businessId]);
+    const countRow = await pool.query(`SELECT COUNT(*) as total, COALESCE(SUM(amount),0) as total_amount FROM expense_vouchers WHERE business_id = $1 ${fromDate ? `AND date >= '${String(fromDate)}'` : ""} ${toDate ? `AND date <= '${String(toDate)}'` : ""} ${accountId ? `AND account_id = ${Number(accountId)}` : ""} ${expenseHeadId ? `AND expense_head_id = ${Number(expenseHeadId)}` : ""}`, [businessId]);
+    res.json({
+      data: rows.rows.map((r) => ({ ...r, amount: Number(r.amount) })),
+      total: Number(countRow.rows[0].total),
+      totalAmount: Number(countRow.rows[0].total_amount)
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.post("/expenses", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { date: date6, expenseHeadId, accountId, amount, paymentMode, referenceNumber, notes } = req.body;
+    const [{ cnt }] = await db.select({ cnt: sql`count(*)` }).from(expenseVouchersTable).where(eq(expenseVouchersTable.businessId, businessId));
+    const expenseNumber = `EXP-${String(Number(cnt) + 1).padStart(4, "0")}`;
+    const [exp] = await db.insert(expenseVouchersTable).values({
+      businessId,
+      expenseNumber,
+      date: date6,
+      expenseHeadId: expenseHeadId ? Number(expenseHeadId) : null,
+      accountId: accountId ? Number(accountId) : null,
+      amount: String(amount),
+      paymentMode,
+      referenceNumber,
+      notes
+    }).returning();
+    res.status(201).json({ ...exp, amount: Number(exp.amount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/expenses/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const rows = await pool.query(
+      `SELECT ev.*, eh.name as expense_head_name, cb.name as account_name
+       FROM expense_vouchers ev
+       LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
+       LEFT JOIN cash_bank_accounts cb ON ev.account_id = cb.id
+       WHERE ev.id = $1 AND ev.business_id = $2`,
+      [Number(req.params.id), businessId]
+    );
+    if (!rows.rows.length) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+    const r = rows.rows[0];
+    res.json({ ...r, amount: Number(r.amount), expenseHeadId: r.expense_head_id, accountId: r.account_id, paymentMode: r.payment_mode, referenceNumber: r.reference_number });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.patch("/expenses/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { date: date6, expenseHeadId, accountId, amount, paymentMode, referenceNumber, notes } = req.body;
+    const [exp] = await db.update(expenseVouchersTable).set({
+      date: date6,
+      expenseHeadId: expenseHeadId ? Number(expenseHeadId) : null,
+      accountId: accountId ? Number(accountId) : null,
+      amount: String(amount),
+      paymentMode,
+      referenceNumber,
+      notes
+    }).where(and(eq(expenseVouchersTable.id, Number(req.params.id)), eq(expenseVouchersTable.businessId, businessId))).returning();
+    if (!exp) {
+      res.status(404).json({ error: "Not Found" });
+      return;
+    }
+    res.json({ ...exp, amount: Number(exp.amount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.delete("/expenses/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    await db.delete(expenseVouchersTable).where(and(eq(expenseVouchersTable.id, Number(req.params.id)), eq(expenseVouchersTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/contra", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { fromDate, toDate, page = "1", limit = "50" } = req.query;
+    const rows = await pool.query(`
+      SELECT ce.*, fa.name as from_account_name, ta.name as to_account_name
+      FROM contra_entries ce
+      LEFT JOIN cash_bank_accounts fa ON ce.from_account_id = fa.id
+      LEFT JOIN cash_bank_accounts ta ON ce.to_account_id = ta.id
+      WHERE ce.business_id = $1
+      ${fromDate ? `AND ce.date >= '${String(fromDate)}'` : ""}
+      ${toDate ? `AND ce.date <= '${String(toDate)}'` : ""}
+      ORDER BY ce.date DESC, ce.id DESC
+      LIMIT ${Number(limit)} OFFSET ${(Number(page) - 1) * Number(limit)}
+    `, [businessId]);
+    const countRow = await pool.query(`SELECT COUNT(*) as total FROM contra_entries WHERE business_id = $1 ${fromDate ? `AND date >= '${String(fromDate)}'` : ""} ${toDate ? `AND date <= '${String(toDate)}'` : ""}`, [businessId]);
+    res.json({ data: rows.rows.map((r) => ({ ...r, amount: Number(r.amount) })), total: Number(countRow.rows[0].total) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.post("/contra", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { date: date6, fromAccountId, toAccountId, amount, notes } = req.body;
+    if (fromAccountId === toAccountId) {
+      res.status(400).json({ error: "From and To accounts must be different" });
+      return;
+    }
+    const [{ cnt }] = await db.select({ cnt: sql`count(*)` }).from(contraEntriesTable).where(eq(contraEntriesTable.businessId, businessId));
+    const contraNumber = `CON-${String(Number(cnt) + 1).padStart(4, "0")}`;
+    const [entry] = await db.insert(contraEntriesTable).values({
+      businessId,
+      contraNumber,
+      date: date6,
+      fromAccountId: Number(fromAccountId),
+      toAccountId: Number(toAccountId),
+      amount: String(amount),
+      notes
+    }).returning();
+    res.status(201).json({ ...entry, amount: Number(entry.amount) });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.delete("/contra/:id", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    await db.delete(contraEntriesTable).where(and(eq(contraEntriesTable.id, Number(req.params.id)), eq(contraEntriesTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/statement", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const { accountId, fromDate, toDate } = req.query;
+    if (!accountId) {
+      res.status(400).json({ error: "accountId required" });
+      return;
+    }
+    const accId = Number(accountId);
+    const dateFrom = fromDate ? String(fromDate) : "1900-01-01";
+    const dateTo = toDate ? String(toDate) : "2999-12-31";
+    const accRows = await pool.query(`SELECT * FROM cash_bank_accounts WHERE id = $1 AND business_id = $2`, [accId, businessId]);
+    if (!accRows.rows.length) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+    const account = accRows.rows[0];
+    const entries = [];
+    const openingBalance = Number(account.opening_balance);
+    const receipts = await pool.query(`
+      SELECT p.*, pa.name as party_name FROM payments p
+      LEFT JOIN parties pa ON p.party_id = pa.id
+      WHERE p.business_id = $1 AND p.account_id = $2 AND p.date BETWEEN $3 AND $4
+    `, [businessId, accId, dateFrom, dateTo]);
+    for (const r of receipts.rows) {
+      if (r.type === "receipt") {
+        entries.push({ date: r.date, type: "receipt", number: r.payment_number, narration: `Receipt - ${r.party_name || ""}`, debit: Number(r.amount), credit: 0 });
+      } else {
+        entries.push({ date: r.date, type: "payment", number: r.payment_number, narration: `Payment - ${r.party_name || ""}`, debit: 0, credit: Number(r.amount) });
+      }
+    }
+    const expenses = await pool.query(`
+      SELECT ev.*, eh.name as head_name FROM expense_vouchers ev
+      LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
+      WHERE ev.business_id = $1 AND ev.account_id = $2 AND ev.date BETWEEN $3 AND $4
+    `, [businessId, accId, dateFrom, dateTo]);
+    for (const e of expenses.rows) {
+      entries.push({ date: e.date, type: "expense", number: e.expense_number, narration: `Expense - ${e.head_name || ""}`, debit: 0, credit: Number(e.amount) });
+    }
+    const contraFrom = await pool.query(`
+      SELECT ce.*, ta.name as other_account FROM contra_entries ce
+      LEFT JOIN cash_bank_accounts ta ON ce.to_account_id = ta.id
+      WHERE ce.business_id = $1 AND ce.from_account_id = $2 AND ce.date BETWEEN $3 AND $4
+    `, [businessId, accId, dateFrom, dateTo]);
+    for (const c of contraFrom.rows) {
+      entries.push({ date: c.date, type: "contra", number: c.contra_number, narration: `Contra - Transferred to ${c.other_account}`, debit: 0, credit: Number(c.amount) });
+    }
+    const contraTo = await pool.query(`
+      SELECT ce.*, fa.name as other_account FROM contra_entries ce
+      LEFT JOIN cash_bank_accounts fa ON ce.from_account_id = fa.id
+      WHERE ce.business_id = $1 AND ce.to_account_id = $2 AND ce.date BETWEEN $3 AND $4
+    `, [businessId, accId, dateFrom, dateTo]);
+    for (const c of contraTo.rows) {
+      entries.push({ date: c.date, type: "contra", number: c.contra_number, narration: `Contra - Received from ${c.other_account}`, debit: Number(c.amount), credit: 0 });
+    }
+    entries.sort((a, b) => a.date.localeCompare(b.date) || 0);
+    let balance = openingBalance;
+    const withBalance = entries.map((e) => {
+      balance += e.debit - e.credit;
+      return { ...e, balance };
+    });
+    const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
+    const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
+    const closingBalance = openingBalance + totalDebit - totalCredit;
+    res.json({
+      account: { ...account, openingBalance },
+      openingBalance,
+      entries: withBalance,
+      totalDebit,
+      totalCredit,
+      closingBalance
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router17.get("/balances", async (req, res) => {
+  try {
+    await ensureTables2();
+    const businessId = req.user.businessId;
+    const accounts = await pool.query(`SELECT * FROM cash_bank_accounts WHERE business_id = $1 AND is_active = true ORDER BY type, name`, [businessId]);
+    const result = await Promise.all(accounts.rows.map(async (acc) => {
+      const accId = acc.id;
+      const openingBalance = Number(acc.opening_balance);
+      const receiptSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE business_id=$1 AND account_id=$2 AND type='receipt'`, [businessId, accId]);
+      const paymentSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE business_id=$1 AND account_id=$2 AND type='payment'`, [businessId, accId]);
+      const expenseSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM expense_vouchers WHERE business_id=$1 AND account_id=$2`, [businessId, accId]);
+      const contraOut = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM contra_entries WHERE business_id=$1 AND from_account_id=$2`, [businessId, accId]);
+      const contraIn = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM contra_entries WHERE business_id=$1 AND to_account_id=$2`, [businessId, accId]);
+      const balance = openingBalance + Number(receiptSum.rows[0].s) - Number(paymentSum.rows[0].s) - Number(expenseSum.rows[0].s) - Number(contraOut.rows[0].s) + Number(contraIn.rows[0].s);
+      return { id: acc.id, name: acc.name, type: acc.type, bankName: acc.bank_name, accountNumber: acc.account_number, openingBalance, balance };
+    }));
+    res.json(result);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+var cashBank_default = router17;
+
+// src/routes/index.ts
+var router18 = (0, import_express18.Router)();
+router18.use(health_default);
+router18.get("/public-plans", async (_req, res) => {
   try {
     const { db: db2, plansTable: plansTable2 } = await Promise.resolve().then(() => (init_src(), src_exports));
     const { eq: eq2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
@@ -95073,7 +95609,7 @@ router17.get("/public-plans", async (_req, res) => {
     res.json([]);
   }
 });
-router17.get("/public-settings", async (_req, res) => {
+router18.get("/public-settings", async (_req, res) => {
   try {
     const { db: db2, appSettingsTable: appSettingsTable2 } = await Promise.resolve().then(() => (init_src(), src_exports));
     const rows = await db2.select().from(appSettingsTable2);
@@ -95091,23 +95627,24 @@ router17.get("/public-settings", async (_req, res) => {
     res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" });
   }
 });
-router17.use("/auth", auth_default);
-router17.use("/auth/webauthn", webauthn_default);
-router17.use("/super-admin", superAdmin_default);
-router17.use(requireActivePlan);
-router17.use("/businesses", businesses_default);
-router17.use("/users", users_default);
-router17.use("/parties", parties_default);
-router17.use("/items", items_default);
-router17.use("/masters", masters_default);
-router17.use(vouchers_default);
-router17.use("/payments", payments_default);
-router17.use("/inventory", inventory_default);
-router17.use("/accounting", accounting_default);
-router17.use("/gst", gst_default);
-router17.use("/dashboard", dashboard_default);
-router17.use(licenseVouchers_default);
-var routes_default = router17;
+router18.use("/auth", auth_default);
+router18.use("/auth/webauthn", webauthn_default);
+router18.use("/super-admin", superAdmin_default);
+router18.use(requireActivePlan);
+router18.use("/businesses", businesses_default);
+router18.use("/users", users_default);
+router18.use("/parties", parties_default);
+router18.use("/items", items_default);
+router18.use("/masters", masters_default);
+router18.use(vouchers_default);
+router18.use("/payments", payments_default);
+router18.use("/inventory", inventory_default);
+router18.use("/accounting", accounting_default);
+router18.use("/gst", gst_default);
+router18.use("/dashboard", dashboard_default);
+router18.use(licenseVouchers_default);
+router18.use("/cash-bank", cashBank_default);
+var routes_default = router18;
 
 // src/lib/logger.ts
 var import_pino = __toESM(require_pino(), 1);
@@ -95128,7 +95665,7 @@ var logger = (0, import_pino.default)({
 });
 
 // src/app.ts
-var app = (0, import_express18.default)();
+var app = (0, import_express19.default)();
 app.use(
   (0, import_pino_http.default)({
     logger,
@@ -95160,18 +95697,18 @@ app.use((0, import_cors.default)({
   },
   credentials: true
 }));
-app.use(import_express18.default.json());
-app.use(import_express18.default.urlencoded({ extended: true }));
+app.use(import_express19.default.json());
+app.use(import_express19.default.urlencoded({ extended: true }));
 app.use("/api", routes_default);
 var app_default = app;
 
 // src/vercel-entry.ts
 init_src();
 init_drizzle_orm();
-var migrated = false;
+var migrated2 = false;
 async function runMigrations() {
-  if (migrated) return;
-  migrated = true;
+  if (migrated2) return;
+  migrated2 = true;
   try {
     await db.execute(sql`ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS avatar TEXT`);
     await db.execute(sql`ALTER TABLE super_admins ADD COLUMN IF NOT EXISTS plain_password TEXT`);

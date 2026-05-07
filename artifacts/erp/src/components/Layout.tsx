@@ -11,7 +11,7 @@ import {
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -283,6 +283,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
     { label: L.inventory, href: "/inventory", icon: <Package className="w-4 h-4" />, permKey: "inventory" },
+    {
+      label: L.cashBank, icon: <Banknote className="w-4 h-4" />, permKey: "payments",
+      children: [
+        { label: "Overview", href: "/cash-bank" },
+        { label: L.expenses, href: "/cash-bank/expenses" },
+        { label: L.contraEntry, href: "/cash-bank/contra" },
+        { label: L.cashBankStatement, href: "/cash-bank/statement" },
+        { label: L.cashBankAccounts, href: "/cash-bank/accounts" },
+        { label: L.expenseHeads, href: "/cash-bank/expense-heads" },
+      ],
+    },
     {
       label: L.accounting, icon: <BookOpen className="w-4 h-4" />, permKey: "accounting",
       children: [
