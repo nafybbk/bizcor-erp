@@ -153,7 +153,7 @@ export default function Dashboard() {
       api.get<{ data: any[] }>("/dashboard/sales-trend"),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5"),
       api.get<any>("/businesses/current").catch(() => null),
-      api.get<any[]>("/vouchers/bin").catch(() => []),
+      api.get<any[]>("/bin").catch(() => []),
     ]).then(([s, t, p, b, bin]) => {
       setSummary(s);
       setTrend(t.data);

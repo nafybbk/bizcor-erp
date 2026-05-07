@@ -330,7 +330,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
     // Fetch bin docs for this voucher type (only for new docs, not edit)
     if (!editId) {
-      api.get<any[]>(`/vouchers/bin?type=${binVoucherType}`).then(data => {
+      api.get<any[]>(`/bin?type=${binVoucherType}`).then(data => {
         setBinDocs(Array.isArray(data) ? data : []);
       }).catch(() => {});
     }
