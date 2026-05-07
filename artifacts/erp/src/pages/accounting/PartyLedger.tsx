@@ -45,6 +45,9 @@ export default function PartyLedger() {
     const party = ledger.party;
     const entries: any[] = ledger.entries || [];
     const bills: any[] = ledger.bills || [];
+    // Dr/Cr for bill-wise: purchase_bill/debit_note = Cr, sales_invoice/credit_note = Dr
+    const isPurchaseSide = bills.some((b: any) => b.voucherType === "purchase_bill" || b.voucherType === "debit_note");
+    const billsDrCr = isPurchaseSide ? "Cr" : "Dr";
     const period = fromDate || toDate ? `${fromDate ? fmtDt(fromDate) : "Beginning"} to ${toDate ? fmtDt(toDate) : "Today"}` : "All Dates";
 
     const tableRows = billWise
@@ -139,7 +142,7 @@ export default function PartyLedger() {
       <div class="balance">
         <div class="label">${billWise ? "Total Outstanding" : "Closing Balance"}</div>
         <div class="amount">${billWise
-          ? `${fmtCur(bills.reduce((s, b) => s + b.balance, 0))} ${bills.reduce((s, b) => s + b.balance, 0) >= 0 ? "Dr" : "Cr"}`
+          ? `${fmtCur(bills.reduce((s: number, b: any) => s + b.balance, 0))} ${billsDrCr}`
           : `${fmtCur(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
         }</div>
       </div>
@@ -270,12 +273,9 @@ export default function PartyLedger() {
               {ledger.party?.gstin && <div className="text-xs text-gray-400 font-mono">GSTIN: {ledger.party.gstin}</div>}
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-500">{billWise ? "Total Outstanding" : "Closing Balance"}</div>
-              <div className={`text-lg font-bold ${billWise ? (totalBalance > 0 ? "text-blue-700" : "text-green-700") : (ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700")}`}>
-                {billWise
-                  ? `${fmt.currency(totalBalance)} ${totalBalance >= 0 ? "Dr" : "Cr"}`
-                  : `${fmt.currency(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
-                }
+              <div className="text-sm text-gray-500">{billWise ? "Net Outstanding" : "Closing Balance"}</div>
+              <div className={`text-lg font-bold ${ledger.closingBalance >= 0 ? "text-blue-700" : "text-green-700"}`}>
+                {`${fmt.currency(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`}
               </div>
             </div>
           </div>
