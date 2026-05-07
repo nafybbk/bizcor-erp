@@ -63,7 +63,11 @@ function isConfigured() {
 }
 
 async function startServer(databaseUrl, resourcesPath) {
-  const serverBundle = path.join(resourcesPath, "server-bundle", "index.js");
+  // API server builds as index.mjs (ESM), fallback to index.js for older builds
+  let serverBundle = path.join(resourcesPath, "server-bundle", "index.mjs");
+  if (!fs.existsSync(serverBundle)) {
+    serverBundle = path.join(resourcesPath, "server-bundle", "index.js");
+  }
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error("Server bundle not found at: " + serverBundle);
