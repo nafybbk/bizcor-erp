@@ -57889,6 +57889,8 @@ var init_users = __esm({
       passwordHash: text("password_hash").notNull(),
       role: userRoleEnum("role").notNull().default("staff"),
       permissions: text("permissions").array().default([]),
+      canEdit: boolean("can_edit").notNull().default(true),
+      canDelete: boolean("can_delete").notNull().default(true),
       isActive: boolean("is_active").notNull().default(true),
       lastSeenAt: timestamp("last_seen_at"),
       sessionToken: text("session_token"),
@@ -83986,7 +83988,16 @@ router2.post("/login", async (req, res) => {
       });
       return {
         token,
-        user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, permissions: fullUser.permissions || [] },
+        user: {
+          id: fullUser.id,
+          email: fullUser.email,
+          name: fullUser.name,
+          role: fullUser.role,
+          businessId: fullUser.businessId,
+          permissions: fullUser.permissions || [],
+          canEdit: fullUser.canEdit !== false,
+          canDelete: fullUser.canDelete !== false
+        },
         business: {
           id: business2.id,
           name: business2.name,
@@ -85278,29 +85289,32 @@ init_src();
 init_drizzle_orm();
 var router5 = (0, import_express5.Router)();
 router5.use(requireBusiness);
+async function ensureRightsCols() {
+  try {
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete BOOLEAN NOT NULL DEFAULT TRUE`);
+  } catch {
+  }
+}
 router5.get("/", async (req, res) => {
   try {
     const biz = req.user.businessId;
-    const users = await db.select({
-      id: usersTable.id,
-      name: usersTable.name,
-      email: usersTable.email,
-      role: usersTable.role,
-      permissions: usersTable.permissions,
-      isActive: usersTable.isActive,
-      createdAt: usersTable.createdAt
-    }).from(usersTable).where(eq(usersTable.businessId, biz));
-    let pinMap = {};
-    try {
-      const pinRes = await db.execute(sql`
-        SELECT id, CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS has_pin
-        FROM users WHERE business_id = ${biz}
-      `);
-      const pinRows = pinRes.rows ?? pinRes;
-      for (const r of pinRows) pinMap[Number(r.id)] = Boolean(r.has_pin);
-    } catch {
-    }
-    res.json({ data: users.map((u) => ({ ...u, hasPin: pinMap[u.id] || false })) });
+    await ensureRightsCols();
+    const rows = await db.execute(sql`
+      SELECT id, name, email, role, permissions, is_active AS "isActive", created_at AS "createdAt",
+             COALESCE(can_edit, TRUE) AS "canEdit",
+             COALESCE(can_delete, TRUE) AS "canDelete",
+             CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN TRUE ELSE FALSE END AS "hasPin"
+      FROM users WHERE business_id = ${biz}
+      ORDER BY created_at ASC
+    `).then((r) => r.rows ?? r);
+    const users = rows.map((u) => ({
+      ...u,
+      permissions: Array.isArray(u.permissions) ? u.permissions : u.permissions ? JSON.parse(u.permissions) : [],
+      canEdit: u.canEdit !== false,
+      canDelete: u.canDelete !== false
+    }));
+    res.json({ data: users });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -85308,17 +85322,19 @@ router5.get("/", async (req, res) => {
 });
 router5.post("/", async (req, res) => {
   try {
-    const { name: name2, email: email3, password, role, permissions, loginPin } = req.body;
+    await ensureRightsCols();
+    const { name: name2, email: email3, password, role, permissions, loginPin, canEdit, canDelete } = req.body;
     if (!name2 || !email3 || !password) {
       res.status(400).json({ error: "Bad Request", message: "Name, email and password required" });
       return;
     }
     const passwordHash = await bcryptjs_default.hash(password, 10);
     await db.execute(sql`
-      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password)
+      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password, can_edit, can_delete)
       VALUES (${req.user.businessId}, ${name2}, ${email3}, ${passwordHash},
               ${role || "staff"}, ${JSON.stringify(permissions || [])},
-              ${loginPin || null}, ${password})
+              ${loginPin || null}, ${password},
+              ${canEdit !== false}, ${canDelete !== false})
     `);
     res.status(201).json({ success: true });
   } catch (err) {
@@ -85344,7 +85360,8 @@ router5.get("/:id", async (req, res) => {
 });
 router5.patch("/:id", async (req, res) => {
   try {
-    const { name: name2, role, permissions, isActive, password, loginPin } = req.body;
+    await ensureRightsCols();
+    const { name: name2, role, permissions, isActive, password, loginPin, canEdit, canDelete } = req.body;
     const id = Number(req.params.id);
     const biz = req.user.businessId;
     const updateData = {};
@@ -85352,6 +85369,8 @@ router5.patch("/:id", async (req, res) => {
     if (role !== void 0) updateData.role = role;
     if (permissions !== void 0) updateData.permissions = permissions;
     if (isActive !== void 0) updateData.isActive = isActive;
+    if (canEdit !== void 0) updateData.canEdit = canEdit !== false;
+    if (canDelete !== void 0) updateData.canDelete = canDelete !== false;
     if (password) {
       updateData.passwordHash = await bcryptjs_default.hash(password, 10);
       await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE id = ${id} AND business_id = ${biz}`);

@@ -1,10 +1,35 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound } from "lucide-react";
+import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound, PencilOff, Trash } from "lucide-react";
 
-const emptyForm = { name: "", email: "", password: "", role: "staff" as "business_admin"|"staff", permissions: [] as string[], loginPin: "" };
+const emptyForm = {
+  name: "", email: "", password: "", role: "staff" as "business_admin" | "staff",
+  permissions: [] as string[], loginPin: "",
+  canEdit: true, canDelete: true,
+};
 
 const PERMISSIONS = ["sales", "purchases", "payments", "inventory", "accounting", "gst", "masters", "settings"];
+
+function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-gray-200 w-fit">
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        className={`px-4 py-1.5 text-sm font-medium transition-colors ${value ? "bg-green-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+      >
+        Yes
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        className={`px-4 py-1.5 text-sm font-medium transition-colors border-l border-gray-200 ${!value ? "bg-red-500 text-white" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+      >
+        No
+      </button>
+    </div>
+  );
+}
 
 export default function Users() {
   const [users, setUsers] = useState<any[]>([]);
@@ -25,7 +50,12 @@ export default function Users() {
   const openCreate = () => { setEditId(null); setForm({ ...emptyForm }); setError(""); setShowModal(true); };
   const openEdit = (u: any) => {
     setEditId(u.id);
-    setForm({ name: u.name, email: u.email, password: "", role: u.role, permissions: u.permissions || [], loginPin: "" });
+    setForm({
+      name: u.name, email: u.email, password: "", role: u.role,
+      permissions: u.permissions || [], loginPin: "",
+      canEdit: u.canEdit !== false,
+      canDelete: u.canDelete !== false,
+    });
     setError(""); setShowModal(true);
   };
 
@@ -96,6 +126,16 @@ export default function Users() {
                       <KeyRound className="w-3 h-3" /> PIN
                     </span>
                   )}
+                  {u.canEdit === false && (
+                    <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 flex-shrink-0">
+                      <PencilOff className="w-3 h-3" /> No Edit
+                    </span>
+                  )}
+                  {u.canDelete === false && (
+                    <span className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 flex-shrink-0">
+                      <Trash className="w-3 h-3" /> No Delete
+                    </span>
+                  )}
                   {!u.isActive && (
                     <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 flex-shrink-0">Inactive</span>
                   )}
@@ -125,9 +165,18 @@ export default function Users() {
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (blank = change nahi)" : "Password *"}</label><input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (blank = change nahi)" : "Password *"}</label>
+                <input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Login PIN
@@ -143,15 +192,36 @@ export default function Users() {
                   onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))}
                 />
               </div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select className={inputCls} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as any }))}>
                   <option value="staff">Staff</option>
                   <option value="business_admin">Business Admin</option>
                 </select>
               </div>
+
+              {/* Edit & Delete Rights */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-100">
+                <div className="text-sm font-medium text-gray-700 mb-1">Access Rights</div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-700">Edit Records</div>
+                    <div className="text-xs text-gray-400">Data edit karne ka right</div>
+                  </div>
+                  <YesNoToggle value={form.canEdit} onChange={v => setForm(f => ({ ...f, canEdit: v }))} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm text-gray-700">Delete Records</div>
+                    <div className="text-xs text-gray-400">Data delete karne ka right</div>
+                  </div>
+                  <YesNoToggle value={form.canDelete} onChange={v => setForm(f => ({ ...f, canDelete: v }))} />
+                </div>
+              </div>
+
               {form.role === "staff" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Module Permissions</label>
                   <div className="grid grid-cols-2 gap-2">
                     {PERMISSIONS.map(p => (
                       <label key={p} className="flex items-center gap-2 text-sm capitalize cursor-pointer">

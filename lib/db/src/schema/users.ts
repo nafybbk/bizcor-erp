@@ -13,6 +13,8 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("staff"),
   permissions: text("permissions").array().default([]),
+  canEdit: boolean("can_edit").notNull().default(true),
+  canDelete: boolean("can_delete").notNull().default(true),
   isActive: boolean("is_active").notNull().default(true),
   lastSeenAt: timestamp("last_seen_at"),
   sessionToken: text("session_token"),
