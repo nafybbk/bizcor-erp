@@ -598,6 +598,27 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const doSave = async (payload: any) => {
     setLoading(true); setError("");
     try {
+      // Auto-create items that were typed directly (no itemId) into the items master
+      const updatedItems = [...(payload.items || [])];
+      for (let i = 0; i < updatedItems.length; i++) {
+        const it = updatedItems[i];
+        if (!it.itemId && it.itemName?.trim()) {
+          try {
+            const created = await api.post<any>("/items", {
+              name: it.itemName.trim(),
+              type: "goods",
+              hsnCode: it.hsnCode || undefined,
+              unit: it.unit || "PCS",
+              taxRateId: (it.taxRateId && it.taxRateId > 0) ? it.taxRateId : undefined,
+              salePrice: isSales ? it.rate : undefined,
+              purchasePrice: !isSales ? it.rate : undefined,
+            });
+            updatedItems[i] = { ...it, itemId: created.id };
+          } catch { /* ignore — item save fail hone par bhi voucher save ho */ }
+        }
+      }
+      payload.items = updatedItems;
+
       const targetId = activeBinDocId || editId;
       if (targetId) await api.patch(`/${voucherType}/${targetId}`, payload);
       else await api.post(`/${voucherType}`, payload);
