@@ -357,25 +357,21 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setPartySearch(initialData.partyName || "");
       setIsInterState(initialData.isInterState || false);
       if (initialData.items?.length) {
-        const populated = initialData.items.map((i: any) => ({
+        const populated = initialData.items.map((i: any) => calcItem({
           itemId: i.itemId,
           itemName: i.itemName,
           hsnCode: i.hsnCode || "",
           description: i.description || "",
-          quantity: Number(i.quantity),
+          quantity: parseFloat(Number(i.quantity || 0).toFixed(3)),
           unit: i.unit || "PCS",
-          rate: Number(i.rate),
+          rate: parseFloat(Number(i.rate || 0).toFixed(2)),
           rateIncludesGst: false,
-          discount: Number(i.discount || 0),
+          discount: parseFloat(Number(i.discount || 0).toFixed(2)),
           discountType: i.discountType || "percent",
           taxRateId: i.taxRateId,
           taxRate: Number(i.taxRate || 0),
-          taxableAmount: Number(i.taxableAmount || 0),
-          cgst: Number(i.cgst || 0),
-          sgst: Number(i.sgst || 0),
-          igst: Number(i.igst || 0),
-          total: Number(i.total || 0),
-        }));
+          taxableAmount: 0, cgst: 0, sgst: 0, igst: 0, total: 0,
+        }, initialData.isInterState || false));
         setLineItems(populated);
         setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
       }
@@ -421,26 +417,22 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     try {
       const v = await api.get<any>(`${linkedVoucherApi}/${vId}`);
       if (v.items?.length) {
-        const populated: VoucherItem[] = v.items.map((i: any) => ({
+        const populated: VoucherItem[] = v.items.map((i: any) => calcItem({
           itemId: i.itemId,
           itemName: i.itemName,
           hsnCode: i.hsnCode || "",
           description: i.description || "",
-          quantity: Number(i.quantity),
+          quantity: parseFloat(Number(i.quantity || 0).toFixed(3)),
           unit: i.unit || "PCS",
-          rate: Number(i.rate),
+          rate: parseFloat(Number(i.rate || 0).toFixed(2)),
           rateIncludesGst: false,
-          discount: Number(i.discount || 0),
+          discount: parseFloat(Number(i.discount || 0).toFixed(2)),
           discountType: i.discountType || "percent",
           taxRateId: i.taxRateId,
           taxRate: Number(i.taxRate || 0),
-          taxableAmount: Number(i.taxableAmount || 0),
-          cgst: Number(i.cgst || 0),
-          sgst: Number(i.sgst || 0),
-          igst: Number(i.igst || 0),
-          total: Number(i.total || 0),
+          taxableAmount: 0, cgst: 0, sgst: 0, igst: 0, total: 0,
           customFields: i.customFields,
-        }));
+        }, isInterState));
         setLineItems(populated);
         setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
       }
@@ -487,7 +479,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     setSelectedItems(prev => new Set([...prev, newIdx]));
     if (focusAfter) {
       setTimeout(() => {
-        const el = document.querySelector(`[data-row="${newIdx}"][data-field="qty"]`) as HTMLInputElement;
+        const el = document.querySelector(`[data-row="${newIdx}"][data-field="itemselect"]`) as HTMLSelectElement;
         if (el) el.focus();
       }, 50);
     }
@@ -572,17 +564,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setPartySearch(full.partyName || "");
       setIsInterState(full.isInterState || false);
       if (full.items?.length) {
-        const populated = full.items.map((i: any) => ({
+        const populated = full.items.map((i: any) => calcItem({
           itemId: i.itemId, itemName: i.itemName,
           hsnCode: i.hsnCode || "", description: i.description || "",
-          quantity: Number(i.quantity), unit: i.unit || "PCS",
-          rate: Number(i.rate), rateIncludesGst: false,
-          discount: Number(i.discount || 0), discountType: i.discountType || "percent",
+          quantity: parseFloat(Number(i.quantity || 0).toFixed(3)), unit: i.unit || "PCS",
+          rate: parseFloat(Number(i.rate || 0).toFixed(2)), rateIncludesGst: false,
+          discount: parseFloat(Number(i.discount || 0).toFixed(2)), discountType: i.discountType || "percent",
           taxRateId: i.taxRateId, taxRate: Number(i.taxRate || 0),
-          taxableAmount: Number(i.taxableAmount || 0),
-          cgst: Number(i.cgst || 0), sgst: Number(i.sgst || 0),
-          igst: Number(i.igst || 0), total: Number(i.total || 0),
-        }));
+          taxableAmount: 0, cgst: 0, sgst: 0, igst: 0, total: 0,
+        }, full.isInterState || false));
         setLineItems(populated);
         setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
       }
@@ -675,12 +665,17 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       customFields: i.customFields && Object.keys(i.customFields).length > 0 ? i.customFields : undefined,
       taxRateId: (i.taxRateId && i.taxRateId > 0) ? i.taxRateId : undefined,
     }));
+    // Auto-compute round off so grand total is a whole number
+    const baseTotal = taxableAmount + totalTax + Number(form.transportCharges || 0);
+    const frac = baseTotal - Math.floor(baseTotal);
+    const autoRoundOff = parseFloat((frac < 0.5 ? -frac : (1 - frac)).toFixed(2));
+
     const payload: any = {
       ...form, partyId: parsedPartyId,
       items: itemsToSend,
       customFields: Object.keys(invoiceCustomFields).length > 0 ? invoiceCustomFields : undefined,
       transportCharges: Number(form.transportCharges),
-      roundOff: Number(form.roundOff),
+      roundOff: autoRoundOff,
       linkedVoucherId: linkedVoucherId || undefined,
     };
     if (serialMode === "manual") {
@@ -1307,6 +1302,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </td>
                       <td className="px-2 py-1.5">
                         <select className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 mb-1"
+                          data-row={idx} data-field="itemselect"
                           value={item.itemId || ""}
                           onChange={e => updateItem(idx, "itemId" as any, e.target.value)}>
                           <option value="">-- Select Item --</option>
