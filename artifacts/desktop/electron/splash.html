@@ -63,13 +63,13 @@
     <div class="progress-bar" id="bar"></div>
   </div>
 
-  <div class="step-msg" id="step">Shuru ho raha hai...</div>
+  <div class="step-msg" id="step">Starting up...</div>
   <div class="sub-msg" id="sub"></div>
   <div class="spin" id="spin"></div>
   <div class="timer" id="timer">0 seconds</div>
   <div class="warn" id="warn">
-    Pehli baar thoda time lagta hai — database initialize ho rahi hai.<br>
-    Please wait karo, app khud khulega.
+    First launch takes a little longer — initializing local database.<br>
+    Please wait, the app will open automatically.
   </div>
 
   <script>
@@ -79,11 +79,10 @@
 
     setInterval(() => {
       elapsed++;
-      timerEl.textContent = elapsed + ' second' + (elapsed === 1 ? '' : 's') + ' ho gaye';
+      timerEl.textContent = elapsed + ' second' + (elapsed === 1 ? '' : 's') + ' elapsed';
       if (elapsed >= 20) warnEl.style.display = 'block';
     }, 1000);
 
-    // Called from main process via executeJavaScript
     function setProgress(pct, stepText, subText) {
       document.getElementById('bar').style.width = pct + '%';
       document.getElementById('step').textContent = stepText || '';

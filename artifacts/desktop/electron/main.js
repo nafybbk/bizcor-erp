@@ -170,10 +170,10 @@ function refreshTray() {
   const url = getServerURL();
   const trialStatus = trial.getTrialStatus();
   const trialLabel =
-    trialStatus.phase === 1 ? `Trial: ${trialStatus.daysLeft} din bache` :
-    trialStatus.phase === 2 ? `Alert: ${trialStatus.daysLeft} din bache` :
-    trialStatus.phase === 3 ? `Grace: ${trialStatus.daysLeft} din bache` :
-    "Trial Khatam — Locked";
+    trialStatus.phase === 1 ? `Trial: ${trialStatus.daysLeft} days remaining` :
+    trialStatus.phase === 2 ? `Trial: ${trialStatus.daysLeft} days left` :
+    trialStatus.phase === 3 ? `Grace period: ${trialStatus.daysLeft} days left` :
+    "Trial Expired — Locked";
 
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "BizCor ERP", enabled: false },
@@ -184,7 +184,7 @@ function refreshTray() {
     { label: "Open Dashboard", click: () => openMainWindow() },
     { label: "Open in Browser", enabled: st === "running", click: () => shell.openExternal(url) },
     { label: "Show QR Code (LAN)", enabled: st === "running", click: () => showQRWindow() },
-    { label: "Database Setup", click: () => showSetupWindow() },
+    { label: "Cloud Sync Setup", click: () => showSetupWindow() },
     { type: "separator" },
     { label: "Quit", click: () => { isQuitting = true; app.quit(); } },
   ]));
@@ -210,9 +210,9 @@ ipcMain.handle("save-db-url", async (_, dbUrl) => {
   } catch (err) {
     closeSplash();
     dialog.showErrorBox(
-      "Cloud Connect Error",
-      "Cloud database se connect nahi ho saka:\n\n" + err.message +
-      "\n\nURL dobara check karein. App local mode mein chal raha hai."
+      "Cloud Connection Failed — BizCor ERP",
+      "Could not connect to the cloud database:\n\n" + err.message +
+      "\n\nPlease check your connection URL. The app is running in offline mode."
     );
     // Restart in offline mode
     await server.start(resourcesPath);
@@ -236,10 +236,10 @@ if (!gotTheLock) {
   const { dialog } = require("electron");
   dialog.showErrorBox(
     "BizCor ERP — Already Running",
-    "BizCor ERP pehle se chal raha hai.\n\n" +
-    "Taskbar ke system tray (neeche daayein corner) mein BizCor icon dhundhen,\n" +
-    "usse right-click karein aur 'Quit' chunein.\n\n" +
-    "Phir dobara BizCor ERP kholein."
+    "BizCor ERP is already running.\n\n" +
+    "Look for the BizCor icon in the system tray (bottom-right corner of the taskbar),\n" +
+    "right-click it and select 'Quit'.\n\n" +
+    "Then reopen BizCor ERP."
   );
   app.quit();
 } else {
@@ -276,20 +276,19 @@ if (!gotTheLock) {
         dialog.showMessageBox({
           type: "error",
           title: "Server Error — BizCor ERP",
-          message: "Server shuru nahi ho saka.",
+          message: "The server could not start.",
           detail:
             "Possible reasons:\n" +
-            "• Pehli baar mein database load hone mein time laga\n" +
-            "• Antivirus ne block kiya ho sakta hai\n\n" +
-            "Kya karein:\n" +
-            "1. App dobara kholein (2nd try mein jaldi khulega)\n" +
-            "2. Antivirus mein BizCor ERP ko allow karein\n" +
-            "3. Agar phir bhi na khule — tray icon → Quit karein aur dobara kholein",
-          buttons: ["Dobara Try Karein", "Band Karein"],
+            "• First launch: local database is still initializing\n" +
+            "• Antivirus may have blocked the app\n\n" +
+            "What to do:\n" +
+            "1. Click 'Try Again' — second launch is much faster\n" +
+            "2. Allow BizCor ERP in your antivirus / Windows Defender\n" +
+            "3. If it keeps failing: right-click the tray icon → Quit, then reopen",
+          buttons: ["Try Again", "Close"],
           defaultId: 0,
         }).then(result => {
           if (result.response === 0) {
-            // Retry
             showSplash();
             server.start(resourcesPath);
           } else {

@@ -90,7 +90,7 @@ async function startServer(options, resourcesPath) {
   }
 
   setStatus("starting");
-  setProgress(10, "Server shuru ho raha hai...", "Files load ho rahi hain");
+  setProgress(10, "Starting server...", "Loading application files");
 
   const nodeBin = process.execPath;
   const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
@@ -125,13 +125,12 @@ async function startServer(options, resourcesPath) {
     const line = d.toString().trim();
     console.log("[server]", line);
     lastLog = line;
-    // Forward key log lines as progress hints
     if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
-      setProgress(40, "Database initialize ho rahi hai...", line.substring(0, 80));
+      setProgress(40, "Initializing local database...", line.substring(0, 80));
     } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
-      setProgress(65, "Tables ready ho rahi hain...", line.substring(0, 80));
+      setProgress(65, "Setting up tables...", line.substring(0, 80));
     } else if (line.includes("listen") || line.includes("port") || line.includes("ready") || line.includes("started")) {
-      setProgress(85, "Almost ready...", "Server port pe aa raha hai");
+      setProgress(85, "Almost ready...", "Server is binding to port");
     }
   });
   serverProcess.stderr.on("data", d => {
@@ -148,7 +147,7 @@ async function startServer(options, resourcesPath) {
     setStatus("error");
   });
 
-  setProgress(30, "Database shuru ho rahi hai...", "Pehli baar 30-60 second lag sakte hain");
+  setProgress(30, "Initializing database...", "First launch may take 30–60 seconds");
 
   // Wait up to 90s — PGlite WASM takes 30-60s on first launch
   const TIMEOUT_MS = 90000;
@@ -164,8 +163,8 @@ async function startServer(options, resourcesPath) {
       if (attempt % 5 === 0) {
         setProgress(
           Math.min(30 + attempt * 2, 80),
-          "App ready ho rahi hai...",
-          `${elapsed} seconds ho gaye — please wait`
+          "Waiting for server to be ready...",
+          `${elapsed} seconds elapsed — please wait`
         );
       }
 
@@ -179,7 +178,7 @@ async function startServer(options, resourcesPath) {
       }).on("error", () => {
         if (Date.now() - start > TIMEOUT_MS) {
           reject(new Error(
-            `Server ${TIMEOUT_MS / 1000} seconds mein ready nahi hua.\n\nLast log: ${lastLog || "(koi output nahi)"}`
+            `Server did not respond within ${TIMEOUT_MS / 1000} seconds.\n\nLast log: ${lastLog || "(no output)"}`
           ));
         } else {
           setTimeout(check, 1000);
