@@ -240,8 +240,17 @@ DELETE /api/users/:id
 1. Print template editor — invoice/report layout customize
 2. Report Designer — Crystal Reports jaisa, client ke liye custom reports
 3. Internal chat — staff-to-staff message LAN pe
-4. Print queue — kisi bhi client se server printer pe print
+4. Print queue — kisi bhai client se server printer pe print
 5. Offline item/party creation — LAN version ke saath
+
+**Cash & Bank Module (May 2026 discuss hua):**
+6. Cash & Bank accounts master — multiple accounts (Cash in Hand, Petty Cash, SBI, HDFC, etc.)
+7. Receipts/Payments mein account link — har transaction se cash/bank balance auto update ho
+8. Contra entry — cash to bank ya bank to cash transfer
+9. Expense vouchers — rent, electricity, salary, office supplies (cash/bank se deduct)
+10. Cash Book report — daily cash in/out with running balance
+11. Bank Statement report — per bank account transactions
+12. Expense heads master — CRUD (Rent, Electricity, Salary, Petty Expenses, etc.)
 
 ### 🟣 BIG / FUTURE FEATURES
 
