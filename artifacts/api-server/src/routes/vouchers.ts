@@ -277,6 +277,7 @@ async function updateVoucher(req: any, res: any) {
     termsAndConditions: termsAndConditions || null,
     linkedVoucherId: linkedVoucherId || null, isInterState,
     placeOfSupply: placeOfSupply || party?.stateCode || null,
+    deletedAt: null,
   };
   if (customFields && typeof customFields === "object" && Object.keys(customFields).length > 0) {
     updateData.customFields = customFields;
@@ -360,7 +361,18 @@ router.get("/next-number", async (req, res) => {
 router.get("/bin", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const result = await db.execute(sql`
+    const typeParam = req.query.type as string | undefined;
+    const result = await db.execute(typeParam ? sql`
+      SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
+             v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
+             p.name AS "partyName"
+      FROM vouchers v
+      LEFT JOIN parties p ON p.id = v.party_id
+      WHERE v.business_id = ${businessId}
+        AND v.deleted_at IS NOT NULL
+        AND v.voucher_type = ${typeParam}
+      ORDER BY v.deleted_at DESC
+    ` : sql`
       SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
              v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
              p.name AS "partyName"

@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
 import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
-import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
 // Business type → invoice-level and item-level custom fields config
@@ -195,6 +195,19 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [creditWarning, setCreditWarning] = useState<{ outstanding: number; creditLimit: number; newBill: number } | null>(null);
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<any>(null);
   const [offlineSaved, setOfflineSaved] = useState(false);
+
+  // Bin docs (restore from bin feature)
+  const [binDocs, setBinDocs] = useState<any[]>([]);
+  const [showBinModal, setShowBinModal] = useState(false);
+  const [binDateAlert, setBinDateAlert] = useState<{ doc: any } | null>(null);
+  const [activeBinDocId, setActiveBinDocId] = useState<number | null>(null);
+  const BIN_TYPE_MAP: Record<string, string> = {
+    "sales/invoices": "sales_invoice",
+    "purchases/bills": "purchase_bill",
+    "sales/credit-notes": "credit_note",
+    "purchases/debit-notes": "debit_note",
+  };
+  const binVoucherType = BIN_TYPE_MAP[voucherType] || "sales_invoice";
   const [fieldSize, setFieldSizeState] = useState<FieldSize>(() => getFieldSize());
   const applyFieldSize = (s: FieldSize) => { setFieldSizeState(s); saveFieldSize(s); };
 
@@ -314,6 +327,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     }).catch(() => {
       // Offline — already loaded from cache above
     });
+
+    // Fetch bin docs for this voucher type (only for new docs, not edit)
+    if (!editId) {
+      api.get<any[]>(`/vouchers/bin?type=${binVoucherType}`).then(data => {
+        setBinDocs(Array.isArray(data) ? data : []);
+      }).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -521,10 +541,65 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const totalTax = totalCgst + totalSgst + totalIgst;
   const grandTotal = taxableAmount + totalTax + (form.transportCharges || 0) + (form.roundOff || 0);
 
+  const handleBinDocSelect = (doc: any) => {
+    setShowBinModal(false);
+    setBinDateAlert({ doc });
+  };
+
+  const handleBinDateConfirm = async (useToday: boolean) => {
+    if (!binDateAlert) return;
+    const { doc } = binDateAlert;
+    setBinDateAlert(null);
+    setLoading(true);
+    try {
+      const full = await api.get<any>(`/${voucherType}/${doc.id}`);
+      const date = useToday ? fmt.today() : (full.date || fmt.today());
+      setForm(f => ({
+        ...f, date,
+        voucherNumber: full.voucherNumber || "",
+        partyId: String(full.partyId || ""),
+        partyName: full.partyName || "",
+        billingAddress: full.billingAddress || "",
+        useShippingAddress: full.useShippingAddress || false,
+        shippingAddress: full.shippingAddress || "",
+        placeOfSupply: full.placeOfSupply || "",
+        transportCharges: Number(full.transportCharges || 0),
+        roundOff: Number(full.roundOff || 0),
+        notes: full.notes || "",
+        termsAndConditions: full.termsAndConditions || "",
+        status: "posted",
+      }));
+      setPartySearch(full.partyName || "");
+      setIsInterState(full.isInterState || false);
+      if (full.items?.length) {
+        const populated = full.items.map((i: any) => ({
+          itemId: i.itemId, itemName: i.itemName,
+          hsnCode: i.hsnCode || "", description: i.description || "",
+          quantity: Number(i.quantity), unit: i.unit || "PCS",
+          rate: Number(i.rate), rateIncludesGst: false,
+          discount: Number(i.discount || 0), discountType: i.discountType || "percent",
+          taxRateId: i.taxRateId, taxRate: Number(i.taxRate || 0),
+          taxableAmount: Number(i.taxableAmount || 0),
+          cgst: Number(i.cgst || 0), sgst: Number(i.sgst || 0),
+          igst: Number(i.igst || 0), total: Number(i.total || 0),
+        }));
+        setLineItems(populated);
+        setSelectedItems(new Set(populated.map((_: any, i: number) => i)));
+      }
+      setActiveBinDocId(doc.id);
+      setBinDocs(prev => prev.filter(d => d.id !== doc.id));
+    } catch {
+      setError("Bin doc load nahi hua — dobara try karein");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const doSave = async (payload: any) => {
     setLoading(true); setError("");
     try {
-      if (editId) await api.patch(`/${voucherType}/${editId}`, payload);
+      const targetId = activeBinDocId || editId;
+      if (targetId) await api.patch(`/${voucherType}/${targetId}`, payload);
       else await api.post(`/${voucherType}`, payload);
       // Auto-save new ship-to address to party (for future auto-fill)
       if (form.useShippingAddress && form.shippingAddress.trim() && form.partyId) {
@@ -891,6 +966,21 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                   onClick={() => { setForm(f => ({ ...f, voucherNumber: dupWarning.suggested })); setDupWarning(null); }}>
                   Use suggested: {dupWarning.suggested}
                 </button>
+              </div>
+            )}
+            {/* Bin doc restore button */}
+            {!editId && binDocs.length > 0 && (
+              <button type="button"
+                onClick={() => setShowBinModal(true)}
+                className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 bg-amber-50 border-2 border-amber-400 text-amber-800 rounded-lg text-sm font-semibold hover:bg-amber-100 transition-colors shadow-sm">
+                <Archive className="w-4 h-4" />
+                Bin se lo ({binDocs.length} docs available)
+              </button>
+            )}
+            {activeBinDocId && (
+              <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-300 rounded-lg text-xs text-green-800">
+                <Archive className="w-3 h-3" />
+                Bin doc restore ho raha hai — save karte hi main list mein aa jaayega
               </div>
             )}
           </div>
@@ -1414,6 +1504,75 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           </div>
         </div>
       </form>
+
+      {/* ── Bin Docs Modal ── */}
+      {showBinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div className="flex items-center gap-2">
+                <Archive className="w-5 h-5 text-amber-600" />
+                <h2 className="text-base font-bold text-gray-900">Bin se Doc Select Karo</h2>
+              </div>
+              <button type="button" onClick={() => setShowBinModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="px-5 pt-3 text-xs text-gray-500">Yeh docs bin mein hain — select karo, edit karo, save karo. Auto-restore ho jaayega.</p>
+            <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
+              {binDocs.map(doc => (
+                <button key={doc.id} type="button"
+                  onClick={() => handleBinDocSelect(doc)}
+                  className="w-full text-left px-4 py-3 border border-gray-200 rounded-xl hover:border-amber-400 hover:bg-amber-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-gray-900">{doc.voucherNumber}</span>
+                    <span className="text-sm font-semibold text-gray-700">{fmt.currency(doc.grandTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-gray-500">{doc.partyName || "—"}</span>
+                    <span className="text-xs text-gray-400">{doc.date}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bin Date Alert ── */}
+      {binDateAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <CalendarClock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Date Notice</h3>
+                <p className="text-xs text-gray-500">{binDateAlert.doc.voucherNumber}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-1">
+              Is doc ki original date: <span className="font-semibold text-gray-900">{binDateAlert.doc.date}</span>
+            </p>
+            <p className="text-sm text-gray-700 mb-5">
+              Aaj ki date fill karein?
+            </p>
+            <div className="flex gap-3">
+              <button type="button"
+                onClick={() => handleBinDateConfirm(true)}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition-colors">
+                Haan, Aaj ki Date
+              </button>
+              <button type="button"
+                onClick={() => handleBinDateConfirm(false)}
+                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors">
+                Nahi, Purani Date
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
