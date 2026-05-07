@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { TrendingUp, ShoppingCart, CreditCard, Package, FileBarChart2, Loader2, AlertTriangle, Clock, XCircle, CheckCircle } from "lucide-react";
+import { TrendingUp, ShoppingCart, CreditCard, FileBarChart2, Loader2, AlertTriangle, Clock, XCircle, Archive } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface Summary {
@@ -114,6 +114,29 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
   );
 }
 
+function BinMonthEndAlert({ binCount }: { binCount: number }) {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft = lastDay - now.getDate();
+  if (binCount === 0 || daysLeft > 5) return null;
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 bg-orange-50 border border-orange-300 rounded-xl">
+      <Archive className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <span className="text-sm font-semibold text-orange-800">
+          Month end mein {daysLeft} din bache hain —{" "}
+        </span>
+        <span className="text-sm text-orange-700">
+          Bin mein <strong>{binCount}</strong> {binCount === 1 ? "doc hai" : "docs hain"}. Invoice banate waqt "Bin se lo" se use ya Bin mein permanently delete karo.
+        </span>
+      </div>
+      <a href="/vouchers/bin" className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 whitespace-nowrap">
+        Bin Dekho
+      </a>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trend, setTrend] = useState<any[]>([]);
@@ -121,6 +144,7 @@ export default function Dashboard() {
   const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("this_month");
+  const [binCount, setBinCount] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -129,11 +153,13 @@ export default function Dashboard() {
       api.get<{ data: any[] }>("/dashboard/sales-trend"),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5"),
       api.get<any>("/businesses/current").catch(() => null),
-    ]).then(([s, t, p, b]) => {
+      api.get<any[]>("/vouchers/bin").catch(() => []),
+    ]).then(([s, t, p, b, bin]) => {
       setSummary(s);
       setTrend(t.data);
       setTopParties(p.data);
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
+      setBinCount(Array.isArray(bin) ? bin.length : 0);
     }).catch(console.error).finally(() => setLoading(false));
   }, [period]);
 
@@ -146,6 +172,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 max-w-6xl">
       {bizInfo && <TrialBanner biz={bizInfo} />}
+      <BinMonthEndAlert binCount={binCount} />
 
       <div className="flex items-center justify-between">
         <div>
