@@ -26,6 +26,8 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 function fmtCur(n: number) { return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtDt(d: string) { if (!d) return ""; const dt = new Date(d); return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
 
+type PartyTypeFilter = "all" | "customer" | "supplier";
+
 export default function PartyLedger() {
   const [parties, setParties] = useState<any[]>([]);
   const [selectedParty, setSelectedParty] = useState<any>(null);
@@ -35,19 +37,27 @@ export default function PartyLedger() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [billWise, setBillWise] = useState(false);
+  const [partyTypeFilter, setPartyTypeFilter] = useState<PartyTypeFilter>("all");
   const [visibleCols, setVisibleCols] = useState<string[]>(() =>
     getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
   );
+
+  const bills: any[] = ledger?.bills || [];
+  const totalBillAmount = bills.reduce((s: number, b: any) => s + b.billAmount, 0);
+  const totalPaid = bills.reduce((s: number, b: any) => s + b.paidAmount, 0);
+  const totalBalance = bills.reduce((s: number, b: any) => s + b.balance, 0);
+  const isPurchaseSide = bills.some((b: any) => b.voucherType === "purchase_bill" || b.voucherType === "debit_note");
+  const billsDrCr = isPurchaseSide ? "Cr" : "Dr";
+
+  const filteredParties = partyTypeFilter === "all"
+    ? parties
+    : parties.filter(p => p.type === partyTypeFilter || p.type === "both");
 
   const printStatement = () => {
     if (!ledger) return;
     const bizName = localStorage.getItem("erp_business") ? JSON.parse(localStorage.getItem("erp_business")!).name : "";
     const party = ledger.party;
     const entries: any[] = ledger.entries || [];
-    const bills: any[] = ledger.bills || [];
-    // Dr/Cr for bill-wise: purchase_bill/debit_note = Cr, sales_invoice/credit_note = Dr
-    const isPurchaseSide = bills.some((b: any) => b.voucherType === "purchase_bill" || b.voucherType === "debit_note");
-    const billsDrCr = isPurchaseSide ? "Cr" : "Dr";
     const period = fromDate || toDate ? `${fromDate ? fmtDt(fromDate) : "Beginning"} to ${toDate ? fmtDt(toDate) : "Today"}` : "All Dates";
 
     const tableRows = billWise
@@ -74,10 +84,10 @@ export default function PartyLedger() {
     const billWiseFoot = billWise ? `
       <tfoot>
         <tr class="total-row">
-          <td colspan="3"><b>Total</b></td>
-          <td class="num"><b>${fmtCur(bills.reduce((s, b) => s + b.billAmount, 0))}</b></td>
-          <td class="num green"><b>${fmtCur(bills.reduce((s, b) => s + b.paidAmount, 0))}</b></td>
-          <td class="num red"><b>${fmtCur(bills.reduce((s, b) => s + b.balance, 0))}</b></td>
+          <td colspan="3"><b>Total Outstanding</b></td>
+          <td class="num"><b>${fmtCur(totalBillAmount)}</b></td>
+          <td class="num green"><b>${fmtCur(totalPaid)}</b></td>
+          <td class="num red"><b>${fmtCur(totalBalance)} ${billsDrCr}</b></td>
           <td></td>
         </tr>
       </tfoot>` : "";
@@ -142,7 +152,7 @@ export default function PartyLedger() {
       <div class="balance">
         <div class="label">${billWise ? "Total Outstanding" : "Closing Balance"}</div>
         <div class="amount">${billWise
-          ? `${fmtCur(bills.reduce((s: number, b: any) => s + b.balance, 0))} ${billsDrCr}`
+          ? `${fmtCur(totalBalance)} ${billsDrCr}`
           : `${fmtCur(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}`
         }</div>
       </div>
@@ -183,7 +193,7 @@ export default function PartyLedger() {
   const show = (key: string) => visibleCols.includes(key);
 
   useEffect(() => {
-    api.get<any>("/parties?limit=200").then(r => setParties(r.data || [])).catch(console.error);
+    api.get<any>("/parties?limit=500").then(r => setParties(r.data || [])).catch(console.error);
   }, []);
 
   const loadLedger = (partyId: number) => {
@@ -205,10 +215,11 @@ export default function PartyLedger() {
     if (selectedParty) loadLedger(selectedParty.id);
   }, [fromDate, toDate]);
 
-  const bills: any[] = ledger?.bills || [];
-  const totalBillAmount = bills.reduce((s: number, b: any) => s + b.billAmount, 0);
-  const totalPaid = bills.reduce((s: number, b: any) => s + b.paidAmount, 0);
-  const totalBalance = bills.reduce((s: number, b: any) => s + b.balance, 0);
+  const TYPE_TABS: { key: PartyTypeFilter; label: string; color: string }[] = [
+    { key: "all",      label: "All",      color: "gray" },
+    { key: "customer", label: "Customer", color: "blue" },
+    { key: "supplier", label: "Supplier", color: "orange" },
+  ];
 
   return (
     <div className="max-w-5xl space-y-4">
@@ -227,39 +238,77 @@ export default function PartyLedger() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap gap-4 items-end">
-        <div className="flex-1 min-w-48">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Select Party</label>
-          <PartySelect
-            parties={parties}
-            value={partySearch}
-            onSelect={selectParty}
-            placeholder="Search party..."
-          />
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        {/* Customer / Supplier filter tabs */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+          {TYPE_TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => {
+                setPartyTypeFilter(tab.key);
+                setSelectedParty(null);
+                setPartySearch("");
+                setLedger(null);
+              }}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                partyTypeFilter === tab.key
+                  ? tab.key === "customer"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : tab.key === "supplier"
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+              {tab.key !== "all" && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                  partyTypeFilter === tab.key ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500"
+                }`}>
+                  {parties.filter(p => p.type === tab.key || p.type === "both").length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-          <input type="date" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={fromDate} onChange={e => setFromDate(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-          <input type="date" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={toDate} onChange={e => setToDate(e.target.value)} />
-        </div>
-        {ledger && (
-          <div className="flex items-center gap-2 pb-0.5">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <div
-                onClick={() => setBillWise(v => !v)}
-                className={`relative w-10 h-5 rounded-full transition-colors ${billWise ? "bg-blue-600" : "bg-gray-300"}`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${billWise ? "translate-x-5" : "translate-x-0"}`} />
-              </div>
-              <span className="text-sm font-medium text-gray-700">Bill-wise</span>
+
+        {/* Filters row */}
+        <div className="flex flex-wrap gap-4 items-end">
+          <div className="flex-1 min-w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Select {partyTypeFilter === "all" ? "Party" : partyTypeFilter === "customer" ? "Customer" : "Supplier"}
             </label>
+            <PartySelect
+              parties={filteredParties}
+              value={partySearch}
+              onSelect={selectParty}
+              placeholder={`Search ${partyTypeFilter === "all" ? "party" : partyTypeFilter}...`}
+            />
           </div>
-        )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+            <input type="date" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={fromDate} onChange={e => setFromDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+            <input type="date" className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={toDate} onChange={e => setToDate(e.target.value)} />
+          </div>
+          {ledger && (
+            <div className="flex items-center gap-2 pb-0.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  onClick={() => setBillWise(v => !v)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${billWise ? "bg-blue-600" : "bg-gray-300"}`}
+                >
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${billWise ? "translate-x-5" : "translate-x-0"}`} />
+                </div>
+                <span className="text-sm font-medium text-gray-700">Bill-wise</span>
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
       {loading && <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>}
@@ -320,10 +369,12 @@ export default function PartyLedger() {
                   </tbody>
                   <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
                     <tr>
-                      <td colSpan={3} className="px-4 py-3 text-gray-700">Total</td>
+                      <td colSpan={3} className="px-4 py-3 text-gray-700">Total Outstanding</td>
                       <td className="px-4 py-3 text-right text-gray-900">{fmt.currency(totalBillAmount)}</td>
                       <td className="px-4 py-3 text-right text-green-700">{fmt.currency(totalPaid)}</td>
-                      <td className="px-4 py-3 text-right text-red-600">{fmt.currency(totalBalance)}</td>
+                      <td className={`px-4 py-3 text-right text-lg font-bold ${isPurchaseSide ? "text-green-700" : "text-blue-700"}`}>
+                        {fmt.currency(totalBalance)} <span className="text-sm">{billsDrCr}</span>
+                      </td>
                       <td />
                     </tr>
                   </tfoot>
@@ -379,7 +430,13 @@ export default function PartyLedger() {
       {!selectedParty && !loading && (
         <div className="text-center py-16 text-gray-400 bg-white rounded-xl border border-gray-200">
           <div className="text-4xl mb-3">📒</div>
-          <div className="font-medium">Select a party to view their statement</div>
+          <div className="font-medium">
+            {partyTypeFilter === "customer"
+              ? "Select a customer to view their statement"
+              : partyTypeFilter === "supplier"
+              ? "Select a supplier to view their statement"
+              : "Select a party to view their statement"}
+          </div>
         </div>
       )}
     </div>
