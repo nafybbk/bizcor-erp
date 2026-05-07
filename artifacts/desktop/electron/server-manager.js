@@ -127,19 +127,19 @@ function getNodeBin(resourcesPath) {
 // ─── Server Start ─────────────────────────────────────────────────────────────
 
 async function startServer(options, resourcesPath) {
-  const { cloudUrl, pglitePath } = options;
+  const { cloudUrl, sqlitePath } = options;
 
   openLog();
   writeLog("[start] resourcesPath: " + resourcesPath);
   writeLog("[start] cloudUrl: " + (cloudUrl ? "set" : "none"));
-  writeLog("[start] pglitePath: " + (pglitePath || "none"));
+  writeLog("[start] sqlitePath: " + (sqlitePath || "none"));
 
   let serverBundle = path.join(resourcesPath, "server-bundle", "index.mjs");
   if (!fs.existsSync(serverBundle)) {
     serverBundle = path.join(resourcesPath, "server-bundle", "index.js");
   }
 
-  writeLog("[start] serverBundle: " + serverBundle + " exists=" + fs.existsSync(serverBundle));
+  writeLog("[start] bundle: " + serverBundle + " exists=" + fs.existsSync(serverBundle));
 
   if (!fs.existsSync(serverBundle)) {
     throw new Error("Server bundle not found.\nLooked at: " + serverBundle);
@@ -151,11 +151,11 @@ async function startServer(options, resourcesPath) {
   const nodeBin = getNodeBin(resourcesPath);
   const nodeModulesInBundle = path.join(resourcesPath, "server-bundle", "node_modules");
 
-  writeLog("[start] nodeModulesInBundle exists: " + fs.existsSync(nodeModulesInBundle));
+  writeLog("[start] node_modules exists: " + fs.existsSync(nodeModulesInBundle));
 
-  // Check pglite exists
-  const pgliteDir = path.join(nodeModulesInBundle, "@electric-sql", "pglite");
-  writeLog("[start] pglite package exists: " + fs.existsSync(pgliteDir));
+  // Check better-sqlite3 exists
+  const sqliteNative = path.join(nodeModulesInBundle, "better-sqlite3");
+  writeLog("[start] better-sqlite3 exists: " + fs.existsSync(sqliteNative));
 
   const env = {
     ...process.env,
@@ -170,17 +170,18 @@ async function startServer(options, resourcesPath) {
 
   if (cloudUrl) {
     env.DATABASE_URL = cloudUrl;
+    delete env.SQLITE_PATH;
     delete env.PGLITE_PATH;
   } else {
-    env.PGLITE_PATH = pglitePath;
+    env.SQLITE_PATH = sqlitePath;
     delete env.DATABASE_URL;
     delete env.SUPABASE_DATABASE_URL;
+    delete env.PGLITE_PATH;
   }
 
-  writeLog("[start] Spawning: " + nodeBin + " " + serverBundle);
-  writeLog("[start] env.PGLITE_PATH: " + (env.PGLITE_PATH || ""));
+  writeLog("[start] Spawning: " + path.basename(nodeBin));
+  writeLog("[start] SQLITE_PATH: " + (env.SQLITE_PATH || ""));
 
-  // Collect output for error reporting
   const outputLines = [];
   const pushLine = (prefix, line) => {
     const entry = `[${prefix}] ${line}`;
@@ -194,12 +195,12 @@ async function startServer(options, resourcesPath) {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  writeLog("[start] PID: " + (serverProcess.pid || "failed to get"));
+  writeLog("[start] PID: " + (serverProcess.pid || "failed"));
 
   serverProcess.stdout.on("data", d => {
     d.toString().split("\n").filter(Boolean).forEach(line => {
       pushLine("stdout", line);
-      if (line.includes("PGlite") || line.includes("pglite") || line.includes("database")) {
+      if (line.includes("sqlite") || line.includes("SQLite") || line.includes("database")) {
         setProgress(40, "Initializing local database...", line.substring(0, 80));
       } else if (line.includes("schema") || line.includes("table") || line.includes("migrat")) {
         setProgress(65, "Setting up tables...", line.substring(0, 80));
@@ -223,9 +224,9 @@ async function startServer(options, resourcesPath) {
     setStatus("error");
   });
 
-  setProgress(30, "Initializing database...", "First launch may take 30–60 seconds");
+  setProgress(30, "Initializing database...", "Setting up local SQLite database");
 
-  const TIMEOUT_MS = 90000;
+  const TIMEOUT_MS = 60000;
   await new Promise((resolve, reject) => {
     const http = require("http");
     const start = Date.now();
@@ -238,8 +239,8 @@ async function startServer(options, resourcesPath) {
       if (attempt % 5 === 0) {
         setProgress(
           Math.min(30 + attempt * 2, 80),
-          "Waiting for server to be ready...",
-          `${elapsed}s elapsed — please wait`
+          "Waiting for server...",
+          `${elapsed}s elapsed`
         );
       }
 
@@ -253,16 +254,15 @@ async function startServer(options, resourcesPath) {
         }
       }).on("error", () => {
         if (Date.now() - start > TIMEOUT_MS) {
-          const lastOutput = outputLines.slice(-15).join("\n") || "(no output captured)";
+          const lastOutput = outputLines.slice(-15).join("\n") || "(no output)";
           const logPath = getLogPath();
-          const msg =
+          reject(new Error(
             `Server did not respond after ${TIMEOUT_MS / 1000}s.\n\n` +
             `Runtime: ${path.basename(nodeBin)}\n` +
-            `Bundle: ${path.basename(serverBundle)}\n` +
-            `PGlite: ${fs.existsSync(pgliteDir) ? "found" : "MISSING"}\n\n` +
+            `SQLite: ${fs.existsSync(sqliteNative) ? "found" : "MISSING"}\n\n` +
             `Last output:\n${lastOutput}\n\n` +
-            `Full log: ${logPath}`;
-          reject(new Error(msg));
+            `Full log: ${logPath}`
+          ));
         } else {
           setTimeout(check, 1000);
         }
@@ -279,11 +279,11 @@ async function startServer(options, resourcesPath) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 async function start(resourcesPath) {
-  const pglitePath = path.join(app.getPath("userData"), "bizcor-db");
-  fs.mkdirSync(pglitePath, { recursive: true });
+  const sqlitePath = path.join(app.getPath("userData"), "bizcor-db");
+  fs.mkdirSync(sqlitePath, { recursive: true });
 
   try {
-    await startServer({ pglitePath }, resourcesPath);
+    await startServer({ sqlitePath }, resourcesPath);
   } catch (err) {
     _lastError = err.message;
     writeLog("[ERROR] " + err.message);

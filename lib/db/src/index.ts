@@ -1,43 +1,91 @@
-import * as schema from "./schema";
+import path from "node:path";
 
-const pglitePath = process.env.PGLITE_PATH;
+const sqlitePath = process.env.SQLITE_PATH;
 const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
 
-if (!pglitePath && !connectionString) {
-  throw new Error("DATABASE_URL or PGLITE_PATH must be set.");
+if (!sqlitePath && !connectionString) {
+  throw new Error("DATABASE_URL or SQLITE_PATH must be set.");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let db: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pool: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sqlite: any = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _schema: any;
 
-if (pglitePath) {
-  // Offline mode: PGlite (PostgreSQL in WASM — no internet, no setup needed)
-  // pglite is not a pnpm dep — it's bundled separately in the EXE's node_modules
+if (sqlitePath) {
+  // ─── Offline SQLite mode (better-sqlite3 — native, no WASM, works in Node.js) ───
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error — pglite loaded at EXE runtime from server-bundle/node_modules
-  const { PGlite } = await import("@electric-sql/pglite");
-  const { drizzle } = await import("drizzle-orm/pglite");
+  // @ts-expect-error — better-sqlite3 loaded at EXE runtime from server-bundle/node_modules
+  const Database = (await import("better-sqlite3")).default;
+  const { drizzle } = await import("drizzle-orm/better-sqlite3");
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error — sqlite-schema resolved at runtime only (not a pnpm workspace dep)
+  const sqliteSchema = await import("./sqlite-schema/index.js");
+
+  const dbPath = path.join(sqlitePath, "bizcor.db");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = new (PGlite as any)(pglitePath);
-  await client.waitReady;
-  db = drizzle(client, { schema });
+  _sqlite = new (Database as any)(dbPath);
+  _sqlite.pragma("journal_mode = WAL");
+  _sqlite.pragma("foreign_keys = ON");
+
+  db = drizzle(_sqlite, { schema: sqliteSchema });
+  _schema = sqliteSchema;
 } else {
-  // Cloud mode: real PostgreSQL (Supabase / Neon / etc)
+  // ─── Cloud PostgreSQL mode (Supabase / Neon / etc.) ──────────────────────────
   const { default: pg } = await import("pg");
   const { drizzle } = await import("drizzle-orm/node-postgres");
+  const pgSchema = await import("./schema/index.js");
+
   const isSupabase = /supabase\.(com|co)/.test(connectionString!) || connectionString!.includes("pooler.supabase");
   const isNeon = connectionString!.includes("neon.tech");
   const sslDisabled = process.env.DB_SSL === "false";
   const sslForced = process.env.DB_SSL === "true";
   const useSSL = !sslDisabled && (sslForced || isSupabase || isNeon || process.env.NODE_ENV === "production");
+
   pool = new pg.Pool({
     connectionString: connectionString!,
     ssl: useSSL ? { rejectUnauthorized: false } : false,
   });
-  db = drizzle(pool, { schema });
+  db = drizzle(pool, { schema: pgSchema });
+  _schema = pgSchema;
 }
 
 export { db, pool };
-export * from "./schema";
+
+// Raw SQLite connection — used in api-server for DDL (CREATE TABLE)
+export const sqlite = _sqlite;
+
+// ─── Schema table exports ────────────────────────────────────────────────────
+// At runtime: either SQLite or PG table objects, depending on mode.
+// TypeScript sees the PG types (for route type-checking). esbuild ignores TS errors.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const s = _schema as typeof import("./schema/index.js");
+
+export const superAdminsTable = s.superAdminsTable;
+export const plansTable = s.plansTable;
+export const businessesTable = s.businessesTable;
+export const appSettingsTable = s.appSettingsTable;
+export const licenseVouchersTable = s.licenseVouchersTable;
+export const usersTable = s.usersTable;
+export const loginLogsTable = s.loginLogsTable;
+export const unitsTable = s.unitsTable;
+export const hsnCodesTable = s.hsnCodesTable;
+export const taxRatesTable = s.taxRatesTable;
+export const customFieldsTable = s.customFieldsTable;
+export const partiesTable = s.partiesTable;
+export const itemsTable = s.itemsTable;
+export const vouchersTable = s.vouchersTable;
+export const voucherItemsTable = s.voucherItemsTable;
+export const paymentsTable = s.paymentsTable;
+export const paymentAllocationsTable = s.paymentAllocationsTable;
+export const cashBankAccountsTable = s.cashBankAccountsTable;
+export const expenseHeadsTable = s.expenseHeadsTable;
+export const expenseVouchersTable = s.expenseVouchersTable;
+export const contraEntriesTable = s.contraEntriesTable;
+
+// Re-export PG types for TypeScript consumers (routes, etc.)
+export type * from "./schema";
