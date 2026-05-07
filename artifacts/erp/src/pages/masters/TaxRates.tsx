@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { Plus, Loader2, Edit2, Trash2, X, Check, GripVertical } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
 export default function TaxRates() {
+  const { user } = useAuth();
+  const canEdit = user?.canEdit !== false;
+  const canDelete = user?.canDelete !== false;
   const [rates, setRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
@@ -170,8 +174,8 @@ export default function TaxRates() {
                         <td className="px-4 py-3 text-right text-gray-500">{fmt.number(r.igst, 1)}%</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => startEdit(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                            <button onClick={() => del(r.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                            {canEdit && <button onClick={() => startEdit(r)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>}
+                            {canDelete && <button onClick={() => del(r.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>}
                           </div>
                         </td>
                       </>
