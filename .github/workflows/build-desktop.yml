@@ -12,11 +12,12 @@ on:
         default: 'false'
         type: boolean
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout code
@@ -39,41 +40,59 @@ jobs:
         run: pnpm --filter @workspace/api-server run build
 
       - name: Copy server bundle to desktop
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "artifacts/desktop/server-bundle"
           Copy-Item -Path "artifacts/api-server/dist/*" -Destination "artifacts/desktop/server-bundle/" -Recurse -Force
-        shell: pwsh
 
       - name: Build ERP frontend
         run: pnpm --filter @workspace/erp run build
 
       - name: Copy frontend dist to desktop
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "artifacts/desktop/frontend-dist"
           Copy-Item -Path "artifacts/erp/dist/*" -Destination "artifacts/desktop/frontend-dist/" -Recurse -Force
-        shell: pwsh
 
       - name: Install desktop npm dependencies
         working-directory: artifacts/desktop
         run: npm install
 
-      - name: Build Windows EXE (publish on tag)
+      - name: Create placeholder icon if missing
+        working-directory: artifacts/desktop
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "assets"
+          if (-not (Test-Path "assets/icon.ico")) {
+            # Download a simple placeholder icon
+            try {
+              Invoke-WebRequest -Uri "https://raw.githubusercontent.com/electron/electron/main/default_app/icon.ico" -OutFile "assets/icon.ico" -ErrorAction SilentlyContinue
+            } catch {
+              Write-Host "Could not download icon, building without icon"
+            }
+          }
+
+      - name: Build Windows EXE
         working-directory: artifacts/desktop
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: |
-          if ("${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -like "refs/tags/*") {
-            npx electron-builder --win --publish always
-          } else {
-            npx electron-builder --win --publish never
-          }
         shell: pwsh
+        run: |
+          $publish = "never"
+          if ("${{ github.event_name }}" -eq "push" -and "${{ github.ref }}" -like "refs/tags/*") {
+            $publish = "always"
+          } elseif ("${{ inputs.publish }}" -eq "true") {
+            $publish = "always"
+          }
+          npx electron-builder --win --publish $publish
 
-      - name: Upload EXE artifact
+      - name: Upload EXE as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BizCor-ERP-Windows
-          path: artifacts/desktop/release/*.exe
+          name: BizCor-ERP-Windows-${{ github.ref_name }}
+          path: |
+            artifacts/desktop/release/*.exe
+            artifacts/desktop/release/latest.yml
           if-no-files-found: warn
           retention-days: 30
