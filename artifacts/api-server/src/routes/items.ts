@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, sqlite } from "@workspace/db";
 import { itemsTable, unitsTable, taxRatesTable, voucherItemsTable, vouchersTable } from "@workspace/db";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
@@ -56,18 +56,58 @@ router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const { name, description, type, hsnCode, unitId, taxRateId, salePrice, purchasePrice, openingStock, lowStockAlert, customFields } = req.body;
-    const [item] = await db.insert(itemsTable).values({
-      businessId, name, description, type: type || "goods", hsnCode, unitId, taxRateId,
-      salePrice: salePrice ? String(salePrice) : "0",
-      purchasePrice: purchasePrice ? String(purchasePrice) : "0",
-      openingStock: openingStock ? String(openingStock) : "0",
-      lowStockAlert: lowStockAlert ? String(lowStockAlert) : "0",
-      customFields,
-    }).returning();
-    res.status(201).json(item);
-  } catch (err) {
+
+    if (!name?.trim()) {
+      res.status(400).json({ error: "Bad Request", message: "Item name required" });
+      return;
+    }
+
+    const isSQLite = !!process.env.SQLITE_PATH;
+
+    if (isSQLite && sqlite) {
+      // SQLite: use better-sqlite3 directly — avoids .returning() RETURNING clause issues
+      // (RETURNING requires SQLite 3.35+; bundled version may differ)
+      const stmt = sqlite.prepare(`
+        INSERT INTO items (business_id, name, description, type, hsn_code, unit_id, tax_rate_id,
+          sale_price, purchase_price, opening_stock, low_stock_alert, custom_fields)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        businessId,
+        name.trim(),
+        description || null,
+        type || "goods",
+        hsnCode || null,
+        unitId || null,
+        taxRateId || null,
+        salePrice ? String(salePrice) : "0",
+        purchasePrice ? String(purchasePrice) : "0",
+        openingStock ? String(openingStock) : "0",
+        lowStockAlert ? String(lowStockAlert) : "0",
+        customFields ? JSON.stringify(customFields) : null,
+      );
+      const newId = result.lastInsertRowid;
+      const item = sqlite.prepare("SELECT * FROM items WHERE id = ?").get(newId);
+      res.status(201).json(item);
+    } else {
+      // PostgreSQL: use Drizzle with .returning()
+      const [item] = await db.insert(itemsTable).values({
+        businessId, name: name.trim(), description, type: type || "goods", hsnCode, unitId, taxRateId,
+        salePrice: salePrice ? String(salePrice) : "0",
+        purchasePrice: purchasePrice ? String(purchasePrice) : "0",
+        openingStock: openingStock ? String(openingStock) : "0",
+        lowStockAlert: lowStockAlert ? String(lowStockAlert) : "0",
+        customFields,
+      }).returning();
+      res.status(201).json(item);
+    }
+  } catch (err: any) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    if (err?.message?.includes("UNIQUE") || err?.code === "23505") {
+      res.status(409).json({ error: "Conflict", message: "Is naam ka item pehle se hai" });
+      return;
+    }
+    res.status(500).json({ error: "Internal Server Error", message: err?.message });
   }
 });
 
@@ -84,13 +124,43 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
     const allowed = ["name","description","type","hsnCode","unitId","taxRateId","salePrice","purchasePrice","openingStock","lowStockAlert","isActive","customFields"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
     if (updateData.salePrice) updateData.salePrice = String(updateData.salePrice);
     if (updateData.purchasePrice) updateData.purchasePrice = String(updateData.purchasePrice);
-    const [updated] = await db.update(itemsTable).set(updateData).where(and(eq(itemsTable.id, Number(req.params.id)), eq(itemsTable.businessId, req.user!.businessId!))).returning();
-    res.json(updated);
+
+    const isSQLite = !!process.env.SQLITE_PATH;
+
+    if (isSQLite && sqlite) {
+      // SQLite: build UPDATE manually
+      const setClauses: string[] = [];
+      const vals: any[] = [];
+      const colMap: Record<string, string> = {
+        name: "name", description: "description", type: "type", hsnCode: "hsn_code",
+        unitId: "unit_id", taxRateId: "tax_rate_id", salePrice: "sale_price",
+        purchasePrice: "purchase_price", openingStock: "opening_stock",
+        lowStockAlert: "low_stock_alert", isActive: "is_active", customFields: "custom_fields",
+      };
+      for (const [key, val] of Object.entries(updateData)) {
+        const col = colMap[key];
+        if (!col) continue;
+        setClauses.push(`${col} = ?`);
+        vals.push(key === "customFields" && val && typeof val === "object" ? JSON.stringify(val) : val);
+      }
+      if (setClauses.length > 0) {
+        vals.push(id, businessId);
+        sqlite.prepare(`UPDATE items SET ${setClauses.join(", ")} WHERE id = ? AND business_id = ?`).run(...vals);
+      }
+      const item = sqlite.prepare("SELECT * FROM items WHERE id = ? AND business_id = ?").get(id, businessId);
+      res.json(item);
+    } else {
+      const [updated] = await db.update(itemsTable).set(updateData)
+        .where(and(eq(itemsTable.id, id), eq(itemsTable.businessId, businessId))).returning();
+      res.json(updated);
+    }
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
