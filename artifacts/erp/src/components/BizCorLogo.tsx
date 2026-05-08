@@ -385,38 +385,40 @@ export function BusinessInitialsIcon({
 export function BizCorLogo({
   size = "md",
   animated = false,
+  hideSubtitle = false,
 }: {
   size?: "sm" | "md" | "lg";
   animated?: boolean;
+  hideSubtitle?: boolean;
 }) {
   const cfg = {
-    sm: { iconSize: 28, canvasSize: 100, titleClass: "text-sm font-bold",  subClass: "text-xs" },
+    sm: { iconSize: 28, canvasSize: 80,  titleClass: "text-sm font-bold",  subClass: "text-xs" },
     md: { iconSize: 48, canvasSize: 150, titleClass: "text-2xl font-bold", subClass: "text-sm" },
     lg: { iconSize: 64, canvasSize: 180, titleClass: "text-3xl font-bold", subClass: "text-base" },
   }[size];
 
   if (animated) {
     return (
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-1">
         <BizCorCanvasLogo size={cfg.canvasSize} bounce />
         <div className="text-center mt-1">
           <div className={cfg.titleClass + " text-gray-900"}>
             <span>Biz</span><span className="text-indigo-600">Cor</span>
           </div>
-          <div className={cfg.subClass + " text-gray-500"}>Indian Business ERP</div>
+          {!hideSubtitle && <div className={cfg.subClass + " text-gray-500"}>Indian Business ERP</div>}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-2">
       <BizCorIcon size={cfg.iconSize} />
       <div className="text-center">
         <div className={cfg.titleClass + " text-gray-900"}>
           <span>Biz</span><span className="text-indigo-600">Cor</span>
         </div>
-        <div className={cfg.subClass + " text-gray-500"}>Indian Business ERP</div>
+        {!hideSubtitle && <div className={cfg.subClass + " text-gray-500"}>Indian Business ERP</div>}
       </div>
     </div>
   );
