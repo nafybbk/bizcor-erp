@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { itemsTable, unitsTable, taxRatesTable, voucherItemsTable, vouchersTable } from "@workspace/db";
-import { eq, and, ilike, sql, desc } from "drizzle-orm";
+import { eq, and, like, sql, desc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
     const { search, page = "1", limit = "50", type } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(itemsTable.businessId, businessId)];
-    if (search) conditions.push(ilike(itemsTable.name, `%${search}%`));
+    if (search) conditions.push(like(itemsTable.name, `%${search}%`));
     if (type) conditions.push(eq(itemsTable.type, type as "goods" | "service"));
     const items = await db.select({
       id: itemsTable.id, name: itemsTable.name, description: itemsTable.description,

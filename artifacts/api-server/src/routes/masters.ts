@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable } from "@workspace/db";
-import { eq, and, ilike } from "drizzle-orm";
+import { eq, and, like } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -59,7 +59,7 @@ router.get("/hsn", async (req, res) => {
     const { search } = req.query;
     const codes = await db.select().from(hsnCodesTable).where(and(
       eq(hsnCodesTable.businessId, req.user!.businessId!),
-      search ? ilike(hsnCodesTable.code, `%${search}%`) : undefined,
+      search ? like(hsnCodesTable.code, `%${search}%`) : undefined,
     )).orderBy(hsnCodesTable.code);
     res.json({ data: codes });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }

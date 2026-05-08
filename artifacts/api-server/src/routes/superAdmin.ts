@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable } from "@workspace/db";
-import { eq, count, sql, ilike, and, desc, gte, inArray } from "drizzle-orm";
+import { eq, count, sql, like, and, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -73,7 +73,7 @@ router.get("/businesses", async (req, res) => {
     const search = req.query.search as string;
     const status = req.query.status as string;
     const conditions: any[] = [];
-    if (search) conditions.push(ilike(businessesTable.name, `%${search}%`));
+    if (search) conditions.push(like(businessesTable.name, `%${search}%`));
     if (status) conditions.push(eq(businessesTable.status, status as any));
     const [{ total }] = await db.select({ total: count() }).from(businessesTable).where(conditions.length ? and(...conditions) : undefined);
     const businesses = await db.select().from(businessesTable).where(conditions.length ? and(...conditions) : undefined)

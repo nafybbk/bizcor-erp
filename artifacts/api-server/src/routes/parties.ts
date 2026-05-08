@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
+import { eq, and, like, or, sql, desc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -13,7 +13,7 @@ router.get("/", async (req, res) => {
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(partiesTable.businessId, businessId)];
     if (type && type !== "both") conditions.push(or(eq(partiesTable.type, type as "customer" | "supplier" | "both"), eq(partiesTable.type, "both"))!);
-    if (search) conditions.push(or(ilike(partiesTable.name, `%${search}%`), ilike(partiesTable.gstin, `%${search}%`))!);
+    if (search) conditions.push(or(like(partiesTable.name, `%${search}%`), like(partiesTable.gstin, `%${search}%`))!);
     const parties = await db.select().from(partiesTable).where(and(...conditions)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit)).orderBy(partiesTable.name);
     const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(partiesTable).where(and(...conditions));
     res.json({ data: parties, total: Number(total), page: Number(page), limit: Number(limit) });
