@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable, plansTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
 
@@ -130,9 +130,18 @@ router.post("/register", async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
-    const [user] = await db.insert(usersTable).values({
+    let [user] = await db.insert(usersTable).values({
       businessId: business.id, name: adminName, email: emailLower, passwordHash, role: "business_admin", permissions: [],
     }).returning();
+
+    // Fallback: some SQLite builds don't support RETURNING — fetch by email
+    if (!user) {
+      const found = await db.query.usersTable.findFirst({
+        where: and(eq(usersTable.businessId, business.id), eq(usersTable.email, emailLower)),
+      });
+      if (!found) throw new Error("User create nahi hua. Dobara try karein.");
+      user = found as any;
+    }
 
     await db.insert(unitsTable).values([
       { businessId: business.id, name: "Piece", symbol: "PCS" },
