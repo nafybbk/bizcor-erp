@@ -144,7 +144,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-3">
       <div className="w-full max-w-md">
         <div className="text-center mb-3">
-          <BizCorLogo size="sm" animated />
+          <BizCorLogo size="sm" animated hideSubtitle />
           <p className="mt-0.5 text-xs text-gray-400">India ka Smart Business ERP</p>
         </div>
 

@@ -51,13 +51,13 @@ router.post("/register", async (req, res) => {
     }
 
     let businessCode = generateBusinessCode();
-    const existing = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode) });
-    if (existing) businessCode = generateBusinessCode();
+    const existingCode = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.businessCode, businessCode)).limit(1);
+    if (existingCode.length > 0) businessCode = generateBusinessCode();
 
     // Generate unique referral code
     let referralCode = generateReferralCode();
-    const refExisting = await db.query.businessesTable.findFirst({ where: eq(businessesTable.referralCode, referralCode) });
-    if (refExisting) referralCode = generateReferralCode();
+    const existingRef = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.referralCode, referralCode)).limit(1);
+    if (existingRef.length > 0) referralCode = generateReferralCode();
 
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -145,9 +145,9 @@ router.post("/register", async (req, res) => {
       user: { id: user.id, email: user.email, name: user.name, role: "business_admin", businessId: business.id },
       business: { id: business.id, name: business.name, businessCode: business.businessCode, referralCode: business.referralCode },
     });
-  } catch (err) {
+  } catch (err: any) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
   }
 });
 
