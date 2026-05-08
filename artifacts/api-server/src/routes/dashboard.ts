@@ -77,7 +77,7 @@ router.get("/sales-trend", async (req, res) => {
         .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
       const [p] = await db.select({ total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` })
         .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
-      months.push({ month: `${y}-${String(m).padStart(2, "0")}`, sales: Number(s.total), purchases: Number(p.total) });
+      (months as any[]).push({ month: `${y}-${String(m).padStart(2, "0")}`, sales: Number(s.total), purchases: Number(p.total) });
     }
     res.json({ data: months });
   } catch (err) {

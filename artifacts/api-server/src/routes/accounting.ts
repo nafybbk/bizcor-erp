@@ -217,10 +217,10 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
   const payRows = await db.select({ partyId: paymentsTable.partyId, total: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric),0)` })
     .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, paymentType))).groupBy(paymentsTable.partyId);
 
-  const invoiceMap = new Map(invoiceRows.map(r => [r.partyId, Number(r.total)]));
-  const cnMap = new Map(cnRows.map(r => [r.partyId, Number(r.total)]));
-  const payMap = new Map(payRows.map(r => [r.partyId, Number(r.total)]));
-  const partyMap = new Map(allParties.map(p => [p.id, p]));
+  const invoiceMap = new Map<number, number>(invoiceRows.map(r => [r.partyId, Number(r.total)]));
+  const cnMap = new Map<number, number>(cnRows.map(r => [r.partyId, Number(r.total)]));
+  const payMap = new Map<number, number>(payRows.map(r => [r.partyId, Number(r.total)]));
+  const partyMap = new Map<number, any>(allParties.map(p => [p.id, p]));
 
   const data: any[] = [];
   for (const [partyId, invoiceTotal] of invoiceMap) {

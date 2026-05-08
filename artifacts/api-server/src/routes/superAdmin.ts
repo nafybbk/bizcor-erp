@@ -72,7 +72,7 @@ router.get("/businesses", async (req, res) => {
     const limit = Number(req.query.limit) || 20;
     const search = req.query.search as string;
     const status = req.query.status as string;
-    const conditions = [];
+    const conditions: any[] = [];
     if (search) conditions.push(ilike(businessesTable.name, `%${search}%`));
     if (status) conditions.push(eq(businessesTable.status, status as any));
     const [{ total }] = await db.select({ total: count() }).from(businessesTable).where(conditions.length ? and(...conditions) : undefined);
@@ -334,20 +334,20 @@ router.get("/buyers", async (req, res) => {
       redeemedAt: licenseVouchersTable.redeemedAt,
     }).from(licenseVouchersTable).where(sql`${licenseVouchersTable.redeemedByBusinessId} IS NOT NULL`);
 
-    let enriched = allBiz.map(b => ({
+    let enriched = allBiz.map((b: any) => ({
       ...b,
-      planName: allPlans.find(p => p.id === b.planId)?.name || "Unknown",
-      planPrice: allPlans.find(p => p.id === b.planId)?.price || null,
-      maxUsers: allPlans.find(p => p.id === b.planId)?.maxUsers || null,
-      userCount: Number(userCounts.find(u => u.businessId === b.id)?.cnt || 0),
-      voucherCode: redeemedVouchers.find(v => v.businessId === b.id)?.code || null,
-      voucherRedeemedAt: redeemedVouchers.find(v => v.businessId === b.id)?.redeemedAt || null,
+      planName: allPlans.find((p: any) => p.id === b.planId)?.name || "Unknown",
+      planPrice: allPlans.find((p: any) => p.id === b.planId)?.price || null,
+      maxUsers: allPlans.find((p: any) => p.id === b.planId)?.maxUsers || null,
+      userCount: Number(userCounts.find((u: any) => u.businessId === b.id)?.cnt || 0),
+      voucherCode: redeemedVouchers.find((v: any) => v.businessId === b.id)?.code || null,
+      voucherRedeemedAt: redeemedVouchers.find((v: any) => v.businessId === b.id)?.redeemedAt || null,
       isExpired: b.planExpiresAt ? new Date(b.planExpiresAt) < new Date() : false,
     }));
 
     if (search) {
       const q = search.toLowerCase();
-      enriched = enriched.filter(b =>
+      enriched = enriched.filter((b: any) =>
         b.name.toLowerCase().includes(q) ||
         b.businessCode.toLowerCase().includes(q) ||
         (b.email || "").toLowerCase().includes(q) ||
@@ -355,16 +355,16 @@ router.get("/buyers", async (req, res) => {
         (b.voucherCode || "").toLowerCase().includes(q)
       );
     }
-    if (planIdFilter) enriched = enriched.filter(b => b.planId === planIdFilter);
-    if (statusFilter === "expired") enriched = enriched.filter(b => b.isExpired);
-    if (statusFilter === "active") enriched = enriched.filter(b => !b.isExpired && b.status === "active");
-    if (statusFilter === "trial") enriched = enriched.filter(b => b.isTrial);
+    if (planIdFilter) enriched = enriched.filter((b: any) => b.planId === planIdFilter);
+    if (statusFilter === "expired") enriched = enriched.filter((b: any) => b.isExpired);
+    if (statusFilter === "active") enriched = enriched.filter((b: any) => !b.isExpired && b.status === "active");
+    if (statusFilter === "trial") enriched = enriched.filter((b: any) => b.isTrial);
 
     const total = enriched.length;
     const data = enriched.slice((page - 1) * limit, page * limit);
 
     // Summary stats
-    const totalRevenue = enriched.reduce((sum, b) => {
+    const totalRevenue = enriched.reduce((sum: number, b: any) => {
       const price = b.planPrice ? Number(b.planPrice) : 0;
       return sum + (b.isTrial ? 0 : price);
     }, 0);
@@ -467,22 +467,22 @@ router.get("/vouchers", async (req, res) => {
       .orderBy(sql`${licenseVouchersTable.createdAt} desc`);
 
     let filtered = allVouchers;
-    if (statusFilter) filtered = filtered.filter(v => v.status === statusFilter);
-    if (planIdFilter) filtered = filtered.filter(v => v.planId === planIdFilter);
-    if (search) filtered = filtered.filter(v => v.code.includes(search) || v.notes?.toUpperCase().includes(search));
+    if (statusFilter) filtered = filtered.filter((v: any) => v.status === statusFilter);
+    if (planIdFilter) filtered = filtered.filter((v: any) => v.planId === planIdFilter);
+    if (search) filtered = filtered.filter((v: any) => v.code.includes(search) || v.notes?.toUpperCase().includes(search));
 
     const total = filtered.length;
     const page_data = filtered.slice((page - 1) * limit, page * limit);
 
     // Attach business names for redeemed vouchers
-    const bizIds = page_data.filter(v => v.redeemedByBusinessId).map(v => v.redeemedByBusinessId!);
+    const bizIds = page_data.filter((v: any) => v.redeemedByBusinessId).map((v: any) => v.redeemedByBusinessId!);
     const businesses = bizIds.length
       ? await db.select({ id: businessesTable.id, name: businessesTable.name }).from(businessesTable).where(sql`${businessesTable.id} = ANY(${bizIds})`)
       : [];
 
-    const data = page_data.map(v => ({
+    const data = page_data.map((v: any) => ({
       ...v,
-      redeemedByBusiness: businesses.find(b => b.id === v.redeemedByBusinessId)?.name || null,
+      redeemedByBusiness: businesses.find((b: any) => b.id === v.redeemedByBusinessId)?.name || null,
     }));
 
     res.json({ data, total, page, limit });
@@ -609,7 +609,7 @@ router.get("/users", async (req, res) => {
       .from(loginLogsTable).where(sql`${loginLogsTable.userId} IS NOT NULL`).groupBy(loginLogsTable.userId);
 
     let enriched = allUsersRows.map((u: any) => {
-      const plan = allPlans.find(p => p.id === u.planId) || null;
+      const plan = allPlans.find((p: any) => p.id === u.planId) || null;
       return {
         ...u,
         planName: plan?.name || null,
@@ -687,8 +687,8 @@ router.post("/businesses/:id/clear-transactions", async (req, res) => {
 
     const voucherRows = await db.select({ id: vouchersTable.id }).from(vouchersTable).where(eq(vouchersTable.businessId, bizId));
     const paymentRows = await db.select({ id: paymentsTable.id }).from(paymentsTable).where(eq(paymentsTable.businessId, bizId));
-    const vIds = voucherRows.map(v => v.id);
-    const pIds = paymentRows.map(p => p.id);
+    const vIds = voucherRows.map((v: { id: number }) => v.id);
+    const pIds = paymentRows.map((p: { id: number }) => p.id);
 
     let delVoucherItems = 0, delAllocations = 0, delPayments = 0, delVouchers = 0;
 
@@ -728,8 +728,8 @@ router.post("/businesses/:id/clear-party-transactions", async (req, res) => {
       .where(and(eq(vouchersTable.businessId, bizId), eq(vouchersTable.partyId, partyId)));
     const paymentRows = await db.select({ id: paymentsTable.id }).from(paymentsTable)
       .where(and(eq(paymentsTable.businessId, bizId), eq(paymentsTable.partyId, partyId)));
-    const vIds = voucherRows.map(v => v.id);
-    const pIds = paymentRows.map(p => p.id);
+    const vIds = voucherRows.map((v: { id: number }) => v.id);
+    const pIds = paymentRows.map((p: { id: number }) => p.id);
 
     let delVoucherItems = 0, delAllocations = 0, delPayments = 0, delVouchers = 0;
 
