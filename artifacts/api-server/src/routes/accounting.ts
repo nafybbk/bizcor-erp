@@ -271,7 +271,7 @@ router.post("/repair-voucher-balances", async (req, res) => {
     // Get all payments for this business
     const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
     const allAllocs = await db.select().from(paymentAllocationsTable);
-    const paymentMap = new Map(payments.map(p => [p.id, Number(p.amount)]));
+    const paymentMap = new Map<number, number>(payments.map(p => [p.id, Number(p.amount)]));
 
     // Group allocs by voucher. For each payment, cap allocated at payment.amount proportionally
     const voucherPaid = new Map<number, number>();
