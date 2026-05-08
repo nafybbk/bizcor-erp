@@ -64,13 +64,20 @@ router.post("/register", async (req, res) => {
     // Use ISO strings — works for both PostgreSQL (parsed as timestamp) and SQLite (stored as text)
     const nowStr = now.toISOString();
     const trialExpiresStr = trialExpiresAt.toISOString();
-    const [business] = await db.insert(businessesTable).values({
+    let [business] = await db.insert(businessesTable).values({
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
       planId: planId || null, status: "trial",
       isTrial: true, planStartDate: nowStr as unknown as Date, planExpiresAt: trialExpiresStr as unknown as Date,
       referralCode,
       referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
     }).returning();
+
+    // Fallback: some SQLite builds may not return from .returning() — fetch by code
+    if (!business) {
+      const found = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode) });
+      if (!found) throw new Error("Business create nahi hua. Dobara try karein.");
+      business = found;
+    }
 
     // ── REFERRAL REWARD LOGIC ──────────────────────────────────────────────
     // Every 5 referrals → assign "Referral Plan" (max 2 rewards total)

@@ -76,6 +76,8 @@ export const businessesTable = sqliteTable("businesses", {
   referralCode: text("referral_code").unique(),
   referredBy: text("referred_by"),
   referralCount: integer("referral_count").notNull().default(0),
+  referralRewardCount: integer("referral_reward_count").notNull().default(0),
+  referralRewardedAt: text("referral_rewarded_at"),
   bonusDaysAdded: integer("bonus_days_added").notNull().default(0),
   printShowPrefix: integer("print_show_prefix", { mode: "boolean" }).default(true),
   printShowSeries: integer("print_show_series", { mode: "boolean" }).default(true),

@@ -276,14 +276,16 @@ ipcMain.handle("skip-cloud-setup", async () => {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  dialog.showErrorBox(
-    "BizCor ERP — Already Running",
-    "BizCor ERP is already running.\n\n" +
-    "Look for the BizCor icon in the system tray (bottom-right corner of the taskbar),\n" +
-    "right-click it and select 'Quit'.\n\n" +
-    "Then reopen BizCor ERP."
-  );
-  app.quit();
+  app.whenReady().then(() => {
+    dialog.showMessageBox({
+      type: "info",
+      title: "BizCor ERP",
+      message: "BizCor ERP pehle se chal raha hai",
+      detail: "System tray mein BizCor icon dhundhen (taskbar ke neeche-daayein), usse click karein ya double-click karein window kholne ke liye.",
+      buttons: ["Theek Hai"],
+      defaultId: 0,
+    }).finally(() => app.quit());
+  });
 } else {
   app.on("second-instance", () => {
     if (mainWindow) {

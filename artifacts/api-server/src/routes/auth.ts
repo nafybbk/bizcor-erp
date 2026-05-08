@@ -68,8 +68,9 @@ router.post("/login", async (req, res) => {
       if (!fullUser || !fullUser.isActive) return null;
 
       // ── SINGLE-SESSION ENFORCEMENT (everyone: admin + staff) ──────────────
-      // If user already has a session token in DB, block login unless forceLogin=true
-      if (fullUser.sessionToken && !forceLogin) {
+      // Desktop/offline mode: skip single-session check (only 1 machine, no other device)
+      const isDesktopMode = !!process.env.SQLITE_PATH;
+      if (!isDesktopMode && fullUser.sessionToken && !forceLogin) {
         const lastAt = fullUser.lastLoginAt ? new Date(fullUser.lastLoginAt).toLocaleString("en-IN") : null;
         throw {
           code: "ALREADY_LOGGED_IN",
