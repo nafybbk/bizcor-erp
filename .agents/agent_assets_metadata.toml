@@ -89,3 +89,9 @@ id = "my8rsMb0dH_nof1qaqR1Z"
 uri = "file://attached_assets/bizcor_logo_v6.png"
 type = "image"
 title = "Style 6 — Saffron-Orange B Growth"
+
+[[outputs]]
+id = "pPKbnhFwxEwnRnPC1Ey5N"
+uri = "file://tools/smart-erp-import/smart-erp-import.zip"
+type = "unspecified"
+title = "Smart ERP Import Tool — 4 files ZIP"
