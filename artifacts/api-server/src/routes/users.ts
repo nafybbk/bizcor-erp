@@ -63,12 +63,15 @@ router.post("/", async (req, res) => {
       return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
+    // Use 1/0 integers for SQLite boolean columns (true/false not supported in raw SQL)
+    const canEditInt = canEdit !== false ? 1 : 0;
+    const canDeleteInt = canDelete !== false ? 1 : 0;
     await db.execute(sql`
       INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password, can_edit, can_delete)
       VALUES (${req.user!.businessId!}, ${name}, ${email}, ${passwordHash},
               ${role || "staff"}, ${JSON.stringify(permissions || [])},
               ${loginPin || null}, ${password},
-              ${canEdit !== false}, ${canDelete !== false})
+              ${canEditInt}, ${canDeleteInt})
     `);
     res.status(201).json({ success: true });
   } catch (err) {
