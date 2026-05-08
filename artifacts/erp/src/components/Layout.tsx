@@ -529,6 +529,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <img src={bizLogo} alt="Logo" className="h-7 w-auto object-contain" />
           )}
 
+          {/* Server mode marquee strip */}
+          {appMode && (
+            <div className={`relative flex items-center overflow-hidden rounded-md h-6 w-44 sm:w-56 flex-shrink-0 ${appMode === "desktop" ? "bg-indigo-600" : "bg-emerald-600"}`}>
+              <style>{`@keyframes biz-marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}`}</style>
+              <span
+                className="absolute whitespace-nowrap text-white text-[10px] font-semibold tracking-wide"
+                style={{ animation: "biz-marquee 9s linear infinite" }}
+              >
+                {appMode === "desktop" ? "🖥 BizCor ERP — Local LAN Server" : "☁ BizCor ERP — Cloud Server"}
+              </span>
+            </div>
+          )}
+
           <div className="flex-1" />
 
           {/* Offline drafts alert in topbar */}
