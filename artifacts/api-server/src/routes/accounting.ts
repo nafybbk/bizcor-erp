@@ -133,15 +133,15 @@ router.get("/trial-balance", async (req, res) => {
 
     for (const party of parties) {
       const [vResult] = await db.select({
-        salesTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'sales_invoice' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
-        creditTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'credit_note' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
-        purchaseTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'purchase_bill' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
-        debitTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'debit_note' then ${vouchersTable.grandTotal}::numeric else 0 end), 0)`,
+        salesTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'sales_invoice' then ${vouchersTable.grandTotal} else 0 end), 0)`,
+        creditTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'credit_note' then ${vouchersTable.grandTotal} else 0 end), 0)`,
+        purchaseTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'purchase_bill' then ${vouchersTable.grandTotal} else 0 end), 0)`,
+        debitTotal: sql<number>`coalesce(sum(case when ${vouchersTable.voucherType} = 'debit_note' then ${vouchersTable.grandTotal} else 0 end), 0)`,
       }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, party.id), isNull(vouchersTable.deletedAt)));
 
       const [pResult] = await db.select({
-        receiptTotal: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' then ${paymentsTable.amount}::numeric else 0 end), 0)`,
-        paymentTotal: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' then ${paymentsTable.amount}::numeric else 0 end), 0)`,
+        receiptTotal: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' then ${paymentsTable.amount} else 0 end), 0)`,
+        paymentTotal: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' then ${paymentsTable.amount} else 0 end), 0)`,
       }).from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, party.id)));
 
       const opening = Number(party.openingBalance || 0) * (party.openingBalanceType === "credit" ? -1 : 1);
@@ -159,24 +159,24 @@ router.get("/trial-balance", async (req, res) => {
 
     // Get Sales total (sum of all sales invoice grandTotals)
     const [salesResult] = await db.select({
-      total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`,
+      total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}), 0)`,
     }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt)));
 
     // Get Purchase total
     const [purchaseResult] = await db.select({
-      total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)`,
+      total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}), 0)`,
     }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), isNull(vouchersTable.deletedAt)));
 
     // Get Bank receipts (mode = bank/upi/cheque/neft/rtgs)
     const [bankResult] = await db.select({
-      receipts: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' and lower(${paymentsTable.paymentMode}) in ('bank','upi','cheque','neft','rtgs','online') then ${paymentsTable.amount}::numeric else 0 end), 0)`,
-      payments: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' and lower(${paymentsTable.paymentMode}) in ('bank','upi','cheque','neft','rtgs','online') then ${paymentsTable.amount}::numeric else 0 end), 0)`,
+      receipts: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' and lower(${paymentsTable.paymentMode}) in ('bank','upi','cheque','neft','rtgs','online') then ${paymentsTable.amount} else 0 end), 0)`,
+      payments: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' and lower(${paymentsTable.paymentMode}) in ('bank','upi','cheque','neft','rtgs','online') then ${paymentsTable.amount} else 0 end), 0)`,
     }).from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
 
     // Get Cash receipts
     const [cashResult] = await db.select({
-      receipts: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' and lower(${paymentsTable.paymentMode}) = 'cash' then ${paymentsTable.amount}::numeric else 0 end), 0)`,
-      payments: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' and lower(${paymentsTable.paymentMode}) = 'cash' then ${paymentsTable.amount}::numeric else 0 end), 0)`,
+      receipts: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'receipt' and lower(${paymentsTable.paymentMode}) = 'cash' then ${paymentsTable.amount} else 0 end), 0)`,
+      payments: sql<number>`coalesce(sum(case when ${paymentsTable.type} = 'payment' and lower(${paymentsTable.paymentMode}) = 'cash' then ${paymentsTable.amount} else 0 end), 0)`,
     }).from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
 
     const salesNet = Number(salesResult.total);
@@ -209,12 +209,12 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
   const allParties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
 
   const [invoiceRows] = await Promise.all([
-    db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric),0)` })
+    db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}),0)` })
       .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, invoiceType), isNull(vouchersTable.deletedAt))).groupBy(vouchersTable.partyId),
   ]);
-  const cnRows = await db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric),0)` })
+  const cnRows = await db.select({ partyId: vouchersTable.partyId, total: sql<number>`coalesce(sum(${vouchersTable.grandTotal}),0)` })
     .from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, creditType), isNull(vouchersTable.deletedAt))).groupBy(vouchersTable.partyId);
-  const payRows = await db.select({ partyId: paymentsTable.partyId, total: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric),0)` })
+  const payRows = await db.select({ partyId: paymentsTable.partyId, total: sql<number>`coalesce(sum(${paymentsTable.amount}),0)` })
     .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, paymentType))).groupBy(paymentsTable.partyId);
 
   const invoiceMap = new Map<number, number>(invoiceRows.map(r => [r.partyId, Number(r.total)]));

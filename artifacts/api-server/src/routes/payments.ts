@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
     }).from(paymentsTable).leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
       .where(and(...conditions)).orderBy(desc(paymentsTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
     const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(paymentsTable).where(and(...conditions));
-    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${paymentsTable.amount}::numeric), 0)` }).from(paymentsTable).where(and(...conditions));
+    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${paymentsTable.amount}), 0)` }).from(paymentsTable).where(and(...conditions));
     const data = payments.map(p => ({ ...p, amount: Number(p.amount) }));
     res.json({ data, total: Number(total), page: Number(page), limit: Number(limit), totalAmount: Number(totalAmount) });
   } catch (err) {
@@ -58,7 +58,7 @@ router.post("/", async (req, res) => {
         if (safeAlloc <= 0.001) continue;
         remainingPayment -= safeAlloc;
         await db.insert(paymentAllocationsTable).values({ paymentId: payment.id, voucherId: alloc.voucherId, allocatedAmount: String(safeAlloc) });
-        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` }).from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
+        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` }).from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
         const totalPaid = Number(currentPaid[0]?.paid || 0);
         const newStatus = totalPaid >= grandTotal - 0.001 ? "paid" : totalPaid > 0 ? "partial" : "posted";
         await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
@@ -136,7 +136,7 @@ router.patch("/:id", async (req, res) => {
     // Reverse old allocations — recalc each affected voucher
     const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
     for (const alloc of oldAllocs) {
-      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
         .from(paymentAllocationsTable)
         .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
       const totalPaid = Number(remaining[0]?.paid || 0);
@@ -166,7 +166,7 @@ router.patch("/:id", async (req, res) => {
         if (safeAlloc <= 0.001) continue;
         remainingPayment -= safeAlloc;
         await db.insert(paymentAllocationsTable).values({ paymentId, voucherId: alloc.voucherId, allocatedAmount: String(safeAlloc) });
-        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+        const currentPaid = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
           .from(paymentAllocationsTable).where(eq(paymentAllocationsTable.voucherId, alloc.voucherId));
         const totalPaid = Number(currentPaid[0]?.paid || 0);
         const newStatus = totalPaid >= grandTotal - 0.001 ? "paid" : totalPaid > 0 ? "partial" : "posted";
@@ -190,7 +190,7 @@ router.delete("/:id", async (req, res) => {
     // Reverse allocations: recalculate paid amount on each affected voucher
     const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
     for (const alloc of oldAllocs) {
-      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}::numeric), 0)` })
+      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
         .from(paymentAllocationsTable)
         .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
       const totalPaid = Number(remaining[0]?.paid || 0);

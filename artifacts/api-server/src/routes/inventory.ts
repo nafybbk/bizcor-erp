@@ -22,8 +22,8 @@ router.get("/stock", async (req, res) => {
     const stockMovements = await db.select({
       itemId: voucherItemsTable.itemId,
       voucherType: vouchersTable.voucherType,
-      qty: sql<number>`sum(${voucherItemsTable.quantity}::numeric)`,
-      avgRate: sql<number>`avg(${voucherItemsTable.rate}::numeric)`,
+      qty: sql<number>`sum(${voucherItemsTable.quantity})`,
+      avgRate: sql<number>`avg(${voucherItemsTable.rate})`,
     }).from(voucherItemsTable).innerJoin(vouchersTable, eq(voucherItemsTable.voucherId, vouchersTable.id))
       .where(and(eq(vouchersTable.businessId, businessId), isNull(vouchersTable.deletedAt))).groupBy(voucherItemsTable.itemId, vouchersTable.voucherType);
     const stockMap = new Map<number, { in: number; out: number; avgRate: number }>();

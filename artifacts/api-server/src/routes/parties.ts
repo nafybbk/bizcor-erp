@@ -84,8 +84,8 @@ router.get("/:id/balance", async (req, res) => {
     const party = await db.query.partiesTable.findFirst({ where: and(eq(partiesTable.id, partyId), eq(partiesTable.businessId, businessId)) });
     if (!party) { res.status(404).json({ error: "Not Found" }); return; }
     const [sales] = await db.select({
-      total: sql<string>`coalesce(sum(grand_total::numeric), 0)`,
-      paid: sql<string>`coalesce(sum(paid_amount::numeric), 0)`,
+      total: sql<string>`coalesce(sum(grand_total), 0)`,
+      paid: sql<string>`coalesce(sum(paid_amount), 0)`,
     }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), eq(vouchersTable.voucherType, "sales_invoice")));
     const outstanding = Number(sales.total) - Number(sales.paid);
     res.json({

@@ -76,16 +76,16 @@ router.get("/gstr3b", async (req, res) => {
     const year = Number(req.query.year);
     const { from, to } = getMonthRange(month, year);
     const [sales] = await db.select({
-      taxableAmount: sql<number>`coalesce(sum(${vouchersTable.taxableAmount}::numeric), 0)`,
-      cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}::numeric), 0)`,
-      sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}::numeric), 0)`,
-      igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}::numeric), 0)`,
+      taxableAmount: sql<number>`coalesce(sum(${vouchersTable.taxableAmount}), 0)`,
+      cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}), 0)`,
+      sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}), 0)`,
+      igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}), 0)`,
     }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
     const [purchases] = await db.select({
-      taxableAmount: sql<number>`coalesce(sum(${vouchersTable.taxableAmount}::numeric), 0)`,
-      cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}::numeric), 0)`,
-      sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}::numeric), 0)`,
-      igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}::numeric), 0)`,
+      taxableAmount: sql<number>`coalesce(sum(${vouchersTable.taxableAmount}), 0)`,
+      cgst: sql<number>`coalesce(sum(${vouchersTable.totalCgst}), 0)`,
+      sgst: sql<number>`coalesce(sum(${vouchersTable.totalSgst}), 0)`,
+      igst: sql<number>`coalesce(sum(${vouchersTable.totalIgst}), 0)`,
     }).from(vouchersTable).where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "purchase_bill"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)));
     const taxPayable = {
       cgst: Math.max(0, Number(sales.cgst) - Number(purchases.cgst)),
