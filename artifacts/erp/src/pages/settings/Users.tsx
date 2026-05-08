@@ -158,8 +158,8 @@ export default function Users() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9997] p-4" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold">{editId ? "Edit User" : "Add User"}</h2>
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
