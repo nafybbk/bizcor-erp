@@ -11,5 +11,11 @@ export function downloadCSV(rows: Record<string, any>[], filename: string) {
 }
 
 export function shareWhatsApp(text: string) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const desktop = (window as any).bizcorDesktop;
+  if (desktop?.openInBrowser) {
+    desktop.openInBrowser(url);
+  } else {
+    window.open(url, "_blank");
+  }
 }
