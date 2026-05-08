@@ -530,17 +530,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Server mode marquee strip */}
-          {appMode && (
-            <div className={`relative flex items-center overflow-hidden rounded-md h-6 w-44 sm:w-56 flex-shrink-0 ${appMode === "desktop" ? "bg-indigo-600" : "bg-emerald-600"}`}>
-              <style>{`@keyframes biz-marquee{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}`}</style>
-              <span
-                className="absolute whitespace-nowrap text-white text-[10px] font-semibold tracking-wide"
-                style={{ animation: "biz-marquee 9s linear infinite" }}
-              >
-                {appMode === "desktop" ? "🖥 BizCor ERP — Local LAN Server" : "☁ BizCor ERP — Cloud Server"}
-              </span>
-            </div>
-          )}
+          {appMode && (() => {
+            const isDesktop = appMode === "desktop";
+            const msgs = isDesktop
+              ? ["🖥 BizCor LAN Server", "⚡ Fast Local Network", "🔒 Data Stays on Your PC", "📦 Offline Ready", "🖥 BizCor LAN Server", "⚡ Fast Local Network", "🔒 Data Stays on Your PC", "📦 Offline Ready"]
+              : ["☁ BizCor Cloud", "🌐 Sync Across Devices", "🔐 Secure & Encrypted", "📊 Always Up to Date", "☁ BizCor Cloud", "🌐 Sync Across Devices", "🔐 Secure & Encrypted", "📊 Always Up to Date"];
+            const text = msgs.join("   •   ");
+            return (
+              <div className={`relative flex items-center overflow-hidden rounded-lg h-7 w-56 sm:w-80 flex-shrink-0 ${isDesktop ? "bg-indigo-600" : "bg-emerald-600"}`}>
+                <style>{`@keyframes biz-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+                <span
+                  className="absolute whitespace-nowrap text-white text-[11px] font-semibold tracking-wide px-2"
+                  style={{ animation: "biz-marquee 18s linear infinite" }}
+                >
+                  {text}
+                </span>
+              </div>
+            );
+          })()}
 
           <div className="flex-1" />
 
