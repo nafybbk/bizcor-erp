@@ -79,7 +79,7 @@ export default function Login() {
         setError("");
       } else if (err.data?.error === "wrong_pin") {
         setError("PIN galat hai — dobara try karein");
-      } else if (err.message?.includes("multiple_businesses")) {
+      } else if (err.data?.error === "multiple_businesses" || err.message?.includes("multiple businesses")) {
         setError("Aapka email kai businesses se linked hai. Business Code daalo.");
         setShowLookup(true);
       } else {
