@@ -115,7 +115,13 @@ export default function PrintPreviewModal({ printableId = "printable", onClose, 
   // WhatsApp share (text summary of invoice)
   const handleWhatsApp = useCallback(() => {
     if (!shareText) return;
-    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank");
+    const url = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+    const desktop = (window as any).bizcorDesktop;
+    if (desktop?.openInBrowser) {
+      desktop.openInBrowser(url);
+    } else {
+      window.open(url, "_blank");
+    }
   }, [shareText]);
 
   const zoomIn  = () => setZoom(z => parseFloat(Math.min(3, z + 0.1).toFixed(1)));
