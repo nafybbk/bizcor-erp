@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { api, setToken, clearToken } from "./api";
+import { api, setToken, clearToken, setLoginInProgress } from "./api";
 
 export interface AuthUser {
   id: number;
@@ -71,6 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string, businessCode?: string, coords?: { latitude: number; longitude: number }, loginName?: string, pin?: string, forceLogin?: boolean) => {
     setLoading(true);
+    // Block global SESSION_INVALIDATED redirect while login is in progress.
+    // Without this, stale background requests (old token) can fire SESSION_INVALIDATED
+    // and kick the user back to login BEFORE the new token is stored.
+    setLoginInProgress(true);
     try {
       const res: any = await api.post("/auth/login", { email, password, businessCode: businessCode || undefined, loginName: loginName || undefined, pin: pin || undefined, forceLogin: forceLogin || undefined, ...coords });
       setToken(res.token);
@@ -87,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       localStorage.setItem(PLAN_TRIAL_KEY, biz?.isTrial ? "true" : "false");
     } finally {
+      setLoginInProgress(false);
       setLoading(false);
     }
   };
