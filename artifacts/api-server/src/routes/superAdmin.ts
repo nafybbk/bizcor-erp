@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable } from "@workspace/db";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable } from "@workspace/db";
 import { eq, count, sql, like, and, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
@@ -782,6 +782,117 @@ router.get("/active-users", async (req, res) => {
       .leftJoin(businessesTable, eq(usersTable.businessId, businessesTable.id))
       .where(gte(usersTable.lastSeenAt, cutoff));
     res.json(users);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── SMART ERP → BizCor Import ───────────────────────────────────────────────
+
+router.post("/import-data", async (req, res) => {
+  try {
+    const { businessId, customers = [], suppliers = [], items = [] } = req.body as {
+      businessId: number;
+      customers: Array<{ name: string; phone?: string; address?: string; email?: string; opening_balance?: number }>;
+      suppliers: Array<{ name: string; phone?: string; opening_balance?: number }>;
+      items: Array<{ name: string; sale_price?: number; purchase_price?: number; opening_stock?: number }>;
+    };
+
+    if (!businessId) { res.status(400).json({ error: "businessId required" }); return; }
+
+    // Get default unit and tax rate for this business
+    const unitRows = await db.select().from(unitsTable).where(eq(unitsTable.businessId, businessId)).limit(1);
+    const taxRows = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId)).limit(1);
+    const unitId = unitRows[0]?.id ?? null;
+    const taxRateId = taxRows[0]?.id ?? null;
+
+    // Load existing party names (case-insensitive dedupe)
+    const existingParties = await db.select({ name: partiesTable.name }).from(partiesTable).where(eq(partiesTable.businessId, businessId));
+    const existingPartyNames = new Set(existingParties.map(p => p.name.toLowerCase()));
+
+    // Load existing item names
+    const existingItems = await db.select({ name: itemsTable.name }).from(itemsTable).where(eq(itemsTable.businessId, businessId));
+    const existingItemNames = new Set(existingItems.map(i => i.name.toLowerCase()));
+
+    const custResult = { imported: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
+    const supResult  = { imported: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
+    const itemResult = { imported: 0, skipped: 0, errors: 0, errorDetails: [] as string[] };
+
+    // Import customers
+    for (const c of customers) {
+      const name = String(c.name || "").trim();
+      if (!name) { custResult.skipped++; continue; }
+      if (existingPartyNames.has(name.toLowerCase())) { custResult.skipped++; continue; }
+      try {
+        await db.insert(partiesTable).values({
+          businessId,
+          name,
+          type: "customer",
+          phone: String(c.phone || "").trim(),
+          address: String(c.address || "").trim(),
+          email: String(c.email || "").trim(),
+          openingBalance: String(c.opening_balance ?? 0),
+          gstin: "",
+          stateCode: "",
+        });
+        existingPartyNames.add(name.toLowerCase());
+        custResult.imported++;
+      } catch (e: any) {
+        custResult.errors++;
+        custResult.errorDetails.push(`${name}: ${String(e.message).slice(0, 60)}`);
+      }
+    }
+
+    // Import suppliers
+    for (const s of suppliers) {
+      const name = String(s.name || "").trim();
+      if (!name) { supResult.skipped++; continue; }
+      if (existingPartyNames.has(name.toLowerCase())) { supResult.skipped++; continue; }
+      try {
+        await db.insert(partiesTable).values({
+          businessId,
+          name,
+          type: "supplier",
+          phone: String(s.phone || "").trim(),
+          address: "",
+          email: "",
+          openingBalance: String(s.opening_balance ?? 0),
+          gstin: "",
+          stateCode: "",
+        });
+        existingPartyNames.add(name.toLowerCase());
+        supResult.imported++;
+      } catch (e: any) {
+        supResult.errors++;
+        supResult.errorDetails.push(`${name}: ${String(e.message).slice(0, 60)}`);
+      }
+    }
+
+    // Import items
+    for (const it of items) {
+      const name = String(it.name || "").trim();
+      if (!name) { itemResult.skipped++; continue; }
+      if (existingItemNames.has(name.toLowerCase())) { itemResult.skipped++; continue; }
+      try {
+        await db.insert(itemsTable).values({
+          businessId,
+          name,
+          type: "goods",
+          unitId,
+          taxRateId,
+          salePrice: String(it.sale_price ?? 0),
+          purchasePrice: String(it.purchase_price ?? 0),
+          openingStock: String(it.opening_stock ?? 0),
+          hsnCode: "",
+          description: "",
+        });
+        existingItemNames.add(name.toLowerCase());
+        itemResult.imported++;
+      } catch (e: any) {
+        itemResult.errors++;
+        itemResult.errorDetails.push(`${name}: ${String(e.message).slice(0, 60)}`);
+      }
+    }
+
+    res.json({ customers: custResult, suppliers: supResult, items: itemResult });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
