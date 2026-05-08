@@ -97,6 +97,15 @@ function openMainWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
+  // Open all external URLs in the system browser instead of a new Electron window
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1")) {
+      return { action: "allow" };
+    }
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
   if (trialStatus.locked) {
     mainWindow.loadFile(htmlFile("locked.html"));
   } else {
