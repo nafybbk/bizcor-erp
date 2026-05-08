@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, sqlite } from "@workspace/db";
+import { db, sqlite, pool } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
@@ -47,9 +47,10 @@ router.get("/", async (req, res) => {
 
     const isSQLite = !!process.env.SQLITE_PATH;
 
-    // db.execute() doesn't exist in SQLite (BetterSQLite3Database) — use raw sqlite for SQLite, db.execute for PG
+    // Use raw connections directly — Drizzle db.execute() return format varies by version/adapter
     let rows: any[];
     if (isSQLite && sqlite) {
+      // SQLite (better-sqlite3): synchronous prepare().all()
       rows = sqlite.prepare(`
         SELECT id, name, email, role, permissions,
                is_active AS isActive,
@@ -60,21 +61,22 @@ router.get("/", async (req, res) => {
         FROM users WHERE business_id = ?
         ORDER BY created_at ASC
       `).all(biz) as any[];
+    } else if (pool) {
+      // PostgreSQL: use pool.query() directly — always returns { rows: [] }
+      const result = await pool.query(
+        `SELECT id, name, email, role, permissions,
+                is_active AS "isActive",
+                created_at AS "createdAt",
+                COALESCE(can_edit, true) AS "canEdit",
+                COALESCE(can_delete, true) AS "canDelete",
+                CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS "hasPin"
+         FROM users WHERE business_id = $1
+         ORDER BY created_at ASC`,
+        [biz]
+      );
+      rows = result.rows;
     } else {
-      rows = await (db as any).execute(sql`
-        SELECT id, name, email, role, permissions,
-               is_active AS isActive,
-               created_at AS createdAt,
-               COALESCE(can_edit, 1) AS canEdit,
-               COALESCE(can_delete, 1) AS canDelete,
-               CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN 1 ELSE 0 END AS hasPin
-        FROM users WHERE business_id = ${biz}
-        ORDER BY created_at ASC
-      `).then((r: any) => {
-        if (Array.isArray(r)) return r;
-        if (Array.isArray(r?.rows)) return r.rows;
-        return [];
-      });
+      rows = [];
     }
 
     const users = rows.map((u: any) => ({
