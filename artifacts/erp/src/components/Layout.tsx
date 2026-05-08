@@ -116,6 +116,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isMobile = () => window.innerWidth < 768;
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [isOnline, setIsOnline] = useState(true);
+  const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(null);
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
@@ -188,8 +189,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const checkOnline = async () => {
       const wasOffline = !isOnline;
       try {
-        await api.get("/healthz");
+        const h = await api.get<{ status: string; mode?: string }>("/healthz");
         setIsOnline(true);
+        if (h.mode) setAppMode(h.mode as "desktop" | "cloud");
         if (wasOffline && getDraftCount() > 0) {
           setAutoSyncing(true);
           try {
@@ -411,6 +413,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Bottom — User + status */}
         <div className="p-3 border-t border-slate-700 space-y-1.5">
+          {/* Desktop / Cloud mode badge */}
+          {appMode && (
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${appMode === "desktop" ? "bg-indigo-900/60 text-indigo-300 border border-indigo-700" : "bg-slate-700/60 text-slate-400"}`}>
+              {appMode === "desktop" ? "🖥 Desktop App" : "☁ Cloud"}
+            </div>
+          )}
           {/* Online/Offline */}
           <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
             {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
