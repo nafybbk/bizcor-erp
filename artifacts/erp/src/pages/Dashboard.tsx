@@ -149,15 +149,15 @@ export default function Dashboard() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get<Summary>(`/dashboard/summary?period=${period}`),
-      api.get<{ data: any[] }>("/dashboard/sales-trend"),
-      api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5"),
+      api.get<Summary>(`/dashboard/summary?period=${period}`).catch(() => null),
+      api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
+      api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
       api.get<any[]>("/bin").catch(() => []),
     ]).then(([s, t, p, b, bin]) => {
       setSummary(s);
-      setTrend(t.data);
-      setTopParties(p.data);
+      setTrend(t?.data ?? []);
+      setTopParties(p?.data ?? []);
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
       setBinCount(Array.isArray(bin) ? bin.length : 0);
     }).catch(console.error).finally(() => setLoading(false));
@@ -167,7 +167,18 @@ export default function Dashboard() {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
   }
 
-  const s = summary!;
+  if (!summary) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <AlertTriangle className="w-8 h-8 text-amber-500" />
+        <p className="text-sm font-medium text-gray-700">Dashboard load nahi ho saka</p>
+        <p className="text-xs text-gray-500">Internet connection check karein aur dobara try karein</p>
+        <button onClick={() => window.location.reload()} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Refresh Karo</button>
+      </div>
+    );
+  }
+
+  const s = summary;
 
   return (
     <div className="space-y-6 max-w-6xl">
