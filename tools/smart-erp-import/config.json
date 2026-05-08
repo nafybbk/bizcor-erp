@@ -1,0 +1,14 @@
+{
+  "pin": "1234",
+  "port": 9191,
+  "bizCor": {
+    "url": "https://erp.naewtgroup.com",
+    "businessCode": "G2SPNB",
+    "email": "admin@adeena.com",
+    "password": "your_bizcor_password_here"
+  },
+  "import": {
+    "defaultPaymentMode": "cash",
+    "gstItemCodes": ["cgst", "sgst", "CGST", "SGST", "igst", "IGST", "CARRIAGE", "carriage", "freight", "FREIGHT"]
+  }
+}
