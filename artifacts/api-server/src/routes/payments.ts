@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte, isNull, asc } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, asc, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -79,8 +79,9 @@ router.get("/outstanding", async (req, res) => {
     const voucherTypes = type === "receivable" ? ["sales_invoice"] : type === "payable" ? ["purchase_bill"] : ["sales_invoice", "purchase_bill"];
     const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, Number(partyId)) });
     const vouchers = await db.select().from(vouchersTable).where(and(
-      eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, Number(partyId)),
-      sql`${vouchersTable.voucherType} = ANY(${sql.raw(`ARRAY['${voucherTypes.join("','")}']::voucher_type[]`)})`
+      eq(vouchersTable.businessId, businessId),
+      eq(vouchersTable.partyId, Number(partyId)),
+      inArray(vouchersTable.voucherType, voucherTypes as any[])
     ));
     // Use FIFO to correctly compute per-bill balance (independent of payment_allocations)
     const allPayments = await db.select().from(paymentsTable).where(
