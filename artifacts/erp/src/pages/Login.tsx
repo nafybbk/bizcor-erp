@@ -6,6 +6,7 @@ import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, K
 import { BizCorLogo } from "@/components/BizCorLogo";
 
 const SAVED_CODE_KEY = "erp_last_business_code";
+const SAVED_CREDS_KEY = "erp_remembered_creds";
 
 type View = "login" | "forgot";
 
@@ -15,6 +16,7 @@ export default function Login() {
   const [view, setView] = useState<View>("login");
 
   const [form, setForm] = useState({ email: "", password: "", businessCode: "" });
+  const [remember, setRemember] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,8 +44,24 @@ export default function Login() {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem(SAVED_CODE_KEY);
-    if (saved) setForm(f => ({ ...f, businessCode: saved }));
+    const savedCode = localStorage.getItem(SAVED_CODE_KEY);
+    const savedCreds = localStorage.getItem(SAVED_CREDS_KEY);
+    if (savedCreds) {
+      try {
+        const c = JSON.parse(savedCreds);
+        setForm(f => ({
+          ...f,
+          email: c.email || "",
+          password: c.password || "",
+          businessCode: c.businessCode || savedCode || "",
+        }));
+        setRemember(true);
+      } catch {
+        if (savedCode) setForm(f => ({ ...f, businessCode: savedCode }));
+      }
+    } else {
+      if (savedCode) setForm(f => ({ ...f, businessCode: savedCode }));
+    }
     api.get<any>("/public-settings").then(s => {
       if (s.softwareName) {
         setAppName(s.softwareName);
@@ -68,6 +86,15 @@ export default function Login() {
       const coords = await getGPS();
       await login(form.email, form.password, form.businessCode || undefined, coords, loginName, pin, forceLogin);
       if (form.businessCode) localStorage.setItem(SAVED_CODE_KEY, form.businessCode.toUpperCase());
+      if (remember) {
+        localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({
+          email: form.email,
+          password: form.password,
+          businessCode: form.businessCode.toUpperCase(),
+        }));
+      } else {
+        localStorage.removeItem(SAVED_CREDS_KEY);
+      }
       navigate("/");
     } catch (err: any) {
       if (err.data?.error === "ALREADY_LOGGED_IN") {
@@ -194,6 +221,22 @@ export default function Login() {
                       {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="remember"
+                    checked={remember}
+                    onChange={e => {
+                      setRemember(e.target.checked);
+                      if (!e.target.checked) localStorage.removeItem(SAVED_CREDS_KEY);
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                  />
+                  <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
+                    Mujhe yaad rakho (email, password save rahega)
+                  </label>
                 </div>
 
                 <div>
