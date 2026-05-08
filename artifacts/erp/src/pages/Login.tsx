@@ -141,22 +141,22 @@ export default function Login() {
   const inputCls = "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-3">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <BizCorLogo size="lg" animated />
-          <p className="mt-3 text-sm text-gray-500">India ka Smart Business ERP</p>
+        <div className="text-center mb-3">
+          <BizCorLogo size="sm" animated />
+          <p className="mt-0.5 text-xs text-gray-400">India ka Smart Business ERP</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5">
           {view === "login" ? (
             <>
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Business Login</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Apne business account mein login karein</p>
+              <div className="mb-3">
+                <h2 className="text-lg font-bold text-gray-900">Business Login</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Apne business account mein login karein</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                   <input
@@ -336,7 +336,7 @@ export default function Login() {
                 </button>
               </form>
 
-              <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+              <div className="mt-3 pt-3 border-t border-gray-100 text-center">
                 <p className="text-sm text-gray-500">
                   New business?{" "}
                   <a href="/register" className="text-blue-600 hover:underline font-medium">Register here</a>
@@ -416,7 +416,7 @@ export default function Login() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col items-center gap-2">
+        <div className="mt-2 flex flex-col items-center gap-1">
           <div className="flex items-center gap-3 text-xs text-gray-400">
             <span className="flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-green-500" /> Secure Login
