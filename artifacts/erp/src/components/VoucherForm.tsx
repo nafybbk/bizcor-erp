@@ -8,6 +8,98 @@ import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock, CheckCircle } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
+/* ── Item Combobox — typeahead with master search + new-item badge ─ */
+function ItemCombobox({
+  masterItems, value, itemId, isSales, onChange,
+}: {
+  masterItems: any[];
+  value: string;
+  itemId?: number;
+  isSales: boolean;
+  onChange: (sel: { itemId?: number; itemName: string; item?: any }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q.length === 0
+    ? masterItems.slice(0, 12)
+    : masterItems.filter(i => i.name.toLowerCase().includes(q)).slice(0, 20);
+
+  const exactMatch = masterItems.find(i => i.name.toLowerCase() === q);
+  const isNew = q.length > 0 && !exactMatch;
+  const isSaved = !!itemId && !isNew;
+
+  const selectItem = (item: any) => {
+    setQuery(item.name);
+    setOpen(false);
+    onChange({ itemId: item.id, itemName: item.name, item });
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <div className="relative">
+        <input
+          className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 pr-12"
+          placeholder="Item naam likho ya search karo..."
+          value={query}
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={e => {
+            const v = e.target.value;
+            setQuery(v);
+            setOpen(true);
+            onChange({ itemId: undefined, itemName: v });
+          }}
+        />
+        {isSaved && (
+          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">✓ Master</span>
+        )}
+        {isNew && query.trim() && (
+          <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">NEW</span>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl max-h-52 overflow-y-auto">
+          {filtered.length === 0 && q && (
+            <div className="px-3 py-2 text-xs text-gray-500 bg-amber-50">
+              "<strong className="text-gray-800">{query}</strong>" — save karne par master mein add ho jayega
+            </div>
+          )}
+          {filtered.map(i => (
+            <button
+              key={i.id} type="button"
+              onMouseDown={() => selectItem(i)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between gap-2 border-b border-gray-50 last:border-0"
+            >
+              <span className="truncate font-medium text-gray-800">{i.name}</span>
+              <span className="text-xs text-gray-400 flex-shrink-0">
+                {i.unitName || "PCS"} · ₹{Number(isSales ? i.salePrice : i.purchasePrice || i.salePrice || 0).toFixed(0)}
+              </span>
+            </button>
+          ))}
+          {isNew && q && filtered.length > 0 && (
+            <div className="px-3 py-1.5 text-[10px] text-amber-700 bg-amber-50 border-t border-amber-100">
+              ✦ "{query}" — nayi item, save par master mein automatically add hogi
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Business type → invoice-level and item-level custom fields config
 const BIZ_FIELDS: Record<string, {
   invoiceFields: { key: string; label: string; placeholder?: string; type?: string }[];
@@ -447,6 +539,30 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     } catch { /* ignore */ }
   };
 
+  /* ── Smart item-row setter: handles both master select AND custom name ── */
+  const setItemInRow = (idx: number, sel: { itemId?: number; itemName: string; item?: any }) => {
+    setLineItems(prev => {
+      const next = [...prev];
+      const updated = { ...next[idx] };
+      if (sel.item && sel.itemId) {
+        const found = sel.item;
+        updated.itemId    = found.id;
+        updated.itemName  = found.name;
+        updated.hsnCode   = found.hsnCode || "";
+        updated.rate      = Number(isSales ? found.salePrice : (found.purchasePrice || found.salePrice) || 0);
+        updated.taxRateId = found.taxRateId;
+        updated.unit      = found.unitName || "PCS";
+        const tr = taxRates.find((t: any) => t.id === found.taxRateId);
+        if (tr) updated.taxRate = Number(tr.rate);
+      } else {
+        updated.itemId   = undefined;
+        updated.itemName = sel.itemName;
+      }
+      next[idx] = calcItem(updated, isInterState);
+      return next;
+    });
+  };
+
   const updateItem = (idx: number, field: keyof VoucherItem, value: any) => {
     setLineItems(prev => {
       const next = [...prev];
@@ -597,26 +713,49 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const doSave = async (payload: any) => {
     setLoading(true); setError("");
     try {
-      // Auto-create items that were typed directly (no itemId) into the items master
+      // Auto-create items typed directly (no itemId) into the items master
       const updatedItems = [...(payload.items || [])];
+      const newlyCreated: any[] = [];
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i];
         if (!it.itemId && it.itemName?.trim()) {
           try {
+            // Resolve unit symbol → unitId (so item is properly linked to units master)
+            const matchedUnit = units.find((u: any) =>
+              u.symbol?.toLowerCase() === (it.unit || "PCS").toLowerCase()
+            );
             const created = await api.post<any>("/items", {
               name: it.itemName.trim(),
               type: "goods",
               hsnCode: it.hsnCode || undefined,
-              unit: it.unit || "PCS",
+              unitId: matchedUnit?.id || undefined,
               taxRateId: (it.taxRateId && it.taxRateId > 0) ? it.taxRateId : undefined,
-              salePrice: isSales ? it.rate : undefined,
-              purchasePrice: !isSales ? it.rate : undefined,
+              salePrice: isSales ? String(it.rate) : undefined,
+              purchasePrice: !isSales ? String(it.rate) : undefined,
             });
-            updatedItems[i] = { ...it, itemId: created.id };
-          } catch { /* ignore — item save fail hone par bhi voucher save ho */ }
+            if (created?.id) {
+              updatedItems[i] = { ...it, itemId: created.id };
+              newlyCreated.push({
+                ...created,
+                unitName: matchedUnit?.symbol || it.unit || "PCS",
+                taxRate: it.taxRate || 0,
+              });
+            }
+          } catch {
+            // Non-fatal: voucher still saves even if item master creation fails
+          }
         }
       }
       payload.items = updatedItems;
+
+      // Update local items state + cache so new items appear immediately in next use
+      if (newlyCreated.length > 0) {
+        setItems(prev => {
+          const merged = [...prev, ...newlyCreated.filter(nc => !prev.find((p: any) => p.id === nc.id))];
+          cacheItems(merged);
+          return merged;
+        });
+      }
 
       const targetId = activeBinDocId || editId;
       let savedVoucherId: number | null = null;
@@ -1362,16 +1501,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         <input type="checkbox" checked={selected} onChange={() => toggleItem(idx)} className="w-4 h-4 rounded text-blue-600" />
                       </td>
                       <td className="px-2 py-1.5">
-                        <select className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 mb-1"
-                          data-row={idx} data-field="itemselect"
-                          value={item.itemId || ""}
-                          onChange={e => updateItem(idx, "itemId" as any, e.target.value)}>
-                          <option value="">-- Select Item --</option>
-                          {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                        </select>
-                        <input className="border border-gray-200 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="Or type item name" value={item.itemName}
-                          onChange={e => updateItem(idx, "itemName", e.target.value)} />
+                        <ItemCombobox
+                          masterItems={items}
+                          value={item.itemName}
+                          itemId={item.itemId}
+                          isSales={isSales}
+                          onChange={sel => setItemInRow(idx, sel)}
+                        />
                         {/* Item-level business type fields */}
                         {bizType && BIZ_FIELDS[bizType]?.itemFields?.length > 0 && (
                           <div className="mt-1.5 grid grid-cols-2 gap-1">
