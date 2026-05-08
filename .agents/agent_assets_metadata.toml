@@ -1,5 +1,22 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "ycAgZj-6tFJGyjhDtikk9"
+uri = "file://attached_assets/bizcor_logo_v1.png"
+type = "image"
+title = "bizcor logo v1 minimal BC"
+
+[[generated]]
+id = "zc3v5fgtzDiN8wrZTLz2s"
+uri = "file://attached_assets/bizcor_logo_v2.png"
+type = "image"
+title = "bizcor logo v2 hexagon"
+
+[[generated]]
+id = "X4Gq3rY6D5gfT_GvIYO1W"
+uri = "file://attached_assets/bizcor_logo_v3.png"
+type = "image"
+title = "bizcor logo v3 green circle"
 
 [[outputs]]
 id = "zAHhzwifTSPwZP4yZAY2J"
@@ -18,3 +35,21 @@ id = "PXEhG2kGs7n6twc0w0Rra"
 uri = "file://bizcor-cloud-info.txt"
 type = "text"
 title = "BizCor Cloud Info — Har Session Mein Paste Karo"
+
+[[outputs]]
+id = "bvL8xLDmIezVoSyuGmxHS"
+uri = "file://attached_assets/bizcor_logo_v1.png"
+type = "image"
+title = "Style 1 — Navy Blue Minimal BC"
+
+[[outputs]]
+id = "1JHF2MNhasltiQoDVUBia"
+uri = "file://attached_assets/bizcor_logo_v2.png"
+type = "image"
+title = "Style 2 — Indigo Hexagon Premium"
+
+[[outputs]]
+id = "x79zRcTHl1saOmYiQOXz6"
+uri = "file://attached_assets/bizcor_logo_v3.png"
+type = "image"
+title = "Style 3 — Emerald Green Circle"
