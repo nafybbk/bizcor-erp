@@ -18,6 +18,24 @@ uri = "file://attached_assets/bizcor_logo_v3.png"
 type = "image"
 title = "bizcor logo v3 green circle"
 
+[[generated]]
+id = "TY4wYk6sydbDEgHxqBCZV"
+uri = "file://attached_assets/bizcor_logo_v4.png"
+type = "image"
+title = "bizcor logo v4 BC merged indigo"
+
+[[generated]]
+id = "RR6eWVX8gG1TohVyyEVwr"
+uri = "file://attached_assets/bizcor_logo_v5.png"
+type = "image"
+title = "bizcor logo v5 diamond teal"
+
+[[generated]]
+id = "fdAqHlI_X7LhhgOIxpBmj"
+uri = "file://attached_assets/bizcor_logo_v6.png"
+type = "image"
+title = "bizcor logo v6 saffron B growth"
+
 [[outputs]]
 id = "zAHhzwifTSPwZP4yZAY2J"
 uri = "file://DEPLOY.md"
@@ -53,3 +71,21 @@ id = "x79zRcTHl1saOmYiQOXz6"
 uri = "file://attached_assets/bizcor_logo_v3.png"
 type = "image"
 title = "Style 3 — Emerald Green Circle"
+
+[[outputs]]
+id = "vFzlx6FMA-G4tFfaSA-qi"
+uri = "file://attached_assets/bizcor_logo_v4.png"
+type = "image"
+title = "Style 4 — BC Merged Indigo Gradient"
+
+[[outputs]]
+id = "lm9LKAQcA_XRRujEFD0UL"
+uri = "file://attached_assets/bizcor_logo_v5.png"
+type = "image"
+title = "Style 5 — Diamond Teal Blue"
+
+[[outputs]]
+id = "my8rsMb0dH_nof1qaqR1Z"
+uri = "file://attached_assets/bizcor_logo_v6.png"
+type = "image"
+title = "Style 6 — Saffron-Orange B Growth"
