@@ -716,6 +716,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       // Auto-create items typed directly (no itemId) into the items master
       const updatedItems = [...(payload.items || [])];
       const newlyCreated: any[] = [];
+      const itemSaveErrors: string[] = [];
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i];
         if (!it.itemId && it.itemName?.trim()) {
@@ -741,8 +742,11 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 taxRate: it.taxRate || 0,
               });
             }
-          } catch {
-            // Non-fatal: voucher still saves even if item master creation fails
+          } catch (itemErr: any) {
+            // Non-fatal: voucher still saves; log so user can debug
+            const errMsg = itemErr?.message || "Unknown error";
+            itemSaveErrors.push(`"${it.itemName}" master mein save nahi hua: ${errMsg}`);
+            console.warn("[Item auto-save failed]", it.itemName, itemErr);
           }
         }
       }
@@ -791,6 +795,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       if (savedVoucherId) {
         setSavedInfo({ id: savedVoucherId, number: savedVoucherNum });
         setShowPrintPrompt(true);
+        // Show item master save warnings (non-blocking) if any items failed to auto-save
+        if (itemSaveErrors.length > 0) {
+          setError(`Voucher save hua, lekin kuch items master mein add nahi hue:\n${itemSaveErrors.join("\n")}`);
+        }
       } else {
         navigate(listHref);
       }
