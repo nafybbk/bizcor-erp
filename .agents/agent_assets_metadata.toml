@@ -95,3 +95,9 @@ id = "pPKbnhFwxEwnRnPC1Ey5N"
 uri = "file://tools/smart-erp-import/smart-erp-import.zip"
 type = "unspecified"
 title = "Smart ERP Import Tool — 4 files ZIP"
+
+[[outputs]]
+id = "EeAHgCKN5XbsZP15TEp61"
+uri = "file://tools/smart-erp-import/SETUP-GUIDE.txt"
+type = "text"
+title = "Smart ERP Import Tool — Setup Guide"

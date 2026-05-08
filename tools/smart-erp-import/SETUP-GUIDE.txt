@@ -1,0 +1,111 @@
+====================================================
+  SMART ERP → BIZCOR IMPORT TOOL — SETUP GUIDE
+====================================================
+
+STEP 1: ZIP EXTRACT KARO
+--------------------------
+smart-erp-import.zip ko kisi bhi folder mein extract karo.
+Example: C:\bizcor-import\
+
+Andar 4 files hongi:
+  - index.js      (main tool)
+  - config.json   (aapki settings)
+  - export.sql    (SSMS mein chalane ka script)
+  - package.json  (dependencies list)
+
+
+STEP 2: config.json EDIT KARO
+--------------------------------
+config.json ko Notepad se kholo aur yeh values set karo:
+
+{
+  "pin": "1234",
+  "port": 9191,
+  "bizCor": {
+    "url": "http://localhost:3000",
+    "businessCode": "APNA_CODE",
+    "email": "apna@email.com",
+    "password": "apna_password"
+  }
+}
+
+FIELDS KI EXPLANATION:
+  pin           → Import tool ka security PIN (koi bhi 4 digit)
+  url           → BizCor server ka address:
+                    - Usi PC pe tool chalate ho    → http://localhost:3000
+                    - Doosre PC se access karna ho → http://192.168.1.X:3000
+                      (X = server PC ka LAN IP)
+  businessCode  → BizCor login screen pe jo Business Code use hota hai
+  email         → BizCor admin email
+  password      → Usi email ka password
+
+
+STEP 3: NODE.JS INSTALL KARO (agar pehle se nahi hai)
+-------------------------------------------------------
+https://nodejs.org/en/download
+LTS version download karo, install karo.
+
+
+STEP 4: TOOL CHALAO
+---------------------
+Command Prompt (cmd) kholo, folder mein jao:
+  cd C:\bizcor-import
+
+Pehli baar dependencies install karo:
+  npm install
+
+Tool start karo:
+  node index.js
+
+Browser mein yeh address kholo:
+  http://localhost:9191
+
+
+STEP 5: SMART ERP SE DATA EXPORT KARO
+---------------------------------------
+1. SQL Server Management Studio (SSMS) mein login karo
+2. Smart ERP ka database select karo
+3. export.sql file ka poora content copy karo
+4. SSMS mein paste karo aur Execute karo (F5)
+5. Results mein ek bada JSON dikhega
+6. Woh JSON copy karo, Notepad mein paste karo
+7. Save karo as: ahk_export.json
+
+
+STEP 6: IMPORT KARO
+---------------------
+1. Browser mein http://localhost:9191 kholo
+2. PIN daalo (jo config.json mein set kiya)
+3. ahk_export.json file upload karo
+4. BizCor se connect karo (Connect button)
+5. Preview dekho — parties, items, invoices ka count dikhega
+6. Date range filter karo agar chaaho
+7. "Import Karo" button dabao
+8. Results dekho — kitna import hua, kya error aaya
+
+
+====================================================
+  BizCor LAN VERSION — BUGS JO FIX HUE (May 2026)
+====================================================
+
+1. USERS ADD NAHI HO RAHE THE
+   - Fix: SQLite DDL reliable method se hota hai ab
+   - Fix: User list refresh sahi se hoti hai
+
+2. INVOICE MEIN TYPE KIYA ITEM MASTER MEIN SAVE NAHI HOTA THA
+   - Fix: SQLite mein direct insert method use hota hai
+   - Fix: Error ab user ko dikhti hai — silent fail nahi hoga
+
+Yeh fixes GitHub pe push ho gaye hain.
+Next LAN EXE build mein automatically aa jaayenge.
+
+====================================================
+  DEMO CREDENTIALS (Test ke liye)
+====================================================
+Business Code : 7MJ18V
+Email         : raj@demo.com
+Password      : demo1234
+
+====================================================
+Good Night! Koi bhi problem ho toh batana.
+====================================================
