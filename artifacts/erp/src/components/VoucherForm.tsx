@@ -8,19 +8,22 @@ import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock, CheckCircle } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
-/* ── Item Combobox — typeahead with master search + new-item badge ─ */
+/* ── Item Combobox — typeahead with master search + keyboard nav + new-item badge ─ */
 function ItemCombobox({
-  masterItems, value, itemId, isSales, onChange,
+  masterItems, value, itemId, isSales, onChange, rowIdx,
 }: {
   masterItems: any[];
   value: string;
   itemId?: number;
   isSales: boolean;
   onChange: (sel: { itemId?: number; itemName: string; item?: any }) => void;
+  rowIdx: number;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
+  const [hilite, setHilite] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setQuery(value); }, [value]);
 
@@ -32,34 +35,83 @@ function ItemCombobox({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Scroll highlighted item into view inside dropdown
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector(`[data-hilite="true"]`) as HTMLElement;
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [hilite]);
+
   const q = query.trim().toLowerCase();
   const filtered = q.length === 0
-    ? masterItems.slice(0, 12)
-    : masterItems.filter(i => i.name.toLowerCase().includes(q)).slice(0, 20);
+    ? masterItems.slice(0, 20)
+    : masterItems.filter(i => i.name.toLowerCase().includes(q)).slice(0, 30);
 
   const exactMatch = masterItems.find(i => i.name.toLowerCase() === q);
   const isNew = q.length > 0 && !exactMatch;
   const isSaved = !!itemId && !isNew;
 
-  const selectItem = (item: any) => {
+  const selectItem = (item: any, focusHsn = false) => {
     setQuery(item.name);
     setOpen(false);
+    setHilite(0);
     onChange({ itemId: item.id, itemName: item.name, item });
+    if (focusHsn) {
+      setTimeout(() => {
+        const el = document.querySelector(`[data-row="${rowIdx}"][data-field="hsn"]`) as HTMLInputElement;
+        if (el) el.focus();
+      }, 20);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { setOpen(true); setHilite(0); }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHilite(h => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHilite(h => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      if (filtered.length > 0) {
+        e.preventDefault();
+        selectItem(filtered[hilite] ?? filtered[0], true);
+      } else {
+        setOpen(false);
+      }
+    } else if (e.key === "Tab") {
+      // Tab with dropdown open → select top item and move to HSN
+      if (filtered.length > 0) {
+        e.preventDefault();
+        selectItem(filtered[hilite] ?? filtered[0], true);
+      } else {
+        setOpen(false);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
   };
 
   return (
     <div ref={wrapRef} className="relative">
       <div className="relative">
         <input
+          data-row={rowIdx}
+          data-field="itemname"
           className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 pr-12"
           placeholder="Item naam likho ya search karo..."
           value={query}
           autoComplete="off"
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); setHilite(0); }}
+          onKeyDown={handleKeyDown}
           onChange={e => {
             const v = e.target.value;
             setQuery(v);
             setOpen(true);
+            setHilite(0);
             onChange({ itemId: undefined, itemName: v });
           }}
         />
@@ -71,19 +123,20 @@ function ItemCombobox({
         )}
       </div>
       {open && (
-        <div className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl max-h-52 overflow-y-auto">
+        <div ref={listRef} className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl overflow-y-auto" style={{ maxHeight: "18rem" }}>
           {filtered.length === 0 && q && (
             <div className="px-3 py-2 text-xs text-gray-500 bg-amber-50">
               "<strong className="text-gray-800">{query}</strong>" — save karne par master mein add ho jayega
             </div>
           )}
-          {filtered.map(i => (
+          {filtered.map((i, fi) => (
             <button
               key={i.id} type="button"
+              data-hilite={fi === hilite ? "true" : undefined}
               onMouseDown={() => selectItem(i)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between gap-2 border-b border-gray-50 last:border-0"
+              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 border-b border-gray-50 last:border-0 ${fi === hilite ? "bg-blue-50 text-blue-900" : "hover:bg-blue-50"}`}
             >
-              <span className="truncate font-medium text-gray-800">{i.name}</span>
+              <span className="truncate font-medium">{i.name}</span>
               <span className="text-xs text-gray-400 flex-shrink-0">
                 {i.unitName || "PCS"} · ₹{Number(isSales ? i.salePrice : i.purchasePrice || i.salePrice || 0).toFixed(0)}
               </span>
@@ -603,9 +656,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     setSelectedItems(prev => new Set([...prev, newIdx]));
     if (focusAfter) {
       setTimeout(() => {
-        const el = document.querySelector(`[data-row="${newIdx}"][data-field="itemselect"]`) as HTMLSelectElement;
+        // Focus the ItemCombobox input of the newly added row
+        const el = document.querySelector(`[data-row="${newIdx}"][data-field="itemname"]`) as HTMLInputElement;
         if (el) el.focus();
-      }, 50);
+      }, 60);
     }
   };
 
@@ -725,12 +779,18 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             const matchedUnit = units.find((u: any) =>
               u.symbol?.toLowerCase() === (it.unit || "PCS").toLowerCase()
             );
+            // Resolve taxRateId: prefer direct taxRateId, fallback: match taxRate % to master
+            let resolvedTaxRateId = (it.taxRateId && it.taxRateId > 0) ? it.taxRateId : undefined;
+            if (!resolvedTaxRateId && it.taxRate > 0) {
+              const matchedTR = taxRates.find((t: any) => Math.abs(Number(t.rate) - it.taxRate) < 0.01);
+              if (matchedTR) resolvedTaxRateId = matchedTR.id;
+            }
             const created = await api.post<any>("/items", {
               name: it.itemName.trim(),
               type: "goods",
-              hsnCode: it.hsnCode || undefined,
+              hsnCode: it.hsnCode?.trim() || undefined,
               unitId: matchedUnit?.id || undefined,
-              taxRateId: (it.taxRateId && it.taxRateId > 0) ? it.taxRateId : undefined,
+              taxRateId: resolvedTaxRateId,
               salePrice: isSales ? String(it.rate) : undefined,
               purchasePrice: !isSales ? String(it.rate) : undefined,
             });
@@ -1515,6 +1575,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           itemId={item.itemId}
                           isSales={isSales}
                           onChange={sel => setItemInRow(idx, sel)}
+                          rowIdx={idx}
                         />
                         {/* Item-level business type fields */}
                         {bizType && BIZ_FIELDS[bizType]?.itemFields?.length > 0 && (
@@ -1539,6 +1600,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </td>
                       <td className="px-2 py-1.5">
                         <input className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          data-row={idx} data-field="hsn"
                           value={item.hsnCode} onChange={e => updateItem(idx, "hsnCode", e.target.value)} placeholder="HSN" />
                       </td>
                       <td className="px-2 py-1.5">
@@ -1660,7 +1722,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </table>
           </div>
           <div className="px-4 py-3 border-t border-gray-100">
-            <button type="button" onClick={() => addRow()} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <button type="button" onClick={() => addRow(true)} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
               <Plus className="w-4 h-4" /> Add Item Row
             </button>
           </div>
@@ -1672,12 +1734,13 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-              <textarea className={inputCls + " bg-white"} rows={3} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes for customer..." />
+              <textarea tabIndex={52} className={inputCls + " bg-white"} rows={3} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes for customer..." />
             </div>
             {/* Transport Name — autocomplete */}
             <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">Transport Name</label>
               <input
+                tabIndex={53}
                 type="text"
                 className={inputCls + " bg-white"}
                 value={form.transportName}
@@ -1707,19 +1770,19 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
-              <textarea className={inputCls + " bg-white"} rows={2} value={form.termsAndConditions} onChange={e => setForm(f => ({ ...f, termsAndConditions: e.target.value }))} />
+              <textarea tabIndex={54} className={inputCls + " bg-white"} rows={2} value={form.termsAndConditions} onChange={e => setForm(f => ({ ...f, termsAndConditions: e.target.value }))} />
             </div>
             {/* Status + Save side by side */}
             <div className="flex items-end gap-3">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select className={inputCls + " bg-white"} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                <select tabIndex={55} className={inputCls + " bg-white"} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
                   <option value="draft">Draft</option>
                   <option value="posted">Posted</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
-              <button type="submit" disabled={loading}
+              <button tabIndex={56} type="submit" disabled={loading}
                 className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60 whitespace-nowrap">
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {editId ? "Update" : "Save"} {title}
@@ -1766,7 +1829,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-600">Transport</span>
-              <input type="number" step="0.01" tabIndex={-1}
+              <input type="number" step="0.01" tabIndex={51}
                 className="w-24 text-right border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={form.transportCharges} onFocus={handleNumericFocus}
                 onChange={e => setForm(f => ({ ...f, transportCharges: parseFloat(e.target.value) || 0 }))} />
