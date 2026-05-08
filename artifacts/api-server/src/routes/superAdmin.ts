@@ -26,7 +26,7 @@ router.post("/settings", async (req, res) => {
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) })
-          .onConflictDoUpdate({ target: appSettingsTable.key, set: { value: String(req.body[key]), updatedAt: new Date() } });
+          .onConflictDoUpdate({ target: appSettingsTable.key, set: { value: String(req.body[key]), updatedAt: new Date().toISOString() as unknown as Date } });
       }
     }
     const rows = await db.select().from(appSettingsTable);
@@ -51,7 +51,8 @@ router.get("/stats", async (req, res) => {
       count: Number(p.cnt),
     }));
     const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0, 0, 0, 0);
-    const [newThisMonth] = await db.select({ count: count() }).from(businessesTable).where(sql`${businessesTable.createdAt} >= ${thisMonth}`);
+    const thisMonthStr = thisMonth.toISOString();
+    const [newThisMonth] = await db.select({ count: count() }).from(businessesTable).where(sql`${businessesTable.createdAt} >= ${thisMonthStr}`);
     res.json({
       totalBusinesses: Number(totalBusinesses.count),
       activeBusinesses: Number(activeBusinesses.count),
@@ -103,8 +104,8 @@ router.patch("/businesses/:id", async (req, res) => {
     if (status) updateData.status = status;
     if (planId !== undefined) updateData.planId = planId ? Number(planId) : null;
     if (isTrial !== undefined) updateData.isTrial = isTrial;
-    if (planExpiresAt !== undefined) updateData.planExpiresAt = planExpiresAt ? new Date(planExpiresAt) : null;
-    if (planStartDate !== undefined) updateData.planStartDate = planStartDate ? new Date(planStartDate) : null;
+    if (planExpiresAt !== undefined) updateData.planExpiresAt = planExpiresAt ? new Date(planExpiresAt).toISOString() : null;
+    if (planStartDate !== undefined) updateData.planStartDate = planStartDate ? new Date(planStartDate).toISOString() : null;
     const [updated] = await db.update(businessesTable).set(updateData).where(eq(businessesTable.id, Number(req.params.id))).returning();
     res.json(updated);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
@@ -498,10 +499,10 @@ router.post("/businesses/:id/topup", async (req, res) => {
     const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, Number(req.params.id)) });
     if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
     const now = new Date();
-    const baseDate = biz.planExpiresAt && biz.planExpiresAt > now ? biz.planExpiresAt : now;
+    const baseDate = biz.planExpiresAt ? (new Date(biz.planExpiresAt as unknown as string) > now ? new Date(biz.planExpiresAt as unknown as string) : now) : now;
     const newExpiry = new Date(baseDate.getTime() + Number(days) * 24 * 60 * 60 * 1000);
     const [updated] = await db.update(businessesTable).set({
-      planExpiresAt: newExpiry,
+      planExpiresAt: newExpiry.toISOString() as unknown as Date,
       bonusDaysAdded: (biz.bonusDaysAdded || 0) + Number(days),
       isTrial: false,
       status: "active",

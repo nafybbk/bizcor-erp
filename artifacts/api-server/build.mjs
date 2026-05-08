@@ -33,6 +33,7 @@ async function buildAll() {
       "drizzle-orm/pglite",
       "sharp",
       "better-sqlite3",
+      "drizzle-orm/better-sqlite3",
       "sqlite3",
       "canvas",
       "bcrypt",

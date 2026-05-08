@@ -27,17 +27,19 @@ router.post("/redeem-voucher", async (req, res) => {
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString();
+    const expiresAtStr = expiresAt.toISOString();
 
     await db.update(licenseVouchersTable).set({
       status: "used",
       redeemedByBusinessId: req.user.businessId,
-      redeemedAt: now,
+      redeemedAt: nowStr as unknown as Date,
     }).where(eq(licenseVouchersTable.id, voucher.id));
 
     const [updated] = await db.update(businessesTable).set({
       planId: plan.id,
-      planStartDate: now,
-      planExpiresAt: expiresAt,
+      planStartDate: nowStr as unknown as Date,
+      planExpiresAt: expiresAtStr as unknown as Date,
       isTrial: false,
       status: "active",
     }).where(eq(businessesTable.id, req.user.businessId)).returning();

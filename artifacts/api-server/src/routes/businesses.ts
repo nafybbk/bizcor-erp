@@ -61,10 +61,13 @@ router.post("/register", async (req, res) => {
 
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    // Use ISO strings — works for both PostgreSQL (parsed as timestamp) and SQLite (stored as text)
+    const nowStr = now.toISOString();
+    const trialExpiresStr = trialExpiresAt.toISOString();
     const [business] = await db.insert(businessesTable).values({
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
       planId: planId || null, status: "trial",
-      isTrial: true, planStartDate: now, planExpiresAt: trialExpiresAt,
+      isTrial: true, planStartDate: nowStr as unknown as Date, planExpiresAt: trialExpiresStr as unknown as Date,
       referralCode,
       referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
     }).returning();

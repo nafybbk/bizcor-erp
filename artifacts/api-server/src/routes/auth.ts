@@ -122,9 +122,9 @@ router.post("/login", async (req, res) => {
       try {
         await db.update(usersTable).set({
           sessionToken: newSessionToken,
-          lastLoginAt: new Date(),
+          lastLoginAt: new Date().toISOString() as unknown as Date,
           lastLoginIp: ipAddr,
-          lastSeenAt: new Date(),
+          lastSeenAt: new Date().toISOString() as unknown as Date,
         }).where(eq(usersTable.id, fullUser.id));
       } catch {
         // Non-fatal if columns missing on older schema
@@ -153,7 +153,7 @@ router.post("/login", async (req, res) => {
         },
         business: {
           id: business.id, name: business.name, businessCode: business.businessCode,
-          planExpiresAt: business.planExpiresAt?.toISOString() || null,
+          planExpiresAt: business.planExpiresAt ? new Date(business.planExpiresAt as unknown as string).toISOString() : null,
           isTrial: business.isTrial,
           status: business.status,
         },
@@ -310,7 +310,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const dbUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, user.id) });
     if (!dbUser) { res.status(404).json({ error: "Not Found" }); return; }
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, dbUser.businessId) });
-    db.update(usersTable).set({ lastSeenAt: new Date() }).where(eq(usersTable.id, user.id)).catch(() => {});
+    db.update(usersTable).set({ lastSeenAt: new Date().toISOString() as unknown as Date }).where(eq(usersTable.id, user.id)).catch(() => {});
     res.json({ id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, businessId: dbUser.businessId, businessName: business?.name, permissions: dbUser.permissions || [] });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
