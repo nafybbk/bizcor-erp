@@ -63,16 +63,22 @@ router.post("/", async (req, res) => {
       return;
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    // Use 1/0 integers for SQLite boolean columns (true/false not supported in raw SQL)
-    const canEditInt = canEdit !== false ? 1 : 0;
-    const canDeleteInt = canDelete !== false ? 1 : 0;
-    await db.execute(sql`
-      INSERT INTO users (business_id, name, email, password_hash, role, permissions, login_pin, plain_password, can_edit, can_delete)
-      VALUES (${req.user!.businessId!}, ${name}, ${email}, ${passwordHash},
-              ${role || "staff"}, ${JSON.stringify(permissions || [])},
-              ${loginPin || null}, ${password},
-              ${canEditInt}, ${canDeleteInt})
-    `);
+    // Use Drizzle insert — handles boolean/JSON types correctly for both PG and SQLite
+    await db.insert(usersTable).values({
+      businessId: req.user!.businessId!,
+      name,
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      role: role || "staff",
+      permissions: permissions || [],
+      loginPin: loginPin || null,
+      canEdit: canEdit !== false,
+      canDelete: canDelete !== false,
+    });
+    // Store plain password via raw SQL (column may not be in Drizzle schema)
+    try {
+      await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE email = ${email.toLowerCase().trim()} AND business_id = ${req.user!.businessId!}`);
+    } catch { /* non-fatal */ }
     res.status(201).json({ success: true });
   } catch (err) {
     req.log.error(err);
