@@ -8,12 +8,23 @@ import { requireBusiness } from "../middlewares/auth";
 const router = Router();
 router.use(requireBusiness);
 
-// Lazy migration: ensure can_edit and can_delete columns exist
+// Lazy migration: ensure can_edit, can_delete, login_pin columns exist
+// SQLite does not support IF NOT EXISTS on ALTER TABLE — add each column separately and catch duplicate errors
 async function ensureRightsCols() {
-  try {
-    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit BOOLEAN NOT NULL DEFAULT TRUE`);
-    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete BOOLEAN NOT NULL DEFAULT TRUE`);
-  } catch { /* already exists or non-fatal */ }
+  const isSQLite = !!process.env.SQLITE_PATH;
+  const colDefs = isSQLite
+    ? ["can_edit INTEGER NOT NULL DEFAULT 1", "can_delete INTEGER NOT NULL DEFAULT 1", "login_pin TEXT"]
+    : ["can_edit BOOLEAN NOT NULL DEFAULT TRUE", "can_delete BOOLEAN NOT NULL DEFAULT TRUE", "login_pin TEXT"];
+
+  for (const col of colDefs) {
+    try {
+      if (isSQLite) {
+        await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN ${col}`));
+      } else {
+        await db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col}`));
+      }
+    } catch { /* column already exists — OK */ }
+  }
 }
 
 router.get("/", async (req, res) => {
@@ -103,9 +114,8 @@ router.patch("/:id", async (req, res) => {
       await db.update(usersTable).set(updateData)
         .where(and(eq(usersTable.id, id), eq(usersTable.businessId, biz)));
     }
-    // Handle loginPin separately (lazy column)
+    // Handle loginPin — ensureRightsCols() above already handles login_pin column creation
     if (loginPin !== undefined) {
-      await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT`).catch(() => {});
       await db.execute(sql`UPDATE users SET login_pin = ${loginPin || null} WHERE id = ${id} AND business_id = ${biz}`);
     }
     res.json({ success: true });
