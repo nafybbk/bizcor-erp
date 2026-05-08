@@ -47,22 +47,35 @@ router.get("/", async (req, res) => {
 
     const isSQLite = !!process.env.SQLITE_PATH;
 
-    // Use 1/0 instead of TRUE/FALSE for SQLite compatibility; PG accepts both
-    const rows: any[] = await db.execute(sql`
-      SELECT id, name, email, role, permissions,
-             is_active AS isActive,
-             created_at AS createdAt,
-             COALESCE(can_edit, 1) AS canEdit,
-             COALESCE(can_delete, 1) AS canDelete,
-             CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN 1 ELSE 0 END AS hasPin
-      FROM users WHERE business_id = ${biz}
-      ORDER BY created_at ASC
-    `).then((r: any) => {
-      // better-sqlite3 returns array directly; pg returns { rows: [...] }
-      if (Array.isArray(r)) return r;
-      if (Array.isArray(r?.rows)) return r.rows;
-      return [];
-    });
+    // db.execute() doesn't exist in SQLite (BetterSQLite3Database) — use raw sqlite for SQLite, db.execute for PG
+    let rows: any[];
+    if (isSQLite && sqlite) {
+      rows = sqlite.prepare(`
+        SELECT id, name, email, role, permissions,
+               is_active AS isActive,
+               created_at AS createdAt,
+               COALESCE(can_edit, 1) AS canEdit,
+               COALESCE(can_delete, 1) AS canDelete,
+               CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN 1 ELSE 0 END AS hasPin
+        FROM users WHERE business_id = ?
+        ORDER BY created_at ASC
+      `).all(biz) as any[];
+    } else {
+      rows = await (db as any).execute(sql`
+        SELECT id, name, email, role, permissions,
+               is_active AS isActive,
+               created_at AS createdAt,
+               COALESCE(can_edit, 1) AS canEdit,
+               COALESCE(can_delete, 1) AS canDelete,
+               CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN 1 ELSE 0 END AS hasPin
+        FROM users WHERE business_id = ${biz}
+        ORDER BY created_at ASC
+      `).then((r: any) => {
+        if (Array.isArray(r)) return r;
+        if (Array.isArray(r?.rows)) return r.rows;
+        return [];
+      });
+    }
 
     const users = rows.map((u: any) => ({
       ...u,
