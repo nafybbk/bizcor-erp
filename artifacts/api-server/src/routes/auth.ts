@@ -120,6 +120,10 @@ router.post("/login", async (req, res) => {
       // ── SAVE SESSION TOKEN ────────────────────────────────────────────────
       const newSessionToken = crypto.randomUUID();
       const ipAddr = getIp(req);
+      // Only embed sessionToken in JWT if DB update succeeds.
+      // If the column is missing (old schema) the update throws — we skip
+      // session enforcement so the user still gets logged in cleanly.
+      let effectiveSessionToken: string | undefined;
       try {
         await db.update(usersTable).set({
           sessionToken: newSessionToken,
@@ -127,12 +131,14 @@ router.post("/login", async (req, res) => {
           lastLoginIp: ipAddr,
           lastSeenAt: new Date().toISOString() as unknown as Date,
         }).where(eq(usersTable.id, fullUser.id));
+        effectiveSessionToken = newSessionToken; // confirmed saved in DB
       } catch {
-        // Non-fatal if columns missing on older schema
+        // Column missing on older schema — skip single-session enforcement
+        effectiveSessionToken = undefined;
       }
 
       const token = signToken(
-        { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: newSessionToken },
+        { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: effectiveSessionToken },
         business.planExpiresAt,
         business.isTrial,
       );
