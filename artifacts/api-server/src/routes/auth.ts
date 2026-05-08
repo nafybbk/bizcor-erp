@@ -137,9 +137,13 @@ router.post("/login", async (req, res) => {
         effectiveSessionToken = undefined;
       }
 
+      // planExpiresAt can be Date (PG) or ISO string (SQLite) — normalize to Date before signToken
+      const planExpiry = business.planExpiresAt
+        ? (business.planExpiresAt instanceof Date ? business.planExpiresAt : new Date(business.planExpiresAt as unknown as string))
+        : null;
       const token = signToken(
         { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: effectiveSessionToken },
-        business.planExpiresAt,
+        planExpiry,
         business.isTrial,
       );
       logLogin({
@@ -255,7 +259,7 @@ router.post("/login", async (req, res) => {
     if (err?.code === "ALREADY_LOGGED_IN") {
       res.status(409).json({ error: "ALREADY_LOGGED_IN", message: err.message, lastLoginAt: err.lastLoginAt, lastLoginIp: err.lastLoginIp, userName: err.userName }); return;
     }
-    req.log.error(err); res.status(500).json({ error: "Internal Server Error" });
+    req.log.error(err); res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
   }
 });
 
