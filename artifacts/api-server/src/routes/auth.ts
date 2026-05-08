@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, sqlite } from "@workspace/db";
 import { superAdminsTable, businessesTable, usersTable, loginLogsTable, plansTable } from "@workspace/db";
 import { eq, and, inArray, count, sql } from "drizzle-orm";
 import { signToken, requireAuth } from "../middlewares/auth";
@@ -197,14 +197,13 @@ router.post("/login", async (req, res) => {
       res.status(401).json({ error: "Unauthorized", message: "Business not found or inactive" }); return;
     }
 
-    const allCandidates = await db.execute(sql`
-      SELECT * FROM users WHERE business_id = ${business.id} AND LOWER(email) = LOWER(${email})
-    `);
-    const candidates: any[] = (allCandidates as any).rows ?? allCandidates;
+    // Use Drizzle ORM select — works on BOTH SQLite and PostgreSQL (db.execute doesn't exist in SQLite)
+    const candidates = await db.select().from(usersTable)
+      .where(and(eq(usersTable.businessId, business.id), eq(usersTable.email, email.toLowerCase())));
 
-    const passwordMatches: any[] = [];
+    const passwordMatches: typeof candidates = [];
     for (const u of candidates) {
-      if (u.password_hash && await bcrypt.compare(password, u.password_hash)) {
+      if (u.passwordHash && await bcrypt.compare(password, u.passwordHash)) {
         passwordMatches.push(u);
       }
     }
@@ -223,7 +222,7 @@ router.post("/login", async (req, res) => {
         users: passwordMatches.map(u => ({
           id: u.id,
           name: u.name,
-          hasPin: !!(u.login_pin && u.login_pin.trim() !== ""),
+          hasPin: !!(u.loginPin && u.loginPin.trim() !== ""),
         })),
       });
       return;
@@ -239,8 +238,8 @@ router.post("/login", async (req, res) => {
     }
 
     // PIN check
-    if (matched.login_pin && matched.login_pin.trim() !== "") {
-      if (!pin || pin.trim() !== matched.login_pin.trim()) {
+    if (matched.loginPin && matched.loginPin.trim() !== "") {
+      if (!pin || pin.trim() !== matched.loginPin.trim()) {
         res.status(401).json({ error: "wrong_pin", message: "PIN galat hai" }); return;
       }
     }
@@ -274,7 +273,13 @@ router.post("/forgot-password/tech", async (req, res) => {
     if (!admin) { res.status(404).json({ error: "Is phone/email se koi account nahi mila" }); return; }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(superAdminsTable).set({ passwordHash }).where(eq(superAdminsTable.id, admin.id));
-    try { await db.execute(sql`UPDATE super_admins SET plain_password = ${newPassword} WHERE id = ${admin!.id}`); } catch { }
+    try {
+      if (sqlite) {
+        sqlite.prepare("UPDATE super_admins SET plain_password = ? WHERE id = ?").run(newPassword, admin!.id);
+      } else {
+        await (db as any).execute(sql`UPDATE super_admins SET plain_password = ${newPassword} WHERE id = ${admin!.id}`);
+      }
+    } catch { }
     res.json({ success: true, message: "Password reset ho gaya — ab naye password se login karo" });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
@@ -298,7 +303,13 @@ router.post("/forgot-password/user", async (req, res) => {
     if (!user) { res.status(404).json({ error: "Is email se koi account nahi mila" }); return; }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, user.id));
-    try { await db.execute(sql`UPDATE users SET plain_password = ${newPassword} WHERE id = ${user.id}`); } catch { }
+    try {
+      if (sqlite) {
+        sqlite.prepare("UPDATE users SET plain_password = ? WHERE id = ?").run(newPassword, user.id);
+      } else {
+        await (db as any).execute(sql`UPDATE users SET plain_password = ${newPassword} WHERE id = ${user.id}`);
+      }
+    } catch { }
     res.json({ success: true, message: "Password reset ho gaya — ab naye password se login karo" });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
