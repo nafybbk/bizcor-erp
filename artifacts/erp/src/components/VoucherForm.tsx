@@ -434,6 +434,24 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [lineItems, setLineItems] = useState<VoucherItem[]>([emptyItem()]);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set([0]));
   const [isInterState, setIsInterState] = useState(false);
+  const [itemsTableH, setItemsTableH] = useState<number>(220);
+  const itemsDragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const onItemsResizeDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    itemsDragRef.current = { startY: e.clientY, startH: itemsTableH };
+    const onMove = (me: MouseEvent) => {
+      if (!itemsDragRef.current) return;
+      const newH = Math.max(80, itemsDragRef.current.startH + me.clientY - itemsDragRef.current.startY);
+      setItemsTableH(newH);
+    };
+    const onUp = () => {
+      itemsDragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
   const [interStateAuto, setInterStateAuto] = useState<boolean | null>(null);
   const [error, setError] = useState("");
 
@@ -1489,7 +1507,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <button type="button" onClick={resetColWidths} className="text-xs text-blue-500 hover:text-blue-700 underline">Reset</button>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto" style={{ height: itemsTableH }}>
             <table className="text-sm" style={{ tableLayout: "fixed", width: `${32 + Object.values(colWidths).reduce((a, b) => a + b, 0) + 32}px`, minWidth: "100%" }}>
               <colgroup>
                 <col style={{ width: 32 }} />
@@ -1725,6 +1743,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             <button type="button" onClick={() => addRow(true)} className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium">
               <Plus className="w-4 h-4" /> Add Item Row
             </button>
+          </div>
+          {/* Vertical resize handle */}
+          <div
+            onMouseDown={onItemsResizeDown}
+            className="h-3 cursor-row-resize select-none flex items-center justify-center border-t border-gray-100 hover:bg-blue-50 active:bg-blue-100 transition-colors group"
+            title="Drag karo items area bada karne ke liye"
+          >
+            <div className="w-12 h-1 rounded-full bg-gray-300 group-hover:bg-blue-400 transition-colors" />
           </div>
         </div>
 
