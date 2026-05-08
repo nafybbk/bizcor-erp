@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @workspace/db run build && pnpm --filter @workspace/api-zod run build && pnpm --filter @workspace/erp run build",
+  "outputDirectory": "artifacts/erp/dist/public",
+  "functions": {
+    "artifacts/api-server/api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/artifacts/api-server/api/index.ts" },
+    { "source": "/((?!api).*)", "destination": "/index.html" }
+  ]
+}
