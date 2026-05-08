@@ -22,6 +22,7 @@ export default function Register() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successData, setSuccessData] = useState<{ businessCode: string; businessName: string } | null>(null);
   const [form, setForm] = useState({
     businessName: "", gstin: "", pan: "", address: "", city: "", state: "", stateCode: "",
     pincode: "", phone: "", businessType: "retail",
@@ -39,14 +40,42 @@ export default function Register() {
       localStorage.setItem("erp_token", res.token);
       localStorage.setItem("erp_user", JSON.stringify(res.user));
       localStorage.setItem("erp_business", JSON.stringify(res.business));
-      navigate("/");
-      window.location.reload();
+      setSuccessData({ businessCode: res.business.businessCode, businessName: res.business.name });
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || err.detail || "Registration mein problem aayi. Dobara try karein.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (successData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4 shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Business Register Ho Gaya!</h1>
+          <p className="text-gray-500 text-sm mb-6">{successData.businessName}</p>
+
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-4">
+            <p className="text-sm text-gray-500 mb-2">Aapka Business Code (yaad rakhein / note kar lein):</p>
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-xl py-4 px-6 mb-3">
+              <span className="text-3xl font-mono font-bold text-blue-700 tracking-widest">{successData.businessCode}</span>
+            </div>
+            <p className="text-xs text-gray-400">Yeh code login ke waqt kaam aayega. Isko safe rakhein.</p>
+          </div>
+
+          <button
+            onClick={() => { navigate("/"); window.location.reload(); }}
+            className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow"
+          >
+            Dashboard Kholein →
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm";
   const labelClass = "block text-sm font-medium text-gray-700 mb-1";
