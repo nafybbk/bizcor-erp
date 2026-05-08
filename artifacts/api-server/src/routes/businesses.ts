@@ -61,13 +61,14 @@ router.post("/register", async (req, res) => {
 
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    // Use ISO strings — works for both PostgreSQL (parsed as timestamp) and SQLite (stored as text)
-    const nowStr = now.toISOString();
-    const trialExpiresStr = trialExpiresAt.toISOString();
+    // PG needs actual Date objects (timestamp column); SQLite needs ISO strings (text column)
+    const isSQLite = !!process.env.SQLITE_PATH;
+    const planStartVal = (isSQLite ? now.toISOString() : now) as unknown as Date;
+    const planExpiresVal = (isSQLite ? trialExpiresAt.toISOString() : trialExpiresAt) as unknown as Date;
     let [business] = await db.insert(businessesTable).values({
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
       planId: planId || null, status: "trial",
-      isTrial: true, planStartDate: nowStr as unknown as Date, planExpiresAt: trialExpiresStr as unknown as Date,
+      isTrial: true, planStartDate: planStartVal, planExpiresAt: planExpiresVal,
       referralCode,
       referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
     }).returning();
@@ -98,7 +99,11 @@ router.post("/register", async (req, res) => {
           });
           if (referralPlan) {
             const validityMs = (referralPlan.validityDays || 180) * 24 * 60 * 60 * 1000;
-            const baseDate = referrer.planExpiresAt && referrer.planExpiresAt > now ? referrer.planExpiresAt : now;
+            // planExpiresAt can be Date (PG) or ISO string (SQLite) — normalize to Date
+            const referrerExpiry = referrer.planExpiresAt
+              ? new Date(referrer.planExpiresAt as unknown as string)
+              : null;
+            const baseDate = referrerExpiry && referrerExpiry > now ? referrerExpiry : now;
             updates.planId = referralPlan.id;
             updates.planExpiresAt = new Date(baseDate.getTime() + validityMs);
             updates.isTrial = false;
