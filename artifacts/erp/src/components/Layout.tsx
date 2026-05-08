@@ -11,7 +11,7 @@ import {
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -347,6 +347,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: L.licenseVouchers, href: "/admin/vouchers", icon: <Ticket className="w-4 h-4" /> },
     { label: L.techSupportAccounts, href: "/admin/super-admins", icon: <ShieldCheck className="w-4 h-4" /> },
     { label: L.appSettings, href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
+    { label: "Import Data", href: "/admin/import", icon: <DatabaseZap className="w-4 h-4" /> },
   ];
 
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
