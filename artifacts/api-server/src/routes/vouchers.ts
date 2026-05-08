@@ -37,32 +37,37 @@ function calcVoucher(items: Array<{
 }
 
 async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
-  const { page = "1", limit = "20", partyId, fromDate, toDate, status } = req.query;
-  const businessId = req.user!.businessId!;
-  const conditions: any[] = [
-    eq(vouchersTable.businessId, businessId),
-    eq(vouchersTable.voucherType, voucherType),
-    isNull(vouchersTable.deletedAt),
-  ];
-  if (partyId) conditions.push(eq(vouchersTable.partyId, Number(partyId)));
-  if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
-  if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
-  if (status) conditions.push(eq(vouchersTable.status, status as any));
-  const vouchers = await db.select({
-    id: vouchersTable.id, voucherType: vouchersTable.voucherType, voucherNumber: vouchersTable.voucherNumber,
-    date: vouchersTable.date, partyId: vouchersTable.partyId, partyName: partiesTable.name,
-    partyGstin: partiesTable.gstin, grandTotal: vouchersTable.grandTotal, paidAmount: vouchersTable.paidAmount,
-    status: vouchersTable.status, createdAt: vouchersTable.createdAt,
-    totalTax: vouchersTable.totalTax, taxableAmount: vouchersTable.taxableAmount,
-  }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
-    .where(and(...conditions)).orderBy(desc(vouchersTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
-  const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(vouchersTable).where(and(...conditions));
-  const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${vouchersTable.grandTotal}::numeric), 0)` }).from(vouchersTable).where(and(...conditions));
-  const data = vouchers.map(v => ({
-    ...v, grandTotal: Number(v.grandTotal), paidAmount: Number(v.paidAmount || 0),
-    balanceDue: Number(v.grandTotal) - Number(v.paidAmount || 0),
-  }));
-  res.json({ data, total: Number(total), page: Number(page), limit: Number(limit), totalAmount: Number(totalAmount) });
+  try {
+    const { page = "1", limit = "20", partyId, fromDate, toDate, status } = req.query;
+    const businessId = req.user!.businessId!;
+    const conditions: any[] = [
+      eq(vouchersTable.businessId, businessId),
+      eq(vouchersTable.voucherType, voucherType),
+      isNull(vouchersTable.deletedAt),
+    ];
+    if (partyId) conditions.push(eq(vouchersTable.partyId, Number(partyId)));
+    if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
+    if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
+    if (status) conditions.push(eq(vouchersTable.status, status as any));
+    const vouchers = await db.select({
+      id: vouchersTable.id, voucherType: vouchersTable.voucherType, voucherNumber: vouchersTable.voucherNumber,
+      date: vouchersTable.date, partyId: vouchersTable.partyId, partyName: partiesTable.name,
+      partyGstin: partiesTable.gstin, grandTotal: vouchersTable.grandTotal, paidAmount: vouchersTable.paidAmount,
+      status: vouchersTable.status, createdAt: vouchersTable.createdAt,
+      totalTax: vouchersTable.totalTax, taxableAmount: vouchersTable.taxableAmount,
+    }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
+      .where(and(...conditions)).orderBy(desc(vouchersTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(vouchersTable).where(and(...conditions));
+    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${vouchersTable.grandTotal}), 0)` }).from(vouchersTable).where(and(...conditions));
+    const data = vouchers.map((v: any) => ({
+      ...v, grandTotal: Number(v.grandTotal), paidAmount: Number(v.paidAmount || 0),
+      balanceDue: Number(v.grandTotal) - Number(v.paidAmount || 0),
+    }));
+    res.json({ data, total: Number(total), page: Number(page), limit: Number(limit), totalAmount: Number(totalAmount) });
+  } catch (err: any) {
+    req.log?.error(err);
+    res.status(500).json({ error: "Internal Server Error", message: err?.message });
+  }
 }
 
 async function getVoucherById(req: any, res: any) {
@@ -83,7 +88,7 @@ async function getVoucherById(req: any, res: any) {
   res.json({
     ...voucher, partyName: party?.name, partyGstin: party?.gstin,
     linkedVoucherNumber,
-    items: items.map(i => ({ ...i, quantity: Number(i.quantity), rate: Number(i.rate), discount: Number(i.discount), taxableAmount: Number(i.taxableAmount), taxRate: Number(i.taxRate), cgst: Number(i.cgst), sgst: Number(i.sgst), igst: Number(i.igst), taxAmount: Number(i.taxAmount), total: Number(i.total) })),
+    items: items.map((i: any) => ({ ...i, quantity: Number(i.quantity), rate: Number(i.rate), discount: Number(i.discount), taxableAmount: Number(i.taxableAmount), taxRate: Number(i.taxRate), cgst: Number(i.cgst), sgst: Number(i.sgst), igst: Number(i.igst), taxAmount: Number(i.taxAmount), total: Number(i.total) })),
     grandTotal: Number(voucher.grandTotal), paidAmount: Number(voucher.paidAmount || 0),
     balanceDue: Number(voucher.grandTotal) - Number(voucher.paidAmount || 0),
     subTotal: Number(voucher.subTotal), totalDiscount: Number(voucher.totalDiscount),
