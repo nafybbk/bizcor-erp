@@ -19,6 +19,21 @@ await writeFile(path.resolve(publicDir, ".gitkeep"), "");
 
 console.log("Building Vercel serverless entry...");
 
+const stubPlugin = {
+  name: "stub-native",
+  setup(build) {
+    for (const pkg of ["better-sqlite3", "sqlite3"]) {
+      build.onResolve({ filter: new RegExp(`^${pkg}$`) }, (args) => ({
+        path: args.path, namespace: "stub-ns",
+      }));
+    }
+    build.onLoad({ filter: /.*/, namespace: "stub-ns" }, () => ({
+      contents: "export default null; module.exports = null;",
+      loader: "js",
+    }));
+  },
+};
+
 await esbuild({
   entryPoints: [path.resolve(artifactDir, "src/vercel-entry.ts")],
   platform: "node",
@@ -27,6 +42,7 @@ await esbuild({
   outfile: path.resolve(apiDir, "index.js"),
   logLevel: "info",
   sourcemap: false,
+  plugins: [stubPlugin],
   external: [
     "*.node",
     "sharp",
