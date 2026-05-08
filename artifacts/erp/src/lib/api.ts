@@ -25,6 +25,12 @@ export function clearToken() {
   localStorage.removeItem("erp_business");
 }
 
+// Prevent background-query SESSION_INVALIDATED redirects while a new login is in progress.
+// e.g. forceLogin: stale old token fires background calls → SESSION_INVALIDATED fires
+// before new token is stored → user gets kicked back to login immediately after logging in.
+let _loginInProgress = false;
+export function setLoginInProgress(v: boolean) { _loginInProgress = v; }
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -47,8 +53,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ message: "Request failed" }));
-    // Global SESSION_INVALIDATED handler — clear session and reload to login page
-    if (res.status === 401 && errData?.error === "SESSION_INVALIDATED") {
+    // Global SESSION_INVALIDATED handler — clear session and reload to login page.
+    // Skip if a login is currently in progress (avoids race-condition redirect).
+    if (res.status === 401 && errData?.error === "SESSION_INVALIDATED" && !_loginInProgress) {
       clearToken();
       localStorage.removeItem("erp_user");
       localStorage.removeItem("erp_business");
