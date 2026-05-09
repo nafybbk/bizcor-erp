@@ -301,6 +301,32 @@ Details:
 
 ---
 
+## REFERRAL SYSTEM — Design Discussion (May 2026)
+
+**Current state:** Sirf UI hai (TYGZ9Y code display hota hai), koi backend tracking nahi.
+
+**Kya banana hai:**
+
+DB changes (businesses table):
+- `referral_code TEXT` — har business ka unique code (auto on registration)
+- `referred_by_code TEXT` — jis code se aaya (nullable, registration form mein optional field)
+
+Backend:
+- Registration pe: `referred_by_code` save karo, referring business ka count +1
+- `GET /api/super-admin/referrals` — referral stats API
+- Auto-reward: jab count 5 ho → auto "Referral Plan" assign
+
+Tech Panel:
+- Businesses list mein "Referrals" column (kitne refer kiye)
+- Business detail mein "Referred by: [Name/Code]"
+- Alag "Referral Analytics" page — top referrers, monthly count, reward status
+
+Business Admin Panel:
+- Registration form mein optional "Referral Code" field
+- Progress bar (0/5), count, reward status (as shown in screenshot)
+
+---
+
 ## Demo Credentials
 
 Test business: code `7MJ18V`, email `raj@demo.com`, password `demo1234`
