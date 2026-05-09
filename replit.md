@@ -301,6 +301,49 @@ Details:
 
 ---
 
+## OFFLINE LAN VERSION — Licensing & Anti-Piracy Design (May 2026)
+
+**Scope: Sirf offline LAN version ke liye. Online cloud ka koi masla nahi.**
+
+### Two-Key System:
+
+**Key 1 — Installer Key (EXE pack ke saath TXT mein):**
+- Installer ke saath bundled hoti hai (TXT file)
+- Install ke waqt online net ON hona zaroori hai
+- Installer Key cloud pe validate hoti hai
+- Install time pe email/password + puri hardware info (MAC, CPU ID, etc.) is key se bind ho jaati hai
+- Koi aur kaam nahi — sirf install tracking
+
+**Key 2 — Plan Subscription Key (Tech panel se manually dete hain):**
+- Business jab plan khareedta hai, Tech panel se Plan Key generate karo
+- Business apne BizCor mein Plan Key daalta hai (net ON)
+- Activation pe: cloud retrieve karta hai woh Installer Key jo install pe bind thi
+- Tech panel mein dono dates milti hain: Install Date + Plan Activation Date = Gap
+
+### Gap Analysis (Tech Panel mein visible):
+- 2 din gap → Genuine customer, turant kharida
+- 30 din gap → Trial use kiya, normal
+- 60 din gap → Late, note karo
+- 90+ din gap → Policy decision (allow/partial lock/late fee)
+
+### Free Version bhi same flow:
+- Free Key online activate hogi
+- No offline bypass possible
+
+### Zero Piracy kyun:
+- Koi bhi install bina net ke nahi ho sakta (Installer Key online validate)
+- Plan Key single-use + hardware-bound
+- Free Key bhi online validate
+- Heartbeat ki zaroorat NAHI — net sirf do baar chahiye (install + plan activate)
+
+### Bonus — Market Data:
+- Conversion rate (install vs plan)
+- Region-wise installations
+- Free vs Paid ratio
+- Average install-to-purchase gap
+
+---
+
 ## REFERRAL SYSTEM — Design Discussion (May 2026)
 
 **Current state:** Sirf UI hai (TYGZ9Y code display hota hai), koi backend tracking nahi.
