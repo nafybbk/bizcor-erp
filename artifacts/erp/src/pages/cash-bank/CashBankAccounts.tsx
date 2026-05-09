@@ -188,8 +188,8 @@ export default function CashBankAccounts() {
           {accounts.length === 0 && (
             <div className="text-center py-16 text-gray-400">
               <Banknote className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <div className="font-medium">Koi account nahi hai</div>
-              <div className="text-sm mt-1">Add Account pe click karo</div>
+              <div className="font-medium">No accounts yet</div>
+              <div className="text-sm mt-1">Click Add Account to get started</div>
             </div>
           )}
         </div>

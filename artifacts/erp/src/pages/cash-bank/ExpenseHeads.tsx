@@ -57,7 +57,7 @@ export default function ExpenseHeads() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           {heads.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 text-sm">Koi expense head nahi hai</div>
+            <div className="text-center py-12 text-gray-400 text-sm">No expense heads yet</div>
           ) : (
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">

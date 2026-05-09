@@ -42,7 +42,7 @@ export default function Register() {
       localStorage.setItem("erp_business", JSON.stringify(res.business));
       setSuccessData({ businessCode: res.business.businessCode, businessName: res.business.name });
     } catch (err: any) {
-      setError(err.message || err.detail || "Registration mein problem aayi. Dobara try karein.");
+      setError(err.message || err.detail || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -55,15 +55,15 @@ export default function Register() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4 shadow-lg">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Business Register Ho Gaya!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Business Registered Successfully!</h1>
           <p className="text-gray-500 text-sm mb-6">{successData.businessName}</p>
 
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-4">
-            <p className="text-sm text-gray-500 mb-2">Aapka Business Code (yaad rakhein / note kar lein):</p>
+            <p className="text-sm text-gray-500 mb-2">Your Business Code (save this for login):</p>
             <div className="bg-blue-50 border-2 border-blue-300 rounded-xl py-4 px-6 mb-3">
               <span className="text-3xl font-mono font-bold text-blue-700 tracking-widest">{successData.businessCode}</span>
             </div>
-            <p className="text-xs text-gray-400">Yeh code login ke waqt kaam aayega. Isko safe rakhein.</p>
+            <p className="text-xs text-gray-400">You will need this code at login. Keep it safe.</p>
           </div>
 
           <button
@@ -180,10 +180,10 @@ export default function Register() {
                     className="w-full px-3 py-2 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 text-sm bg-white font-mono tracking-widest uppercase"
                     value={form.referredBy}
                     onChange={e => set("referredBy", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-                    placeholder="Kisi ne code diya ho toh daalen"
+                    placeholder="Enter if someone gave you a code"
                     maxLength={6}
                   />
-                  <p className="text-xs text-green-600 mt-1">Referral code se referrer ko bonus milta hai (har 2 referrals pe 30 din free)</p>
+                  <p className="text-xs text-green-600 mt-1">The referrer earns a bonus for every 2 referrals (30 days free)</p>
                 </div>
                 {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
                 <div className="flex gap-3 mt-4">

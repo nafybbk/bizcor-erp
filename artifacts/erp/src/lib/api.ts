@@ -59,7 +59,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       clearToken();
       localStorage.removeItem("erp_user");
       localStorage.removeItem("erp_business");
-      localStorage.setItem("erp_session_invalidated_msg", errData.message || "Aapka session kisi aur jagah se login ki wajah se band ho gaya. Dobara login karein.");
+      const { getLang, t } = await import("./lang");
+      const lang = getLang();
+      localStorage.setItem("erp_session_invalidated_msg", errData.message || t("sessionInvalidated", lang));
       window.location.href = "/";
       throw new ApiError(errData.message, res.status, errData);
     }

@@ -83,7 +83,7 @@ export default function ExpenseCreate({ editId, initialData }: Props) {
             <option value="">-- Select Expense Head --</option>
             {heads.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
           </select>
-          {heads.length === 0 && <div className="text-xs text-amber-600 mt-1">Pehle Expense Heads mein heads banao</div>}
+          {heads.length === 0 && <div className="text-xs text-amber-600 mt-1">Add expense heads first from the Expense Heads section</div>}
         </div>
 
         <div>

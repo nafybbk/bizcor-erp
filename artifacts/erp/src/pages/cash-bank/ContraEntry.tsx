@@ -46,7 +46,7 @@ export default function ContraEntry() {
   };
 
   const del = async (id: number, num: string) => {
-    if (!confirm(`${num} delete karein?`)) return;
+    if (!confirm(`Delete ${num}?`)) return;
     await api.delete(`/cash-bank/contra/${id}`);
     load();
   };
@@ -142,7 +142,7 @@ export default function ContraEntry() {
         ) : entries.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <RefreshCw className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <div className="font-medium">Koi contra entry nahi</div>
+            <div className="font-medium">No contra entries yet</div>
           </div>
         ) : (
           <table className="w-full">

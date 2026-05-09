@@ -118,7 +118,7 @@ export default function Parties({ defaultType }: Props) {
       {offlineSaved && (
         <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-3 text-sm">
           <CloudOff className="w-4 h-4 shrink-0 text-orange-500" />
-          <span><strong>Offline Draft Save Ho Gaya!</strong> Internet aane par "Offline Drafts" se submit karo.</span>
+          <span><strong>Offline Draft Saved!</strong> Submit from "Offline Drafts" when you're back online.</span>
           <button onClick={() => setOfflineSaved(false)} className="ml-auto text-orange-400 hover:text-orange-600">✕</button>
         </div>
       )}

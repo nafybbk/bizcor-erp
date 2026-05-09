@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2, FolderOpen, FolderX } from "lucide-react";
 import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupported } from "@/lib/localDataFolder";
+import { getLang, useLang, t } from "@/lib/lang";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
@@ -31,15 +32,15 @@ const BUSINESS_TYPES = [
 ];
 
 const TYPE_INFO: Record<string, string> = {
-  pharmacy: "Invoice mein Drug License, Batch No, Expiry Date, MRP fields aayenge",
-  electronics: "Invoice mein Serial No, Model No, Brand, Warranty fields aayenge",
-  fabric: "Invoice mein Color, Design, Width, Composition fields aayenge",
-  restaurant: "Invoice mein Table No, Cover Count, Waiter Name fields aayenge",
-  auto_parts: "Invoice mein Vehicle Reg No, Vehicle Model, Part No fields aayenge",
-  jewellery: "Invoice mein Hallmark No, Purity, Weight, Making Charges fields aayenge",
-  construction: "Invoice mein Project Name, Work Order No, Site fields aayenge",
-  grocery: "Invoice mein Batch No, Expiry Date fields aayenge",
-  hardware: "Invoice mein Brand, Model No fields aayenge",
+  pharmacy: "Invoice will include: Drug License, Batch No, Expiry Date, MRP fields",
+  electronics: "Invoice will include: Serial No, Model No, Brand, Warranty fields",
+  fabric: "Invoice will include: Color, Design, Width, Composition fields",
+  restaurant: "Invoice will include: Table No, Cover Count, Waiter Name fields",
+  auto_parts: "Invoice will include: Vehicle Reg No, Vehicle Model, Part No fields",
+  jewellery: "Invoice will include: Hallmark No, Purity, Weight, Making Charges fields",
+  construction: "Invoice will include: Project Name, Work Order No, Site fields",
+  grocery: "Invoice will include: Batch No, Expiry Date fields",
+  hardware: "Invoice will include: Brand, Model No fields",
 };
 
 function OfflineDataFolderSection() {
@@ -59,11 +60,12 @@ function OfflineDataFolderSection() {
     setFolderName(null);
   };
 
+  const lang = getLang();
   if (!isFileSystemSupported()) {
     return (
       <div className="py-2 text-xs text-gray-400">
         <FolderOpen className="w-3.5 h-3.5 inline mr-1" />
-        Offline folder save sirf Chrome/Edge desktop par kaam karta hai. Mobile par drafts localStorage mein save hote hain.
+        {t("offlineDraftsChromeOnly", lang)}
       </div>
     );
   }
@@ -72,25 +74,25 @@ function OfflineDataFolderSection() {
     <div className="flex items-center justify-between py-2 border-t border-gray-50 mt-1">
       <div>
         <div className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-          <FolderOpen className="w-4 h-4 text-blue-500" /> Offline Data Folder
+          <FolderOpen className="w-4 h-4 text-blue-500" /> {t("offlineDataFolder", lang)}
         </div>
         <div className="text-xs text-gray-500 mt-0.5">
           {folderName
             ? <span className="text-blue-600 font-medium">📁 {folderName}</span>
-            : "Offline drafts is folder mein JSON file ke roop mein save honge"}
+            : t("offlineDraftsFolderDesc", lang)}
         </div>
       </div>
       <div className="flex gap-2">
         {folderName && (
           <button type="button" onClick={handleClear}
             className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
-            <FolderX className="w-3.5 h-3.5" /> Hatao
+            <FolderX className="w-3.5 h-3.5" /> {t("removeFolderBtn", lang)}
           </button>
         )}
         <button type="button" onClick={handlePick} disabled={picking}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium disabled:opacity-60 transition-colors">
           {picking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-          {folderName ? "Badlo" : "Folder Chuno"}
+          {folderName ? t("changeFolderBtn", lang) : t("chooseFolder", lang)}
         </button>
       </div>
     </div>
@@ -98,6 +100,7 @@ function OfflineDataFolderSection() {
 }
 
 export default function BusinessSettings() {
+  const lang = useLang();
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -136,28 +139,28 @@ export default function BusinessSettings() {
       setVoucherCode("");
       api.get<any>("/businesses/current").then(b => setForm(b)).catch(() => null);
     } catch (err: any) {
-      setRedeemResult({ success: false, message: err.message || "Voucher redeem nahi hua" });
+      setRedeemResult({ success: false, message: err.message || t("voucherRedeemError", lang) });
     } finally { setRedeemLoading(false); }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { alert("Logo 500KB se chhota hona chahiye"); return; }
+    if (file.size > 500 * 1024) { alert(t("logoTooLarge500kb", lang)); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setForm((f: any) => ({ ...f, logo: ev.target?.result as string }));
     reader.readAsDataURL(file);
   };
 
   const repairData = async () => {
-    if (!confirm("Yeh sab vouchers ke paidAmount aur status recalculate karega. Proceed?")) return;
+    if (!confirm(t("repairConfirm", lang))) return;
     setRepairLoading(true);
     setRepairResult(null);
     try {
       const r = await api.post<any>("/accounting/repair-voucher-balances", {});
-      setRepairResult(`✅ ${r.vouchersFixed} vouchers fix ho gaye`);
+      setRepairResult(`✅ ${r.vouchersFixed} ${t("vouchersFixed", lang)}`);
     } catch {
-      setRepairResult("❌ Repair failed — console check karo");
+      setRepairResult(`❌ ${t("repairFailed", lang)}`);
     } finally { setRepairLoading(false); }
   };
 
@@ -199,11 +202,11 @@ export default function BusinessSettings() {
         </div>
       </div>
 
-      {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">Settings save ho gayi!</div>}
+      {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">{t("settingsSaved", lang)}</div>}
 
       {/* Logo + Basic Info */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Firm Identity (Invoice par dikhega)</h3>
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">{t("firmIdentity", lang)}</h3>
 
         {/* Logo Upload */}
         <div className="flex items-start gap-6">
@@ -227,7 +230,7 @@ export default function BusinessSettings() {
             </div>
             <button type="button" onClick={() => logoInputRef.current?.click()}
               className="mt-2 w-24 text-center text-xs text-blue-600 hover:text-blue-700 font-medium">
-              {form.logo ? "Logo Badlo" : "Logo Upload"}
+              {form.logo ? t("changeLogo", lang) : t("uploadLogo", lang)}
             </button>
             <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
             <p className="text-xs text-gray-400 text-center mt-0.5">PNG/JPG, max 500KB</p>
@@ -261,7 +264,7 @@ export default function BusinessSettings() {
           </select>
           {form.businessType && TYPE_INFO[form.businessType] && (
             <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              ✓ {TYPE_INFO[form.businessType]}
+              ✓ {t(`businessTypeInfo_${form.businessType}` as any, lang) || TYPE_INFO[form.businessType]}
             </div>
           )}
         </div>
@@ -309,9 +312,9 @@ export default function BusinessSettings() {
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">Invoice Footer</h3>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Authorized Signatory Name</label>
-            <input className={inputCls} value={form.signatoryName || ""} onChange={e => setForm((f: any) => ({ ...f, signatoryName: e.target.value }))} placeholder="Proprietor ka naam" /></div>
+            <input className={inputCls} value={form.signatoryName || ""} onChange={e => setForm((f: any) => ({ ...f, signatoryName: e.target.value }))} placeholder="Proprietor name" /></div>
         </div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Footer / Terms (sab invoices par)</label>
+        <div><label className="block text-sm font-medium text-gray-700 mb-1">Invoice Footer / Terms (shown on all invoices)</label>
           <textarea className={inputCls} rows={3} value={form.invoiceFooter || ""} onChange={e => setForm((f: any) => ({ ...f, invoiceFooter: e.target.value }))}
             placeholder="e.g. Goods once sold will not be taken back. Subject to Mumbai jurisdiction." /></div>
       </div>
@@ -360,11 +363,11 @@ export default function BusinessSettings() {
         {/* Print Number Display Settings */}
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
           <div className="text-sm font-semibold text-gray-700">Print / GST Number Format</div>
-          <p className="text-xs text-gray-500">Printed invoice aur GST report mein number kaisa dikhega</p>
+          <p className="text-xs text-gray-500">How the number appears on printed invoices and GST reports</p>
           {[
-            { key: "printShowPrefix", label: "Prefix dikhao (SI, CN, PB, DN)", sub: "Print mein SI/CN/PB/DN ka naam" },
-            { key: "printShowSeries", label: "Series number dikhao (1, 2, 3...)", sub: "Sirf tab kaam karta hai jab series > 1 ho" },
-            { key: "printShowZeros", label: "Shuru ke zeros dikhao (0001 → 1)", sub: "OFF karne par 00005 ki jagah sirf 5 dikhega" },
+            { key: "printShowPrefix", label: "Show Prefix (SI, CN, PB, DN)", sub: "SI/CN/PB/DN label on print" },
+            { key: "printShowSeries", label: "Show Series Number (1, 2, 3...)", sub: "Only applies when series > 1" },
+            { key: "printShowZeros", label: "Show leading zeros (0001 → 1)", sub: "When OFF, 00005 shows as 5" },
           ].map(({ key, label, sub }) => (
             <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
               <div>
@@ -386,7 +389,7 @@ export default function BusinessSettings() {
           {/* Series Number — highlighted prominently */}
           <div className="col-span-2 bg-amber-50 border border-amber-300 rounded-xl p-4">
             <label className="block text-sm font-bold text-amber-800 mb-1">
-              Series Number <span className="font-normal text-amber-600">(Print mein pehla digit)</span>
+              Series Number <span className="font-normal text-amber-600">(first digit on print)</span>
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -396,34 +399,34 @@ export default function BusinessSettings() {
                 onChange={e => setForm((f: any) => ({ ...f, numberSeries: Number(e.target.value) }))}
               />
               <div className="text-sm text-amber-700">
-                <p className="font-medium">Abhi series: <span className="font-mono text-xl">{form.numberSeries ?? 1}</span></p>
-                <p className="text-xs text-amber-600 mt-0.5">Naya financial year ya book change par badlein — 1 se 9 tak</p>
+                <p className="font-medium">Current series: <span className="font-mono text-xl">{form.numberSeries ?? 1}</span></p>
+                <p className="text-xs text-amber-600 mt-0.5">Change at new financial year or book change — 1 to 9</p>
               </div>
             </div>
             <div className="mt-2 px-3 py-2 bg-amber-100 rounded-lg text-xs text-amber-700">
-              ⚠️ Series badalne par naye documents ka number change ho jayega. Purane documents waise hi rahenge.
+              ⚠️ Changing the series will affect numbering of new documents. Existing documents will remain unchanged.
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Prefix</label>
             <input className={inputCls} value={form.invoicePrefix || "SI"} onChange={e => setForm((f: any) => ({ ...f, invoicePrefix: e.target.value.toUpperCase() }))} placeholder="SI" maxLength={10} />
-            <p className="text-xs text-gray-400 mt-1">Sales Invoice ke liye</p>
+            <p className="text-xs text-gray-400 mt-1">For Sales Invoice</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Credit Note Prefix</label>
             <input className={inputCls} value={form.creditNotePrefix || "CN"} onChange={e => setForm((f: any) => ({ ...f, creditNotePrefix: e.target.value.toUpperCase() }))} placeholder="CN" maxLength={10} />
-            <p className="text-xs text-gray-400 mt-1">Sales Return ke liye</p>
+            <p className="text-xs text-gray-400 mt-1">For Sales Return (Credit Note)</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Bill Prefix</label>
             <input className={inputCls} value={form.billPrefix || "PB"} onChange={e => setForm((f: any) => ({ ...f, billPrefix: e.target.value.toUpperCase() }))} placeholder="PB" maxLength={10} />
-            <p className="text-xs text-gray-400 mt-1">Purchase Bill ke liye</p>
+            <p className="text-xs text-gray-400 mt-1">For Purchase Bill</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Debit Note Prefix</label>
             <input className={inputCls} value={form.debitNotePrefix || "DN"} onChange={e => setForm((f: any) => ({ ...f, debitNotePrefix: e.target.value.toUpperCase() }))} placeholder="DN" maxLength={10} />
-            <p className="text-xs text-gray-400 mt-1">Purchase Return ke liye</p>
+            <p className="text-xs text-gray-400 mt-1">For Purchase Return (Debit Note)</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Separator</label>
@@ -432,7 +435,7 @@ export default function BusinessSettings() {
               <option value="/">Slash  (SI/1/0001)</option>
               <option value=".">Dot  (SI.1.0001)</option>
             </select>
-            <p className="text-xs text-gray-400 mt-1">Prefix, series aur number ke beech</p>
+            <p className="text-xs text-gray-400 mt-1">Between prefix, series and number</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Number Digits (zero padding)</label>
@@ -442,13 +445,13 @@ export default function BusinessSettings() {
               <option value="5">5 digits — 00001, 00002 ... 99999</option>
               <option value="6">6 digits — 000001, 000002 ...</option>
             </select>
-            <p className="text-xs text-gray-400 mt-1">Serial number mein kitne zero</p>
+            <p className="text-xs text-gray-400 mt-1">Number of digits in serial number</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number Mode</label>
             <select className={inputCls} value={form.serialNumberMode || "auto"} onChange={e => setForm((f: any) => ({ ...f, serialNumberMode: e.target.value }))}>
-              <option value="auto">Auto (system generate karta hai)</option>
-              <option value="manual">Manual (khud likho)</option>
+              <option value="auto">Auto (system generates)</option>
+              <option value="manual">Manual (user enters freely)</option>
             </select>
           </div>
           <div>
@@ -460,35 +463,35 @@ export default function BusinessSettings() {
         {/* Doc Start Numbers */}
         <div className="border-t border-gray-100 pt-4">
           <div className="text-sm font-semibold text-gray-700 mb-1">Document Start Numbers</div>
-          <p className="text-xs text-gray-400 mb-3">Naye financial year ya fresh start par yahan se numbering shuru hogi. Default 1 hai.</p>
+          <p className="text-xs text-gray-400 mb-3">Numbering starts from this point for a new financial year or fresh start. Default is 1.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Sales Invoice shuru hoga</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sales Invoice starts at</label>
               <input type="number" min="1" className={inputCls} value={form.siStartNumber ?? 1}
                 onChange={e => setForm((f: any) => ({ ...f, siStartNumber: Number(e.target.value) }))} />
               <p className="text-xs text-gray-400 mt-0.5">SI-1-<span className="font-mono font-bold">{String(form.siStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Credit Note shuru hoga</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Credit Note starts at</label>
               <input type="number" min="1" className={inputCls} value={form.cnStartNumber ?? 1}
                 onChange={e => setForm((f: any) => ({ ...f, cnStartNumber: Number(e.target.value) }))} />
               <p className="text-xs text-gray-400 mt-0.5">CN-1-<span className="font-mono font-bold">{String(form.cnStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Bill shuru hoga</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Bill starts at</label>
               <input type="number" min="1" className={inputCls} value={form.pbStartNumber ?? 1}
                 onChange={e => setForm((f: any) => ({ ...f, pbStartNumber: Number(e.target.value) }))} />
               <p className="text-xs text-gray-400 mt-0.5">PB-1-<span className="font-mono font-bold">{String(form.pbStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Debit Note shuru hoga</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Debit Note starts at</label>
               <input type="number" min="1" className={inputCls} value={form.dnStartNumber ?? 1}
                 onChange={e => setForm((f: any) => ({ ...f, dnStartNumber: Number(e.target.value) }))} />
               <p className="text-xs text-gray-400 mt-0.5">DN-1-<span className="font-mono font-bold">{String(form.dnStartNumber ?? 1).padStart(Number(form.numberDigits ?? 4), "0")}</span> se</p>
             </div>
           </div>
           <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700">
-            ⚠️ Start number change karne ke baad jo bhi naye documents banenge unka number wahan se start hoga. Purane documents ka number nahi badlega.
+            ⚠️ After changing the start number, all new documents will be numbered from that point. Existing document numbers will not change.
           </div>
         </div>
       </div>
@@ -524,7 +527,7 @@ export default function BusinessSettings() {
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
             <div className="text-sm font-medium text-gray-700">Voucher Status Repair</div>
-            <div className="text-xs text-gray-500 mt-0.5">Galat paid/partial/unpaid status fix karo</div>
+            <div className="text-xs text-gray-500 mt-0.5">Fix incorrect paid/partial/unpaid status</div>
             {repairResult && <div className={`text-xs mt-1 font-medium ${repairResult.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>{repairResult}</div>}
           </div>
           <button type="button" onClick={repairData} disabled={repairLoading}
@@ -569,7 +572,7 @@ export default function BusinessSettings() {
               Activate
             </button>
           </div>
-          <p className="text-xs text-indigo-500 mt-1">Vendor se mila hua license code yahan daalo</p>
+          <p className="text-xs text-indigo-500 mt-1">Enter the license code provided by your vendor</p>
         </div>
         {redeemResult && (
           <div className={`flex items-start gap-2 text-sm px-3 py-2.5 rounded-lg border ${redeemResult.success ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>

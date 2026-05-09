@@ -25,10 +25,10 @@ export default function CashBankDashboard() {
       ) : balances.length === 0 ? (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
           <Banknote className="w-10 h-10 mx-auto mb-3 text-amber-500 opacity-60" />
-          <div className="font-semibold text-amber-800">Pehle Cash/Bank accounts banao</div>
+          <div className="font-semibold text-amber-800">Please add Cash/Bank accounts first</div>
           <Link href="/cash-bank/accounts">
             <a className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700">
-              Accounts Setup Karo <ArrowRight className="w-4 h-4" />
+              Setup Accounts <ArrowRight className="w-4 h-4" />
             </a>
           </Link>
         </div>

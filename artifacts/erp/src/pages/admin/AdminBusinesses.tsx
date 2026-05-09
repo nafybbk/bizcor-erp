@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle } from "lucide-react";
+import { useLang, t } from "@/lib/lang";
 
 const ALL_PERMS = [
   { key: "sales", label: "Sales" },
@@ -14,6 +15,7 @@ const ALL_PERMS = [
 ];
 
 export default function AdminBusinesses() {
+  const lang = useLang();
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -141,7 +143,7 @@ export default function AdminBusinesses() {
       const result = await api.post<any>(`/super-admin/businesses/${cleanupBiz.id}/clear-transactions`, {});
       setCleanupResult(result);
     } catch (e: any) {
-      setCleanupError(e?.message || "Error hua");
+      setCleanupError(e?.message || "An error occurred");
     } finally { setCleanupLoading(false); }
   };
 
@@ -154,7 +156,7 @@ export default function AdminBusinesses() {
       const result = await api.post<any>(`/super-admin/businesses/${cleanupBiz.id}/clear-party-transactions`, { partyId: selectedParty.id });
       setCleanupResult(result);
     } catch (e: any) {
-      setCleanupError(e?.message || "Error hua");
+      setCleanupError(e?.message || "An error occurred");
     } finally { setCleanupLoading(false); }
   };
 
@@ -315,7 +317,7 @@ export default function AdminBusinesses() {
                         <button onClick={() => openUsers(b)} className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg" title="Manage Users"><Users className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit Business"><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openTopup(b)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Top-up Free Days"><Gift className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => openCleanup(b)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Data Cleanup — Vouchers/Payments delete karo"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openCleanup(b)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Data Cleanup — Delete Vouchers/Payments"><Trash2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => downloadBackup(b.id, b.businessCode)} className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg" title="Download backup"><Download className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
@@ -350,8 +352,8 @@ export default function AdminBusinesses() {
                 <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-7 h-7 text-green-500" />
                 </div>
-                <p className="font-semibold text-gray-800">{topupDays} din successfully add ho gaye!</p>
-                <p className="text-sm text-gray-500">{topupBiz.name} ka plan extend ho gaya hai.</p>
+                <p className="font-semibold text-gray-800">{topupDays} {t("daysAddedSuccess", lang)}</p>
+                <p className="text-sm text-gray-500">{topupBiz.name} plan extended.</p>
                 <button onClick={() => setTopupBiz(null)} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm">Done</button>
               </div>
             ) : (
@@ -362,17 +364,17 @@ export default function AdminBusinesses() {
                     Current expiry: {topupBiz.planExpiresAt ? fmt.date(topupBiz.planExpiresAt) : "Not set"} · Status: {topupBiz.status}
                   </div>
                   {topupBiz.bonusDaysAdded > 0 && (
-                    <div className="text-green-600 text-xs mt-0.5">Pehle se {topupBiz.bonusDaysAdded} bonus days mila hai</div>
+                    <div className="text-green-600 text-xs mt-0.5">{t("bonusDaysAlready", lang)}: {topupBiz.bonusDaysAdded}</div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Kitne din add karne hain?</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t("howManyDaysToAdd", lang)}</label>
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     {[7, 15, 30, 90].map(d => (
                       <button key={d} onClick={() => setTopupDays(String(d))}
                         className={`py-2 rounded-lg text-sm font-medium border transition-colors ${topupDays === String(d) ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-600 hover:border-green-400"}`}>
-                        {d} din
+                        {d} {t("days", lang)}
                       </button>
                     ))}
                   </div>
@@ -396,7 +398,7 @@ export default function AdminBusinesses() {
                   <button onClick={doTopup} disabled={topupSaving || !topupDays || Number(topupDays) <= 0}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
                     {topupSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Add {topupDays} Din Free
+                    Add {topupDays} {t("days", lang)} Free
                   </button>
                 </div>
               </div>
@@ -466,7 +468,7 @@ export default function AdminBusinesses() {
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 text-sm text-red-700">
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                 <div>
-                  <span className="font-semibold">{cleanupBiz.name}</span> — sirf vouchers aur payments delete honge. Customers, suppliers, items, units, tax rates safe rahenge.
+                  <span className="font-semibold">{cleanupBiz.name}</span> — {t("cleanupOnlyVouchersPayments", lang)}
                 </div>
               </div>
             </div>
@@ -476,11 +478,11 @@ export default function AdminBusinesses() {
               <div className="flex border border-gray-200 rounded-xl overflow-hidden text-sm font-medium">
                 <button onClick={() => { setCleanupTab("all"); setCleanupResult(null); setCleanupError(""); setCleanupConfirmText(""); }}
                   className={`flex-1 py-2.5 transition-colors ${cleanupTab === "all" ? "bg-red-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                  Puri Business Clean
+                  {t("cleanupFullBusiness", lang)}
                 </button>
                 <button onClick={() => { setCleanupTab("party"); setCleanupResult(null); setCleanupError(""); setSelectedParty(null); setPartySearch(""); }}
                   className={`flex-1 py-2.5 transition-colors ${cleanupTab === "party" ? "bg-orange-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                  Ek Party Clean
+                  {t("cleanupOneParty", lang)}
                 </button>
               </div>
             </div>
@@ -491,7 +493,7 @@ export default function AdminBusinesses() {
                   <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                     <CheckCircle2 className="w-7 h-7 text-green-500" />
                   </div>
-                  <p className="font-semibold text-gray-800">Cleanup ho gaya!</p>
+                  <p className="font-semibold text-gray-800">{t("cleanupDone", lang)}</p>
                   <div className="bg-gray-50 rounded-xl p-4 text-sm text-left space-y-1.5 text-gray-700">
                     {cleanupResult.partyName && <div className="text-orange-600 font-medium mb-2">Party: {cleanupResult.partyName}</div>}
                     <div className="flex justify-between"><span>Vouchers deleted:</span><span className="font-mono font-bold text-red-600">{cleanupResult.deleted?.vouchers ?? 0}</span></div>
@@ -504,15 +506,15 @@ export default function AdminBusinesses() {
               ) : cleanupTab === "all" ? (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600">
-                    <p className="font-medium text-gray-800 mb-1">Ye delete hoga:</p>
+                    <p className="font-medium text-gray-800 mb-1">{t("cleanupWillDelete", lang)}</p>
                     <ul className="list-disc list-inside space-y-1 text-gray-500 text-xs ml-1">
-                      <li>Saare Sales Invoice, Credit Note, Purchase Bill, Debit Note</li>
-                      <li>Saare Payments aur Receipts</li>
-                      <li>Saari Payment Allocations</li>
+                      <li>All Sales Invoices, Credit Notes, Purchase Bills, Debit Notes</li>
+                      <li>All Payments &amp; Receipts</li>
+                      <li>All Payment Allocations</li>
                     </ul>
                   </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-                    Confirm karne ke liye neeche <span className="font-bold font-mono">DELETE</span> type karein
+                    {t("typeDeleteToConfirm", lang)}
                   </div>
                   <input
                     type="text"
@@ -530,21 +532,21 @@ export default function AdminBusinesses() {
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-medium disabled:opacity-50"
                     >
                       {cleanupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      Sab Clean Karo
+                      {t("cleanAllData", lang)}
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-600">
-                    Neeche se party select karo — sirf usi party ke vouchers aur payments delete honge.
+                    {t("selectPartyToClean", lang)}
                   </div>
                   <div className="relative">
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       value={partySearch}
                       onChange={e => { setPartySearch(e.target.value); setSelectedParty(null); }}
-                      placeholder="Party ka naam search karo..."
+                      placeholder={t("searchPartyPlaceholder", lang)}
                       className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                     />
                   </div>
@@ -553,7 +555,7 @@ export default function AdminBusinesses() {
                   ) : (
                     <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                       {partiesList.filter(p => !partySearch || p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 ? (
-                        <div className="text-center text-gray-400 text-sm py-8">Koi party nahi mila</div>
+                        <div className="text-center text-gray-400 text-sm py-8">{t("noPartyFound", lang)}</div>
                       ) : partiesList.filter(p => !partySearch || p.name.toLowerCase().includes(partySearch.toLowerCase())).map(p => (
                         <button key={p.id} onClick={() => setSelectedParty(p)}
                           className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-0 flex items-center justify-between transition-colors ${selectedParty?.id === p.id ? "bg-orange-50 text-orange-700" : "hover:bg-gray-50 text-gray-700"}`}>
@@ -578,7 +580,7 @@ export default function AdminBusinesses() {
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium disabled:opacity-50"
                     >
                       {cleanupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      {selectedParty ? `${selectedParty.name} ke transactions delete karo` : "Party select karo pehle"}
+                      {selectedParty ? `${t("deletePartyTransactions", lang)} ${selectedParty.name}` : t("selectPartyFirst", lang)}
                     </button>
                   </div>
                 </div>
@@ -611,7 +613,7 @@ export default function AdminBusinesses() {
               {usersLoading ? (
                 <div className="flex items-center justify-center h-40"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
               ) : usersData?.users.length === 0 ? (
-                <div className="flex items-center justify-center h-40 text-gray-400 text-sm">Koi user nahi hai is business mein</div>
+                <div className="flex items-center justify-center h-40 text-gray-400 text-sm">{t("noUsersInBusiness", lang)}</div>
               ) : usersData?.users.map(user => (
                 <div key={user.id} className={`border rounded-xl p-4 transition-all ${editingUser?.id === user.id ? "border-purple-300 bg-purple-50" : "border-gray-200 bg-white"}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -655,10 +657,10 @@ export default function AdminBusinesses() {
                   {editingUser?.id === user.id && (
                     <div className="mt-3 pt-3 border-t border-purple-200">
                       <p className="text-xs font-medium text-gray-700 mb-2">
-                        Rights assign karein
+                        {t("assignRights", lang)}
                         {usersData.planFeatures.length > 0
-                          ? <span className="text-gray-400 font-normal"> (plan ke hisaab se available modules)</span>
-                          : <span className="text-gray-400 font-normal"> (saare modules)</span>
+                          ? <span className="text-gray-400 font-normal"> {t("perPlanModules", lang)}</span>
+                          : <span className="text-gray-400 font-normal"> {t("allModules", lang)}</span>
                         }
                       </p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

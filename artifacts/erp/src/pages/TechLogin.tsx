@@ -2,10 +2,12 @@ import { useState } from "react";
 import { api, setAdminToken } from "@/lib/api";
 import { Eye, EyeOff, Loader2, Headphones, ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
+import { useLang, t } from "@/lib/lang";
 
 type View = "login" | "forgot";
 
 export default function TechLogin() {
+  const lang = useLang();
   const [view, setView] = useState<View>("login");
   const [form, setForm] = useState({ phone: "", password: "" });
   const [showPass, setShowPass] = useState(false);
@@ -33,7 +35,7 @@ export default function TechLogin() {
         window.location.href = "/";
       }
     } catch (err: any) {
-      setError(err.message || "Phone ya password galat hai");
+      setError(err.message || t("techLoginError", lang));
     } finally { setLoading(false); }
   };
 
@@ -45,10 +47,10 @@ export default function TechLogin() {
         phone: fPhone.trim(),
         newPassword: fNew,
       });
-      setFSuccess(res.message || "Password reset ho gaya!");
+      setFSuccess(res.message || t("passwordResetSuccess", lang));
       setFPhone(""); setFNew("");
     } catch (err: any) {
-      setFError(err.message || "Kuch problem ho gaya — dobara try karo");
+      setFError(err.message || t("techForgotError", lang));
     } finally { setFLoading(false); }
   };
 
@@ -70,7 +72,7 @@ export default function TechLogin() {
             <>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Tech Login</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Sirf authorized staff ke liye</p>
+                <p className="text-xs text-gray-500 mt-0.5">{t("techStaffOnly", lang)}</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -81,7 +83,7 @@ export default function TechLogin() {
                   <input
                     type="text"
                     className={inputCls}
-                    placeholder="Mobile ya email"
+                    placeholder={t("mobileOrEmail", lang)}
                     value={form.phone}
                     onChange={e => {
                       const v = e.target.value;
@@ -92,7 +94,7 @@ export default function TechLogin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t("password", lang)}</label>
                   <div className="relative">
                     <input
                       type={showPass ? "text" : "password"}
@@ -118,7 +120,7 @@ export default function TechLogin() {
                     onClick={() => { setView("forgot"); setError(""); }}
                     className="text-xs text-yellow-600 hover:underline"
                   >
-                    Password bhool gaye?
+                    {t("forgotPassword", lang)}
                   </button>
                 </div>
 
@@ -135,13 +137,13 @@ export default function TechLogin() {
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   <Headphones className="w-4 h-4" />
-                  Login Karo
+                  {loading ? t("loginInProgress", lang) : t("loginBtn", lang)}
                 </button>
               </form>
 
               <div className="pt-2 text-center">
                 <a href="/login" className="text-xs text-gray-400 hover:text-blue-500 transition-colors">
-                  ← Business Login pe jaao
+                  {t("goToBusinessLogin", lang)}
                 </a>
               </div>
             </>
@@ -156,7 +158,7 @@ export default function TechLogin() {
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <KeyRound className="w-5 h-5 text-yellow-500" /> Password Reset
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Tech staff ka password reset karo</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{t("resetTechPassword", lang)}</p>
                 </div>
               </div>
 
@@ -167,7 +169,7 @@ export default function TechLogin() {
                   </div>
                   <button onClick={() => { setView("login"); setFSuccess(""); }}
                     className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors">
-                    Login Page pe jaao
+                    {t("goToLoginPage", lang)}
                   </button>
                 </div>
               ) : (
@@ -177,7 +179,7 @@ export default function TechLogin() {
                     <input
                       type="text"
                       className={inputCls}
-                      placeholder="Registered mobile ya email"
+                      placeholder={t("mobileOrEmail", lang)}
                       value={fPhone}
                       onChange={e => {
                         const v = e.target.value;
@@ -185,16 +187,16 @@ export default function TechLogin() {
                       }}
                       required
                     />
-                    <p className="text-xs text-gray-400 mt-1">Jo mobile/email account se linked hai woh daalo</p>
+                    <p className="text-xs text-gray-400 mt-1">{t("registeredMobileHint", lang)}</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Naya Password</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t("newPassword", lang)}</label>
                     <div className="relative">
                       <input
                         type={fShow ? "text" : "password"}
                         className={`${inputCls} pr-10`}
-                        placeholder="Naya password choose karo"
+                        placeholder={t("chooseNewPassword", lang)}
                         value={fNew}
                         onChange={e => setFNew(e.target.value)}
                         minLength={4}
@@ -216,7 +218,7 @@ export default function TechLogin() {
                   <button type="submit" disabled={fLoading}
                     className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
                     {fLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Password Reset Karo
+                    {t("resetPasswordBtn", lang)}
                   </button>
                 </form>
               )}

@@ -102,7 +102,7 @@ function ItemCombobox({
           data-row={rowIdx}
           data-field="itemname"
           className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500 pr-12"
-          placeholder="Item naam likho ya search karo..."
+          placeholder="Type item name or search..."
           value={query}
           autoComplete="off"
           onFocus={() => { setOpen(true); setHilite(0); }}
@@ -126,7 +126,7 @@ function ItemCombobox({
         <div ref={listRef} className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl overflow-y-auto" style={{ maxHeight: "18rem" }}>
           {filtered.length === 0 && q && (
             <div className="px-3 py-2 text-xs text-gray-500 bg-amber-50">
-              "<strong className="text-gray-800">{query}</strong>" — save karne par master mein add ho jayega
+              "<strong className="text-gray-800">{query}</strong>" — will be added to master on save
             </div>
           )}
           {filtered.map((i, fi) => (
@@ -144,7 +144,7 @@ function ItemCombobox({
           ))}
           {isNew && q && filtered.length > 0 && (
             <div className="px-3 py-1.5 text-[10px] text-amber-700 bg-amber-50 border-t border-amber-100">
-              ✦ "{query}" — nayi item, save par master mein automatically add hogi
+              ✦ "{query}" — new item, will be automatically added to master on save
             </div>
           )}
         </div>
@@ -776,7 +776,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setActiveBinDocId(doc.id);
       setBinDocs(prev => prev.filter(d => d.id !== doc.id));
     } catch {
-      setError("Bin doc load nahi hua — dobara try karein");
+      setError("Could not load bin doc — please try again");
     } finally {
       setLoading(false);
     }
@@ -823,7 +823,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           } catch (itemErr: any) {
             // Non-fatal: voucher still saves; log so user can debug
             const errMsg = itemErr?.message || "Unknown error";
-            itemSaveErrors.push(`"${it.itemName}" master mein save nahi hua: ${errMsg}`);
+            itemSaveErrors.push(`"${it.itemName}" could not be saved to master: ${errMsg}`);
             console.warn("[Item auto-save failed]", it.itemName, itemErr);
           }
         }
@@ -875,7 +875,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         setShowPrintPrompt(true);
         // Show item master save warnings (non-blocking) if any items failed to auto-save
         if (itemSaveErrors.length > 0) {
-          setError(`Voucher save hua, lekin kuch items master mein add nahi hue:\n${itemSaveErrors.join("\n")}`);
+          setError(`Voucher saved, but some items could not be added to master:\n${itemSaveErrors.join("\n")}`);
         }
       } else {
         navigate(listHref);
@@ -885,7 +885,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       if (err instanceof ApiError && err.status === 409) {
         const suggested = err.data?.suggestedNumber || "";
         setDupWarning({ suggested });
-        setError(err.message || "Voucher number duplicate hai");
+        setError(err.message || "Voucher number already exists");
         return;
       }
       // Network/offline error → save to offline queue
@@ -938,7 +938,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     };
     if (serialMode === "manual") {
       if (!form.voucherNumber.trim()) {
-        setError("Manual mode mein voucher number daalna zaroori hai");
+        setError("Voucher number is required in manual mode");
         return;
       }
       payload.voucherNumber = form.voucherNumber.trim();
@@ -1001,7 +1001,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         setShowQuickAdd(false);
         setQuickAddForm({ name: "", phone: "", gstin: "", address: "", state: "", stateCode: "" });
       } else {
-        setError("Party create nahi ho saka: " + err.message);
+        setError("Could not create party: " + err.message);
       }
     } finally {
       setQuickAddSaving(false);
@@ -1026,15 +1026,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900">Save Ho Gayi!</h3>
+            <h3 className="text-lg font-bold text-gray-900">Saved!</h3>
             {savedInfo.number && <p className="text-sm text-gray-500 mt-1 font-mono">{savedInfo.number}</p>}
-            <p className="text-gray-500 text-sm mt-3 mb-5">Print ya PDF banana chahte hain?</p>
+            <p className="text-gray-500 text-sm mt-3 mb-5">Would you like to print or download as PDF?</p>
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowPrintPrompt(false); navigate(listHref); }}
                 className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100"
               >
-                Baad Mein
+                Later
               </button>
               <button
                 onClick={() => { setShowPrintPrompt(false); navigate(`/${voucherType}/${savedInfo.id}?print=1`); }}
@@ -1106,10 +1106,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <div className="flex items-center justify-between mb-5">
                 <div>
                   <h3 className="font-bold text-gray-900 text-lg">
-                    Naya {isSales ? "Customer" : "Supplier"} Banao
+                    New {isSales ? "Customer" : "Supplier"}
                   </h3>
                   <p className="text-sm text-gray-400 mt-0.5">
-                    Ye {isSales ? "Customer" : "Supplier"} list mein permanent save ho jayega
+                    This will be permanently saved to {isSales ? "Customer" : "Supplier"} list
                   </p>
                 </div>
                 <button onClick={() => setShowQuickAdd(false)} className="text-gray-400 hover:text-gray-600">
@@ -1150,7 +1150,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State (GST ke liye)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State (for GST)</label>
                   <select
                     className={inputCls}
                     value={quickAddForm.state}
@@ -1175,7 +1175,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 </div>
 
                 <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
-                  ✓ Baad mein Masters → {isSales ? "Customers" : "Suppliers"} se poori details edit kar sakte hain
+                  ✓ Full details can be edited later from Masters → {isSales ? "Customers" : "Suppliers"}
                 </div>
               </div>
 
@@ -1228,7 +1228,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         {offlineSaved && (
           <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-lg flex items-center gap-2">
             <CloudOff className="w-4 h-4 flex-shrink-0" />
-            <span>Offline hai — draft save ho gaya. Internet aane par "Offline Drafts" se submit karo.</span>
+            <span>Offline — draft saved. Submit from "Offline Drafts" when you're back online.</span>
           </div>
         )}
 
@@ -1263,7 +1263,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             )}
             {dupWarning && (
               <div className="mt-2 bg-yellow-50 border border-yellow-300 rounded-lg p-2 text-xs text-yellow-800">
-                ⚠️ Yeh number pehle se exist karta hai!
+                ⚠️ This number already exists!
                 <button type="button" className="ml-2 text-blue-600 underline font-medium"
                   onClick={() => { setForm(f => ({ ...f, voucherNumber: dupWarning.suggested })); setDupWarning(null); }}>
                   Use suggested: {dupWarning.suggested}
@@ -1282,7 +1282,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             {activeBinDocId && (
               <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-300 rounded-lg text-xs text-green-800">
                 <Archive className="w-3 h-3" />
-                Bin doc restore ho raha hai — save karte hi main list mein aa jaayega
+                Bin doc restoring — it will appear in the main list once saved
               </div>
             )}
           </div>
@@ -1301,10 +1301,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               showDetails={true}
               placeholder={`Search ${isSales ? "customer" : "supplier"}...`}
               onAddNew={name => {
-                if (!navigator.onLine) { setError("Offline hai — pehle internet se connect ho, phir naya party banao. Existing party select karo ya draft save karo."); return; }
+                if (!navigator.onLine) { setError("Offline — please connect to the internet before creating a new party. Select an existing party or save a draft."); return; }
                 setQuickAddForm(f => ({ ...f, name })); setShowQuickAdd(true);
               }}
-              addNewLabel={`ko naya ${isSales ? "Customer" : "Supplier"} banao`}
+              addNewLabel={`Add as new ${isSales ? "Customer" : "Supplier"}`}
             />
             {/* Credit limit indicator */}
             {creditInfo && creditInfo.creditLimit > 0 && (
@@ -1361,9 +1361,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 )}
                 <textarea className={inputCls} rows={2} value={form.shippingAddress}
                   onChange={e => setForm(f => ({ ...f, shippingAddress: e.target.value }))}
-                  placeholder="Shipping address likhein — save hone par is customer ke liye save ho jayega..." />
+                  placeholder="Shipping address — will be saved for this customer..." />
                 {form.shippingAddress.trim() && !savedShipAddrs.includes(form.shippingAddress.trim()) && (
-                  <p className="text-xs text-green-600 mt-1">✓ Yeh naya address save hone par is customer ke saath save ho jayega</p>
+                  <p className="text-xs text-green-600 mt-1">✓ This new address will be saved with the customer on save</p>
                 )}
               </div>
             )}
@@ -1378,18 +1378,18 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               <h3 className="font-semibold text-amber-800 text-sm">
                 {voucherType === "sales/credit-notes" ? "Original Sales Invoice (Reference)" : "Original Purchase Bill (Reference)"}
               </h3>
-              <span className="text-xs text-amber-600 ml-auto">(Optional lekin recommended)</span>
+              <span className="text-xs text-amber-600 ml-auto">(Optional but recommended)</span>
             </div>
 
             {!form.partyId ? (
-              <p className="text-xs text-gray-400 italic">Pehle party select karein — phir original invoice dhundh sakte hain</p>
+              <p className="text-xs text-gray-400 italic">Select a party first — then you can search for the original invoice</p>
             ) : (
               <div className="space-y-3">
                 <div className="relative">
                   <input
                     type="text"
                     className="border border-amber-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-amber-400 pr-10"
-                    placeholder={`Invoice number type karein ya list mein se chunein...`}
+                    placeholder={`Type invoice number or select from list...`}
                     value={linkedSearch}
                     onChange={e => { setLinkedSearch(e.target.value); setShowLinkedDrop(true); }}
                     onFocus={() => setShowLinkedDrop(true)}
@@ -1428,7 +1428,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         </div>
                       ))}
                       {linkedVouchers.filter(v => !linkedSearch || v.voucherNumber?.toLowerCase().includes(linkedSearch.toLowerCase())).length === 0 && (
-                        <div className="px-3 py-4 text-sm text-gray-400 text-center">Koi invoice nahi mila is party ke liye</div>
+                        <div className="px-3 py-4 text-sm text-gray-400 text-center">No invoices found for this party</div>
                       )}
                     </div>
                   )}
@@ -1461,8 +1461,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 )}
 
                 <p className="text-xs text-gray-400">
-                  "Full Return" button dabaane se original invoice ke saare items automatically load ho jayenge.
-                  Partial return ke liye items manually adjust karein.
+                  Click "Full Return" to automatically load all items from the original invoice.
+                  For partial return, adjust items manually.
                 </p>
               </div>
             )}
@@ -1748,7 +1748,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           <div
             onMouseDown={onItemsResizeDown}
             className="h-3 cursor-row-resize select-none flex items-center justify-center border-t border-gray-100 hover:bg-blue-50 active:bg-blue-100 transition-colors group"
-            title="Drag karo items area bada karne ke liye"
+            title="Drag to resize items area"
           >
             <div className="w-12 h-1 rounded-full bg-gray-300 group-hover:bg-blue-400 transition-colors" />
           </div>
@@ -1789,7 +1789,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </div>
                     ))}
                   {savedTransportNames.filter(n => !form.transportName || n.toLowerCase().includes(form.transportName.toLowerCase())).length === 0 && (
-                    <div className="px-3 py-2 text-xs text-gray-400">Type karo — save hone par list mein aayega</div>
+                    <div className="px-3 py-2 text-xs text-gray-400">Type to add — will appear in list after save</div>
                   )}
                 </div>
               )}
@@ -1881,7 +1881,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="px-5 pt-3 text-xs text-gray-500">Yeh docs bin mein hain — select karo, edit karo, save karo. Auto-restore ho jaayega.</p>
+            <p className="px-5 pt-3 text-xs text-gray-500">These docs are in the bin — select, edit and save to restore them automatically.</p>
             <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
               {binDocs.map(doc => (
                 <button key={doc.id} type="button"
@@ -1916,16 +1916,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
               </div>
             </div>
             <p className="text-sm text-gray-700 mb-1">
-              Is doc ki original date: <span className="font-semibold text-gray-900">{binDateAlert.doc.date}</span>
+              Original date of this doc: <span className="font-semibold text-gray-900">{binDateAlert.doc.date}</span>
             </p>
             <p className="text-sm text-gray-700 mb-5">
-              Aaj ki date fill karein?
+              Fill today's date?
             </p>
             <div className="flex gap-3">
               <button type="button"
                 onClick={() => handleBinDateConfirm(true)}
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition-colors">
-                Haan, Aaj ki Date
+                Yes, Today's Date
               </button>
               <button type="button"
                 onClick={() => handleBinDateConfirm(false)}

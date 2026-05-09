@@ -29,7 +29,7 @@ export default function ExpenseList() {
   useEffect(() => { load(); }, [filters]);
 
   const del = async (id: number, num: string) => {
-    if (!confirm(`${num} delete karein?`)) return;
+    if (!confirm(`Delete ${num}?`)) return;
     await api.delete(`/cash-bank/expenses/${id}`);
     load();
   };
@@ -81,7 +81,7 @@ export default function ExpenseList() {
         ) : data.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <Receipt className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <div className="font-medium">Koi expense nahi</div>
+            <div className="font-medium">No expenses yet</div>
           </div>
         ) : (
           <>

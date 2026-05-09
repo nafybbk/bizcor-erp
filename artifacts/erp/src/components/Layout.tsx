@@ -83,20 +83,20 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
           <ShieldCheck className="w-8 h-8 text-red-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Plan Expire Ho Gaya</h2>
+          <h2 className="text-xl font-bold text-gray-900">Plan Expired</h2>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            Aapka subscription plan khatam ho gaya hai. Naya plan activate karne ke liye apne admin ya BizCor support se contact karein.
+            Your subscription plan has expired. Contact your admin or BizCor support to activate a new plan.
           </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
-          <div className="text-xs font-semibold text-amber-800">Kya band hai:</div>
-          <div className="text-xs text-amber-700">• Invoice, Bill, Credit Note banana</div>
-          <div className="text-xs text-amber-700">• Customer, Supplier, Item add karna</div>
-          <div className="text-xs text-amber-700">• Reports dekhna</div>
-          <div className="text-xs text-amber-700">• Data download/export karna</div>
+          <div className="text-xs font-semibold text-amber-800">What's restricted:</div>
+          <div className="text-xs text-amber-700">• Creating invoices, bills, credit notes</div>
+          <div className="text-xs text-amber-700">• Adding customers, suppliers, items</div>
+          <div className="text-xs text-amber-700">• Viewing reports</div>
+          <div className="text-xs text-amber-700">• Downloading / exporting data</div>
         </div>
         <div className="text-xs text-gray-400">
-          Naya license voucher milne ke baad Settings → License Activate karo, phir dobara login karo.
+          Once you receive a new license voucher, go to Settings → Activate License, then log in again.
         </div>
         <button
           onClick={onLogout}
@@ -579,7 +579,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button onClick={() => navigate("/offline-drafts")}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs rounded-lg hover:bg-orange-100 transition-colors">
               <CloudOff className="w-3.5 h-3.5" />
-              {draftCount} offline draft{draftCount > 1 ? "s" : ""} — Submit karo
+              {draftCount} offline draft{draftCount > 1 ? "s" : ""} — Submit
             </button>
           )}
 
@@ -631,8 +631,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {autoSyncResult && !autoSyncing && (
           <div className="bg-green-600 text-white text-sm px-4 py-2 flex items-center gap-2 shrink-0">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            {autoSyncResult.synced} drafts server par submit ho gaye!
-            {autoSyncResult.failed > 0 && <span className="text-yellow-200 ml-1">({autoSyncResult.failed} failed — manually check karo)</span>}
+            {autoSyncResult.synced} draft{autoSyncResult.synced !== 1 ? "s" : ""} submitted successfully!
+            {autoSyncResult.failed > 0 && <span className="text-yellow-200 ml-1">({autoSyncResult.failed} failed — please check manually)</span>}
           </div>
         )}
 

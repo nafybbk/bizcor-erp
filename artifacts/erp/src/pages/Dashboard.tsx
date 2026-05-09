@@ -49,7 +49,7 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
           <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
           <div className="flex-1">
             <span className="text-sm font-semibold text-red-700">Plan Expired — </span>
-            <span className="text-sm text-red-600">Apna plan renew karo, warna features band ho jayenge.</span>
+            <span className="text-sm text-red-600">Renew your plan to keep all features active.</span>
           </div>
           <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Renew Now</a>
         </div>
@@ -59,8 +59,8 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
       <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
         <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
         <div className="flex-1">
-          <span className="text-sm font-semibold text-amber-700">Plan {daysLeft} din mein expire hoga — </span>
-          <span className="text-sm text-amber-600">Abhi renew karo uninterrupted access ke liye.</span>
+          <span className="text-sm font-semibold text-amber-700">Plan expires in {daysLeft} days — </span>
+          <span className="text-sm text-amber-600">Renew now for uninterrupted access.</span>
         </div>
         <a href="/settings/subscription" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 whitespace-nowrap">Renew</a>
       </div>
@@ -73,10 +73,10 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
       <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
         <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
         <div className="flex-1">
-          <span className="text-sm font-semibold text-red-700">Free Trial Khatam! — </span>
-          <span className="text-sm text-red-600">Plan activate karo ya License Voucher redeem karo.</span>
+          <span className="text-sm font-semibold text-red-700">Free Trial Ended — </span>
+          <span className="text-sm text-red-600">Activate a plan or redeem a License Voucher.</span>
         </div>
-        <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Plan Lelo</a>
+        <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Get Plan</a>
       </div>
     );
   }
@@ -94,14 +94,14 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
         <Clock className={`w-5 h-5 ${textColor} flex-shrink-0`} />
         <div className="flex-1">
           <span className={`text-sm font-semibold ${textColor}`}>
-            Free Trial: {daysLeft} din bacha hai{isExpiringSoon ? " ⚡" : ""}
+            Free Trial: {daysLeft} {daysLeft === 1 ? "day" : "days"} left{isExpiringSoon ? " ⚡" : ""}
           </span>
           <span className={`text-sm ${subColor} ml-1`}>
-            — {isExpiringSoon ? "Jaldi plan lo!" : "Plan activate karo unlimited access ke liye."}
+            — {isExpiringSoon ? "Renew soon!" : "Activate a plan for unlimited access."}
           </span>
         </div>
         <a href="/settings/subscription" className={`text-xs px-3 py-1.5 rounded-lg whitespace-nowrap text-white ${isExpiringSoon ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
-          Plan Dekhein
+          View Plans
         </a>
       </div>
       <div className="w-full h-1.5 bg-white/60 rounded-full overflow-hidden">
@@ -124,14 +124,14 @@ function BinMonthEndAlert({ binCount }: { binCount: number }) {
       <Archive className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
       <div className="flex-1">
         <span className="text-sm font-semibold text-orange-800">
-          Month end mein {daysLeft} din bache hain —{" "}
+          {daysLeft} {daysLeft === 1 ? "day" : "days"} left this month —{" "}
         </span>
         <span className="text-sm text-orange-700">
-          Bin mein <strong>{binCount}</strong> {binCount === 1 ? "doc hai" : "docs hain"}. Invoice banate waqt "Bin se lo" se use ya Bin mein permanently delete karo.
+          <strong>{binCount}</strong> {binCount === 1 ? "doc" : "docs"} in Bin. Use "Load from Bin" when creating a voucher, or permanently delete from the Bin.
         </span>
       </div>
       <a href="/vouchers/bin" className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 whitespace-nowrap">
-        Bin Dekho
+        View Bin
       </a>
     </div>
   );
@@ -171,9 +171,9 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
         <AlertTriangle className="w-8 h-8 text-amber-500" />
-        <p className="text-sm font-medium text-gray-700">Dashboard load nahi ho saka</p>
-        <p className="text-xs text-gray-500">Internet connection check karein aur dobara try karein</p>
-        <button onClick={() => window.location.reload()} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Refresh Karo</button>
+        <p className="text-sm font-medium text-gray-700">Dashboard could not be loaded</p>
+        <p className="text-xs text-gray-500">Check your internet connection and try again</p>
+        <button onClick={() => window.location.reload()} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Refresh</button>
       </div>
     );
   }

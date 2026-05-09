@@ -190,7 +190,7 @@ export default function AdminPlans() {
 
               {/* Limits section */}
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Usage Limits <span className="font-normal normal-case text-orange-500">(khali chhodo = unlimited)</span></p>
+                <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Usage Limits <span className="font-normal normal-case text-orange-500">(leave blank = unlimited)</span></p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1"><FileText className="w-3 h-3 text-purple-400" /> Invoices/Month</label>

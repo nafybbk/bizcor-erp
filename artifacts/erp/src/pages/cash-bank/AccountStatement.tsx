@@ -78,7 +78,7 @@ export default function AccountStatement() {
               <div className="flex items-center gap-2 h-10"><Loader2 className="w-4 h-4 animate-spin text-blue-500" /></div>
             ) : (
               <select className={`${inp} w-full`} value={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)}>
-                {accounts.length === 0 ? <option value="">No accounts — pehle add karo</option> : accounts.map(a => (
+                {accounts.length === 0 ? <option value="">No accounts — please add one first</option> : accounts.map(a => (
                   <option key={a.id} value={a.id}>{a.name} ({a.type})</option>
                 ))}
               </select>
@@ -133,7 +133,7 @@ export default function AccountStatement() {
           {/* Ledger */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {statement.entries.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 text-sm">Is period mein koi transaction nahi</div>
+              <div className="text-center py-12 text-gray-400 text-sm">No transactions in this period</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -179,7 +179,7 @@ export default function AccountStatement() {
           </div>
         </div>
       ) : (
-        <div className="text-center py-16 text-gray-400 text-sm">Account select karo statement dekhne ke liye</div>
+        <div className="text-center py-16 text-gray-400 text-sm">Select an account to view the statement</div>
       )}
     </div>
   );

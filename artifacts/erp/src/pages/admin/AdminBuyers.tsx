@@ -143,7 +143,7 @@ export default function AdminBuyers() {
                   <tr>
                     <td colSpan={8} className="text-center py-16 text-gray-400">
                       <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                      Koi buyer nahi mila
+                      No buyers found
                     </td>
                   </tr>
                 )}
@@ -192,7 +192,7 @@ export default function AdminBuyers() {
                             {dl !== null && (
                               <div className={`text-xs mt-0.5 flex items-center gap-1 ${dl < 0 ? "text-red-500" : dl <= 15 ? "text-amber-600" : "text-gray-400"}`}>
                                 {dl < 0 ? <AlertCircle className="w-3 h-3" /> : dl <= 15 ? <Clock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                                {dl < 0 ? `${Math.abs(dl)} din pehle expire` : dl === 0 ? "Aaj expire" : `${dl} din baaki`}
+                                {dl < 0 ? `Expired ${Math.abs(dl)} days ago` : dl === 0 ? "Expires today" : `${dl} days left`}
                               </div>
                             )}
                           </div>

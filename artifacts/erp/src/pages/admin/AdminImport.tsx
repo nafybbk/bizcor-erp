@@ -180,7 +180,7 @@ export default function AdminImport() {
       <div>
         <h1 className="text-xl font-bold text-gray-800">SMART ERP → BizCor Import Tool</h1>
         <p className="text-sm text-gray-500 mt-1">
-          HMR Systems ke kisi bhi business ka data (customers, suppliers, items) import karein
+          Import data (customers, suppliers, items) from any HMR Systems business
         </p>
       </div>
 
@@ -195,7 +195,7 @@ export default function AdminImport() {
             {selectedBiz ? (
               <span className="font-medium">{selectedBiz.name} <span className="text-gray-400 font-normal">({selectedBiz.code})</span></span>
             ) : (
-              <span className="text-gray-400">Business dhundh kar select karein…</span>
+              <span className="text-gray-400">Search and select a business…</span>
             )}
             <ChevronDown className="w-4 h-4 text-gray-400" />
           </button>

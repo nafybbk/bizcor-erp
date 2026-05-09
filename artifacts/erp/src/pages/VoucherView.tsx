@@ -90,12 +90,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
 
   const handleDelete = async () => {
-    if (!confirm("Kya aap is voucher ko delete karna chahte hain? Yeh action undo nahi hoga.")) return;
+    if (!confirm("Delete this voucher? This action cannot be undone.")) return;
     try {
       await api.delete(`/${voucherType}/${params.id}`);
       navigate(listHref);
     } catch (err: any) {
-      alert(err.message || "Delete nahi hua, dobara try karein.");
+      alert(err.message || "Delete failed, please try again.");
     }
   };
 

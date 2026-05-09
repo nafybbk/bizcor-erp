@@ -44,7 +44,7 @@ export default function FirmProfile() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) { alert("Logo 500KB se chhota hona chahiye"); return; }
+    if (file.size > 500 * 1024) { alert("Logo must be smaller than 500KB"); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       setForm((f: any) => ({ ...f, logo: ev.target?.result as string }));
@@ -80,7 +80,7 @@ export default function FirmProfile() {
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg">
-          ✓ Profile save ho gayi — ab har report mein dikhai degi
+          ✓ Profile saved — will appear on all reports
         </div>
       )}
 
@@ -132,10 +132,10 @@ export default function FirmProfile() {
               {bizType && <p className="text-xs text-gray-400 mt-0.5">{bizType}</p>}
             </div>
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 text-center max-w-sm">
-              <p className="text-xs text-indigo-600 font-medium">✨ Yeh aapka auto-generated logo hai</p>
+              <p className="text-xs text-indigo-600 font-medium">✨ This is your auto-generated logo</p>
               <p className="text-xs text-gray-400 mt-1">
-                Firm naam se apne aap banta hai — koi design ki zarurat nahi!
-                Custom logo upload karna ho toh "Custom Logo Upload" tab use karo.
+                Auto-generated from your firm name — no design needed!
+                To upload a custom logo, use the "Custom Logo Upload" tab.
               </p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export default function FirmProfile() {
                 ) : (
                   <div className="text-center text-gray-300">
                     <Building2 className="w-12 h-12 mx-auto mb-1" />
-                    <span className="text-xs">Logo nahi hai</span>
+                    <span className="text-xs">No logo</span>
                   </div>
                 )}
               </div>

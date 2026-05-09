@@ -1,3 +1,5 @@
+import { getLang, t } from "./lang";
+
 export interface DeviceLocation {
   name: string;
   latitude?: number;
@@ -26,8 +28,9 @@ export function clearDeviceLocation(): void {
 
 export async function detectGpsLocation(): Promise<DeviceLocation> {
   return new Promise((resolve, reject) => {
+    const lang = getLang();
     if (!navigator.geolocation) {
-      reject(new Error("GPS is apke browser mein support nahi hai"));
+      reject(new Error(t("gpsNotSupported", lang)));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -47,7 +50,11 @@ export async function detectGpsLocation(): Promise<DeviceLocation> {
         } catch { }
         resolve({ name, latitude, longitude, setAt: new Date().toISOString() });
       },
-      err => reject(new Error(err.message === "User denied Geolocation" ? "GPS access deny kiya — manually type karo" : err.message)),
+      err => reject(new Error(
+        err.message === "User denied Geolocation"
+          ? t("gpsAccessDenied", lang)
+          : err.message
+      )),
       { timeout: 10000, enableHighAccuracy: false }
     );
   });

@@ -62,11 +62,11 @@ function PasswordModal({ user, onClose }: { user: UserRow; onClose: () => void }
   const [loading, setLoading] = useState(false); const [msg, setMsg] = useState("");
 
   const handleReset = async () => {
-    if (!pw || pw.length < 4) { setMsg("Kam se kam 4 characters ka password daalen"); return; }
+    if (!pw || pw.length < 4) { setMsg("Password must be at least 4 characters"); return; }
     setLoading(true); setMsg("");
     try {
       const r = await api.patch<any>(`/super-admin/users/${user.id}/password`, { password: pw });
-      setMsg(r.message || "Password reset ho gaya ✓");
+      setMsg(r.message || "Password reset successful ✓");
       setPw("");
     } catch (e: any) { setMsg(e.message || "Error"); }
     finally { setLoading(false); }
@@ -86,15 +86,15 @@ function PasswordModal({ user, onClose }: { user: UserRow; onClose: () => void }
         </div>
         <div className="p-6 space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-            <strong>Note:</strong> Purana password dikhana possible nahi hai (encrypted hota hai). Yahan naya password set karein.
+            <strong>Note:</strong> The old password cannot be shown (it is encrypted). Set a new password here.
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1.5">Naya Password</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1.5">New Password</label>
             <div className="relative">
               <input
                 type={show ? "text" : "password"}
                 value={pw} onChange={e => setPw(e.target.value)}
-                placeholder="Naya password daalen..."
+                placeholder="Enter new password..."
                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               />
               <button onClick={() => setShow(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -225,7 +225,7 @@ export default function AdminUsers() {
         ) : users.length === 0 ? (
           <div className="text-center text-gray-400 py-16">
             <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <div>Koi user nahi mila</div>
+            <div>No users found</div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -258,7 +258,7 @@ export default function AdminUsers() {
                           <div className="flex items-center gap-1 mt-0.5">
                             <span className="text-xs text-gray-400 font-mono select-all">
                               {shownPasswords.has(u.id)
-                                ? (u.plainPassword || <span className="italic text-gray-300">password nahi</span>)
+                                ? (u.plainPassword || <span className="italic text-gray-300">no password</span>)
                                 : "••••••••"}
                             </span>
                             <button onClick={() => togglePwVisible(u.id)}
