@@ -370,6 +370,44 @@ Business Admin Panel:
 
 ---
 
+## OFFLINE LAN VERSION — QR Code Activation & Payment Flow (May 2026)
+
+**Complete activation flow designed for offline BizCor desktop:**
+
+### Buyer Side — Step by Step:
+1. BizCor desktop app kholo → email + phone number daalo
+2. App hardware fingerprint (MAC + CPU + Disk Serial) + email + phone encode karke **QR code generate** kare
+3. Buyer apne **phone se QR scan kare** (phone pe internet hota hai, PC pe nahi)
+4. Phone ka browser **BizCor activation website** khole
+5. Website pe clearly likha ho: **"Your activation code will be sent to: [buyer@email.com]"** — taaki buyer confirm kar sake
+6. Buyer **plan select kare** + **payment receipt ki clear photo upload** kare
+7. Submit → "Verification pending, check your email" message aaye
+8. Agar koi issue ho → **Tech support email clearly visible** ho (jo BizCor App Settings mein set hai)
+
+### Tech Support Side (Tech Panel):
+9. Naya activation request notification aaye
+10. Receipt image + selected plan clearly dikhe
+11. Tech payment verify kare → **"Approve & Activate"** button dabaaye
+12. System auto **Activation Code generate** kare → buyer ke email pe jaaye (hardware-bound)
+
+### Buyer Side — Final Step:
+13. Email check kare → Activation Code mile
+14. BizCor desktop mein Code daale → **Activated!** ✓
+
+### Kyun Best Hai:
+- PC pe internet zero — sirf phone ka mobile data
+- Fully trackable — receipt + plan + hardware sab record mein
+- Fraud zero — tech ne khud dekh ke approve kiya
+- Activation Code hardware-bound — sirf usi PC pe chalega
+- Buyer ko koi website account nahi banana — sirf email chahiye
+- Support contact always visible — buyer kabhi stuck nahi
+
+### Phase 2 (Baad Mein):
+- Razorpay/UPI gateway integrate karo → payment auto-verify → tech approval bhi auto
+- Fully self-service ho jaaye
+
+---
+
 ## Demo Credentials
 
 Test business: code `7MJ18V`, email `raj@demo.com`, password `demo1234`
