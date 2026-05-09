@@ -10,12 +10,15 @@ router.use(requireBusiness);
 
 // Lazy migration: ensure extra columns exist — run once per server start
 let _rightColsDone = false;
-function ensureRightsCols() {
+let _rightColsPromise: Promise<void> | null = null;
+
+async function ensureRightsCols(): Promise<void> {
   if (_rightColsDone) return;
+  if (_rightColsPromise) return _rightColsPromise;
+
   const isSQLite = !!process.env.SQLITE_PATH;
 
   if (isSQLite && sqlite) {
-    // Use raw better-sqlite3 connection for DDL — synchronous, always reliable
     const cols = [
       "can_edit INTEGER NOT NULL DEFAULT 1",
       "can_delete INTEGER NOT NULL DEFAULT 1",
@@ -27,23 +30,24 @@ function ensureRightsCols() {
     }
     _rightColsDone = true;
   } else {
-    // PostgreSQL — run async but don't await (fire-and-forget on first call)
+    // PostgreSQL — await so columns exist before SELECT
     const cols = [
       "can_edit BOOLEAN NOT NULL DEFAULT TRUE",
       "can_delete BOOLEAN NOT NULL DEFAULT TRUE",
       "login_pin TEXT",
       "plain_password TEXT",
     ];
-    Promise.all(cols.map(col =>
+    _rightColsPromise = Promise.all(cols.map(col =>
       db.execute(sql.raw(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col}`)).catch(() => {})
-    )).then(() => { _rightColsDone = true; }).catch(() => {});
+    )).then(() => { _rightColsDone = true; _rightColsPromise = null; }).catch(() => {});
+    return _rightColsPromise;
   }
 }
 
 router.get("/", async (req, res) => {
   try {
     const biz = req.user!.businessId!;
-    ensureRightsCols();
+    await ensureRightsCols();
 
     // Use Drizzle db.select() — works for both SQLite and PostgreSQL
     const rows = await db.select({
