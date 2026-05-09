@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, sqlite, pool } from "@workspace/db";
+import { db, sqlite } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
@@ -45,49 +45,33 @@ router.get("/", async (req, res) => {
     const biz = req.user!.businessId!;
     ensureRightsCols();
 
-    const isSQLite = !!process.env.SQLITE_PATH;
-
-    // Use raw connections directly — Drizzle db.execute() return format varies by version/adapter
-    let rows: any[];
-    if (isSQLite && sqlite) {
-      // SQLite (better-sqlite3): synchronous prepare().all()
-      rows = sqlite.prepare(`
-        SELECT id, name, email, role, permissions,
-               is_active AS isActive,
-               created_at AS createdAt,
-               COALESCE(can_edit, 1) AS canEdit,
-               COALESCE(can_delete, 1) AS canDelete,
-               CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN 1 ELSE 0 END AS hasPin
-        FROM users WHERE business_id = ?
-        ORDER BY created_at ASC
-      `).all(biz) as any[];
-    } else if (pool) {
-      // PostgreSQL: use pool.query() directly — always returns { rows: [] }
-      const result = await pool.query(
-        `SELECT id, name, email, role, permissions,
-                is_active AS "isActive",
-                created_at AS "createdAt",
-                COALESCE(can_edit, true) AS "canEdit",
-                COALESCE(can_delete, true) AS "canDelete",
-                CASE WHEN login_pin IS NOT NULL AND login_pin != '' THEN true ELSE false END AS "hasPin"
-         FROM users WHERE business_id = $1
-         ORDER BY created_at ASC`,
-        [biz]
-      );
-      rows = result.rows;
-    } else {
-      rows = [];
-    }
+    // Use Drizzle db.select() — works for both SQLite and PostgreSQL
+    const rows = await db.select({
+      id: usersTable.id,
+      name: usersTable.name,
+      email: usersTable.email,
+      role: usersTable.role,
+      permissions: usersTable.permissions,
+      isActive: usersTable.isActive,
+      canEdit: usersTable.canEdit,
+      canDelete: usersTable.canDelete,
+      loginPin: usersTable.loginPin,
+      createdAt: usersTable.createdAt,
+    }).from(usersTable).where(eq(usersTable.businessId, biz));
 
     const users = rows.map((u: any) => ({
-      ...u,
-      isActive: u.isActive === 1 || u.isActive === true || u["isActive"] === 1,
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isActive: u.isActive === 1 || u.isActive === true,
+      canEdit: u.canEdit !== 0 && u.canEdit !== false && u.canEdit !== "0",
+      canDelete: u.canDelete !== 0 && u.canDelete !== false && u.canDelete !== "0",
+      hasPin: !!(u.loginPin && u.loginPin !== ""),
+      createdAt: u.createdAt,
       permissions: Array.isArray(u.permissions)
         ? u.permissions
         : (u.permissions ? (() => { try { return JSON.parse(u.permissions); } catch { return []; } })() : []),
-      canEdit: u.canEdit !== 0 && u.canEdit !== false && u.canEdit !== "0",
-      canDelete: u.canDelete !== 0 && u.canDelete !== false && u.canDelete !== "0",
-      hasPin: u.hasPin === 1 || u.hasPin === true || u.hasPin === "1",
     }));
 
     res.json({ data: users });
