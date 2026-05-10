@@ -627,10 +627,10 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
     const filename = `GSTR1_B2B_${String(month).padStart(2, "0")}_${year}.csv`;
     res.setHeader("Content-Type", "text/csv");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(csv);
+    return res.send(csv);
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
