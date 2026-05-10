@@ -393,6 +393,16 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
       }
     }
 
+    if (rows.length === 0) {
+      // Return JSON so frontend can show a useful message instead of silently downloading empty CSV
+      return res.status(422).json({
+        error: "NO_B2B_DATA",
+        message: `${month}/${year} mein koi B2B invoice nahi mila (GSTIN wale parties). Party master mein GSTIN fill karo ya invoice date check karo.`,
+        invoicesFound: invoices.length,
+        b2bInvoicesFound: b2bInvoices.length,
+      });
+    }
+
     const csv = buildCSV(headers, rows);
     const filename = `GSTR1_B2B_${String(month).padStart(2, "0")}_${year}.csv`;
     res.setHeader("Content-Type", "text/csv");
