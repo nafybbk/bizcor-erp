@@ -97,15 +97,6 @@ function openMainWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
-  // Open all external URLs in the system browser instead of a new Electron window
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http://localhost") || url.startsWith("http://127.0.0.1")) {
-      return { action: "allow" };
-    }
-    shell.openExternal(url);
-    return { action: "deny" };
-  });
-
   if (trialStatus.locked) {
     mainWindow.loadFile(htmlFile("locked.html"));
   } else {
@@ -276,16 +267,14 @@ ipcMain.handle("skip-cloud-setup", async () => {
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  app.whenReady().then(() => {
-    dialog.showMessageBox({
-      type: "info",
-      title: "BizCor ERP",
-      message: "BizCor ERP pehle se chal raha hai",
-      detail: "System tray mein BizCor icon dhundhen (taskbar ke neeche-daayein), usse click karein ya double-click karein window kholne ke liye.",
-      buttons: ["Theek Hai"],
-      defaultId: 0,
-    }).finally(() => app.quit());
-  });
+  dialog.showErrorBox(
+    "BizCor ERP — Already Running",
+    "BizCor ERP is already running.\n\n" +
+    "Look for the BizCor icon in the system tray (bottom-right corner of the taskbar),\n" +
+    "right-click it and select 'Quit'.\n\n" +
+    "Then reopen BizCor ERP."
+  );
+  app.quit();
 } else {
   app.on("second-instance", () => {
     if (mainWindow) {
