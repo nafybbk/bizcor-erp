@@ -21,6 +21,13 @@ function formatPrintNumber(voucherNumber: string, biz: any): string {
 const router = Router();
 router.use(requireBusiness);
 
+// GSTIN must be exactly 15 alphanumeric chars. Aadhaar (12 digits), PAN (10), etc. = unregistered = B2C.
+function isValidGSTIN(g: string | null | undefined): boolean {
+  if (!g) return false;
+  const clean = g.replace(/\s/g, "").toUpperCase();
+  return clean.length === 15 && /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(clean);
+}
+
 function getMonthRange(month: number, year: number) {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month, 0).getDate();
@@ -45,12 +52,12 @@ router.get("/gstr1", async (req, res) => {
       }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
         .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt))),
     ]);
-    const b2b = invoices.filter(i => i.partyGstin).map(i => ({
-      gstin: i.partyGstin!, partyName: i.partyName || "", invoiceNumber: formatPrintNumber(i.voucherNumber, biz), invoiceDate: i.date,
+    const b2b = invoices.filter(i => isValidGSTIN(i.partyGstin)).map(i => ({
+      gstin: i.partyGstin!.replace(/\s/g, "").toUpperCase(), partyName: i.partyName || "", invoiceNumber: formatPrintNumber(i.voucherNumber, biz), invoiceDate: i.date,
       invoiceValue: Number(i.grandTotal), placeOfSupply: i.placeOfSupply || "", reverseCharge: "N",
       taxableValue: Number(i.taxableAmount), cgst: Number(i.totalCgst), sgst: Number(i.totalSgst), igst: Number(i.totalIgst),
     }));
-    const b2c = invoices.filter(i => !i.partyGstin).map(i => ({
+    const b2c = invoices.filter(i => !isValidGSTIN(i.partyGstin)).map(i => ({
       invoiceNumber: formatPrintNumber(i.voucherNumber, biz), invoiceDate: i.date, invoiceValue: Number(i.grandTotal),
       taxableValue: Number(i.taxableAmount), cgst: Number(i.totalCgst), sgst: Number(i.totalSgst), igst: Number(i.totalIgst),
     }));
@@ -200,7 +207,7 @@ router.get("/gstr1/export", async (req, res) => {
       }];
     };
 
-    const b2bInvoices = invoices.filter(i => i.partyGstin);
+    const b2bInvoices = invoices.filter(i => isValidGSTIN(i.partyGstin));
 
     // Group by counterparty GSTIN (one ctin block per party, all their invoices inside)
     const b2bMap = new Map<string, typeof b2bInvoices>();
@@ -318,8 +325,8 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
         )),
     ]);
 
-    // Only B2B (registered GSTIN parties)
-    const b2bInvoices = invoices.filter(i => i.partyGstin);
+    // Only B2B — valid 15-char GSTIN parties (Aadhaar/PAN/empty = B2C, skip here)
+    const b2bInvoices = invoices.filter(i => isValidGSTIN(i.partyGstin));
     const invoiceIds = b2bInvoices.map(i => i.id);
 
     const allItems = invoiceIds.length > 0
@@ -444,7 +451,7 @@ router.get("/gstr1/cdnr-csv", async (req, res) => {
         )),
     ]);
 
-    const b2bNotes = notes.filter(n => n.partyGstin);
+    const b2bNotes = notes.filter(n => isValidGSTIN(n.partyGstin));
     const noteIds = b2bNotes.map(n => n.id);
 
     const allItems = noteIds.length > 0
