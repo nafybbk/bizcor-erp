@@ -358,8 +358,8 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
 
     const rows: string[][] = [];
     for (const inv of b2bInvoices) {
-      // Skip if GSTIN is not exactly 15 chars (invalid)
-      if (!inv.partyGstin || inv.partyGstin.trim().length !== 15) continue;
+      // Include all B2B invoices — tool validates GSTIN format row-by-row
+      if (!inv.partyGstin || !inv.partyGstin.trim()) continue;
 
       const ctin = inv.partyGstin.trim().toUpperCase();
       const inum = formatPrintNumber(inv.voucherNumber, biz);
@@ -391,6 +391,16 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
           "0", fmtNum(txval), "0",
         ]);
       }
+    }
+
+    if (rows.length === 0) {
+      // Return JSON so frontend can show a useful message instead of silently downloading empty CSV
+      return res.status(422).json({
+        error: "NO_B2B_DATA",
+        message: `${month}/${year} mein koi B2B invoice nahi mila (GSTIN wale parties). Party master mein GSTIN fill karo ya invoice date check karo.`,
+        invoicesFound: invoices.length,
+        b2bInvoicesFound: b2bInvoices.length,
+      });
     }
 
     const csv = buildCSV(headers, rows);

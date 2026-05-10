@@ -32,7 +32,12 @@ export default function GSTR1() {
     const token = localStorage.getItem("erp_token") || "";
     const url = `/api/gst/gstr1/${section}-csv?month=${month}&year=${year}`;
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!resp.ok) { alert("Export failed"); return; }
+    if (resp.status === 422) {
+      const err = await resp.json().catch(() => ({}));
+      alert(err.message || "Is mahine mein koi data nahi mila.\n\nCheck karo:\n• Party ka GSTIN fill hai?\n• Correct month/year select hai?");
+      return;
+    }
+    if (!resp.ok) { alert("Export failed. Please try again."); return; }
     const blob = await resp.blob();
     const burl = URL.createObjectURL(blob);
     const a = document.createElement("a");
