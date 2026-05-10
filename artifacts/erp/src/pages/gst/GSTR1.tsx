@@ -35,7 +35,7 @@ function EmptyRow({ msg }: { msg: string }) {
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return <th className={`px-3 py-2 font-semibold text-xs text-gray-500 ${right ? "text-right" : "text-left"} whitespace-nowrap`}>{children}</th>;
 }
-function TD({ children, right, mono, orange, green, bold }: { children: React.ReactNode; right?: boolean; mono?: boolean; orange?: boolean; green?: boolean; bold?: boolean }) {
+function TD({ children, right, mono, orange, green, bold }: { children?: React.ReactNode; right?: boolean; mono?: boolean; orange?: boolean; green?: boolean; bold?: boolean }) {
   return <td className={`px-3 py-2 text-sm ${right ? "text-right" : ""} ${mono ? "font-mono text-xs" : ""} ${orange ? "text-orange-600" : ""} ${green ? "text-green-600" : ""} ${bold ? "font-semibold" : ""}`}>{children}</td>;
 }
 
