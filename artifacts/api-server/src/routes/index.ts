@@ -17,6 +17,7 @@ import dashboardRouter from "./dashboard";
 import licenseVouchersRouter from "./licenseVouchers";
 import webauthnRouter from "./webauthn";
 import cashBankRouter from "./cashBank";
+import importDataRouter from "./importData";
 
 const router: IRouter = Router();
 
@@ -79,5 +80,6 @@ router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
 router.use(licenseVouchersRouter);
 router.use("/cash-bank", cashBankRouter);
+router.use("/super-admin", importDataRouter);
 
 export default router;
