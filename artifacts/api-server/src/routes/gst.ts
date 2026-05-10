@@ -254,19 +254,29 @@ const STATE_NAMES: Record<string, string> = {
 const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function toGSTNDate(d: string): string {
-  // Input: YYYY-MM-DD → Output: DD-Mon-YY
+  // Input: YYYY-MM-DD → Output: D-Mon-YY (no leading zero on day, per GSTN template)
   const parts = d.split("-");
   if (parts.length !== 3) return d;
-  const day = parts[2];
+  const day = String(parseInt(parts[2], 10)); // strip leading zero: "05" → "5"
   const mon = MONTH_ABBR[parseInt(parts[1], 10) - 1] || parts[1];
   const yr = parts[0].slice(2);
   return `${day}-${mon}-${yr}`;
 }
 
-function toGSTNPos(code: string): string {
+function toGSTNPos(code: string, fallbackStateCode?: string): string {
   // Input: "27" → Output: "27-Maharashtra"
-  const c = String(code).padStart(2, "0");
-  return STATE_NAMES[c] ? `${c}-${STATE_NAMES[c]}` : code;
+  // Tries the given code, then fallback, never returns bare code without state name
+  const tryCode = (c: string) => {
+    const padded = c.padStart(2, "0");
+    return STATE_NAMES[padded] ? `${padded}-${STATE_NAMES[padded]}` : null;
+  };
+  return tryCode(String(code)) || tryCode(fallbackStateCode || "") || String(code);
+}
+
+function bizStateCode(gstin: string | null | undefined): string {
+  // Extract 2-digit state code from GSTIN (first 2 chars)
+  if (gstin && gstin.length >= 2) return gstin.slice(0, 2);
+  return "";
 }
 
 function buildCSV(headers: string[], rows: string[][]): string {
@@ -331,7 +341,14 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
       itemsByVoucher.get(item.voucherId)!.push(item);
     }
 
-    const round2 = (n: number) => String(Math.round(n * 100) / 100);
+    // Business state code extracted from its GSTIN (first 2 chars) — used as POS fallback
+    const sellerStateCode = bizStateCode(biz?.gstin);
+
+    // Format number: remove trailing decimal zeros (18.00 → 18, 5.5 → 5.5)
+    const fmtNum = (n: number) => {
+      const r = Math.round(n * 100) / 100;
+      return r % 1 === 0 ? String(Math.round(r)) : String(r);
+    };
 
     const headers = [
       "GSTIN/UIN of Recipient", "Receiver Name", "Invoice Number", "Invoice date",
@@ -341,28 +358,37 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
 
     const rows: string[][] = [];
     for (const inv of b2bInvoices) {
+      // Skip if GSTIN is not exactly 15 chars (invalid)
+      if (!inv.partyGstin || inv.partyGstin.trim().length !== 15) continue;
+
+      const ctin = inv.partyGstin.trim().toUpperCase();
       const inum = formatPrintNumber(inv.voucherNumber, biz);
       const idt = toGSTNDate(inv.date);
-      const val = round2(Number(inv.grandTotal));
-      const pos = toGSTNPos(inv.placeOfSupply || "");
-      const invType = inv.isInterState ? "Regular B2B" : "Regular B2B";
+      const val = fmtNum(Number(inv.grandTotal));
+      // POS: use invoice's placeOfSupply, fall back to buyer's state (from their GSTIN), then seller's state
+      const buyerState = ctin.slice(0, 2);
+      const pos = toGSTNPos(inv.placeOfSupply || buyerState, sellerStateCode);
+      const invType = "Regular B2B";
       const items = itemsByVoucher.get(inv.id) || [];
 
       if (items.length > 0) {
         for (const item of items) {
+          const txval = Number(item.taxableAmount);
+          if (txval <= 0) continue; // skip zero-value rows
           rows.push([
-            inv.partyGstin!, inv.partyName || "", inum, idt,
+            ctin, inv.partyName || "", inum, idt,
             val, pos, "N", "", invType, "",
-            String(Number(item.taxRate ?? 0)),
-            round2(Number(item.taxableAmount)),
-            "", // Cess
+            fmtNum(Number(item.taxRate ?? 0)),
+            fmtNum(txval),
+            "0",
           ]);
         }
       } else {
+        const txval = Number(inv.grandTotal);
         rows.push([
-          inv.partyGstin!, inv.partyName || "", inum, idt,
+          ctin, inv.partyName || "", inum, idt,
           val, pos, "N", "", invType, "",
-          "0", "0", "",
+          "0", fmtNum(txval), "0",
         ]);
       }
     }
