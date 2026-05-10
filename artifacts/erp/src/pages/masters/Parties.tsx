@@ -57,7 +57,7 @@ export default function Parties({ defaultType }: Props) {
   };
   const openEdit = (p: any) => {
     setEditId(p.id);
-    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance||""), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit||""), creditDays: String(p.creditDays||"") });
+    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0) });
     setError(""); setShowModal(true);
   };
 
@@ -118,7 +118,7 @@ export default function Parties({ defaultType }: Props) {
       {offlineSaved && (
         <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-xl px-4 py-3 text-sm">
           <CloudOff className="w-4 h-4 shrink-0 text-orange-500" />
-          <span><strong>Offline Draft Save Ho Gaya!</strong> Internet aane par "Offline Drafts" se submit karo.</span>
+          <span><strong>Offline Draft Saved!</strong> Submit from "Offline Drafts" when you're back online.</span>
           <button onClick={() => setOfflineSaved(false)} className="ml-auto text-orange-400 hover:text-orange-600">✕</button>
         </div>
       )}
