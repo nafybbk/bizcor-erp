@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { Loader2, Download, FileJson } from "lucide-react";
+import { Loader2, Download, FileJson, FileText } from "lucide-react";
 import BusinessHeader from "@/components/BusinessHeader";
 
 export default function GSTR1() {
@@ -26,6 +26,20 @@ export default function GSTR1() {
     const a = document.createElement("a");
     a.href = url; a.download = res.filename; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadGSTNCSV = async (section: "b2b" | "cdnr") => {
+    const token = localStorage.getItem("erp_token") || "";
+    const url = `/api/gst/gstr1/${section}-csv?month=${month}&year=${year}`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!resp.ok) { alert("Export failed"); return; }
+    const blob = await resp.blob();
+    const burl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = burl;
+    a.download = `GSTR1_${section.toUpperCase()}_${String(month).padStart(2,"0")}_${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(burl);
   };
 
   const exportExcel = () => {
@@ -78,6 +92,14 @@ export default function GSTR1() {
           <button onClick={exportExcel} disabled={!data}
             className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
             <Download className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={() => downloadGSTNCSV("b2b")} disabled={!data}
+            className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+            <FileText className="w-4 h-4" /> B2B CSV
+          </button>
+          <button onClick={() => downloadGSTNCSV("cdnr")} disabled={!data}
+            className="flex items-center gap-2 px-4 py-2 border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
+            <FileText className="w-4 h-4" /> CDNR CSV
           </button>
           <button onClick={exportJSON} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
             <FileJson className="w-4 h-4" /> Export JSON
