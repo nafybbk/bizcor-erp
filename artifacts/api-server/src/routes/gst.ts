@@ -358,8 +358,8 @@ router.get("/gstr1/b2b-csv", async (req, res) => {
 
     const rows: string[][] = [];
     for (const inv of b2bInvoices) {
-      // Skip if GSTIN is not exactly 15 chars (invalid)
-      if (!inv.partyGstin || inv.partyGstin.trim().length !== 15) continue;
+      // Include all B2B invoices — tool validates GSTIN format row-by-row
+      if (!inv.partyGstin || !inv.partyGstin.trim()) continue;
 
       const ctin = inv.partyGstin.trim().toUpperCase();
       const inum = formatPrintNumber(inv.voucherNumber, biz);
