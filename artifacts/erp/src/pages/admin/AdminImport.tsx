@@ -2,8 +2,6 @@ import { useState, useRef } from "react";
 import { api } from "@/lib/api";
 import { Upload, FileSpreadsheet, Users, ShoppingCart, Package, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Info } from "lucide-react";
 
-declare const require: any;
-
 // ── ERP presets ───────────────────────────────────────────────────────────────
 const ERP_PRESETS: Record<string, { label: string; sheets: string[]; desc: string }> = {
   smarterp: {
