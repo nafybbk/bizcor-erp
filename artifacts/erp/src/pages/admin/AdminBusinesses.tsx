@@ -43,6 +43,12 @@ export default function AdminBusinesses() {
   // Copy referral code
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
 
+  // Permanent delete state
+  const [deleteBiz, setDeleteBiz] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   // Cleanup modal state
   const [cleanupBiz, setCleanupBiz] = useState<any>(null);
   const [cleanupTab, setCleanupTab] = useState<"all" | "party">("all");
@@ -201,6 +207,24 @@ export default function AdminBusinesses() {
     } finally { setUserSaving(null); }
   };
 
+  const openDelete = (b: any) => {
+    setDeleteBiz(b);
+    setDeleteConfirm("");
+    setDeleteError("");
+  };
+
+  const doDelete = async () => {
+    if (!deleteBiz || deleteConfirm !== deleteBiz.name) return;
+    setDeleteLoading(true); setDeleteError("");
+    try {
+      await api.delete(`/super-admin/businesses/${deleteBiz.id}`);
+      setDeleteBiz(null);
+      load();
+    } catch (e: any) {
+      setDeleteError(e?.message || "Delete failed");
+    } finally { setDeleteLoading(false); }
+  };
+
   const downloadBackup = async (id: number, code: string) => {
     const token = localStorage.getItem("erp_token");
     const res = await fetch(`${import.meta.env.BASE_URL}api/super-admin/backup?businessId=${id}`, {
@@ -319,6 +343,7 @@ export default function AdminBusinesses() {
                         <button onClick={() => openTopup(b)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Top-up Free Days"><Gift className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openCleanup(b)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Data Cleanup — Delete Vouchers/Payments"><Trash2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => downloadBackup(b.id, b.businessCode)} className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg" title="Download backup"><Download className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openDelete(b)} className="p-1.5 text-red-700 hover:bg-red-100 rounded-lg" title="Permanently delete business"><XCircle className="w-3.5 h-3.5" /></button>
                       </div>
                     </td>
                   </tr>
@@ -681,6 +706,65 @@ export default function AdminBusinesses() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Permanent Delete Modal */}
+      {deleteBiz && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && !deleteLoading && setDeleteBiz(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-red-700">
+                <XCircle className="w-5 h-5" /> Business Permanently Delete
+              </h2>
+              <button onClick={() => setDeleteBiz(null)} disabled={deleteLoading}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 space-y-1">
+                <div className="font-bold text-red-800 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Yeh permanent action hai!</div>
+                <div><span className="font-semibold">{deleteBiz.name}</span> ka poora data delete ho jaayega:</div>
+                <ul className="list-disc list-inside text-xs space-y-0.5 text-red-600 ml-1">
+                  <li>Saari parties, items, vouchers</li>
+                  <li>Saare payments aur receipts</li>
+                  <li>Saare users</li>
+                  <li>Business account khud</li>
+                </ul>
+                <div className="font-semibold text-red-800 pt-1">Yeh undo NAHI ho sakta.</div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm text-gray-600">
+                  Confirm karne ke liye business ka naam type karein: <span className="font-semibold text-gray-800">{deleteBiz.name}</span>
+                </label>
+                <input
+                  autoFocus
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                  placeholder={deleteBiz.name}
+                  value={deleteConfirm}
+                  onChange={e => setDeleteConfirm(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && deleteConfirm === deleteBiz.name && doDelete()}
+                />
+              </div>
+
+              {deleteError && (
+                <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {deleteError}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setDeleteBiz(null)} disabled={deleteLoading} className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={doDelete}
+                  disabled={deleteLoading || deleteConfirm !== deleteBiz.name}
+                  className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition"
+                >
+                  {deleteLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : <><XCircle className="w-4 h-4" /> Permanently Delete</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>
