@@ -57,7 +57,7 @@ export default function Parties({ defaultType }: Props) {
   };
   const openEdit = (p: any) => {
     setEditId(p.id);
-    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance||""), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit||""), creditDays: String(p.creditDays||"") });
+    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0) });
     setError(""); setShowModal(true);
   };
 

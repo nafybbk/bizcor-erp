@@ -57,8 +57,12 @@ router.patch("/:id", async (req, res) => {
     const allowed = ["name","type","gstin","pan","phone","email","address","city","state","stateCode","pincode","openingBalance","openingBalanceType","creditLimit","creditDays","isActive","customFields","shippingAddresses"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
-    if (updateData.openingBalance) updateData.openingBalance = String(updateData.openingBalance);
-    if (updateData.creditLimit) updateData.creditLimit = String(updateData.creditLimit);
+    // Safely coerce numeric fields — empty string from form would break integer/numeric DB columns
+    if (updateData.openingBalance !== undefined) updateData.openingBalance = updateData.openingBalance === "" ? "0" : String(updateData.openingBalance);
+    if (updateData.creditLimit !== undefined) updateData.creditLimit = updateData.creditLimit === "" ? "0" : String(updateData.creditLimit);
+    if (updateData.creditDays !== undefined) updateData.creditDays = updateData.creditDays === "" ? 0 : (Number(updateData.creditDays) || 0);
+    // shippingAddresses is not a DB column — remove it from updateData to avoid Drizzle errors
+    delete updateData.shippingAddresses;
     const [updated] = await db.update(partiesTable).set(updateData).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!))).returning();
     res.json(updated);
   } catch (err) {
