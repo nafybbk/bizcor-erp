@@ -41,8 +41,10 @@ router.get("/gstr1", async (req, res) => {
     const month = Number(req.query.month);
     const year = Number(req.query.year);
     const { from, to } = getMonthRange(month, year);
-    const [biz, invoices] = await Promise.all([
+
+    const [biz, invoices, notesRaw, docsAll] = await Promise.all([
       db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) }),
+      // All sales invoices for the period (not deleted)
       db.select({
         id: vouchersTable.id, voucherNumber: vouchersTable.voucherNumber, date: vouchersTable.date,
         grandTotal: vouchersTable.grandTotal, taxableAmount: vouchersTable.taxableAmount,
@@ -51,25 +53,236 @@ router.get("/gstr1", async (req, res) => {
         partyName: partiesTable.name, partyGstin: partiesTable.gstin,
       }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
         .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, "sales_invoice"), gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt))),
+      // Credit + Debit notes for CDNR/CDNUR
+      db.select({
+        id: vouchersTable.id, voucherNumber: vouchersTable.voucherNumber, date: vouchersTable.date,
+        voucherType: vouchersTable.voucherType,
+        grandTotal: vouchersTable.grandTotal, taxableAmount: vouchersTable.taxableAmount,
+        totalCgst: vouchersTable.totalCgst, totalSgst: vouchersTable.totalSgst, totalIgst: vouchersTable.totalIgst,
+        placeOfSupply: vouchersTable.placeOfSupply,
+        partyName: partiesTable.name, partyGstin: partiesTable.gstin,
+      }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
+        .where(and(
+          eq(vouchersTable.businessId, businessId),
+          sql`${vouchersTable.voucherType} IN ('credit_note','debit_note')`,
+          gte(vouchersTable.date, from), lte(vouchersTable.date, to), isNull(vouchersTable.deletedAt)
+        )),
+      // All vouchers (including cancelled) for Documents Issued count
+      db.select({
+        voucherType: vouchersTable.voucherType,
+        voucherNumber: vouchersTable.voucherNumber,
+        deletedAt: vouchersTable.deletedAt,
+      }).from(vouchersTable)
+        .where(and(eq(vouchersTable.businessId, businessId), gte(vouchersTable.date, from), lte(vouchersTable.date, to))),
     ]);
-    const b2b = invoices.filter(i => isValidGSTIN(i.partyGstin)).map(i => ({
-      gstin: i.partyGstin!.replace(/\s/g, "").toUpperCase(), partyName: i.partyName || "", invoiceNumber: formatPrintNumber(i.voucherNumber, biz), invoiceDate: i.date,
-      invoiceValue: Number(i.grandTotal), placeOfSupply: i.placeOfSupply || "", reverseCharge: "N",
-      taxableValue: Number(i.taxableAmount), cgst: Number(i.totalCgst), sgst: Number(i.totalSgst), igst: Number(i.totalIgst),
+
+    // Fetch voucher items for all invoices + notes (HSN/qty/unit breakdown)
+    const allVoucherIds = [...invoices.map(i => i.id), ...notesRaw.map(n => n.id)];
+    const allItems = allVoucherIds.length > 0
+      ? await db.select({
+          voucherId: voucherItemsTable.voucherId,
+          hsnCode: voucherItemsTable.hsnCode,
+          itemName: voucherItemsTable.itemName,
+          unit: voucherItemsTable.unit,
+          taxRate: voucherItemsTable.taxRate,
+          quantity: sql<string>`sum(${voucherItemsTable.quantity})`,
+          taxableAmount: sql<string>`sum(${voucherItemsTable.taxableAmount})`,
+          cgst: sql<string>`sum(${voucherItemsTable.cgst})`,
+          sgst: sql<string>`sum(${voucherItemsTable.sgst})`,
+          igst: sql<string>`sum(${voucherItemsTable.igst})`,
+        }).from(voucherItemsTable)
+          .where(inArray(voucherItemsTable.voucherId, allVoucherIds))
+          .groupBy(voucherItemsTable.voucherId, voucherItemsTable.hsnCode, voucherItemsTable.itemName, voucherItemsTable.unit, voucherItemsTable.taxRate)
+      : [];
+
+    // Group items by voucherId for quick lookup
+    const itemsByVoucher = new Map<number, typeof allItems>();
+    for (const item of allItems) {
+      if (!itemsByVoucher.has(item.voucherId)) itemsByVoucher.set(item.voucherId, []);
+      itemsByVoucher.get(item.voucherId)!.push(item);
+    }
+
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    // ── Section 4A: B2B invoices ─────────────────────────────────────────────
+    const b2bInvoices = invoices.filter(i => isValidGSTIN(i.partyGstin));
+    const b2cInvoices = invoices.filter(i => !isValidGSTIN(i.partyGstin));
+
+    const b2b = b2bInvoices.map(i => ({
+      gstin: i.partyGstin!.replace(/\s/g, "").toUpperCase(),
+      partyName: i.partyName || "",
+      invoiceNumber: formatPrintNumber(i.voucherNumber, biz),
+      invoiceDate: i.date,
+      invoiceValue: round2(Number(i.grandTotal)),
+      placeOfSupply: i.placeOfSupply || "",
+      placeOfSupplyName: STATE_NAMES[String(i.placeOfSupply || "").padStart(2, "0")] || "",
+      reverseCharge: "N",
+      taxableValue: round2(Number(i.taxableAmount)),
+      cgst: round2(Number(i.totalCgst)),
+      sgst: round2(Number(i.totalSgst)),
+      igst: round2(Number(i.totalIgst)),
+      items: (itemsByVoucher.get(i.id) || []).map(it => ({
+        hsn: it.hsnCode || "",
+        itemName: it.itemName,
+        unit: it.unit || "",
+        qty: round2(Number(it.quantity)),
+        rate: round2(Number(it.taxRate)),
+        taxableAmount: round2(Number(it.taxableAmount)),
+        cgst: round2(Number(it.cgst)),
+        sgst: round2(Number(it.sgst)),
+        igst: round2(Number(it.igst)),
+      })),
     }));
-    const b2c = invoices.filter(i => !isValidGSTIN(i.partyGstin)).map(i => ({
-      invoiceNumber: formatPrintNumber(i.voucherNumber, biz), invoiceDate: i.date, invoiceValue: Number(i.grandTotal),
-      taxableValue: Number(i.taxableAmount), cgst: Number(i.totalCgst), sgst: Number(i.totalSgst), igst: Number(i.totalIgst),
+
+    // ── Section 7: B2C Others (state + rate consolidated) ───────────────────
+    // Group B2C invoice items by placeOfSupply + taxRate
+    const b2cOthersMap = new Map<string, { stateCode: string; stateName: string; rate: number; taxableValue: number; igst: number; cgst: number; sgst: number }>();
+    for (const inv of b2cInvoices) {
+      const items = itemsByVoucher.get(inv.id) || [];
+      if (items.length > 0) {
+        for (const item of items) {
+          const posCode = String(inv.placeOfSupply || "").padStart(2, "0");
+          const rate = round2(Number(item.taxRate));
+          const key = `${posCode}|${rate}`;
+          const existing = b2cOthersMap.get(key);
+          if (existing) {
+            existing.taxableValue = round2(existing.taxableValue + Number(item.taxableAmount));
+            existing.igst = round2(existing.igst + Number(item.igst));
+            existing.cgst = round2(existing.cgst + Number(item.cgst));
+            existing.sgst = round2(existing.sgst + Number(item.sgst));
+          } else {
+            b2cOthersMap.set(key, {
+              stateCode: posCode,
+              stateName: STATE_NAMES[posCode] || posCode,
+              rate,
+              taxableValue: round2(Number(item.taxableAmount)),
+              igst: round2(Number(item.igst)),
+              cgst: round2(Number(item.cgst)),
+              sgst: round2(Number(item.sgst)),
+            });
+          }
+        }
+      } else {
+        // Fallback: use voucher-level totals
+        const posCode = String(inv.placeOfSupply || "").padStart(2, "0");
+        const key = `${posCode}|0`;
+        const existing = b2cOthersMap.get(key);
+        if (existing) {
+          existing.taxableValue = round2(existing.taxableValue + Number(inv.taxableAmount));
+          existing.igst = round2(existing.igst + Number(inv.totalIgst));
+          existing.cgst = round2(existing.cgst + Number(inv.totalCgst));
+          existing.sgst = round2(existing.sgst + Number(inv.totalSgst));
+        } else {
+          b2cOthersMap.set(key, {
+            stateCode: posCode, stateName: STATE_NAMES[posCode] || posCode, rate: 0,
+            taxableValue: round2(Number(inv.taxableAmount)),
+            igst: round2(Number(inv.totalIgst)), cgst: round2(Number(inv.totalCgst)), sgst: round2(Number(inv.totalSgst)),
+          });
+        }
+      }
+    }
+    const b2cOthers = Array.from(b2cOthersMap.values()).sort((a, b) => a.stateCode.localeCompare(b.stateCode) || a.rate - b.rate);
+
+    // ── Section 9B: CDNR (registered) + CDNUR (unregistered) ────────────────
+    const cdnr = notesRaw.filter(n => isValidGSTIN(n.partyGstin)).map(n => ({
+      gstin: n.partyGstin!.replace(/\s/g, "").toUpperCase(),
+      partyName: n.partyName || "",
+      noteNumber: formatPrintNumber(n.voucherNumber, biz),
+      noteDate: n.date,
+      noteType: n.voucherType === "credit_note" ? "C" : "D",
+      noteTypeName: n.voucherType === "credit_note" ? "Credit Note" : "Debit Note",
+      noteValue: round2(Number(n.grandTotal)),
+      placeOfSupply: n.placeOfSupply || "",
+      taxableValue: round2(Number(n.taxableAmount)),
+      cgst: round2(Number(n.totalCgst)),
+      sgst: round2(Number(n.totalSgst)),
+      igst: round2(Number(n.totalIgst)),
     }));
+
+    const cdnur = notesRaw.filter(n => !isValidGSTIN(n.partyGstin)).map(n => ({
+      partyName: n.partyName || "",
+      noteNumber: formatPrintNumber(n.voucherNumber, biz),
+      noteDate: n.date,
+      noteType: n.voucherType === "credit_note" ? "C" : "D",
+      noteTypeName: n.voucherType === "credit_note" ? "Credit Note" : "Debit Note",
+      noteValue: round2(Number(n.grandTotal)),
+      placeOfSupply: n.placeOfSupply || "",
+      taxableValue: round2(Number(n.taxableAmount)),
+      cgst: round2(Number(n.totalCgst)),
+      sgst: round2(Number(n.totalSgst)),
+      igst: round2(Number(n.totalIgst)),
+    }));
+
+    // ── Section 12: HSN Summary ──────────────────────────────────────────────
+    function buildHsnSummary(voucherList: typeof invoices) {
+      const hsnMap = new Map<string, { hsn: string; description: string; uqc: string; qty: number; rate: number; taxableValue: number; igst: number; cgst: number; sgst: number }>();
+      for (const inv of voucherList) {
+        const items = itemsByVoucher.get(inv.id) || [];
+        for (const item of items) {
+          const hsn = item.hsnCode || "URP";
+          const uqc = item.unit || "OTH";
+          const rate = round2(Number(item.taxRate));
+          const key = `${hsn}|${uqc}|${rate}`;
+          const existing = hsnMap.get(key);
+          if (existing) {
+            existing.qty = round2(existing.qty + Number(item.quantity));
+            existing.taxableValue = round2(existing.taxableValue + Number(item.taxableAmount));
+            existing.igst = round2(existing.igst + Number(item.igst));
+            existing.cgst = round2(existing.cgst + Number(item.cgst));
+            existing.sgst = round2(existing.sgst + Number(item.sgst));
+          } else {
+            hsnMap.set(key, {
+              hsn, description: item.itemName, uqc, rate,
+              qty: round2(Number(item.quantity)),
+              taxableValue: round2(Number(item.taxableAmount)),
+              igst: round2(Number(item.igst)),
+              cgst: round2(Number(item.cgst)),
+              sgst: round2(Number(item.sgst)),
+            });
+          }
+        }
+      }
+      return Array.from(hsnMap.values()).sort((a, b) => a.hsn.localeCompare(b.hsn) || a.rate - b.rate);
+    }
+
+    const hsnSummaryB2B = buildHsnSummary(b2bInvoices);
+    const hsnSummaryB2C = buildHsnSummary(b2cInvoices);
+
+    // ── Section 13: Documents Issued ─────────────────────────────────────────
+    function docsSummary(type: string) {
+      const docs = docsAll.filter(d => d.voucherType === type);
+      if (docs.length === 0) return null;
+      const sorted = [...docs].sort((a, b) => a.voucherNumber.localeCompare(b.voucherNumber));
+      const cancelled = docs.filter(d => d.deletedAt !== null).length;
+      return {
+        srFrom: sorted[0].voucherNumber,
+        srTo: sorted[sorted.length - 1].voucherNumber,
+        totalIssued: docs.length,
+        cancelled,
+        netIssued: docs.length - cancelled,
+      };
+    }
+
+    const documentsIssued = {
+      invoices: docsSummary("sales_invoice"),
+      creditNotes: docsSummary("credit_note"),
+      debitNotes: docsSummary("debit_note"),
+      purchaseBills: docsSummary("purchase_bill"),
+    };
+
+    // ── Summary totals ────────────────────────────────────────────────────────
     const summary = {
       totalInvoices: invoices.length,
-      totalTaxableValue: invoices.reduce((s, i) => s + Number(i.taxableAmount), 0),
-      totalCgst: invoices.reduce((s, i) => s + Number(i.totalCgst), 0),
-      totalSgst: invoices.reduce((s, i) => s + Number(i.totalSgst), 0),
-      totalIgst: invoices.reduce((s, i) => s + Number(i.totalIgst), 0),
-      totalTax: invoices.reduce((s, i) => s + Number(i.totalCgst) + Number(i.totalSgst) + Number(i.totalIgst), 0),
+      b2bCount: b2bInvoices.length,
+      b2cCount: b2cInvoices.length,
+      totalTaxableValue: round2(invoices.reduce((s, i) => s + Number(i.taxableAmount), 0)),
+      totalCgst: round2(invoices.reduce((s, i) => s + Number(i.totalCgst), 0)),
+      totalSgst: round2(invoices.reduce((s, i) => s + Number(i.totalSgst), 0)),
+      totalIgst: round2(invoices.reduce((s, i) => s + Number(i.totalIgst), 0)),
+      totalTax: round2(invoices.reduce((s, i) => s + Number(i.totalCgst) + Number(i.totalSgst) + Number(i.totalIgst), 0)),
     };
-    res.json({ month, year, b2b, b2c, summary });
+
+    res.json({ month, year, summary, b2b, b2cOthers, cdnr, cdnur, hsnSummaryB2B, hsnSummaryB2C, documentsIssued });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
