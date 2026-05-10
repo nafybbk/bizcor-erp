@@ -97,6 +97,29 @@ router.get("/businesses/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+router.delete("/businesses/:id", async (req, res) => {
+  try {
+    const bizId = Number(req.params.id);
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+    // Delete all business data in correct order (FK constraints)
+    await db.delete(paymentAllocationsTable).where(
+      sql`${paymentAllocationsTable.paymentId} IN (SELECT id FROM payments WHERE business_id = ${bizId})`
+    );
+    await db.delete(paymentsTable).where(eq(paymentsTable.businessId, bizId));
+    await db.delete(voucherItemsTable).where(
+      sql`${voucherItemsTable.voucherId} IN (SELECT id FROM vouchers WHERE business_id = ${bizId})`
+    );
+    await db.delete(vouchersTable).where(eq(vouchersTable.businessId, bizId));
+    await db.delete(partiesTable).where(eq(partiesTable.businessId, bizId));
+    await db.delete(itemsTable).where(eq(itemsTable.businessId, bizId));
+    await db.delete(usersTable).where(eq(usersTable.businessId, bizId));
+    // Delete the business itself
+    await db.delete(businessesTable).where(eq(businessesTable.id, bizId));
+    res.json({ ok: true, deleted: business.name });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 router.patch("/businesses/:id", async (req, res) => {
   try {
     const { status, planId, isTrial, planExpiresAt, planStartDate } = req.body;
