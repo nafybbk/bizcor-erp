@@ -14,6 +14,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const [, navigate] = useLocation();
   const [parties, setParties] = useState<any[]>([]);
   const [outstanding, setOutstanding] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [partySearch, setPartySearch] = useState(initialData?.partyName || "");
@@ -28,6 +29,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
     partyName: initialData?.partyName || "",
     amount: initialData?.amount ? String(initialData.amount) : "",
     paymentMode: (initialData?.paymentMode || "cash") as "cash" | "bank" | "cheque" | "upi" | "other",
+    accountId: initialData?.accountId ? String(initialData.accountId) : "",
     referenceNumber: initialData?.referenceNumber || "",
     notes: initialData?.notes || "",
     isOnAccount: initialData?.isOnAccount || false,
@@ -38,6 +40,14 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
 
   useEffect(() => {
     api.get<any>(`/parties?type=${partyType}&limit=200`).then(r => setParties(r.data || [])).catch(console.error);
+    api.get<any>("/cash-bank/accounts").then(r => {
+      const list = Array.isArray(r) ? r : (r.data || []);
+      setAccounts(list);
+      if (!initialData?.accountId) {
+        const def = list.find((a: any) => a.isDefault);
+        if (def) setForm(f => ({ ...f, accountId: String(def.id) }));
+      }
+    }).catch(console.error);
     if (initialData?.partyId && !initialData?.isOnAccount) {
       const vType = type === "receipt" ? "receivable" : "payable";
       api.get<any>(`/payments/outstanding?partyId=${initialData.partyId}&type=${vType}`)
@@ -45,6 +55,10 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
         .catch(console.error);
     }
   }, []);
+
+  const filteredAccounts = accounts.filter((a: any) =>
+    form.paymentMode === "cash" ? a.accountType === "cash" : a.accountType === "bank"
+  );
 
   const selectParty = async (party: any) => {
     setForm(f => ({ ...f, partyId: String(party.id), partyName: party.name }));
@@ -111,7 +125,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
         voucherId: a.voucherId,
         allocatedAmount: Math.min(a.allocatedAmount, paymentAmount),
       }));
-      const payload = { type, ...form, partyId: Number(form.partyId), amount: paymentAmount, allocations: form.isOnAccount ? [] : safeAllocations };
+      const payload = { type, ...form, partyId: Number(form.partyId), amount: paymentAmount, accountId: form.accountId ? Number(form.accountId) : null, allocations: form.isOnAccount ? [] : safeAllocations };
       if (editId) {
         await api.patch(`/payments/${editId}`, payload);
       } else {
@@ -159,7 +173,12 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
-            <select className={inputCls} value={form.paymentMode} onChange={e => setForm(f => ({ ...f, paymentMode: e.target.value as any }))}>
+            <select className={inputCls} value={form.paymentMode} onChange={e => {
+              const mode = e.target.value as any;
+              const newFiltered = accounts.filter((a: any) => mode === "cash" ? a.accountType === "cash" : a.accountType === "bank");
+              const def = newFiltered.find((a: any) => a.isDefault) || newFiltered[0];
+              setForm(f => ({ ...f, paymentMode: mode, accountId: def ? String(def.id) : "" }));
+            }}>
               <option value="cash">Cash</option>
               <option value="bank">Bank Transfer</option>
               <option value="cheque">Cheque</option>
@@ -167,6 +186,21 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
               <option value="other">Other</option>
             </select>
           </div>
+          {filteredAccounts.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {form.paymentMode === "cash" ? "Cash Account" : "Bank Account"}
+              </label>
+              <select className={inputCls} value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+                <option value="">-- Select Account --</option>
+                {filteredAccounts.map((a: any) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}{a.bankName ? ` — ${a.bankName}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {(form.paymentMode !== "cash") && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reference #</label>
