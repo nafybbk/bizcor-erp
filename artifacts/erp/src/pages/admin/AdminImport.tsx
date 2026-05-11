@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { api } from "@/lib/api";
-import { Upload, FileSpreadsheet, Users, ShoppingCart, Package, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Info } from "lucide-react";
+import { Upload, FileSpreadsheet, Users, ShoppingCart, Package, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Info, Download, Shield } from "lucide-react";
 
 // ── ERP presets ───────────────────────────────────────────────────────────────
 const ERP_PRESETS: Record<string, { label: string; sheets: string[]; desc: string }> = {
@@ -59,7 +59,9 @@ export default function AdminImport() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  type Step = "idle" | "backing-up" | "backed-up" | "importing" | "done";
+  const [step, setStep] = useState<Step>("idle");
+  const [backupFilename, setBackupFilename] = useState("");
   const [result, setResult] = useState<any>(null);
   const [importError, setImportError] = useState("");
 
@@ -99,19 +101,41 @@ export default function AdminImport() {
   const handleImport = async () => {
     if (!selectedBiz) { setImportError("Business select karein"); return; }
     if (!invoices.length && !purchases.length) { setImportError("File mein data nahi mila"); return; }
-    setLoading(true); setImportError(""); setResult(null);
+    setImportError(""); setResult(null);
+
+    // ── Step 1: Auto backup of selected business ───────────────────────────
+    setStep("backing-up");
+    try {
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/super-admin/backup?businessId=${selectedBiz.id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("erp_token")}` },
+      });
+      if (!resp.ok) throw new Error("Backup API ne error diya");
+      const blob = await resp.blob();
+      const fname = `backup-business-${selectedBiz.id}-${Date.now()}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = fname; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setBackupFilename(fname);
+      setStep("backed-up");
+      await new Promise(r => setTimeout(r, 1000));
+    } catch (e: any) {
+      setImportError("Backup failed: " + (e.message || "Unknown error"));
+      setStep("idle");
+      return;
+    }
+
+    // ── Step 2: Import ─────────────────────────────────────────────────────
+    setStep("importing");
     try {
       const res = await api.post<any>("/super-admin/import-smarterp", {
-        businessId: selectedBiz.id,
-        invoices,
-        qtySold,
-        purchases,
+        businessId: selectedBiz.id, invoices, qtySold, purchases,
       });
       setResult(res);
+      setStep("done");
     } catch (e: any) {
       setImportError(e?.message || "Import failed");
-    } finally {
-      setLoading(false);
+      setStep("idle");
     }
   };
 
@@ -241,19 +265,60 @@ export default function AdminImport() {
         </div>
       )}
 
+      {/* Safety notice */}
+      {selectedBiz && (invoices.length > 0 || purchases.length > 0) && step === "idle" && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <Shield className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+          <div>
+            <span className="font-semibold">Import se pehle {selectedBiz.name} ka full backup hoga — auto!</span>
+            <div className="text-xs mt-0.5 text-amber-600">Parties, items, vouchers, payments sab download honge aapke browser mein. Phir import shuru hoga.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress */}
+      {(step === "backing-up" || step === "backed-up" || step === "importing" || step === "done") && (
+        <div className="bg-white rounded-xl border p-4 space-y-2">
+          <div className="text-sm font-semibold text-gray-700">Progress</div>
+          <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "backing-up" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
+            {step === "backing-up" ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+            <div>
+              <span className="font-medium">{step === "backing-up" ? "Backup ho raha hai…" : "Backup complete!"}</span>
+              {step !== "backing-up" && backupFilename && (
+                <div className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
+                  <Download className="w-3 h-3" />
+                  <span>Downloads mein save hua: <strong>{backupFilename}</strong></span>
+                </div>
+              )}
+            </div>
+          </div>
+          {(step === "importing" || step === "done") && (
+            <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "importing" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
+              {step === "importing" ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+              <span className="font-medium">{step === "importing" ? "Data import ho raha hai…" : "Import complete!"}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {importError && (
         <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {importError}
         </div>
       )}
 
+      {step !== "done" && (
       <button
         onClick={handleImport}
-        disabled={loading || !selectedBiz || (!invoices.length && !purchases.length)}
+        disabled={step !== "idle" || !selectedBiz || (!invoices.length && !purchases.length)}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition"
       >
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</> : <><Upload className="w-4 h-4" /> Import Shuru Karo</>}
+        {step === "backing-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Backup ho raha hai…</>}
+        {step === "importing" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
+        {step === "idle" && <><Upload className="w-4 h-4" /> Backup karke Import Shuru Karo</>}
+        {step === "backed-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
       </button>
+      )}
 
       {/* Results */}
       {result && (
