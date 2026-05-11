@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { SlidersHorizontal } from "lucide-react";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export interface ColDef {
   key: string;
@@ -14,6 +16,7 @@ interface Props {
 }
 
 export default function ColumnCustomizer({ cols, visible, onChange }: Props) {
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -43,7 +46,7 @@ export default function ColumnCustomizer({ cols, visible, onChange }: Props) {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        title="Columns adjust karein"
+        title={t("adjustColumns", lang)}
         className={`flex items-center gap-1.5 px-3 py-2 border text-sm rounded-lg transition-colors ${open ? "border-blue-400 text-blue-600 bg-blue-50" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
       >
         <SlidersHorizontal className="w-4 h-4" />
@@ -53,7 +56,7 @@ export default function ColumnCustomizer({ cols, visible, onChange }: Props) {
       {open && (
         <div className="absolute right-0 top-full mt-1.5 bg-white border border-gray-200 rounded-xl shadow-xl z-40 w-56 py-2">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-3 py-1.5">
-            Columns dikhao / chhupao
+            {t("showHideColumns", lang)}
           </div>
           {cols.map(col => (
             <label
@@ -76,7 +79,7 @@ export default function ColumnCustomizer({ cols, visible, onChange }: Props) {
               onClick={showAll}
               className="text-xs text-blue-600 hover:text-blue-700 py-1 font-medium"
             >
-              Sab columns dikhao
+              {t("showAllColumns", lang)}
             </button>
           </div>
         </div>
