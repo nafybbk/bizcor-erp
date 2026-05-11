@@ -4,6 +4,8 @@ import {
   Plus, Loader2, X, Copy, Check, Ticket, Search, Ban, Trash2,
   FolderOpen, CheckCircle2, Clock, XCircle, Edit2, RefreshCw,
 } from "lucide-react";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   active: {
@@ -32,6 +34,7 @@ interface Voucher {
 }
 
 export default function AdminVouchers() {
+  const lang = useLang();
   const [counts, setCounts] = useState<CountRow[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
@@ -129,7 +132,7 @@ export default function AdminVouchers() {
   };
 
   const reissueVoucher = async (v: Voucher) => {
-    if (!confirm(`"${v.code}" ko reissue karna chahte hain? Naya code generate hoga aur status Active ho jaayega.`)) return;
+    if (!confirm(`Reissue "${v.code}"? A new code will be generated and status will be set to Active.`)) return;
     setReissueSaving(v.id);
     try {
       await api.patch(`/super-admin/vouchers/${v.id}`, { reissue: true });
@@ -139,14 +142,14 @@ export default function AdminVouchers() {
   };
 
   const cancelVoucher = async (id: number) => {
-    if (!confirm("Is voucher ko cancel karna chahte hain?")) return;
+    if (!confirm("Cancel this voucher?")) return;
     await api.patch(`/super-admin/vouchers/${id}`, { status: "cancelled" });
     loadCounts();
     loadVouchers();
   };
 
   const deleteVoucher = async (id: number, code: string) => {
-    if (!confirm(`"${code}" ko permanently delete karna chahte hain? Yeh wapas nahi aayega!`)) return;
+    if (!confirm(`Permanently delete "${code}"? This cannot be undone!`)) return;
     await api.delete(`/super-admin/vouchers/${id}`);
     loadCounts();
     loadVouchers();
@@ -212,7 +215,7 @@ export default function AdminVouchers() {
           {countsLoading ? (
             <div className="flex items-center justify-center h-24"><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /></div>
           ) : planFolders.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">Koi voucher nahi</div>
+            <div className="text-center py-8 text-gray-400 text-sm">{t("noVouchersInFolder", lang)}</div>
           ) : (
             planFolders.map(folder => {
               const isSelected = selectedPlanId === folder.id;
@@ -276,7 +279,7 @@ export default function AdminVouchers() {
                       isActive ? meta.color : "bg-gray-100 text-gray-500 border-gray-200"
                     }`}>{cnt}</span>
                     {s === "cancelled" && cnt > 0 && (
-                      <span className="text-xs text-red-400 font-normal">(delete karo)</span>
+                      <span className="text-xs text-red-400 font-normal">(delete)</span>
                     )}
                   </button>
                 );
@@ -298,14 +301,14 @@ export default function AdminVouchers() {
             {selectedStatus === "cancelled" && vouchers.length > 0 && (
               <button
                 onClick={async () => {
-                  if (!confirm(`${currentFolder?.name} ke saare ${currentFolder?.byStatus.cancelled || 0} cancelled vouchers permanently delete karna chahte hain?`)) return;
+                  if (!confirm(`${currentFolder?.name}: ${t("deleteAll", lang)} ${currentFolder?.byStatus.cancelled || 0} cancelled vouchers?`)) return;
                   for (const v of vouchers) {
                     await api.delete(`/super-admin/vouchers/${v.id}`).catch(() => {});
                   }
                   loadCounts(); loadVouchers();
                 }}
                 className="flex items-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-sm rounded-lg font-medium">
-                <Trash2 className="w-4 h-4" /> Saare Delete Karo
+                <Trash2 className="w-4 h-4" /> {t("deleteAll", lang)}
               </button>
             )}
           </div>
@@ -316,12 +319,12 @@ export default function AdminVouchers() {
           ) : !selectedPlanId ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
               <FolderOpen className="w-10 h-10 opacity-30" />
-              <p className="text-sm">Baayein taraf se plan folder chunein</p>
+              <p className="text-sm">{t("selectPlanFolder", lang)}</p>
             </div>
           ) : vouchers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
               <Ticket className="w-10 h-10 opacity-30" />
-              <p className="text-sm">Is folder mein koi voucher nahi</p>
+              <p className="text-sm">{t("noVouchersInFolder", lang)}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -353,7 +356,7 @@ export default function AdminVouchers() {
                       <td className="px-4 py-3 text-right font-medium text-gray-700">
                         {v.sellingPrice ? `₹${Number(v.sellingPrice).toLocaleString("en-IN")}` : <span className="text-gray-300">—</span>}
                       </td>
-                      <td className="px-4 py-3 text-center text-xs text-gray-600">{v.validityDays} din</td>
+                      <td className="px-4 py-3 text-center text-xs text-gray-600">{v.validityDays} {t("days", lang)}</td>
                       {selectedStatus === "used" && (
                         <td className="px-4 py-3 text-xs text-gray-600">
                           {v.redeemedByBusiness ? (
@@ -373,7 +376,7 @@ export default function AdminVouchers() {
                             </button>
                           )}
                           {v.status === "cancelled" && (
-                            <button onClick={() => reissueVoucher(v)} disabled={reissueSaving === v.id} className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg disabled:opacity-50" title="Reissue (naya code)">
+                            <button onClick={() => reissueVoucher(v)} disabled={reissueSaving === v.id} className="p-1.5 text-green-500 hover:bg-green-50 rounded-lg disabled:opacity-50" title="Reissue (new code)">
                               {reissueSaving === v.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                             </button>
                           )}
@@ -416,7 +419,7 @@ export default function AdminVouchers() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setEditVoucher(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="text-lg font-semibold flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-500" /> Voucher Edit Karo</h2>
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-500" /> {t("voucherEditTitle", lang)}</h2>
               <button onClick={() => setEditVoucher(null)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4">
@@ -428,7 +431,7 @@ export default function AdminVouchers() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Validity (Days)</label>
                 <input type="number" min={1} className={inputCls} value={editForm.validityDays}
                   onChange={e => setEditForm(f => ({ ...f, validityDays: Number(e.target.value) }))} />
-                <p className="text-xs text-gray-400 mt-1">Plan activate hone ke baad kitne din chalega</p>
+                <p className="text-xs text-gray-400 mt-1">{t("validityDaysNote", lang)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (₹)</label>
@@ -470,7 +473,7 @@ export default function AdminVouchers() {
             {newCodes.length > 0 ? (
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-green-700">{newCodes.length} voucher(s) generate ho gaye!</p>
+                  <p className="text-sm font-medium text-green-700">{newCodes.length} {t("vouchersGenerated", lang)}</p>
                   <button onClick={copyAll} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                     {copied === "all" ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                     Copy All
@@ -486,7 +489,7 @@ export default function AdminVouchers() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500">Yeh codes buyer ko de do. Buyer apne software mein "Mera Plan" page pe code daalega.</p>
+                <p className="text-xs text-gray-500">{t("buyerCodeInstructions", lang)}</p>
                 <button onClick={() => { setShowGenerate(false); setNewCodes([]); }}
                   className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium">Done</button>
               </div>
@@ -506,13 +509,13 @@ export default function AdminVouchers() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                     <input type="number" min={1} max={50} className={inputCls} value={genForm.quantity}
                       onChange={e => setGenForm(f => ({ ...f, quantity: Math.min(50, Math.max(1, Number(e.target.value))) }))} />
-                    <p className="text-xs text-gray-400 mt-1">Max 50 ek baar mein</p>
+                    <p className="text-xs text-gray-400 mt-1">{t("max50AtOnce", lang)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Validity (Days)</label>
                     <input type="number" min={1} className={inputCls} value={genForm.validityDays}
                       onChange={e => setGenForm(f => ({ ...f, validityDays: Number(e.target.value) }))} />
-                    <p className="text-xs text-gray-400 mt-1">Plan activate hone ke baad</p>
+                    <p className="text-xs text-gray-400 mt-1">{t("afterPlanActivation", lang)}</p>
                   </div>
                 </div>
                 <div>
@@ -524,11 +527,11 @@ export default function AdminVouchers() {
                     <input type="number" min={0} step={1} className={inputCls + " pl-7"} placeholder="e.g. 999"
                       value={genForm.sellingPrice} onChange={e => setGenForm(f => ({ ...f, sellingPrice: e.target.value }))} />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Buyer se kitna liya — record ke liye</p>
+                  <p className="text-xs text-gray-400 mt-1">{t("sellingPriceNote", lang)}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-                  <input type="text" className={inputCls} placeholder="e.g. Sharma Ji ke liye, Delhi batch..."
+                  <input type="text" className={inputCls} placeholder="e.g. Delhi batch, special offer..."
                     value={genForm.notes} onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))} />
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
