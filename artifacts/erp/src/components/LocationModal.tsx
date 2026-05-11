@@ -7,7 +7,8 @@ import {
   clearDeviceLocation,
   detectGpsLocation,
 } from "@/lib/locationStore";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 interface LocationModalProps {
   onClose: () => void;

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound, PencilOff, Trash } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const emptyForm = {
   name: "", email: "", password: "", role: "staff" as "business_admin" | "staff",

@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { Trash2, RotateCcw, ArrowLeft, Loader2, AlertTriangle, X } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 interface BinVoucher {
   id: number;

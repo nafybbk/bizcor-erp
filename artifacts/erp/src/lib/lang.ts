@@ -1,5 +1,3 @@
-import { useState, useEffect } from "react";
-
 export type Lang = "en" | "hi";
 
 const KEY = "erp_lang";
@@ -13,16 +11,6 @@ export function setLang(lang: Lang) {
 }
 export function toggleLang() {
   setLang(getLang() === "en" ? "hi" : "en");
-}
-
-export function useLang(): Lang {
-  const [lang, setLangState] = useState<Lang>(getLang());
-  useEffect(() => {
-    const handler = () => setLangState(getLang());
-    window.addEventListener("lang-change", handler);
-    return () => window.removeEventListener("lang-change", handler);
-  }, []);
-  return lang;
 }
 
 export const T: Record<Lang, Record<string, string>> = {

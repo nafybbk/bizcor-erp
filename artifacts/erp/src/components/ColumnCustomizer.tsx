@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export interface ColDef {
   key: string;

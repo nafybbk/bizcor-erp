@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2, FolderOpen, FolderX } from "lucide-react";
 import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupported } from "@/lib/localDataFolder";
-import { getLang, useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { getLang, t } from "@/lib/lang";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },

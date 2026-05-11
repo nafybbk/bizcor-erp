@@ -4,7 +4,8 @@ import {
   Plus, Loader2, X, Copy, Check, Ticket, Search, Ban, Trash2,
   FolderOpen, CheckCircle2, Clock, XCircle, Edit2, RefreshCw,
 } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const STATUS_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   active: {

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { api, setAdminToken } from "@/lib/api";
 import { Eye, EyeOff, Loader2, Headphones, ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 type View = "login" | "forgot";
 

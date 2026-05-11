@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Loader2, Plus, Trash2, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export default function AdminSuperAdmins() {
   const lang = useLang();

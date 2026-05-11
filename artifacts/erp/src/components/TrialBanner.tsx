@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { X, AlertTriangle, Lock, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 interface TrialStatus {
   phase: number;

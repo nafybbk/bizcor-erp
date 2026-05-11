@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Gift, X, Copy, Check, Trophy } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const CONGRATS_DISMISSED_KEY = "erp_referral_congrats_dismissed";
 

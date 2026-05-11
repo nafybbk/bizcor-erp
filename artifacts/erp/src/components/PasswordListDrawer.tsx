@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, Eye, EyeOff, Shield, Users, Crown, Copy, Check } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 interface PasswordEntry {
   id: number;

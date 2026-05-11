@@ -4,7 +4,8 @@ import { getDrafts, removeDraft, resolvePayload, OfflineDraft } from "@/lib/offl
 import { api } from "@/lib/api";
 import { ArrowLeft, CloudOff, CheckCircle2, XCircle, Loader2, Trash2, Send, AlertTriangle } from "lucide-react";
 import { fmt } from "@/lib/api";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 type Status = "pending" | "syncing" | "done" | "failed";
 

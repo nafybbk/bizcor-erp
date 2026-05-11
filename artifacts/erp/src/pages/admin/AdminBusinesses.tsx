@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const ALL_PERMS = [
   { key: "sales", label: "Sales" },

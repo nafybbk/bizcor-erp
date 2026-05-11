@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { Activity, MapPin, Monitor, Wifi, WifiOff, RefreshCw, Loader2, Clock } from "lucide-react";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export default function AdminActivity() {
   const lang = useLang();

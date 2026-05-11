@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2, FileText } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
-import { useLang, t } from "@/lib/lang";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export default function AdminSettings() {
   const lang = useLang();
