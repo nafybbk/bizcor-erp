@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2, FileText } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 export default function AdminSettings() {
+  const lang = useLang();
   const [form, setForm] = useState({
     softwareName: "BizERP",
     supportEmail: "",
@@ -37,7 +40,7 @@ export default function AdminSettings() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1_500_000) { alert("Image 1.5MB se chhoti honi chahiye"); return; }
+    if (file.size > 1_500_000) { alert(t("imageTooLarge15", lang)); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setProfile(p => ({ ...p, avatar: ev.target?.result as string }));
     reader.readAsDataURL(file);
@@ -51,19 +54,19 @@ export default function AdminSettings() {
       if (profile.avatar !== undefined) payload.avatar = profile.avatar;
       if (pwForm.newPassword) {
         if (pwForm.newPassword !== pwForm.confirmPassword) {
-          setProfileMsg({ type: "err", text: "New password aur confirm password match nahi kar rahe" }); setProfileSaving(false); return;
+          setProfileMsg({ type: "err", text: t("passwordMismatch", lang) }); setProfileSaving(false); return;
         }
         if (!pwForm.currentPassword) {
-          setProfileMsg({ type: "err", text: "Current password daalna zaroori hai" }); setProfileSaving(false); return;
+          setProfileMsg({ type: "err", text: t("currentPasswordRequired", lang) }); setProfileSaving(false); return;
         }
         payload.currentPassword = pwForm.currentPassword;
         payload.newPassword = pwForm.newPassword;
       }
       await api.patch("/super-admin/my-profile", payload);
-      setProfileMsg({ type: "ok", text: "Profile update ho gayi!" });
+      setProfileMsg({ type: "ok", text: t("profileUpdated", lang) });
       setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (err: any) {
-      setProfileMsg({ type: "err", text: err.message || "Update mein problem hui" });
+      setProfileMsg({ type: "err", text: err.message || t("profileUpdateError", lang) });
     } finally { setProfileSaving(false); }
   };
 
@@ -73,15 +76,15 @@ export default function AdminSettings() {
       const options = await api.post<any>("/auth/webauthn/register-options", {});
       const credential = await startRegistration({ optionsJSON: options });
       await api.post("/auth/webauthn/register-verify", credential);
-      setFpMsg({ type: "ok", text: "Fingerprint register ho gaya! Ab login page pe fingerprint se password list dekh sakte ho." });
+      setFpMsg({ type: "ok", text: t("fingerprintRegistered", lang) });
     } catch (err: any) {
       const msg = err?.message || "";
       if (msg.includes("excludeCredentials") || msg.includes("already") || msg.includes("InvalidStateError")) {
-        setFpMsg({ type: "ok", text: "Yeh fingerprint pehle se register hai!" });
+        setFpMsg({ type: "ok", text: t("fingerprintAlreadyRegistered", lang) });
       } else if (msg.includes("cancel") || msg.includes("NotAllowed")) {
-        setFpMsg({ type: "err", text: "Fingerprint setup cancel ho gaya" });
+        setFpMsg({ type: "err", text: t("fingerprintCancelled", lang) });
       } else {
-        setFpMsg({ type: "err", text: msg || "Fingerprint setup mein error aaya" });
+        setFpMsg({ type: "err", text: msg || t("fingerprintError", lang) });
       }
     } finally { setFpLoading(false); }
   };
@@ -159,9 +162,9 @@ export default function AdminSettings() {
       {/* ── My Profile: Phone + Password ── */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
-          <Smartphone className="w-4 h-4 text-yellow-600" /> Tech Login — Mera Profile
+          <Smartphone className="w-4 h-4 text-yellow-600" /> {t("techLoginMyProfile", lang)}
         </h3>
-        <p className="text-xs text-gray-500">Tech Login ka mobile number aur password yahan se badlein.</p>
+        <p className="text-xs text-gray-500">{t("techLoginProfileDesc", lang)}</p>
 
         {profileMsg && (
           <div className={`text-sm px-3 py-2 rounded-lg ${profileMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
@@ -189,7 +192,7 @@ export default function AdminSettings() {
             <button type="button" onClick={() => avatarInputRef.current?.click()}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors">
               <Upload className="w-3.5 h-3.5" />
-              {profile.avatar ? "Photo Badlo" : "Photo Upload Karo"}
+              {profile.avatar ? t("changePhoto", lang) : t("uploadPhoto", lang)}
             </button>
             <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp" className="hidden" onChange={handleAvatarUpload} />
             <p className="text-xs text-gray-400">PNG/JPG — max 1.5MB</p>
@@ -197,19 +200,19 @@ export default function AdminSettings() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number (Login ke liye use hoga)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t("mobileForLogin", lang)}</label>
           <input type="tel" className={inputCls}
             value={profile.phone}
             onChange={e => setProfile(p => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
             placeholder="10 digit mobile number" maxLength={10} />
-          <p className="text-xs text-gray-400 mt-1">Yahi number Tech Login mein daalenge</p>
+          <p className="text-xs text-gray-400 mt-1">{t("mobileLoginHint", lang)}</p>
         </div>
 
         <div className="border-t border-gray-100 pt-4">
           <div className="flex items-center gap-2 mb-3">
             <Lock className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-700">Password Badlein</span>
-            <span className="text-xs text-gray-400">(khali chhodein agar sirf mobile update karna ho)</span>
+            <span className="text-sm font-medium text-gray-700">{t("changePassword", lang)}</span>
+            <span className="text-xs text-gray-400">{t("leaveBlankMobileOnly", lang)}</span>
           </div>
           <div className="space-y-3">
             <div>
@@ -217,7 +220,7 @@ export default function AdminSettings() {
               <input type="password" className={inputCls}
                 value={pwForm.currentPassword}
                 onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))}
-                placeholder="Purana password" />
+                placeholder={t("oldPassword", lang)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -225,14 +228,14 @@ export default function AdminSettings() {
                 <input type="password" className={inputCls}
                   value={pwForm.newPassword}
                   onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))}
-                  placeholder="Naya password (min 6 char)" />
+                  placeholder={t("newPasswordMin", lang)} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
                 <input type="password" className={inputCls}
                   value={pwForm.confirmPassword}
                   onChange={e => setPwForm(f => ({ ...f, confirmPassword: e.target.value }))}
-                  placeholder="Dobara naya password" />
+                  placeholder={t("confirmNewPassword", lang)} />
               </div>
             </div>
           </div>
@@ -241,7 +244,7 @@ export default function AdminSettings() {
         <button type="button" onClick={saveProfile} disabled={profileSaving}
           className="flex items-center gap-2 px-5 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60">
           {profileSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {profileSaving ? "Saving..." : "Profile Save Karo"}
+          {profileSaving ? "Saving..." : t("saveProfile", lang)}
         </button>
       </div>
 
@@ -250,9 +253,7 @@ export default function AdminSettings() {
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
           <Fingerprint className="w-4 h-4 text-yellow-500" /> Fingerprint Setup
         </h3>
-        <p className="text-xs text-gray-500">
-          Apna fingerprint register karo — phir login page pe bina password ke sirf fingerprint se saare users ke passwords dekh sakte ho.
-        </p>
+        <p className="text-xs text-gray-500">{t("fingerprintSetupDesc", lang)}</p>
         {fpMsg && (
           <div className={`flex items-start gap-2 text-sm px-3 py-2 rounded-lg ${fpMsg.type === "ok" ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
             {fpMsg.type === "ok" && <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />}
@@ -267,37 +268,35 @@ export default function AdminSettings() {
             className="flex items-center gap-2 px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
           >
             {fpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
-            {fpLoading ? "Setup ho raha hai..." : "Fingerprint Register Karo"}
+            {fpLoading ? t("fingerprintSettingUp", lang) : t("registerFingerprint", lang)}
           </button>
           <button
             type="button"
             disabled={fpLoading}
             onClick={async () => {
-              if (!confirm("Purana fingerprint delete ho jaayega. Confirm?")) return;
+              if (!confirm(t("deleteFingerprintConfirm", lang))) return;
               setFpMsg(null);
               try {
                 await api.post("/auth/webauthn/reset-credential", {});
-                setFpMsg({ type: "ok", text: "Purana fingerprint hata diya. Ab 'Register Karo' button se dobara add karo." });
+                setFpMsg({ type: "ok", text: t("fingerprintRemoved", lang) });
               } catch (err: any) {
-                setFpMsg({ type: "err", text: err.message || "Reset mein problem aayi" });
+                setFpMsg({ type: "err", text: err.message || t("fingerprintResetError", lang) });
               }
             }}
             className="flex items-center gap-2 px-4 py-2.5 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium disabled:opacity-60 transition-colors"
           >
-            Reset / Dobara Register Karo
+            {t("resetReRegister", lang)}
           </button>
         </div>
-        <p className="text-xs text-gray-400">
-          Agar "timed out" ya "not allowed" error aa raha hai toh pehle Reset karo, phir dobara usi device/browser par register karo.
-        </p>
+        <p className="text-xs text-gray-400">{t("fingerprintTimeoutHint", lang)}</p>
       </div>
 
       {/* ── Print Footer ── */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-purple-500" /> Print Footer (Har Invoice / PDF Pe)
+          <FileText className="w-4 h-4 text-purple-500" /> {t("printFooterTitle", lang)}
         </h3>
-        <p className="text-xs text-gray-500">Yeh text aur logo <strong>sabhi businesses</strong> ke har print/PDF ke neeche dikhayi dega.</p>
+        <p className="text-xs text-gray-500">{t("printFooterDesc", lang)}</p>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Footer Line (Text)</label>
           <input
@@ -306,7 +305,7 @@ export default function AdminSettings() {
             onChange={e => setForm(f => ({ ...f, printFooterText: e.target.value }))}
             placeholder="e.g. Powered by BizCor | support@naewtgroup.com | +91 99999 99999"
           />
-          <p className="text-xs text-gray-400 mt-1">Yeh line print mein sab se neeche aayegi</p>
+          <p className="text-xs text-gray-400 mt-1">{t("printFooterLineHint", lang)}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Footer Logo (Image)</label>
@@ -320,12 +319,12 @@ export default function AdminSettings() {
               <button type="button" onClick={() => printLogoInputRef.current?.click()}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 rounded-lg text-xs font-medium text-gray-700 transition-colors">
                 <Upload className="w-3.5 h-3.5" />
-                {form.printFooterLogo ? "Logo Badlo" : "Logo Upload Karo"}
+                {form.printFooterLogo ? t("changeLogo", lang) : t("uploadLogo", lang)}
               </button>
               {form.printFooterLogo && (
                 <button type="button" onClick={() => setForm(f => ({ ...f, printFooterLogo: "" }))}
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
-                  <X className="w-3.5 h-3.5" /> Hatao
+                  <X className="w-3.5 h-3.5" /> {t("removeFolderBtn", lang)}
                 </button>
               )}
               <input
@@ -334,7 +333,7 @@ export default function AdminSettings() {
                 onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  if (file.size > 500_000) { alert("Logo 500KB se chhota hona chahiye"); return; }
+                  if (file.size > 500_000) { alert(t("logoTooLarge500kb", lang)); return; }
                   const reader = new FileReader();
                   reader.onload = ev => setForm(f => ({ ...f, printFooterLogo: ev.target?.result as string }));
                   reader.readAsDataURL(file);
