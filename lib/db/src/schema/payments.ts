@@ -2,6 +2,7 @@ import { pgTable, serial, text, integer, boolean, timestamp, numeric, pgEnum } f
 import { businessesTable } from "./businesses";
 import { partiesTable } from "./masters";
 import { vouchersTable } from "./vouchers";
+import { cashBankAccountsTable } from "./cashBank";
 
 export const paymentTypeEnum = pgEnum("payment_type", ["receipt", "payment"]);
 export const paymentModeEnum = pgEnum("payment_mode", ["cash", "bank", "cheque", "upi", "other"]);
@@ -18,6 +19,7 @@ export const paymentsTable = pgTable("payments", {
   referenceNumber: text("reference_number"),
   notes: text("notes"),
   isOnAccount: boolean("is_on_account").notNull().default(false),
+  accountId: integer("account_id").references(() => cashBankAccountsTable.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
