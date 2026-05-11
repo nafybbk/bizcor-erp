@@ -83,20 +83,20 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
           <ShieldCheck className="w-8 h-8 text-red-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Plan Expire Ho Gaya</h2>
+          <h2 className="text-xl font-bold text-gray-900">Plan Expired</h2>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            Aapka subscription plan khatam ho gaya hai. Naya plan activate karne ke liye apne admin ya BizCor support se contact karein.
+            Your subscription plan has expired. Contact your admin or BizCor support to activate a new plan.
           </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
-          <div className="text-xs font-semibold text-amber-800">Kya band hai:</div>
-          <div className="text-xs text-amber-700">• Invoice, Bill, Credit Note banana</div>
-          <div className="text-xs text-amber-700">• Customer, Supplier, Item add karna</div>
-          <div className="text-xs text-amber-700">• Reports dekhna</div>
-          <div className="text-xs text-amber-700">• Data download/export karna</div>
+          <div className="text-xs font-semibold text-amber-800">What's restricted:</div>
+          <div className="text-xs text-amber-700">• Creating invoices, bills, credit notes</div>
+          <div className="text-xs text-amber-700">• Adding customers, suppliers, items</div>
+          <div className="text-xs text-amber-700">• Viewing reports</div>
+          <div className="text-xs text-amber-700">• Downloading / exporting data</div>
         </div>
         <div className="text-xs text-gray-400">
-          Naya license voucher milne ke baad Settings → License Activate karo, phir dobara login karo.
+          Once you receive a new license voucher, go to Settings → Activate License, then log in again.
         </div>
         <button
           onClick={onLogout}
@@ -127,6 +127,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [lang, setLangState] = useState<Lang>(getLang());
   const [dataFolderName, setDataFolderName] = useState<string | null>(getDataFolderName());
+  const [bottomCollapsed, setBottomCollapsed] = useState(() => !!localStorage.getItem("erp_sidebar_bottom_collapsed"));
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -330,6 +331,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
     ] : []),
     { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" />, permKey: "settings" },
+    { label: "Import Data", href: "/settings/import", icon: <DatabaseZap className="w-4 h-4" />, permKey: "settings" },
     ...(hasPerm("sales") ? [{ label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> }] : []),
   ];
 
@@ -413,97 +415,118 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Bottom — User + status */}
-        <div className="p-3 border-t border-slate-700 space-y-1.5">
-          {/* Desktop / Cloud mode badge */}
-          {appMode && (
-            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${appMode === "desktop" ? "bg-indigo-900/60 text-indigo-300 border border-indigo-700" : "bg-slate-700/60 text-slate-400"}`}>
-              {appMode === "desktop" ? "🖥 Desktop App" : "☁ Cloud"}
-            </div>
-          )}
-          {/* Online/Offline */}
-          <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
-            {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            <span>{isOnline ? "Connected" : "Offline"}</span>
-            {draftCount > 0 && (
-              <button onClick={() => navigate("/offline-drafts")}
-                className="ml-auto flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
-                <CloudOff className="w-3 h-3" />
-                {draftCount} draft{draftCount > 1 ? "s" : ""}
+        <div className="border-t border-slate-700">
+          {/* Collapse toggle bar */}
+          <button
+            onClick={() => {
+              const next = !bottomCollapsed;
+              setBottomCollapsed(next);
+              if (next) localStorage.setItem("erp_sidebar_bottom_collapsed", "1");
+              else localStorage.removeItem("erp_sidebar_bottom_collapsed");
+            }}
+            className="w-full flex items-center justify-between px-3 py-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors text-[10px] font-semibold tracking-wider uppercase"
+          >
+            <span>Status & Settings</span>
+            {bottomCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+
+          {/* Collapsible section */}
+          {!bottomCollapsed && (
+            <div className="px-3 pb-2 space-y-1">
+              {/* Desktop / Cloud mode badge */}
+              {appMode && (
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${appMode === "desktop" ? "bg-indigo-900/60 text-indigo-300 border border-indigo-700" : "bg-slate-700/60 text-slate-400"}`}>
+                  {appMode === "desktop" ? "🖥 Desktop App" : "☁ Cloud"}
+                </div>
+              )}
+              {/* Online/Offline */}
+              <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
+                {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                <span>{isOnline ? "Connected" : "Offline"}</span>
+                {draftCount > 0 && (
+                  <button onClick={() => navigate("/offline-drafts")}
+                    className="ml-auto flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
+                    <CloudOff className="w-3 h-3" />
+                    {draftCount} draft{draftCount > 1 ? "s" : ""}
+                  </button>
+                )}
+              </div>
+
+              {/* Device Location */}
+              <button
+                onClick={() => setShowLocationModal(true)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                  deviceLoc ? "text-emerald-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate flex-1 text-left">
+                  {deviceLoc ? deviceLoc.name : L.setLocation}
+                </span>
+                <span className="text-slate-600 text-[10px]">✎</span>
               </button>
-            )}
-          </div>
 
-          {/* Device Location */}
-          <button
-            onClick={() => setShowLocationModal(true)}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-              deviceLoc ? "text-emerald-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
-            }`}
-          >
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate flex-1 text-left">
-              {deviceLoc ? deviceLoc.name : L.setLocation}
-            </span>
-            <span className="text-slate-600 text-[10px]">✎</span>
-          </button>
+              {/* Data Folder */}
+              {isFileSystemSupported() && (
+                <button
+                  onClick={async () => {
+                    const result = await pickDataFolder();
+                    if (result) setDataFolderName(result.name);
+                  }}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
+                    dataFolderName ? "text-blue-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
+                  }`}
+                >
+                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate flex-1 text-left">
+                    {dataFolderName ? dataFolderName : L.dataFolder}
+                  </span>
+                  <span className="text-slate-600 text-[10px]">✎</span>
+                </button>
+              )}
 
-          {/* Data Folder */}
-          {isFileSystemSupported() && (
-            <button
-              onClick={async () => {
-                const result = await pickDataFolder();
-                if (result) setDataFolderName(result.name);
-              }}
-              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                dataFolderName ? "text-blue-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate flex-1 text-left">
-                {dataFolderName ? dataFolderName : L.dataFolder}
-              </span>
-              <span className="text-slate-600 text-[10px]">✎</span>
-            </button>
-          )}
-
-          {/* Language Toggle */}
-          <button
-            onClick={() => { toggleLang(); setLangState(getLang()); }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-          >
-            <span className="text-sm leading-none">🌐</span>
-            <span className="flex-1 text-left">{L.language}</span>
-            <span className="bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-slate-200 font-mono text-[10px] font-bold tracking-wider">
-              {lang === "en" ? "EN" : "हि"}
-            </span>
-          </button>
-
-          {/* Profile link */}
-          <Link href="/profile">
-            <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
-              location === "/profile" ? "bg-slate-700" : "hover:bg-slate-700"}`}>
-              <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                {user?.name?.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-white text-xs font-medium truncate">{user?.name}</div>
-                <div className="text-slate-400 text-xs truncate">{isSuperAdmin() ? "Tech Support" : user?.role?.replace("_", " ")}</div>
-              </div>
-              <UserCircle className="w-4 h-4 text-slate-500 flex-shrink-0" />
-            </a>
-          </Link>
-
-          {isSuperAdmin() && (
-            <div className="flex items-center gap-1 px-2 py-1">
-              <Headphones className="w-3 h-3 text-yellow-400" />
-              <span className="text-yellow-400 text-xs font-medium">Tech Support Panel</span>
+              {/* Language Toggle */}
+              <button
+                onClick={() => { toggleLang(); setLangState(getLang()); }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              >
+                <span className="text-sm leading-none">🌐</span>
+                <span className="flex-1 text-left">{L.language}</span>
+                <span className="bg-slate-700 hover:bg-slate-600 px-2 py-0.5 rounded text-slate-200 font-mono text-[10px] font-bold tracking-wider">
+                  {lang === "en" ? "EN" : "हि"}
+                </span>
+              </button>
             </div>
           )}
 
-          <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
-            <LogOut className="w-4 h-4" />
-            {L.signOut}
-          </button>
+          {/* Profile + Sign Out — always visible */}
+          <div className="px-3 pb-3 space-y-1">
+            <Link href="/profile">
+              <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                location === "/profile" ? "bg-slate-700" : "hover:bg-slate-700"}`}>
+                <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {user?.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-white text-xs font-medium truncate">{user?.name}</div>
+                  <div className="text-slate-400 text-xs truncate">{isSuperAdmin() ? "Tech Support" : user?.role?.replace("_", " ")}</div>
+                </div>
+                <UserCircle className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              </a>
+            </Link>
+
+            {isSuperAdmin() && (
+              <div className="flex items-center gap-1 px-2 py-1">
+                <Headphones className="w-3 h-3 text-yellow-400" />
+                <span className="text-yellow-400 text-xs font-medium">Tech Support Panel</span>
+              </div>
+            )}
+
+            <button onClick={logout} className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm">
+              <LogOut className="w-4 h-4" />
+              {L.signOut}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -557,7 +580,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button onClick={() => navigate("/offline-drafts")}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs rounded-lg hover:bg-orange-100 transition-colors">
               <CloudOff className="w-3.5 h-3.5" />
-              {draftCount} offline draft{draftCount > 1 ? "s" : ""} — Submit karo
+              {draftCount} offline draft{draftCount > 1 ? "s" : ""} — Submit
             </button>
           )}
 
@@ -584,6 +607,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {business && (
             <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded font-mono">{business.businessCode}</span>
           )}
+          {/* Sign Out — topbar right side */}
+          <button
+            onClick={logout}
+            title="Sign Out"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-medium border border-gray-200 hover:border-red-200"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">{T[lang].signOut}</span>
+          </button>
         </header>
 
 
@@ -600,8 +632,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {autoSyncResult && !autoSyncing && (
           <div className="bg-green-600 text-white text-sm px-4 py-2 flex items-center gap-2 shrink-0">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            {autoSyncResult.synced} drafts server par submit ho gaye!
-            {autoSyncResult.failed > 0 && <span className="text-yellow-200 ml-1">({autoSyncResult.failed} failed — manually check karo)</span>}
+            {autoSyncResult.synced} draft{autoSyncResult.synced !== 1 ? "s" : ""} submitted successfully!
+            {autoSyncResult.failed > 0 && <span className="text-yellow-200 ml-1">({autoSyncResult.failed} failed — please check manually)</span>}
           </div>
         )}
 
