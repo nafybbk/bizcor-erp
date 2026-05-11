@@ -64,6 +64,7 @@ router.get("/public-settings", async (_req, res) => {
 router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
+router.use("/super-admin", importDataRouter);
 
 // All business routes — plan expiry enforced on every call
 router.use(requireActivePlan);
@@ -80,6 +81,5 @@ router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
 router.use(licenseVouchersRouter);
 router.use("/cash-bank", cashBankRouter);
-router.use("/super-admin", importDataRouter);
 
 export default router;
