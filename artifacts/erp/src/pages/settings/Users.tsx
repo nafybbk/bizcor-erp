@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound, PencilOff, Trash } from "lucide-react";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 const emptyForm = {
   name: "", email: "", password: "", role: "staff" as "business_admin" | "staff",
@@ -32,6 +34,7 @@ function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
 }
 
 export default function Users() {
+  const lang = useLang();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -73,7 +76,7 @@ export default function Users() {
   };
 
   const del = async (id: number) => {
-    if (!confirm("Is user ko delete karna chahte hain?")) return;
+    if (!confirm(t("deleteUserConfirm", lang))) return;
     await api.delete(`/users/${id}`);
     load();
   };
@@ -97,7 +100,7 @@ export default function Users() {
         <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
       ) : users.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center h-32 text-gray-400 text-sm">
-          Koi user nahi mila
+          {t("noUsersFound", lang)}
         </div>
       ) : (
         <div className="space-y-3">
@@ -174,19 +177,19 @@ export default function Users() {
                 <input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{editId ? "New Password (blank = change nahi)" : "Password *"}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{editId ? t("newPasswordHint", lang) : "Password *"}</label>
                 <input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Login PIN
-                  <span className="text-gray-400 font-normal text-xs ml-1">(same email+password wale users ke liye)</span>
+                  <span className="text-gray-400 font-normal text-xs ml-1">({t("loginPinHint", lang)})</span>
                 </label>
                 <input
                   type="password"
                   inputMode="numeric"
                   maxLength={8}
-                  placeholder={editId ? "Naya PIN daalo (blank = change nahi)" : "4–8 digit PIN"}
+                  placeholder={editId ? t("enterNewPin", lang) : "4–8 digit PIN"}
                   className={inputCls}
                   value={form.loginPin}
                   onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))}
@@ -206,14 +209,14 @@ export default function Users() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-700">Edit Records</div>
-                    <div className="text-xs text-gray-400">Data edit karne ka right</div>
+                    <div className="text-xs text-gray-400">{t("editRecordsRight", lang)}</div>
                   </div>
                   <YesNoToggle value={form.canEdit} onChange={v => setForm(f => ({ ...f, canEdit: v }))} />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-700">Delete Records</div>
-                    <div className="text-xs text-gray-400">Data delete karne ka right</div>
+                    <div className="text-xs text-gray-400">{t("deleteRecordsRight", lang)}</div>
                   </div>
                   <YesNoToggle value={form.canDelete} onChange={v => setForm(f => ({ ...f, canDelete: v }))} />
                 </div>
