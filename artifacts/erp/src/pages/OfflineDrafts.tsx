@@ -4,6 +4,8 @@ import { getDrafts, removeDraft, resolvePayload, OfflineDraft } from "@/lib/offl
 import { api } from "@/lib/api";
 import { ArrowLeft, CloudOff, CheckCircle2, XCircle, Loader2, Trash2, Send, AlertTriangle } from "lucide-react";
 import { fmt } from "@/lib/api";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 type Status = "pending" | "syncing" | "done" | "failed";
 
@@ -13,6 +15,7 @@ interface DraftState extends OfflineDraft {
 }
 
 export default function OfflineDrafts() {
+  const lang = useLang();
   const [, navigate] = useLocation();
   const [drafts, setDrafts] = useState<DraftState[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -21,11 +24,9 @@ export default function OfflineDrafts() {
     setDrafts(getDrafts().map(d => ({ ...d, status: "pending" as Status })));
   }, []);
 
-  // Submit a single draft, using idMap for temp-party resolution. Returns server result or throws.
   const submitDraft = async (draft: DraftState, idMap: Record<number, number>): Promise<any> => {
     let payload = resolvePayload(draft.payload, idMap);
 
-    // If partyId is still negative after idMap resolution, try to look up the party by name on the server
     if (payload?.partyId && typeof payload.partyId === "number" && payload.partyId < 0) {
       const partyName: string | undefined = payload.partyName;
       if (partyName) {
@@ -37,10 +38,10 @@ export default function OfflineDrafts() {
         if (found) {
           payload = { ...payload, partyId: found.id };
         } else {
-          throw new Error(`Party "${partyName}" server par nahi mili. Pehle party banao phir submit karo.`);
+          throw new Error(t("offlinePartyNotFound", lang).replace("party", `"${partyName}"`));
         }
       } else {
-        throw new Error("Party ka ID resolve nahi hua. 'Sab Submit Karo' use karo ya draft delete karke naya banao.");
+        throw new Error(t("partyIdNotResolved", lang));
       }
     }
 
@@ -48,7 +49,6 @@ export default function OfflineDrafts() {
     return api.patch(draft.endpoint, payload);
   };
 
-  // Sync a single draft independently (Submit button per card)
   const syncOne = async (draft: DraftState): Promise<void> => {
     setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, status: "syncing" } : d));
     try {
@@ -60,7 +60,6 @@ export default function OfflineDrafts() {
     }
   };
 
-  // Sync all pending drafts in order, carrying ID map forward
   const syncAll = async () => {
     setSyncing(true);
     const idMap: Record<number, number> = {};
@@ -70,7 +69,6 @@ export default function OfflineDrafts() {
       setDrafts(prev => prev.map(x => x.id === d.id ? { ...x, status: "syncing" } : x));
       try {
         const result = await submitDraft(d, idMap);
-        // Track party temp→real ID mapping for subsequent voucher drafts
         if (d.endpoint === "/parties" && d.tempId && result?.id) {
           idMap[d.tempId] = result.id;
         }
@@ -102,22 +100,21 @@ export default function OfflineDrafts() {
             <CloudOff className="w-6 h-6 text-orange-500" />
             Offline Drafts
           </h1>
-          <p className="text-sm text-gray-500">Internet nahi tha tab save hue — ab submit karo</p>
+          <p className="text-sm text-gray-500">{t("offlineDraftsDesc", lang)}</p>
         </div>
       </div>
 
       {drafts.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
           <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <div className="font-semibold text-gray-700">Koi pending draft nahi hai</div>
-          <div className="text-sm text-gray-400 mt-1">Sab data submit ho chuka hai</div>
+          <div className="font-semibold text-gray-700">{t("noPendingDrafts", lang)}</div>
+          <div className="text-sm text-gray-400 mt-1">{t("allDataSubmitted", lang)}</div>
           <button onClick={() => navigate("/")} className="mt-4 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700">
-            Dashboard par jao
+            {t("goToDashboard", lang)}
           </button>
         </div>
       ) : (
         <>
-          {/* Summary bar */}
           <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-5 py-3">
             <div className="text-sm text-orange-800">
               <span className="font-bold">{pendingCount}</span> pending · <span className="font-bold text-green-700">{doneCount}</span> submitted
@@ -125,18 +122,16 @@ export default function OfflineDrafts() {
             <button onClick={syncAll} disabled={syncing || pendingCount === 0}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50">
               {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Sab Submit Karo
+              {t("submitAll", lang)}
             </button>
           </div>
 
-          {/* Tip when temp-party drafts exist */}
           {drafts.some(d => d.payload?.partyId < 0) && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
-              ⚠️ Kuch vouchers mein party offline banayi gayi thi. <strong>Sab Submit Karo</strong> use karo — yeh sahi order mein submit karta hai.
+              ⚠️ {t("offlinePartyTip", lang)}
             </div>
           )}
 
-          {/* Draft list */}
           <div className="space-y-3">
             {drafts.map(draft => (
               <div key={draft.id} className={`bg-white rounded-xl border p-4 ${
@@ -165,7 +160,7 @@ export default function OfflineDrafts() {
                       <div className="text-xs text-red-600 mt-1 ml-6">Error: {draft.error}</div>
                     )}
                     {draft.status === "done" && (
-                      <div className="text-xs text-green-600 font-medium mt-1 ml-6">✓ Server par submit ho gaya</div>
+                      <div className="text-xs text-green-600 font-medium mt-1 ml-6">✓ {t("submittedToServer", lang)}</div>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -173,7 +168,7 @@ export default function OfflineDrafts() {
                       <>
                         <button onClick={() => syncOne(draft)}
                           className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                          Submit
+                          {t("submit", lang)}
                         </button>
                         <button onClick={() => deleteDraft(draft.id)}
                           className="text-gray-300 hover:text-red-500 transition-colors">
