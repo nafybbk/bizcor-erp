@@ -1,3 +1,5 @@
+import { getLang, t } from "./lang";
+
 const BASE = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/api`
   : `${import.meta.env.BASE_URL}api`.replace(/\/+/g, "/").replace(/\/$/, "");
@@ -59,7 +61,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       clearToken();
       localStorage.removeItem("erp_user");
       localStorage.removeItem("erp_business");
-      const { getLang, t } = await import("./lang");
       const lang = getLang();
       localStorage.setItem("erp_session_invalidated_msg", errData.message || t("sessionInvalidated", lang));
       window.location.href = "/";
