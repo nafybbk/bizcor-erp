@@ -451,45 +451,100 @@ export default function GSTR1() {
               ))}
             </div>
             {(() => {
-              const rows = activeHsnTab === "b2b" ? (data.hsnSummaryB2B || []) : (data.hsnSummaryB2C || []);
+              const rows: any[] = activeHsnTab === "b2b" ? (data.hsnSummaryB2B || []) : (data.hsnSummaryB2C || []);
               if (rows.length === 0) return <EmptyRow msg={`Is mahine mein koi ${activeHsnTab.toUpperCase()} HSN data nahi`} />;
+
+              // Group rows by HSN code
+              const grouped: Map<string, any[]> = new Map();
+              for (const r of rows) {
+                const key = r.hsn;
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key)!.push(r);
+              }
+
+              let srNo = 0;
+              const tableRows: React.ReactNode[] = [];
+
+              for (const [hsn, hsnRows] of grouped) {
+                const multiRate = hsnRows.length > 1;
+
+                hsnRows.forEach((h: any, idx: number) => {
+                  srNo++;
+                  const isFirst = idx === 0;
+                  tableRows.push(
+                    <tr key={`${hsn}-${h.rate}`} className={`hover:bg-teal-50/30 ${isFirst && multiRate ? "border-t-2 border-teal-100" : ""}`}>
+                      <TD><span className="text-gray-400 text-xs">{isFirst ? srNo : ""}</span></TD>
+                      <TD>
+                        {isFirst
+                          ? <span className={`font-mono font-bold text-sm ${h.hsn === "URP" ? "text-red-500" : "text-teal-700"}`}>{h.hsn}</span>
+                          : <span className="text-gray-300 text-xs pl-3">↳</span>
+                        }
+                      </TD>
+                      <TD><span className="text-gray-600 text-xs">{isFirst ? h.description : ""}</span></TD>
+                      <TD><span className={`text-xs font-semibold ${h.uqc === "OTH" ? "text-amber-600" : "text-gray-600"}`}>{h.uqc}</span></TD>
+                      <TD right bold>{h.qty.toLocaleString("en-IN")}</TD>
+                      <TD right>
+                        <span className={`text-xs px-2 py-0.5 rounded font-bold ${h.rate === 0 ? "bg-gray-100 text-gray-500" : h.rate <= 5 ? "bg-green-100 text-green-700" : h.rate <= 12 ? "bg-blue-100 text-blue-700" : h.rate <= 18 ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"}`}>
+                          {h.rate}%
+                        </span>
+                      </TD>
+                      <TD right bold>{fmt.currency(h.taxableValue)}</TD>
+                      <TD right orange>{fmtN(h.igst)}</TD>
+                      <TD right green>{fmtN(h.cgst)}</TD>
+                      <TD right green>{fmtN(h.sgst)}</TD>
+                    </tr>
+                  );
+                });
+
+                // HSN subtotal row — only when multiple rates exist
+                if (multiRate) {
+                  const sub = hsnRows.reduce((acc: any, h: any) => ({
+                    qty: acc.qty + h.qty,
+                    taxableValue: acc.taxableValue + h.taxableValue,
+                    igst: acc.igst + h.igst,
+                    cgst: acc.cgst + h.cgst,
+                    sgst: acc.sgst + h.sgst,
+                  }), { qty: 0, taxableValue: 0, igst: 0, cgst: 0, sgst: 0 });
+                  tableRows.push(
+                    <tr key={`${hsn}-subtotal`} className="bg-teal-50 border-t border-teal-200">
+                      <TD></TD>
+                      <TD><span className="text-xs font-bold text-teal-700">{hsn} Total</span></TD>
+                      <TD></TD><TD></TD>
+                      <TD right><span className="font-bold text-sm text-teal-800">{sub.qty.toLocaleString("en-IN")}</span></TD>
+                      <TD right><span className="text-xs text-teal-600 font-semibold">{hsnRows.length} rates</span></TD>
+                      <TD right><span className="font-bold text-teal-800">{fmt.currency(sub.taxableValue)}</span></TD>
+                      <TD right><span className="font-bold text-orange-700">{fmtN(sub.igst)}</span></TD>
+                      <TD right><span className="font-bold text-green-700">{fmtN(sub.cgst)}</span></TD>
+                      <TD right><span className="font-bold text-green-700">{fmtN(sub.sgst)}</span></TD>
+                    </tr>
+                  );
+                }
+              }
+
               return (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
                         <TH>Sr</TH><TH>HSN/SAC</TH><TH>Description</TH><TH>UQC</TH>
-                        <TH right>Total Qty</TH><TH right>Rate %</TH><TH right>Taxable Value</TH>
-                        <TH right>IGST</TH><TH right>CGST</TH><TH right>SGST</TH><TH right>Cess</TH>
+                        <TH right>Qty</TH><TH right>GST %</TH><TH right>Taxable Value</TH>
+                        <TH right>IGST</TH><TH right>CGST</TH><TH right>SGST</TH>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {rows.map((h: any, i: number) => (
-                        <tr key={i} className="hover:bg-teal-50/30">
-                          <TD><span className="text-gray-400 text-xs">{i+1}</span></TD>
-                          <TD><span className={`font-mono font-semibold text-sm ${h.hsn === "URP" ? "text-red-500" : "text-gray-800"}`}>{h.hsn}</span></TD>
-                          <TD><span className="text-gray-600 text-xs">{h.description}</span></TD>
-                          <TD><span className={`text-xs font-semibold ${h.uqc === "OTH" ? "text-amber-600" : "text-gray-600"}`}>{h.uqc}</span></TD>
-                          <TD right bold>{h.qty.toLocaleString("en-IN")}</TD>
-                          <TD right><span className="text-xs bg-gray-100 px-2 py-0.5 rounded font-bold">{h.rate}%</span></TD>
-                          <TD right bold>{fmt.currency(h.taxableValue)}</TD>
-                          <TD right orange>{fmtN(h.igst)}</TD>
-                          <TD right green>{fmtN(h.cgst)}</TD>
-                          <TD right green>{fmtN(h.sgst)}</TD>
-                          <TD right><span className="text-gray-400">—</span></TD>
-                        </tr>
-                      ))}
+                      {tableRows}
                     </tbody>
                     <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                       <tr>
-                        <TD></TD><TD></TD><TD></TD><TD></TD>
-                        <TD right bold>{rows.reduce((s: number, h: any) => s + h.qty, 0).toLocaleString("en-IN")}</TD>
                         <TD></TD>
+                        <TD><span className="text-xs font-bold text-gray-600">Grand Total</span></TD>
+                        <TD></TD><TD></TD>
+                        <TD right bold>{rows.reduce((s: number, h: any) => s + h.qty, 0).toLocaleString("en-IN")}</TD>
+                        <TD right><span className="text-xs text-gray-500">{grouped.size} HSN</span></TD>
                         <TD right bold>{fmt.currency(rows.reduce((s: number, h: any) => s + h.taxableValue, 0))}</TD>
                         <TD right bold>{fmt.currency(rows.reduce((s: number, h: any) => s + h.igst, 0))}</TD>
                         <TD right bold>{fmt.currency(rows.reduce((s: number, h: any) => s + h.cgst, 0))}</TD>
                         <TD right bold>{fmt.currency(rows.reduce((s: number, h: any) => s + h.sgst, 0))}</TD>
-                        <TD right bold>—</TD>
                       </tr>
                     </tfoot>
                   </table>
