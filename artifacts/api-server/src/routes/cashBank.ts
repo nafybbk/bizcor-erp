@@ -347,10 +347,14 @@ router.get("/statement", async (req, res) => {
     const openingBalance = Number(account.opening_balance);
 
     // Receipts linked to this account
+    // For cash accounts: also include payments where payment_mode='cash' and account_id is null (legacy/unlinked)
+    const isCashAccount = account.type === "cash";
     const receipts = await pool.query(`
       SELECT p.*, pa.name as party_name FROM payments p
       LEFT JOIN parties pa ON p.party_id = pa.id
-      WHERE p.business_id = $1 AND p.account_id = $2 AND p.date BETWEEN $3 AND $4
+      WHERE p.business_id = $1
+        AND p.date BETWEEN $3 AND $4
+        AND (p.account_id = $2 ${isCashAccount ? "OR (p.account_id IS NULL AND p.payment_mode = 'cash')" : ""})
     `, [businessId, accId, dateFrom, dateTo]);
     for (const r of receipts.rows) {
       if (r.type === "receipt") {
