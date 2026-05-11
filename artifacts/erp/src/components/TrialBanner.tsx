@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { X, AlertTriangle, Lock, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
+import { useLang } from "@/lib/langHook";
+import { t } from "@/lib/lang";
 
 interface TrialStatus {
-  phase: number;       // 1=silent, 2=plan-dekhein, 3=grace, 4=locked
+  phase: number;
   daysLeft: number;
   trialDaysLeft: number;
   locked: boolean;
@@ -28,42 +30,36 @@ function loadTawk() {
 }
 
 export default function TrialBanner() {
+  const lang = useLang();
   const [status, setStatus] = useState<TrialStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     const win = window as any;
     if (win.bizcorDesktop?.getTrialStatus) {
-      // Desktop Electron — uses its own phase logic (trial.js)
       win.bizcorDesktop.getTrialStatus().then((s: TrialStatus) => {
         setStatus(s);
         if (s.showTawk) loadTawk();
       });
     } else {
-      // Cloud version — based on planExpiry
       api.get<any>("/businesses/current").then(biz => {
         if (!biz) return;
         const expiry = biz.planExpiry ? new Date(biz.planExpiry) : null;
         if (!expiry) return;
         const now = new Date();
-        // daysLeft: positive = trial still running, negative = trial expired
         const daysLeft = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
         if (daysLeft > 0) {
-          // Trial still active — silent phase, no banner
           setStatus({ phase: 1, daysLeft, trialDaysLeft: daysLeft, locked: false, showAlert: false, showBanner: false, showTawk: false });
         } else if (daysLeft > -30) {
-          // Trial just expired — show "Plan Dekhein" button (0 to 30 days after expiry)
-          const graceDaysLeft = 30 + daysLeft; // how many days left in grace window
+          const graceDaysLeft = 30 + daysLeft;
           setStatus({ phase: 2, daysLeft: graceDaysLeft, trialDaysLeft: 0, locked: false, showAlert: true, showBanner: true, showTawk: true });
           loadTawk();
         } else if (daysLeft > -60) {
-          // 30–60 days after expiry — Grace Period warning
           const graceDaysLeft = 60 + daysLeft;
           setStatus({ phase: 3, daysLeft: graceDaysLeft, trialDaysLeft: 0, locked: false, showAlert: true, showBanner: true, showTawk: true });
           loadTawk();
         } else {
-          // 60+ days after expiry — locked
           setStatus({ phase: 4, daysLeft: 0, trialDaysLeft: 0, locked: true, showAlert: true, showBanner: true, showTawk: true });
           loadTawk();
         }
@@ -74,9 +70,9 @@ export default function TrialBanner() {
   if (!status || !status.showAlert) return null;
   if (dismissed && status.phase !== 4) return null;
 
-  const isGrace  = status.phase === 3;
+  const isGrace = status.phase === 3;
   const isLocked = status.phase === 4;
-  const isPlanDekhein = status.phase === 2;
+  const isPlanView = status.phase === 2;
 
   if (isLocked) {
     return (
@@ -85,11 +81,11 @@ export default function TrialBanner() {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="w-8 h-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Trial Khatam Ho Gaya</h2>
-          <p className="text-gray-600 mb-6">Aapka trial period khatam ho chuka hai. Software continue karne ke liye plan activate karein.</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("trialEnded", lang)}</h2>
+          <p className="text-gray-600 mb-6">{t("trialEndedDesc", lang)}</p>
           <a href="tel:+919999999999"
             className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-xl text-sm transition-colors">
-            Tech Support Se Contact Karein
+            {t("contactTechSupport", lang)}
           </a>
         </div>
       </div>
@@ -102,12 +98,13 @@ export default function TrialBanner() {
         <div className="flex items-center gap-2 font-medium">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
-            <strong>30 Days Grace Period —</strong> {status.daysLeft} din baad software lock ho jayega! Abhi plan activate karein.
+            <strong>{t("gracePeriod", lang)}</strong>{" "}
+            {status.daysLeft} {t("graceWarning", lang)} {t("graceWarning2", lang)}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <a href="/my-plan" className="bg-white text-orange-700 font-semibold text-xs px-3 py-1 rounded-lg hover:bg-orange-50 transition-colors">
-            Plan Dekhein
+            {t("viewPlans", lang)}
           </a>
           <button onClick={() => setDismissed(true)} className="text-white/70 hover:text-white p-0.5 rounded transition-colors">
             <X className="w-4 h-4" />
@@ -117,18 +114,16 @@ export default function TrialBanner() {
     );
   }
 
-  if (isPlanDekhein) {
+  if (isPlanView) {
     return (
       <div className="bg-indigo-600 text-white text-sm px-4 py-2 flex items-center gap-3 justify-between">
         <div className="flex items-center gap-2 font-medium">
           <Sparkles className="w-4 h-4 flex-shrink-0" />
-          <span>
-            Trial period khatam ho gaya — plan activate karo aur unlimited access pao!
-          </span>
+          <span>{t("trialExpiredBanner", lang)}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <a href="/my-plan" className="bg-white text-indigo-700 font-semibold text-xs px-3 py-1 rounded-lg hover:bg-indigo-50 transition-colors">
-            Plan Dekhein
+            {t("viewPlans", lang)}
           </a>
           <button onClick={() => setDismissed(true)} className="text-white/70 hover:text-white p-0.5 rounded transition-colors">
             <X className="w-4 h-4" />
