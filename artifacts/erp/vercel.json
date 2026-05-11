@@ -1,6 +1,5 @@
 {
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm run build",
+  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && cd artifacts/erp && pnpm run build",
   "outputDirectory": "dist/public",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://bizcor-erp-api-server.vercel.app/api/:path*" },
