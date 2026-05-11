@@ -1,17 +1,17 @@
 import { useState, useRef } from "react";
 import { api } from "@/lib/api";
-import { Upload, FileSpreadsheet, Users, ShoppingCart, Package, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Info, Download, Shield } from "lucide-react";
+import {
+  Upload, FileSpreadsheet, ShoppingCart, Package, Users,
+  CheckCircle2, AlertTriangle, Loader2, Info, Download, Shield,
+} from "lucide-react";
 
-// ── ERP presets ───────────────────────────────────────────────────────────────
-const ERP_PRESETS: Record<string, { label: string; sheets: string[]; desc: string }> = {
+const ERP_PRESETS: Record<string, { label: string; desc: string }> = {
   smarterp: {
     label: "SmartERP (HMR Systems / SQL Server)",
-    sheets: ["GST Invoices", "Qty Sold", "GRN-ITC"],
     desc: "Excel file with GST Invoices, Qty Sold aur GRN-ITC sheets",
   },
 };
 
-// ── Parse Excel using xlsx (already in erp package) ──────────────────────────
 async function parseExcel(file: File): Promise<Record<string, any[]>> {
   const xlsx = await import("xlsx");
   const buf = await file.arrayBuffer();
@@ -23,7 +23,6 @@ async function parseExcel(file: File): Promise<Record<string, any[]>> {
   return result;
 }
 
-// ── Count badge ───────────────────────────────────────────────────────────────
 function Badge({ n, label, icon }: { n: number; label: string; icon: React.ReactNode }) {
   return (
     <div className="bg-white border rounded-xl p-4 text-center">
@@ -34,7 +33,6 @@ function Badge({ n, label, icon }: { n: number; label: string; icon: React.React
   );
 }
 
-// ── Result row ────────────────────────────────────────────────────────────────
 function ResultRow({ label, created, skipped, errors }: { label: string; created: number; skipped: number; errors: number }) {
   return (
     <div className="flex items-center gap-3 text-sm py-2 border-b border-gray-50 last:border-0">
@@ -46,38 +44,28 @@ function ResultRow({ label, created, skipped, errors }: { label: string; created
   );
 }
 
-export default function AdminImport() {
-  const [businesses, setBusinesses] = useState<any[]>([]);
-  const [bizLoaded, setBizLoaded] = useState(false);
-  const [selectedBiz, setSelectedBiz] = useState<any>(null);
-  const [showBizDrop, setShowBizDrop] = useState(false);
-  const [bizSearch, setBizSearch] = useState("");
+type Step = "idle" | "backing-up" | "backed-up" | "importing" | "done";
 
+export default function ImportData() {
   const [erpType, setErpType] = useState("smarterp");
   const [file, setFile] = useState<File | null>(null);
   const [sheets, setSheets] = useState<Record<string, any[]>>({});
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState("");
 
-  type Step = "idle" | "backing-up" | "backed-up" | "importing" | "done";
   const [step, setStep] = useState<Step>("idle");
   const [backupFilename, setBackupFilename] = useState("");
   const [result, setResult] = useState<any>(null);
-  const [importError, setImportError] = useState("");
+  const [error, setError] = useState("");
 
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const loadBusinesses = async () => {
-    if (bizLoaded) return;
-    try {
-      const r = await api.get<any>("/super-admin/businesses?limit=500");
-      setBusinesses(r.data || []);
-      setBizLoaded(true);
-    } catch { setImportError("Businesses load nahi hue"); }
-  };
+  const invoices = sheets["GST Invoices"] || [];
+  const qtySold = sheets["Qty Sold"] || [];
+  const purchases = sheets["GRN-ITC"] || [];
 
   const handleFile = async (f: File) => {
-    setFile(f); setSheets({}); setParseError(""); setResult(null);
+    setFile(f); setSheets({}); setParseError(""); setResult(null); setStep("idle"); setError("");
     setParsing(true);
     try {
       const parsed = await parseExcel(f);
@@ -89,38 +77,36 @@ export default function AdminImport() {
     }
   };
 
-  const preset = ERP_PRESETS[erpType];
-  const invoices = sheets["GST Invoices"] || [];
-  const qtySold = sheets["Qty Sold"] || [];
-  const purchases = sheets["GRN-ITC"] || [];
-
-  const filteredBiz = businesses.filter(b =>
-    !bizSearch || b.name.toLowerCase().includes(bizSearch.toLowerCase()) || b.code.toLowerCase().includes(bizSearch.toLowerCase())
-  );
-
   const handleImport = async () => {
-    if (!selectedBiz) { setImportError("Business select karein"); return; }
-    if (!invoices.length && !purchases.length) { setImportError("File mein data nahi mila"); return; }
-    setImportError(""); setResult(null);
+    if (!invoices.length && !purchases.length) { setError("File mein data nahi mila"); return; }
+    setError(""); setResult(null);
 
-    // ── Step 1: Auto backup of selected business ───────────────────────────
+    // ── Step 1: Auto backup ────────────────────────────────────────────────
     setStep("backing-up");
     try {
-      const resp = await fetch(`${import.meta.env.BASE_URL}api/super-admin/backup?businessId=${selectedBiz.id}`, {
+      const resp = await fetch(`${import.meta.env.BASE_URL}api/businesses/backup`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("erp_token")}` },
       });
       if (!resp.ok) throw new Error("Backup API ne error diya");
+
       const blob = await resp.blob();
-      const fname = `backup-business-${selectedBiz.id}-${Date.now()}.json`;
+      const disposition = resp.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const fname = match?.[1] || `backup-${Date.now()}.json`;
+
+      // Trigger browser download (works for both online and offline)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = fname; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+
       setBackupFilename(fname);
       setStep("backed-up");
-      await new Promise(r => setTimeout(r, 1000));
+
+      // Small pause so user sees the backup confirmation
+      await new Promise(r => setTimeout(r, 1200));
     } catch (e: any) {
-      setImportError("Backup failed: " + (e.message || "Unknown error"));
+      setError("Backup failed: " + (e.message || "Unknown error"));
       setStep("idle");
       return;
     }
@@ -128,25 +114,28 @@ export default function AdminImport() {
     // ── Step 2: Import ─────────────────────────────────────────────────────
     setStep("importing");
     try {
-      const res = await api.post<any>("/super-admin/import-smarterp", {
-        businessId: selectedBiz.id, invoices, qtySold, purchases,
+      const res = await api.post<any>("/import-smarterp-self", {
+        invoices, qtySold, purchases,
       });
       setResult(res);
       setStep("done");
     } catch (e: any) {
-      setImportError(e?.message || "Import failed");
+      setError(e?.message || "Import failed");
       setStep("idle");
     }
   };
+
+  const canImport = !parsing && (invoices.length > 0 || purchases.length > 0) && step === "idle";
+  const busy = step === "backing-up" || step === "importing";
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-800">Data Import</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Purane ERP ka data BizCor mein import karein</p>
+        <p className="text-sm text-gray-500 mt-0.5">Purane ERP ka data BizCor mein import karein — import se pehle auto-backup hoga</p>
       </div>
 
-      {/* Step 1: ERP Type */}
+      {/* ERP Type */}
       <div className="bg-white rounded-xl border p-4 space-y-3">
         <div className="text-sm font-semibold text-gray-700">1. ERP chunein</div>
         <div className="space-y-2">
@@ -166,43 +155,9 @@ export default function AdminImport() {
         </div>
       </div>
 
-      {/* Step 2: Business */}
+      {/* File Upload */}
       <div className="bg-white rounded-xl border p-4 space-y-3">
-        <div className="text-sm font-semibold text-gray-700">2. Business select karein</div>
-        <div className="relative">
-          <button
-            className="w-full border rounded-lg px-3 py-2.5 text-left flex items-center justify-between text-sm hover:bg-gray-50 transition"
-            onClick={() => { loadBusinesses(); setShowBizDrop(d => !d); }}
-          >
-            {selectedBiz ? (
-              <span className="font-medium">{selectedBiz.name} <span className="text-gray-400 font-normal">({selectedBiz.code})</span></span>
-            ) : <span className="text-gray-400">Business dhundh ke select karein…</span>}
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          </button>
-          {showBizDrop && (
-            <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg">
-              <div className="p-2 border-b">
-                <input autoFocus className="w-full text-sm px-2 py-1.5 border rounded-md outline-none" placeholder="Search…"
-                  value={bizSearch} onChange={e => setBizSearch(e.target.value)} />
-              </div>
-              <div className="max-h-52 overflow-y-auto">
-                {!bizLoaded ? <div className="p-3 text-center text-sm text-gray-400"><Loader2 className="w-4 h-4 animate-spin inline mr-1" />Loading…</div>
-                  : filteredBiz.length === 0 ? <div className="p-3 text-sm text-gray-400">Koi nahi mila</div>
-                  : filteredBiz.map(b => (
-                    <button key={b.id} className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition ${selectedBiz?.id === b.id ? "bg-blue-50 font-semibold" : ""}`}
-                      onClick={() => { setSelectedBiz(b); setShowBizDrop(false); setBizSearch(""); }}>
-                      {b.name} <span className="text-gray-400">({b.code})</span>
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Step 3: File Upload */}
-      <div className="bg-white rounded-xl border p-4 space-y-3">
-        <div className="text-sm font-semibold text-gray-700">3. Excel file upload karein</div>
+        <div className="text-sm font-semibold text-gray-700">2. Excel file upload karein</div>
         <div
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${file ? "border-green-400 bg-green-50" : "border-gray-200 hover:border-blue-400 hover:bg-blue-50/30"}`}
           onClick={() => fileRef.current?.click()}
@@ -237,7 +192,6 @@ export default function AdminImport() {
           </div>
         )}
 
-        {/* Sheet preview */}
         {Object.keys(sheets).length > 0 && (
           <div className="space-y-2">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Detected sheets</div>
@@ -246,87 +200,87 @@ export default function AdminImport() {
               <Badge n={qtySold.length} label="Qty Sold (items)" icon={<Package className="w-5 h-5" />} />
               <Badge n={purchases.length} label="GRN / Purchases" icon={<Users className="w-5 h-5" />} />
             </div>
-            {Object.keys(sheets).filter(s => !["GST Invoices","Qty Sold","GRN-ITC"].includes(s)).length > 0 && (
-              <div className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                Extra sheets ignore honge: {Object.keys(sheets).filter(s => !["GST Invoices","Qty Sold","GRN-ITC"].includes(s)).join(", ")}
-              </div>
-            )}
           </div>
         )}
       </div>
 
-      {/* Summary before import */}
-      {selectedBiz && (invoices.length > 0 || purchases.length > 0) && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
-          <span className="font-semibold">{selectedBiz.name}</span> mein import hoga:
-          <span className="ml-2">{invoices.length} sales invoices</span>
-          {qtySold.length > 0 && <span className="ml-2">+ {qtySold.length} item rows</span>}
-          {purchases.length > 0 && <span className="ml-2">+ {purchases.length} purchases</span>}
+      {/* Progress steps */}
+      {(busy || step === "backed-up" || step === "done") && (
+        <div className="bg-white rounded-xl border p-4 space-y-3">
+          <div className="text-sm font-semibold text-gray-700">Progress</div>
+          <div className="space-y-2">
+            {/* Backup step */}
+            <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "backing-up" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
+              {step === "backing-up"
+                ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+              <div>
+                <span className="font-medium">
+                  {step === "backing-up" ? "Pehle backup ho raha hai…" : "Backup complete!"}
+                </span>
+                {step !== "backing-up" && backupFilename && (
+                  <div className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
+                    <Download className="w-3 h-3" />
+                    <span>Aapke Downloads folder mein save hua: <strong>{backupFilename}</strong></span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Import step */}
+            {(step === "importing" || step === "done") && (
+              <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "importing" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
+                {step === "importing"
+                  ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                  : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+                <span className="font-medium">
+                  {step === "importing" ? "Data import ho raha hai…" : "Import complete!"}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Safety notice */}
-      {selectedBiz && (invoices.length > 0 || purchases.length > 0) && step === "idle" && (
+      {canImport && (
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
           <Shield className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
           <div>
-            <span className="font-semibold">Import se pehle {selectedBiz.name} ka full backup hoga — auto!</span>
-            <div className="text-xs mt-0.5 text-amber-600">Parties, items, vouchers, payments sab download honge aapke browser mein. Phir import shuru hoga.</div>
+            <span className="font-semibold">Import se pehle full backup hoga — auto!</span>
+            <div className="text-xs mt-0.5 text-amber-600">
+              Aapka poora data (parties, items, vouchers, payments) pehle aapke device pe download hoga,
+              phir import shuru hoga. Kuch galat ho toh backup se wapas aa sakte hain.
+            </div>
           </div>
         </div>
       )}
 
-      {/* Progress */}
-      {(step === "backing-up" || step === "backed-up" || step === "importing" || step === "done") && (
-        <div className="bg-white rounded-xl border p-4 space-y-2">
-          <div className="text-sm font-semibold text-gray-700">Progress</div>
-          <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "backing-up" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
-            {step === "backing-up" ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
-            <div>
-              <span className="font-medium">{step === "backing-up" ? "Backup ho raha hai…" : "Backup complete!"}</span>
-              {step !== "backing-up" && backupFilename && (
-                <div className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
-                  <Download className="w-3 h-3" />
-                  <span>Downloads mein save hua: <strong>{backupFilename}</strong></span>
-                </div>
-              )}
-            </div>
-          </div>
-          {(step === "importing" || step === "done") && (
-            <div className={`flex items-center gap-3 text-sm rounded-lg px-3 py-2 ${step === "importing" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"}`}>
-              {step === "importing" ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
-              <span className="font-medium">{step === "importing" ? "Data import ho raha hai…" : "Import complete!"}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {importError && (
+      {error && (
         <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {importError}
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {error}
         </div>
       )}
 
       {step !== "done" && (
-      <button
-        onClick={handleImport}
-        disabled={step !== "idle" || !selectedBiz || (!invoices.length && !purchases.length)}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition"
-      >
-        {step === "backing-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Backup ho raha hai…</>}
-        {step === "importing" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
-        {step === "idle" && <><Upload className="w-4 h-4" /> Backup karke Import Shuru Karo</>}
-        {step === "backed-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
-      </button>
+        <button
+          onClick={handleImport}
+          disabled={!canImport || busy}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition"
+        >
+          {step === "backing-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Backup ho raha hai…</>}
+          {step === "importing" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
+          {step === "idle" && <><Upload className="w-4 h-4" /> Backup karke Import Shuru Karo</>}
+          {step === "backed-up" && <><Loader2 className="w-4 h-4 animate-spin" /> Import ho raha hai…</>}
+        </button>
       )}
 
       {/* Results */}
-      {result && (
+      {result && step === "done" && (
         <div className="bg-white rounded-xl border p-4 space-y-3">
           <div className="flex items-center gap-2 text-green-600 font-semibold">
             <CheckCircle2 className="w-5 h-5" /> Import Complete!
           </div>
-
           <div className="grid grid-cols-2 gap-3 text-center text-sm">
             <div className="bg-green-50 rounded-lg p-3">
               <div className="text-2xl font-bold text-green-700">{result.counts?.partiesCreated || 0}</div>
@@ -337,12 +291,10 @@ export default function AdminImport() {
               <div className="text-blue-600 text-xs">Items created</div>
             </div>
           </div>
-
           <div className="border rounded-lg p-3 space-y-0.5">
             <ResultRow label="Sales Invoices" created={result.counts?.salesCreated || 0} skipped={result.counts?.salesSkipped || 0} errors={result.counts?.salesErrors || 0} />
             <ResultRow label="Purchase Bills" created={result.counts?.purchasesCreated || 0} skipped={result.counts?.purchasesSkipped || 0} errors={result.counts?.purchasesErrors || 0} />
           </div>
-
           {result.log?.length > 0 && (
             <div className="space-y-1">
               <div className="text-xs font-semibold text-red-600">Errors / Notes ({result.log.length})</div>
@@ -353,6 +305,10 @@ export default function AdminImport() {
               </div>
             </div>
           )}
+          <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+            <Download className="w-3.5 h-3.5" />
+            Backup file <strong>{backupFilename}</strong> aapke Downloads folder mein hai — kabhi bhi revert kar sakte hain
+          </div>
         </div>
       )}
     </div>

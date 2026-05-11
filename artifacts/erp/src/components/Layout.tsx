@@ -331,6 +331,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
     ] : []),
     { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" />, permKey: "settings" },
+    { label: "Import Data", href: "/settings/import", icon: <DatabaseZap className="w-4 h-4" />, permKey: "settings" },
     ...(hasPerm("sales") ? [{ label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> }] : []),
   ];
 
