@@ -15,6 +15,7 @@ export const paymentsTable = sqliteTable("payments", {
   referenceNumber: text("reference_number"),
   notes: text("notes"),
   isOnAccount: integer("is_on_account", { mode: "boolean" }).notNull().default(false),
+  accountId: integer("account_id"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
