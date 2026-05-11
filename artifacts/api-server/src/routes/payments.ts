@@ -36,13 +36,14 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const { type, date, partyId, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations } = req.body;
+    const { type, date, partyId, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations, accountId } = req.body;
     const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
     const paymentNumber = `${type === "receipt" ? "REC" : "PAY"}-${String(Number(cnt) + 1).padStart(4, "0")}`;
     const [payment] = await db.insert(paymentsTable).values({
       businessId, paymentNumber, type, date, partyId: Number(partyId),
       amount: String(amount), paymentMode, referenceNumber, notes,
       isOnAccount: isOnAccount || false,
+      accountId: accountId ? Number(accountId) : null,
     }).returning();
     if (!isOnAccount && allocations && allocations.length > 0) {
       const paymentAmt = Number(amount);
@@ -127,7 +128,7 @@ router.patch("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const paymentId = Number(req.params.id);
-    const { date, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations } = req.body;
+    const { date, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations, accountId } = req.body;
 
     const existing = await db.query.paymentsTable.findFirst({
       where: and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)),
@@ -150,7 +151,7 @@ router.patch("/:id", async (req, res) => {
     }
 
     await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
-    await db.update(paymentsTable).set({ date, amount: String(amount), paymentMode, referenceNumber, notes, isOnAccount: isOnAccount || false })
+    await db.update(paymentsTable).set({ date, amount: String(amount), paymentMode, referenceNumber, notes, isOnAccount: isOnAccount || false, accountId: accountId ? Number(accountId) : null })
       .where(eq(paymentsTable.id, paymentId));
 
     if (!isOnAccount && allocations && allocations.length > 0) {
