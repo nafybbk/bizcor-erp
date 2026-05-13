@@ -1,11 +1,99 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable } from "@workspace/db";
+import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable, statesTable } from "@workspace/db";
 import { eq, and, like } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
+const INDIAN_STATES = [
+  { stateCode: "01", stateName: "Jammu & Kashmir", stateAbbr: "JK" },
+  { stateCode: "02", stateName: "Himachal Pradesh", stateAbbr: "HP" },
+  { stateCode: "03", stateName: "Punjab", stateAbbr: "PB" },
+  { stateCode: "04", stateName: "Chandigarh", stateAbbr: "CH" },
+  { stateCode: "05", stateName: "Uttarakhand", stateAbbr: "UK" },
+  { stateCode: "06", stateName: "Haryana", stateAbbr: "HR" },
+  { stateCode: "07", stateName: "Delhi", stateAbbr: "DL" },
+  { stateCode: "08", stateName: "Rajasthan", stateAbbr: "RJ" },
+  { stateCode: "09", stateName: "Uttar Pradesh", stateAbbr: "UP" },
+  { stateCode: "10", stateName: "Bihar", stateAbbr: "BR" },
+  { stateCode: "11", stateName: "Sikkim", stateAbbr: "SK" },
+  { stateCode: "12", stateName: "Arunachal Pradesh", stateAbbr: "AR" },
+  { stateCode: "13", stateName: "Nagaland", stateAbbr: "NL" },
+  { stateCode: "14", stateName: "Manipur", stateAbbr: "MN" },
+  { stateCode: "15", stateName: "Mizoram", stateAbbr: "MZ" },
+  { stateCode: "16", stateName: "Tripura", stateAbbr: "TR" },
+  { stateCode: "17", stateName: "Meghalaya", stateAbbr: "ML" },
+  { stateCode: "18", stateName: "Assam", stateAbbr: "AS" },
+  { stateCode: "19", stateName: "West Bengal", stateAbbr: "WB" },
+  { stateCode: "20", stateName: "Jharkhand", stateAbbr: "JH" },
+  { stateCode: "21", stateName: "Odisha", stateAbbr: "OD" },
+  { stateCode: "22", stateName: "Chhattisgarh", stateAbbr: "CG" },
+  { stateCode: "23", stateName: "Madhya Pradesh", stateAbbr: "MP" },
+  { stateCode: "24", stateName: "Gujarat", stateAbbr: "GJ" },
+  { stateCode: "25", stateName: "Daman & Diu", stateAbbr: "DD" },
+  { stateCode: "26", stateName: "Dadra & Nagar Haveli", stateAbbr: "DN" },
+  { stateCode: "27", stateName: "Maharashtra", stateAbbr: "MH" },
+  { stateCode: "29", stateName: "Karnataka", stateAbbr: "KA" },
+  { stateCode: "30", stateName: "Goa", stateAbbr: "GA" },
+  { stateCode: "31", stateName: "Lakshadweep", stateAbbr: "LD" },
+  { stateCode: "32", stateName: "Kerala", stateAbbr: "KL" },
+  { stateCode: "33", stateName: "Tamil Nadu", stateAbbr: "TN" },
+  { stateCode: "34", stateName: "Puducherry", stateAbbr: "PY" },
+  { stateCode: "35", stateName: "Andaman & Nicobar Islands", stateAbbr: "AN" },
+  { stateCode: "36", stateName: "Telangana", stateAbbr: "TS" },
+  { stateCode: "37", stateName: "Andhra Pradesh", stateAbbr: "AP" },
+  { stateCode: "38", stateName: "Ladakh", stateAbbr: "LA" },
+];
+
 const router = Router();
 router.use(requireBusiness);
+
+// STATES
+router.get("/states", async (req, res) => {
+  try {
+    const data = await db.select().from(statesTable).where(eq(statesTable.businessId, req.user!.businessId!)).orderBy(statesTable.sortOrder, statesTable.stateCode);
+    res.json(data);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/states/seed-india", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const existing = await db.select({ id: statesTable.id }).from(statesTable).where(eq(statesTable.businessId, businessId));
+    if (existing.length > 0) {
+      await db.delete(statesTable).where(eq(statesTable.businessId, businessId));
+    }
+    await db.insert(statesTable).values(INDIAN_STATES.map((s, idx) => ({ ...s, businessId, sortOrder: idx })));
+    res.json({ success: true, count: INDIAN_STATES.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/states", async (req, res) => {
+  try {
+    const { stateName, stateCode, stateAbbr } = req.body;
+    const existing = await db.select({ id: statesTable.id }).from(statesTable).where(eq(statesTable.businessId, req.user!.businessId!));
+    const [state] = await db.insert(statesTable).values({ businessId: req.user!.businessId!, stateName, stateCode, stateAbbr: stateAbbr || null, sortOrder: existing.length }).returning();
+    res.status(201).json(state);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/states/:id", async (req, res) => {
+  try {
+    const { stateName, stateCode, stateAbbr } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (stateName !== undefined) updateData.stateName = stateName;
+    if (stateCode !== undefined) updateData.stateCode = stateCode;
+    if (stateAbbr !== undefined) updateData.stateAbbr = stateAbbr;
+    const [updated] = await db.update(statesTable).set(updateData).where(and(eq(statesTable.id, Number(req.params.id)), eq(statesTable.businessId, req.user!.businessId!))).returning();
+    res.json(updated);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.delete("/states/:id", async (req, res) => {
+  try {
+    await db.delete(statesTable).where(and(eq(statesTable.id, Number(req.params.id)), eq(statesTable.businessId, req.user!.businessId!)));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
 
 // UNITS
 router.get("/units", async (req, res) => {
