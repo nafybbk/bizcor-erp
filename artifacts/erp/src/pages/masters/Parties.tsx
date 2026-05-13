@@ -4,20 +4,14 @@ import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties } from "@/lib/masterCache";
 import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
-const INDIAN_STATES = [
-  { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
-  { name: "Goa", code: "30" }, { name: "Gujarat", code: "24" }, { name: "Haryana", code: "06" },
-  { name: "Karnataka", code: "29" }, { name: "Kerala", code: "32" }, { name: "Madhya Pradesh", code: "23" },
-  { name: "Maharashtra", code: "27" }, { name: "Punjab", code: "03" }, { name: "Rajasthan", code: "08" },
-  { name: "Tamil Nadu", code: "33" }, { name: "Telangana", code: "36" }, { name: "Uttar Pradesh", code: "09" },
-  { name: "West Bengal", code: "19" }, { name: "Chhattisgarh", code: "22" }, { name: "Uttarakhand", code: "05" },
-];
+import { useStates } from "@/lib/useStates";
 
 const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "" };
 
 interface Props { defaultType?: "customer" | "supplier" | "both" }
 
 export default function Parties({ defaultType }: Props) {
+  const statesList = useStates();
   const [parties, setParties] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -245,11 +239,11 @@ export default function Parties({ defaultType }: Props) {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">City</label><input className={inputCls} value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">State</label>
                 <select className={inputCls} value={form.state} onChange={e => {
-                  const st = INDIAN_STATES.find(s => s.name === e.target.value);
+                  const st = statesList.find(s => s.name === e.target.value);
                   setForm(f => ({ ...f, state: e.target.value, stateCode: st?.code || "" }));
                 }}>
                   <option value="">Select State</option>
-                  {INDIAN_STATES.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
+                  {statesList.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
                 </select>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label><input className={inputCls} value={form.pincode} onChange={e => setForm(f => ({ ...f, pincode: e.target.value }))} maxLength={6} /></div>
