@@ -1,8 +1,41 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, pool, sqlite } from "@workspace/db";
 import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable, statesTable } from "@workspace/db";
 import { eq, and, like } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+
+let statesMigrated = false;
+async function ensureStatesTable() {
+  if (statesMigrated) return;
+  statesMigrated = true;
+  try {
+    if (pool) {
+      await (pool as any).query(`
+        CREATE TABLE IF NOT EXISTS states (
+          id SERIAL PRIMARY KEY,
+          business_id INTEGER NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+          state_name TEXT NOT NULL,
+          state_code TEXT NOT NULL,
+          state_abbr TEXT,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+    } else if (sqlite) {
+      (sqlite as any).exec(`
+        CREATE TABLE IF NOT EXISTS states (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          business_id INTEGER NOT NULL,
+          state_name TEXT NOT NULL,
+          state_code TEXT NOT NULL,
+          state_abbr TEXT,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+    }
+  } catch { /* table already exists */ }
+}
 
 const INDIAN_STATES = [
   { stateCode: "01", stateName: "Jammu & Kashmir", stateAbbr: "JK" },
@@ -50,6 +83,7 @@ router.use(requireBusiness);
 // STATES
 router.get("/states", async (req, res) => {
   try {
+    await ensureStatesTable();
     const data = await db.select().from(statesTable).where(eq(statesTable.businessId, req.user!.businessId!)).orderBy(statesTable.sortOrder, statesTable.stateCode);
     res.json(data);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
@@ -57,6 +91,7 @@ router.get("/states", async (req, res) => {
 
 router.post("/states/seed-india", async (req, res) => {
   try {
+    await ensureStatesTable();
     const businessId = req.user!.businessId!;
     const existing = await db.select({ id: statesTable.id }).from(statesTable).where(eq(statesTable.businessId, businessId));
     if (existing.length > 0) {
@@ -69,6 +104,7 @@ router.post("/states/seed-india", async (req, res) => {
 
 router.post("/states", async (req, res) => {
   try {
+    await ensureStatesTable();
     const { stateName, stateCode, stateAbbr } = req.body;
     const existing = await db.select({ id: statesTable.id }).from(statesTable).where(eq(statesTable.businessId, req.user!.businessId!));
     const [state] = await db.insert(statesTable).values({ businessId: req.user!.businessId!, stateName, stateCode, stateAbbr: stateAbbr || null, sortOrder: existing.length }).returning();
