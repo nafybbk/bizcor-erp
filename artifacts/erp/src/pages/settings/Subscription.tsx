@@ -245,6 +245,9 @@ function ReferralSection() {
   );
 }
 
+// Detect offline EXE mode — VITE_API_URL is set only in desktop EXE build
+const IS_OFFLINE = !!import.meta.env.VITE_API_URL;
+
 export default function Subscription() {
   const [business, setBusiness] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
@@ -272,12 +275,23 @@ export default function Subscription() {
     setRedeemLoading(true);
     setRedeemResult(null);
     try {
-      const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
-      setRedeemResult({ success: true, message: res.message });
-      setVoucherCode(""); setShowVoucherFor(null);
-      load();
+      if (IS_OFFLINE) {
+        // Offline EXE: validate via cloud, update local SQLite, get fresh token
+        const res = await api.post<any>("/redeem-voucher-offline", { code: voucherCode.trim() });
+        // Save fresh token so planExpiresAt updates immediately (no re-login needed)
+        if (res.token) localStorage.setItem("erp_token", res.token);
+        setRedeemResult({ success: true, message: res.message });
+        setVoucherCode(""); setShowVoucherFor(null);
+        load();
+      } else {
+        // Cloud: direct redemption
+        const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
+        setRedeemResult({ success: true, message: res.message });
+        setVoucherCode(""); setShowVoucherFor(null);
+        load();
+      }
     } catch (err: any) {
-      setRedeemResult({ success: false, message: err.message || "Voucher could not be redeemed" });
+      setRedeemResult({ success: false, message: err.message || "Voucher redeem nahi ho saka" });
     } finally { setRedeemLoading(false); }
   };
 
