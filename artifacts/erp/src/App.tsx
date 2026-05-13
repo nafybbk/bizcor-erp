@@ -43,6 +43,7 @@ import Items from "@/pages/masters/Items";
 import Units from "@/pages/masters/Units";
 import HsnCodes from "@/pages/masters/HsnCodes";
 import TaxRates from "@/pages/masters/TaxRates";
+import States from "@/pages/masters/States";
 
 import BusinessSettings from "@/pages/settings/BusinessSettings";
 import Subscription from "@/pages/settings/Subscription";
@@ -268,6 +269,9 @@ function AppRoutes() {
       </Route>
       <Route path="/masters/hsn">
         <ProtectedRoute><HsnCodes /></ProtectedRoute>
+      </Route>
+      <Route path="/masters/states">
+        <ProtectedRoute><States /></ProtectedRoute>
       </Route>
       <Route path="/masters/tax-rates">
         <ProtectedRoute><TaxRates /></ProtectedRoute>

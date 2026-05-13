@@ -30,6 +30,16 @@ export const taxRatesTable = sqliteTable("tax_rates", {
   createdAt: text("created_at").notNull().default(NOW),
 });
 
+export const statesTable = sqliteTable("states", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  businessId: integer("business_id").notNull(),
+  stateName: text("state_name").notNull(),
+  stateCode: text("state_code").notNull(),
+  stateAbbr: text("state_abbr"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: text("created_at").notNull().default(NOW),
+});
+
 export const customFieldsTable = sqliteTable("custom_fields", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   businessId: integer("business_id").notNull(),

@@ -324,6 +324,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { label: L.units, href: "/masters/units" },
         { label: L.hsnCodes, href: "/masters/hsn" },
         { label: L.taxRates, href: "/masters/tax-rates" },
+        { label: L.states, href: "/masters/states" },
       ],
     },
     { label: L.myPlan, href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },

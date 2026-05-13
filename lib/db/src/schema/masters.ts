@@ -36,6 +36,18 @@ export const taxRatesTable = pgTable("tax_rates", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const statesTable = pgTable("states", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").notNull().references(() => businessesTable.id),
+  stateName: text("state_name").notNull(),
+  stateCode: text("state_code").notNull(),
+  stateAbbr: text("state_abbr"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type State = typeof statesTable.$inferSelect;
+
 export const customFieldsTable = pgTable("custom_fields", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").notNull().references(() => businessesTable.id),
