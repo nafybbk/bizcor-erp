@@ -32,6 +32,27 @@ interface AuthCtx {
   isPlanExpired: () => boolean;
 }
 
+export type GraceStatus = "active" | "grace_trial" | "grace_admin" | "grace_readonly" | "expired";
+
+export function getGraceStatus(): GraceStatus {
+  try {
+    const u = JSON.parse(localStorage.getItem("erp_user") || "null");
+    if (u?.role === "super_admin") return "active";
+  } catch { /**/ }
+  const isTrial = localStorage.getItem("erp_plan_is_trial") === "true";
+  if (isTrial) return "active";
+  const expiry = localStorage.getItem("erp_plan_expires_at");
+  if (!expiry) return "active";
+  const exp = new Date(expiry);
+  const now = new Date();
+  if (exp > now) return "active";
+  const daysPast = Math.floor((now.getTime() - exp.getTime()) / (24 * 60 * 60 * 1000));
+  if (daysPast <= 30) return "grace_trial";
+  if (daysPast <= 50) return "grace_admin";
+  if (daysPast <= 60) return "grace_readonly";
+  return "expired";
+}
+
 const PLAN_EXPIRY_KEY = "erp_plan_expires_at";
 const PLAN_TRIAL_KEY  = "erp_plan_is_trial";
 
