@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { useAuth } from "@/lib/auth";
+import { useAuth, getGraceStatus } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getDraftCount, syncAllDrafts } from "@/lib/offlineQueue";
 import { getDeviceLocation } from "@/lib/locationStore";
@@ -83,20 +83,20 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
           <ShieldCheck className="w-8 h-8 text-red-500" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Plan Expired</h2>
+          <h2 className="text-xl font-bold text-gray-900">Plan Expire Ho Gaya</h2>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            Your subscription plan has expired. Contact your admin or BizCor support to activate a new plan.
+            60 din ka grace period khatam ho gaya. Nayi license activate karein.
           </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
-          <div className="text-xs font-semibold text-amber-800">What's restricted:</div>
-          <div className="text-xs text-amber-700">• Creating invoices, bills, credit notes</div>
-          <div className="text-xs text-amber-700">• Adding customers, suppliers, items</div>
-          <div className="text-xs text-amber-700">• Viewing reports</div>
-          <div className="text-xs text-amber-700">• Downloading / exporting data</div>
+          <div className="text-xs font-semibold text-amber-800">Kya band hai:</div>
+          <div className="text-xs text-amber-700">• Invoices, bills, credit notes banana</div>
+          <div className="text-xs text-amber-700">• Customers, suppliers, items add karna</div>
+          <div className="text-xs text-amber-700">• Reports dekhna</div>
+          <div className="text-xs text-amber-700">• Data download/export karna</div>
         </div>
         <div className="text-xs text-gray-400">
-          Once you receive a new license voucher, go to Settings → Activate License, then log in again.
+          License voucher milne par Settings → Activate License mein daalo.
         </div>
         <button
           onClick={onLogout}
@@ -106,6 +106,41 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
           Logout Karo
         </button>
       </div>
+    </div>
+  );
+}
+
+function GraceBanner({ grace, isAdmin }: { grace: "grace_trial" | "grace_admin" | "grace_readonly"; isAdmin: boolean }) {
+  const expiry = localStorage.getItem("erp_plan_expires_at");
+  const daysLeft = expiry
+    ? Math.max(0, 60 - Math.floor((Date.now() - new Date(expiry).getTime()) / (24 * 60 * 60 * 1000)))
+    : 0;
+
+  if (grace === "grace_trial") {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs flex-shrink-0">
+        <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="font-semibold">Grace Period:</span>
+        <span>Plan expire ho gaya hai — abhi {daysLeft} din bacha hai. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se plan activate karwao."}</span>
+      </div>
+    );
+  }
+
+  if (grace === "grace_admin") {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-300 text-red-800 text-xs flex-shrink-0">
+        <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 text-red-600" />
+        <span className="font-bold text-red-700">⚠ Urgent:</span>
+        <span>Sirf {daysLeft} din bacha hai! {isAdmin ? "Abhi plan activate karo: Settings → Activate License" : "Sirf Admin kaam kar sakta hai. Admin se contact karo."}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-xs flex-shrink-0">
+      <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+      <span className="font-bold">VIEW ONLY MODE —</span>
+      <span>Sirf {daysLeft} din bacha hai! Data sirf dekh sakte hain. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se contact karo."}</span>
     </div>
   );
 }
@@ -536,13 +571,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <LocationModal onClose={() => { setShowLocationModal(false); setDeviceLoc(getDeviceLocation()); }} />
       )}
 
-      {/* Plan expired lock — shown even offline */}
-      {!isSuperAdmin() && isPlanExpired() && (
-        <PlanExpiredLock onLogout={logout} />
-      )}
+      {/* Grace period / expired lock */}
+      {!isSuperAdmin() && (() => {
+        const grace = getGraceStatus();
+        if (grace === "expired") return <PlanExpiredLock onLogout={logout} />;
+        return null;
+      })()}
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Grace period banner */}
+        {!isSuperAdmin() && (() => {
+          const grace = getGraceStatus();
+          if (grace === "grace_trial" || grace === "grace_admin" || grace === "grace_readonly") {
+            return <GraceBanner grace={grace} isAdmin={user?.role === "business_admin"} />;
+          }
+          return null;
+        })()}
         {/* Topbar */}
         <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-500 hover:text-gray-700">

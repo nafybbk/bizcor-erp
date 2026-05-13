@@ -46,7 +46,7 @@ export default function States() {
   const seedIndianStates = async () => {
     if (!confirm("This will load all 37 standard Indian GST states. Continue?")) return;
     setSeeding(true);
-    await api.post("/masters/states/seed-india");
+    await api.post("/masters/states/seed-india", {});
     setSeeding(false); load();
   };
 
