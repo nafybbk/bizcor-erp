@@ -22,9 +22,8 @@ if (sqlitePath) {
   // @ts-expect-error — better-sqlite3 loaded at EXE runtime from server-bundle/node_modules
   const Database = (await import("better-sqlite3")).default;
   const { drizzle } = await import("drizzle-orm/better-sqlite3");
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error — sqlite-schema resolved at runtime only (not a pnpm workspace dep)
-  const sqliteSchema = await import("./sqlite-schema/index.js");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sqliteSchema = await import("./sqlite-schema/index.js" as any);
 
   const dbPath = path.join(sqlitePath, "bizcor.db");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,6 +74,7 @@ export const loginLogsTable = s.loginLogsTable;
 export const unitsTable = s.unitsTable;
 export const hsnCodesTable = s.hsnCodesTable;
 export const taxRatesTable = s.taxRatesTable;
+export const statesTable = s.statesTable;
 export const customFieldsTable = s.customFieldsTable;
 export const partiesTable = s.partiesTable;
 export const itemsTable = s.itemsTable;
