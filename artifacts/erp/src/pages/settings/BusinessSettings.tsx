@@ -5,15 +5,7 @@ import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupport
 import { useLang } from "@/lib/langHook";
 import { getLang, t } from "@/lib/lang";
 
-const INDIAN_STATES = [
-  { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
-  { name: "Goa", code: "30" }, { name: "Gujarat", code: "24" }, { name: "Haryana", code: "06" },
-  { name: "Karnataka", code: "29" }, { name: "Kerala", code: "32" }, { name: "Madhya Pradesh", code: "23" },
-  { name: "Maharashtra", code: "27" }, { name: "Punjab", code: "03" }, { name: "Rajasthan", code: "08" },
-  { name: "Tamil Nadu", code: "33" }, { name: "Telangana", code: "36" }, { name: "Uttar Pradesh", code: "09" },
-  { name: "West Bengal", code: "19" }, { name: "Chhattisgarh", code: "22" }, { name: "Uttarakhand", code: "05" },
-  { name: "Himachal Pradesh", code: "02" }, { name: "Jharkhand", code: "20" }, { name: "Odisha", code: "21" },
-];
+import { useStates } from "@/lib/useStates";
 
 const BUSINESS_TYPES = [
   { value: "", label: "General / Trading" },
@@ -101,6 +93,7 @@ function OfflineDataFolderSection() {
 }
 
 export default function BusinessSettings() {
+  const statesList = useStates();
   const lang = useLang();
   const [form, setForm] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -281,11 +274,11 @@ export default function BusinessSettings() {
             <input className={inputCls} value={form.city || ""} onChange={e => setForm((f: any) => ({ ...f, city: e.target.value }))} /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">State</label>
             <select className={inputCls} value={form.state || ""} onChange={e => {
-              const st = INDIAN_STATES.find(s => s.name === e.target.value);
+              const st = statesList.find(s => s.name === e.target.value);
               setForm((f: any) => ({ ...f, state: e.target.value, stateCode: st?.code || "" }));
             }}>
               <option value="">Select State</option>
-              {INDIAN_STATES.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
+              {statesList.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
             </select>
           </div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>

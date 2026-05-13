@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt, isOfflineError, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useStates } from "@/lib/useStates";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
 import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
@@ -258,17 +259,6 @@ const BIZ_FIELDS: Record<string, {
   },
 };
 
-const INDIAN_STATES = [
-  { name: "Andhra Pradesh", code: "37" }, { name: "Bihar", code: "10" }, { name: "Delhi", code: "07" },
-  { name: "Goa", code: "30" }, { name: "Gujarat", code: "24" }, { name: "Haryana", code: "06" },
-  { name: "Karnataka", code: "29" }, { name: "Kerala", code: "32" }, { name: "Madhya Pradesh", code: "23" },
-  { name: "Maharashtra", code: "27" }, { name: "Punjab", code: "03" }, { name: "Rajasthan", code: "08" },
-  { name: "Tamil Nadu", code: "33" }, { name: "Telangana", code: "36" }, { name: "Uttar Pradesh", code: "09" },
-  { name: "West Bengal", code: "19" }, { name: "Chhattisgarh", code: "22" }, { name: "Uttarakhand", code: "05" },
-  { name: "Himachal Pradesh", code: "02" }, { name: "Jharkhand", code: "20" }, { name: "Odisha", code: "21" },
-  { name: "Assam", code: "18" }, { name: "Tripura", code: "16" },
-];
-
 interface VoucherItem {
   itemId?: number;
   itemName: string;
@@ -316,6 +306,7 @@ interface Props {
 }
 
 export default function VoucherForm({ voucherType, title, listHref, editId, initialData }: Props) {
+  const statesList = useStates();
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const isSales = voucherType.startsWith("sales");
@@ -1155,12 +1146,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                     className={inputCls}
                     value={quickAddForm.state}
                     onChange={e => {
-                      const st = INDIAN_STATES.find(s => s.name === e.target.value);
+                      const st = statesList.find(s => s.name === e.target.value);
                       setQuickAddForm(f => ({ ...f, state: e.target.value, stateCode: st?.code || "" }));
                     }}
                   >
                     <option value="">Select State</option>
-                    {INDIAN_STATES.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
+                    {statesList.map(s => <option key={s.code} value={s.name}>{s.name} ({s.code})</option>)}
                   </select>
                 </div>
                 <div>
@@ -1320,7 +1311,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             <label className="block text-sm font-medium text-gray-700 mb-1">Place of Supply</label>
             <select className={inputCls} value={form.placeOfSupply} onChange={e => setForm(f => ({ ...f, placeOfSupply: e.target.value }))}>
               <option value="">Select State</option>
-              {INDIAN_STATES.map(s => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+              {statesList.map(s => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
             </select>
             <div className="flex items-center gap-2 mt-2">
               {/* Auto-detected GST badge */}
