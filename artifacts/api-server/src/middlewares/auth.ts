@@ -37,7 +37,9 @@ export function signToken(payload: AuthUser, planExpiresAt?: Date | null, isTria
     if (secondsLeft > 0) {
       expiresInSeconds = Math.min(secondsLeft, 7 * 24 * 60 * 60);
     } else {
-      expiresInSeconds = 3600; // 1 hour (shouldn't happen — login blocks expired plans)
+      // Plan expired but may be in grace period (up to 60 days) — give 7-day token
+      // Grace enforcement happens in requireActivePlan, not token expiry
+      expiresInSeconds = 7 * 24 * 60 * 60;
     }
   }
 
@@ -99,18 +101,44 @@ export function requireBusiness(req: Request, res: Response, next: NextFunction)
   });
 }
 
+export type GraceStatus = "active" | "grace_trial" | "grace_admin" | "grace_readonly" | "expired";
+
+export function getGraceStatus(planExpiresAt: string | Date | null | undefined, isTrial?: boolean): GraceStatus {
+  if (isTrial) return "active";
+  if (!planExpiresAt) return "active";
+  const expiry = typeof planExpiresAt === "string" ? new Date(planExpiresAt) : planExpiresAt;
+  const now = new Date();
+  if (expiry > now) return "active";
+  const daysPast = Math.floor((now.getTime() - expiry.getTime()) / (24 * 60 * 60 * 1000));
+  if (daysPast <= 30) return "grace_trial";
+  if (daysPast <= 50) return "grace_admin";
+  if (daysPast <= 60) return "grace_readonly";
+  return "expired";
+}
+
 export function requireActivePlan(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
   if (!user || user.role === "super_admin" || user.isTrial) { next(); return; }
-  if (user.planExpiresAt) {
-    const expiry = new Date(user.planExpiresAt);
-    if (expiry < new Date()) {
-      res.status(402).json({
-        error: "PLAN_EXPIRED",
-        message: "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein.",
-      });
+
+  const grace = getGraceStatus(user.planExpiresAt, user.isTrial);
+
+  if (grace === "expired") {
+    res.status(402).json({ error: "PLAN_EXPIRED", message: "Aapka plan expire ho gaya hai (60+ din). Nayi license lijiye." });
+    return;
+  }
+
+  if (grace === "grace_readonly") {
+    if (req.method !== "GET") {
+      res.status(402).json({ error: "GRACE_READONLY", message: "View-only mode hai. Sirf data dekh sakte hain. Plan activate karo." });
       return;
     }
+    next(); return;
   }
+
+  if ((grace === "grace_trial" || grace === "grace_admin") && user.role === "staff") {
+    res.status(402).json({ error: "GRACE_ADMIN_ONLY", message: "Grace period mein sirf admin kaam kar sakta hai. Plan activate karein." });
+    return;
+  }
+
   next();
 }
