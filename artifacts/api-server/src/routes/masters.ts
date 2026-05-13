@@ -85,7 +85,7 @@ router.get("/states", async (req, res) => {
   try {
     await ensureStatesTable();
     const data = await db.select().from(statesTable).where(eq(statesTable.businessId, req.user!.businessId!)).orderBy(statesTable.sortOrder, statesTable.stateCode);
-    res.json(data);
+    res.json({ data });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
