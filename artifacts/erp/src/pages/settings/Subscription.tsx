@@ -26,7 +26,7 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
       {isCurrentPlan && (
         <div className="absolute -top-3 left-4">
           <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Aapka Current Plan
+            <CheckCircle2 className="w-3 h-3" /> Your Current Plan
           </span>
         </div>
       )}
@@ -99,7 +99,7 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
         <button onClick={onActivate}
           className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2
             ${isPro ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "border-2 border-gray-300 hover:border-indigo-400 text-gray-700 hover:text-indigo-700"}`}>
-          <Zap className="w-4 h-4" /> Is plan ke liye voucher code daalo
+          <Zap className="w-4 h-4" /> Enter voucher code for this plan
         </button>
       )}
     </div>
@@ -125,7 +125,7 @@ function ReferralSection() {
 
   const shareMsg = () => {
     if (!referral?.referralCode) return;
-    const msg = `Maine BizCor ERP use kar raha/rahi hoon — India ka best business software!\n\nIs referral code se register karo aur free mein use karo:\n🎁 Code: ${referral.referralCode}\n🔗 https://erp.naewtgroup.com/register`;
+    const msg = `I'm using BizCor ERP — India's best business software!\n\nRegister with this referral code and use it free:\n🎁 Code: ${referral.referralCode}\n🔗 https://erp.naewtgroup.com/register`;
     if (navigator.share) {
       navigator.share({ text: msg }).then(() => setShared(true)).catch(() => {});
     } else {
@@ -148,7 +148,7 @@ function ReferralSection() {
           </div>
           <div>
             <h3 className="font-bold text-gray-900 text-base">Referral Program</h3>
-            <p className="text-xs text-gray-500">Dosto ko invite karo — free plan pao</p>
+            <p className="text-xs text-gray-500">Invite friends — earn a free plan</p>
           </div>
         </div>
         {rewardCount > 0 && (
@@ -161,9 +161,9 @@ function ReferralSection() {
       {/* Reward explanation */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { step: "1", title: "Share karo", desc: "Apna referral code dosto ko bhejo", icon: <Share2 className="w-4 h-4 text-emerald-600" /> },
-          { step: "2", title: "5 log register karein", desc: "Woh aapka code daalein registration mein", icon: <Users className="w-4 h-4 text-blue-500" /> },
-          { step: "3", title: "Referral Plan milega!", desc: "Aapka plan auto-activate — congratulations!", icon: <Trophy className="w-4 h-4 text-yellow-500" /> },
+          { step: "1", title: "Share", desc: "Send your referral code to friends", icon: <Share2 className="w-4 h-4 text-emerald-600" /> },
+          { step: "2", title: "5 people register", desc: "They enter your code at registration", icon: <Users className="w-4 h-4 text-blue-500" /> },
+          { step: "3", title: "Earn Referral Plan!", desc: "Your plan auto-activates — congratulations!", icon: <Trophy className="w-4 h-4 text-yellow-500" /> },
         ].map(s => (
           <div key={s.step} className="bg-white/70 rounded-xl p-3 flex items-start gap-2.5 border border-emerald-100">
             <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0 mt-0.5">{s.step}</div>
@@ -179,7 +179,7 @@ function ReferralSection() {
       <div className="bg-white rounded-xl border border-emerald-200 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs text-gray-500 font-medium mb-1">Aapka Referral Code</p>
+            <p className="text-xs text-gray-500 font-medium mb-1">Your Referral Code</p>
             <div className="text-3xl font-black tracking-[0.2em] text-emerald-700 font-mono">{referralCode}</div>
           </div>
           <div className="flex flex-col gap-2">
@@ -210,8 +210,8 @@ function ReferralSection() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-1.5">
-              {5 - progressToNext} aur referral chahiye → Referral Plan free milega
-              {rewardCount === 0 && referralCount === 0 ? " (pehli baar!)" : ""}
+              {5 - progressToNext} more referral{5 - progressToNext === 1 ? "" : "s"} needed → Earn Referral Plan free
+              {rewardCount === 0 && referralCount === 0 ? " (get started!)" : ""}
             </p>
           </div>
         )}
@@ -219,7 +219,7 @@ function ReferralSection() {
         {maxRewardsReached && (
           <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm text-yellow-800">
             <Star className="w-4 h-4 text-yellow-500 shrink-0" />
-            <span>Aapne dono referral rewards le liye hain — shukriya! 🎉</span>
+            <span>You've claimed both referral rewards — thank you! 🎉</span>
           </div>
         )}
       </div>
@@ -239,11 +239,14 @@ function ReferralSection() {
       </div>
 
       <p className="text-xs text-gray-400 text-center">
-        Referral Plan sirf tab milega jab aapka referral code use ho — seedha share karo
+        Referral Plan is awarded when your code is used — share it directly
       </p>
     </div>
   );
 }
+
+// Detect offline EXE mode — VITE_API_URL is set only in desktop EXE build
+const IS_OFFLINE = !!import.meta.env.VITE_API_URL;
 
 export default function Subscription() {
   const [business, setBusiness] = useState<any>(null);
@@ -272,12 +275,23 @@ export default function Subscription() {
     setRedeemLoading(true);
     setRedeemResult(null);
     try {
-      const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
-      setRedeemResult({ success: true, message: res.message });
-      setVoucherCode(""); setShowVoucherFor(null);
-      load();
+      if (IS_OFFLINE) {
+        // Offline EXE: validate via cloud, update local SQLite, get fresh token
+        const res = await api.post<any>("/redeem-voucher-offline", { code: voucherCode.trim() });
+        // Save fresh token so planExpiresAt updates immediately (no re-login needed)
+        if (res.token) localStorage.setItem("erp_token", res.token);
+        setRedeemResult({ success: true, message: res.message });
+        setVoucherCode(""); setShowVoucherFor(null);
+        load();
+      } else {
+        // Cloud: direct redemption
+        const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
+        setRedeemResult({ success: true, message: res.message });
+        setVoucherCode(""); setShowVoucherFor(null);
+        load();
+      }
     } catch (err: any) {
-      setRedeemResult({ success: false, message: err.message || "Voucher redeem nahi hua" });
+      setRedeemResult({ success: false, message: err.message || "Voucher redeem nahi ho saka" });
     } finally { setRedeemLoading(false); }
   };
 
@@ -296,9 +310,9 @@ export default function Subscription() {
     <div className="max-w-4xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <CreditCard className="w-6 h-6 text-indigo-500" /> Mera Subscription
+          <CreditCard className="w-6 h-6 text-indigo-500" /> My Subscription
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Aapka current plan, referral program aur available plans</p>
+        <p className="text-sm text-gray-500 mt-0.5">Your current plan, referral program and available plans</p>
       </div>
 
       {/* Current Plan Status */}
@@ -321,7 +335,7 @@ export default function Subscription() {
                 <>
                   <div className="font-bold text-gray-900 text-lg">{currentPlan.name} Plan</div>
                   <div className="text-sm text-gray-600">
-                    {business.isTrial ? "Trial period mein" : "Paid plan active"}
+                    {business.isTrial ? "On trial period" : "Paid plan active"}
                     {business.planExpiresAt && (
                       <span className="ml-2">
                         · Expires: <strong>{new Date(business.planExpiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</strong>
@@ -330,14 +344,14 @@ export default function Subscription() {
                   </div>
                   {daysLeft !== null && (
                     <div className={`text-sm font-medium mt-0.5 ${daysLeft <= 0 ? "text-red-600" : daysLeft <= 15 ? "text-red-500" : "text-green-600"}`}>
-                      {daysLeft <= 0 ? "Plan expire ho gaya!" : `${daysLeft} din baaki`}
+                      {daysLeft <= 0 ? "Plan expired!" : `${daysLeft} days remaining`}
                     </div>
                   )}
                 </>
               ) : (
                 <>
-                  <div className="font-bold text-gray-900 text-lg">Koi plan active nahi</div>
-                  <div className="text-sm text-amber-700">Vendor se voucher code lekar plan activate karo</div>
+                  <div className="font-bold text-gray-900 text-lg">No active plan</div>
+                  <div className="text-sm text-amber-700">Get a voucher code from your vendor to activate a plan</div>
                 </>
               )}
             </div>
@@ -388,7 +402,7 @@ export default function Subscription() {
             Activate
           </button>
         </div>
-        <p className="text-xs text-indigo-500">Vendor/dealer se mila hua license code yahan daalo</p>
+        <p className="text-xs text-indigo-500">Enter the license code received from your vendor/dealer</p>
         {redeemResult && (
           <div className={`flex items-start gap-2 text-sm px-3 py-2.5 rounded-lg border ${redeemResult.success ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
             {redeemResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <X className="w-4 h-4 shrink-0 mt-0.5" />}
@@ -414,7 +428,7 @@ export default function Subscription() {
               />
             ))}
           </div>
-          <p className="text-xs text-gray-400 text-center">Plan upgrade karne ke liye vendor se nayi plan ka voucher code maango</p>
+          <p className="text-xs text-gray-400 text-center">To upgrade your plan, ask your vendor for a new plan voucher code</p>
         </div>
       )}
     </div>
