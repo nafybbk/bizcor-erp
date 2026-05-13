@@ -61,6 +61,69 @@ router.get("/public-settings", async (_req, res) => {
   }
 });
 
+// Public — offline EXE voucher activation (no business auth needed)
+router.post("/activate-offline", async (req, res) => {
+  try {
+    const { voucherCode, businessCode } = req.body;
+    if (!voucherCode || !businessCode) {
+      res.status(400).json({ error: "voucherCode aur businessCode dono required hain" });
+      return;
+    }
+    const { db, licenseVouchersTable, plansTable, businessesTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+
+    const voucher = await db.query.licenseVouchersTable.findFirst({
+      where: eq(licenseVouchersTable.code, voucherCode.trim().toUpperCase()),
+    });
+    if (!voucher) { res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" }); return; }
+    if (voucher.status === "used") { res.status(400).json({ error: "Yeh voucher pehle hi use ho chuka hai" }); return; }
+    if (voucher.status === "cancelled") { res.status(400).json({ error: "Yeh voucher cancel ho chuka hai" }); return; }
+
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, voucher.planId) });
+    if (!plan) { res.status(400).json({ error: "Is voucher ka plan nahi mila" }); return; }
+
+    const biz = await db.query.businessesTable.findFirst({
+      where: eq(businessesTable.businessCode, businessCode.trim().toUpperCase()),
+    });
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString();
+
+    await db.update(licenseVouchersTable).set({
+      status: "used",
+      redeemedByBusinessId: biz?.id || null,
+      redeemedAt: nowStr as unknown as Date,
+    }).where(eq(licenseVouchersTable.id, voucher.id));
+
+    if (biz) {
+      await db.update(businessesTable).set({
+        planId: plan.id,
+        planStartDate: nowStr as unknown as Date,
+        planExpiresAt: expiresAt as unknown as Date,
+        isTrial: false,
+        status: "active",
+      }).where(eq(businessesTable.id, biz.id));
+    }
+
+    res.json({
+      success: true,
+      planId: plan.id,
+      planName: plan.name,
+      validityDays: voucher.validityDays,
+      expiresAt: expiresAt.toISOString(),
+      maxUsers: plan.maxUsers,
+      features: plan.features || [],
+      maxVouchersPerMonth: plan.maxVouchersPerMonth ?? null,
+      maxItems: plan.maxItems ?? null,
+      maxParties: plan.maxParties ?? null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
