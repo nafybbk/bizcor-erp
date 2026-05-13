@@ -84,7 +84,8 @@ export default function PaymentsList({ type }: Props) {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">No {title.toLowerCase()} found</div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="text-left px-4 py-3 font-medium">#</th>
@@ -124,6 +125,7 @@ export default function PaymentsList({ type }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
