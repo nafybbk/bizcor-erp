@@ -83,10 +83,14 @@ router.post("/login", async (req, res) => {
 
       // ── PLAN / TRIAL EXPIRY ───────────────────────────────────────────────
       if (business.planExpiresAt && new Date(business.planExpiresAt) < new Date()) {
-        const msg = business.isTrial
-          ? "Aapka 30-din ka trial khatam ho gaya hai. Plan lijiye ya admin se contact karein."
-          : "Aapka plan expire ho gaya hai. Nayi license lijiye ya admin se contact karein.";
-        throw { code: "PLAN_EXPIRED", message: msg };
+        const daysPast = Math.floor((Date.now() - new Date(business.planExpiresAt as unknown as string).getTime()) / (24 * 60 * 60 * 1000));
+        if (daysPast > 60) {
+          const msg = business.isTrial
+            ? "Aapka trial 60+ din pehle khatam ho gaya hai. Plan activate karein."
+            : "Aapka plan 60+ din se expire hai. Nayi license lijiye ya admin se contact karein.";
+          throw { code: "PLAN_EXPIRED", message: msg };
+        }
+        // Within 60-day grace period — allow login (grace enforcement is in requireActivePlan)
       }
 
       // ── USER LIMIT ENFORCEMENT ────────────────────────────────────────────
