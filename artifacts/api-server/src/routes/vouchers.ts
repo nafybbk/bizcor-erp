@@ -410,7 +410,7 @@ router.get("/bin", async (req, res) => {
   }
 });
 
-router.patch("/bin/restore/:id", async (req, res) => {
+router.post("/bin/:id/restore", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
@@ -429,7 +429,7 @@ router.patch("/bin/restore/:id", async (req, res) => {
   }
 });
 
-router.delete("/bin/delete/:id", async (req, res) => {
+router.delete("/bin/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
