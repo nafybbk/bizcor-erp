@@ -72,19 +72,17 @@ router.post("/activate-offline", async (req, res) => {
     const { db, licenseVouchersTable, plansTable, businessesTable } = await import("@workspace/db");
     const { eq } = await import("drizzle-orm");
 
-    const voucher = await db.query.licenseVouchersTable.findFirst({
-      where: eq(licenseVouchersTable.code, voucherCode.trim().toUpperCase()),
-    });
+    const [voucher] = await db.select().from(licenseVouchersTable)
+      .where(eq(licenseVouchersTable.code, voucherCode.trim().toUpperCase())).limit(1);
     if (!voucher) { res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" }); return; }
     if (voucher.status === "used") { res.status(400).json({ error: "Yeh voucher pehle hi use ho chuka hai" }); return; }
     if (voucher.status === "cancelled") { res.status(400).json({ error: "Yeh voucher cancel ho chuka hai" }); return; }
 
-    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, voucher.planId) });
+    const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, voucher.planId)).limit(1);
     if (!plan) { res.status(400).json({ error: "Is voucher ka plan nahi mila" }); return; }
 
-    const biz = await db.query.businessesTable.findFirst({
-      where: eq(businessesTable.businessCode, businessCode.trim().toUpperCase()),
-    });
+    const [biz] = await db.select().from(businessesTable)
+      .where(eq(businessesTable.businessCode, businessCode.trim().toUpperCase())).limit(1);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
