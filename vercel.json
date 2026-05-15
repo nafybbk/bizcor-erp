@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @workspace/erp run build && pnpm --filter @workspace/api-server run build:vercel",
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @workspace/erp run build",
   "outputDirectory": "artifacts/erp/dist/public",
   "functions": {
     "artifacts/api-server/api/index.js": {
