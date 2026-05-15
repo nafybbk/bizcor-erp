@@ -91188,7 +91188,7 @@ router9.get("/bin", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error", detail: err?.message });
   }
 });
-router9.patch("/bin/restore/:id", async (req, res) => {
+router9.post("/bin/:id/restore", async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const id = Number(req.params.id);
@@ -91209,7 +91209,7 @@ router9.patch("/bin/restore/:id", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-router9.delete("/bin/delete/:id", async (req, res) => {
+router9.delete("/bin/:id", async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const id = Number(req.params.id);
