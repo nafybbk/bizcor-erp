@@ -783,6 +783,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i];
         if (!it.itemId && it.itemName?.trim()) {
+          // If item with same name already exists in master — reuse it, don't create duplicate
+          const existingMaster = items.find((mi: any) =>
+            mi.name?.toLowerCase() === it.itemName.trim().toLowerCase()
+          );
+          if (existingMaster) {
+            updatedItems[i] = { ...it, itemId: existingMaster.id };
+            continue;
+          }
           try {
             // Resolve unit symbol → unitId (so item is properly linked to units master)
             const matchedUnit = units.find((u: any) =>
