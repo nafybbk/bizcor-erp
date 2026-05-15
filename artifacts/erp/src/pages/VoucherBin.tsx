@@ -44,7 +44,7 @@ export default function VoucherBin() {
     setLoading(true);
     setError("");
     try {
-      const data = await api.get<BinVoucher[]>("/vouchers/bin");
+      const data = await api.get<BinVoucher[]>("/bin");
       setVouchers(Array.isArray(data) ? data : []);
     } catch (e: any) {
       setError(e.message || "Failed to load");
@@ -58,7 +58,7 @@ export default function VoucherBin() {
   const restore = async (id: number) => {
     setRestoring(id); setError("");
     try {
-      await api.post(`/vouchers/bin/${id}/restore`, {});
+      await api.post(`/bin/${id}/restore`, {});
       setSuccess(t("voucherRestored", lang));
       setVouchers(prev => prev.filter(v => v.id !== id));
     } catch (e: any) { setError(e.message || "Failed"); }
@@ -68,7 +68,7 @@ export default function VoucherBin() {
   const permanentDelete = async (id: number) => {
     setDeleting(id); setError("");
     try {
-      await api.delete(`/vouchers/bin/${id}`);
+      await api.delete(`/bin/${id}`);
       setSuccess(t("voucherPermanentlyDeleted", lang));
       setVouchers(prev => prev.filter(v => v.id !== id));
       setConfirmDel(null);
