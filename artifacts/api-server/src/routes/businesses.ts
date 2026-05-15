@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, paymentsTable, plansTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
@@ -229,22 +229,142 @@ router.patch("/current", requireBusiness, async (req, res) => {
 router.get("/backup", requireBusiness, async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+    const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId)).limit(1);
     const users = await db.select().from(usersTable).where(eq(usersTable.businessId, businessId));
     const parties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
     const items = await db.select().from(itemsTable).where(eq(itemsTable.businessId, businessId));
     const vouchers = await db.select().from(vouchersTable).where(eq(vouchersTable.businessId, businessId));
+    const voucherIds = vouchers.map(v => v.id);
+    let voucherItems: any[] = [];
+    if (voucherIds.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      voucherItems = await db.select().from(voucherItemsTable).where(inArray(voucherItemsTable.voucherId, voucherIds));
+    }
     const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
+    const paymentIds = payments.map(p => p.id);
+    let paymentAllocations: any[] = [];
+    if (paymentIds.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      paymentAllocations = await db.select().from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, paymentIds));
+    }
 
-    const filename = `backup-${business?.businessCode || businessId}-${Date.now()}.json`;
+    const filename = `bizcor-backup-${business?.businessCode || businessId}-${new Date().toISOString().split("T")[0]}.json`;
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.json({
       exportedAt: new Date().toISOString(),
-      version: "1.0",
+      version: "2.0",
       business,
       users: users.map(u => ({ ...u, passwordHash: undefined })),
-      parties, items, vouchers, payments,
+      parties,
+      items,
+      vouchers,
+      voucherItems,
+      payments,
+      paymentAllocations,
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// Restore from JSON backup — imports parties, items, vouchers, payments (additive, skips existing)
+router.post("/restore", requireBusiness, async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
+    const { inArray } = await import("drizzle-orm");
+
+    let imported = { parties: 0, items: 0, vouchers: 0, payments: 0 };
+
+    // Restore parties — skip if same businessId+name already exists
+    const existingParties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
+    const existingPartyNames = new Set(existingParties.map((p: any) => p.name?.toLowerCase()));
+    const newParties = parties.filter((p: any) => !existingPartyNames.has(p.name?.toLowerCase()));
+    const partyIdMap: Record<number, number> = {};
+    for (const party of newParties) {
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = party;
+      const [inserted] = await db.insert(partiesTable).values({ ...rest, businessId }).returning({ id: partiesTable.id });
+      if (inserted) partyIdMap[oldId] = inserted.id;
+      imported.parties++;
+    }
+    // Keep old party id → existing id mapping too
+    for (const p of parties) {
+      const existing = existingParties.find((e: any) => e.name?.toLowerCase() === p.name?.toLowerCase());
+      if (existing && !partyIdMap[p.id]) partyIdMap[p.id] = existing.id;
+    }
+
+    // Restore items — skip if same businessId+name already exists
+    const existingItems = await db.select().from(itemsTable).where(eq(itemsTable.businessId, businessId));
+    const existingItemNames = new Set(existingItems.map((i: any) => i.name?.toLowerCase()));
+    const newItems = items.filter((i: any) => !existingItemNames.has(i.name?.toLowerCase()));
+    const itemIdMap: Record<number, number> = {};
+    for (const item of newItems) {
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = item;
+      const [inserted] = await db.insert(itemsTable).values({ ...rest, businessId }).returning({ id: itemsTable.id });
+      if (inserted) itemIdMap[oldId] = inserted.id;
+      imported.items++;
+    }
+    for (const i of items) {
+      const existing = existingItems.find((e: any) => e.name?.toLowerCase() === i.name?.toLowerCase());
+      if (existing && !itemIdMap[i.id]) itemIdMap[i.id] = existing.id;
+    }
+
+    // Restore vouchers — skip if same voucherNumber already exists for this business
+    const existingVouchers = await db.select().from(vouchersTable).where(eq(vouchersTable.businessId, businessId));
+    const existingVoucherNums = new Set(existingVouchers.map((v: any) => v.voucherNumber));
+    const voucherIdMap: Record<number, number> = {};
+    for (const voucher of vouchers) {
+      if (existingVoucherNums.has(voucher.voucherNumber)) {
+        const existing = existingVouchers.find((e: any) => e.voucherNumber === voucher.voucherNumber);
+        if (existing) voucherIdMap[voucher.id] = existing.id;
+        continue;
+      }
+      const { id: oldId, businessId: _bid, partyId, createdAt, ...rest } = voucher;
+      const newPartyId = partyId ? (partyIdMap[partyId] || partyId) : null;
+      const [inserted] = await db.insert(vouchersTable).values({ ...rest, businessId, partyId: newPartyId }).returning({ id: vouchersTable.id });
+      if (inserted) {
+        voucherIdMap[oldId] = inserted.id;
+        imported.vouchers++;
+        // Insert voucher items for this voucher
+        const relatedItems = voucherItems.filter((vi: any) => vi.voucherId === oldId);
+        for (const vi of relatedItems) {
+          const { id: _viId, voucherId: _vid, itemId, ...viRest } = vi;
+          const newItemId = itemId ? (itemIdMap[itemId] || itemId) : null;
+          await db.insert(voucherItemsTable).values({ ...viRest, voucherId: inserted.id, itemId: newItemId }).catch(() => {});
+        }
+      }
+    }
+
+    // Restore payments — skip duplicates
+    const existingPayments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
+    const existingPaymentNums = new Set(existingPayments.map((p: any) => p.receiptNumber || p.paymentNumber));
+    const paymentIdMap: Record<number, number> = {};
+    for (const payment of payments) {
+      const num = payment.receiptNumber || payment.paymentNumber;
+      if (num && existingPaymentNums.has(num)) {
+        const existing = existingPayments.find((e: any) => (e.receiptNumber || e.paymentNumber) === num);
+        if (existing) paymentIdMap[payment.id] = existing.id;
+        continue;
+      }
+      const { id: oldId, businessId: _bid, partyId, createdAt, ...rest } = payment;
+      const newPartyId = partyId ? (partyIdMap[partyId] || partyId) : null;
+      const [inserted] = await db.insert(paymentsTable).values({ ...rest, businessId, partyId: newPartyId }).returning({ id: paymentsTable.id });
+      if (inserted) {
+        paymentIdMap[oldId] = inserted.id;
+        imported.payments++;
+        // Insert payment allocations
+        const relatedAllocs = paymentAllocations.filter((a: any) => a.paymentId === oldId);
+        for (const alloc of relatedAllocs) {
+          const { id: _aid, paymentId: _pid, voucherId, ...allocRest } = alloc;
+          const newVoucherId = voucherId ? (voucherIdMap[voucherId] || voucherId) : null;
+          await db.insert(paymentAllocationsTable).values({ ...allocRest, paymentId: inserted.id, voucherId: newVoucherId }).catch(() => {});
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Restore complete! ${imported.parties} parties, ${imported.items} items, ${imported.vouchers} vouchers, ${imported.payments} payments imported.`,
+      imported,
     });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });

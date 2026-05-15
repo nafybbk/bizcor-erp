@@ -286,6 +286,8 @@ export default function Subscription() {
       } else {
         // Cloud: direct redemption
         const res = await api.post<any>("/redeem-voucher", { code: voucherCode.trim() });
+        // Save fresh token so planExpiresAt updates immediately (no re-login needed)
+        if (res.token) localStorage.setItem("erp_token", res.token);
         setRedeemResult({ success: true, message: res.message });
         setVoucherCode(""); setShowVoucherFor(null);
         load();
