@@ -245,8 +245,9 @@ function ReferralSection() {
   );
 }
 
-// Detect offline EXE mode — VITE_API_URL is set only in desktop EXE build
-const IS_OFFLINE = !!import.meta.env.VITE_API_URL;
+// Detect offline EXE mode — VITE_API_URL set + HTTP protocol = desktop EXE build
+// Cloud web app is always HTTPS, so this is false on erp.naewtgroup.com
+const IS_OFFLINE = !!import.meta.env.VITE_API_URL && window.location.protocol !== "https:";
 
 export default function Subscription() {
   const [business, setBusiness] = useState<any>(null);
