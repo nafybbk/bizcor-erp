@@ -49,7 +49,7 @@ await esbuild({
   outdir: apiDir,
   logLevel: "info",
   sourcemap: false,
-  plugins: [stubPlugin, esbuildPluginPino({ transports: [] })],
+  plugins: [stubPlugin, esbuildPluginPino({ transports: ["pino-pretty"] })],
   external: [
     "*.node",
     "sharp",
