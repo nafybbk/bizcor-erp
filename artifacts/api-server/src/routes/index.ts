@@ -116,9 +116,9 @@ router.post("/activate-offline", async (req, res) => {
       maxItems: plan.maxItems ?? null,
       maxParties: plan.maxParties ?? null,
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ error: err?.message || String(err) });
   }
 });
 
