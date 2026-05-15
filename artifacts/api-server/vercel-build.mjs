@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
+import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm, mkdir, writeFile } from "node:fs/promises";
 
 globalThis.require = createRequire(import.meta.url);
@@ -19,12 +20,18 @@ await writeFile(path.resolve(publicDir, ".gitkeep"), "");
 
 console.log("Building Vercel serverless entry...");
 
+// Plugin: stub native/desktop-only packages so Vercel never tries to load them
 const stubPlugin = {
   name: "stub-native",
   setup(build) {
-    for (const pkg of ["better-sqlite3", "sqlite3"]) {
-      build.onResolve({ filter: new RegExp(`^${pkg}$`) }, (args) => ({
-        path: args.path, namespace: "stub-ns",
+    const stubs = ["better-sqlite3", "sqlite3", "*.node"];
+    for (const pkg of stubs) {
+      const filter = pkg === "*.node"
+        ? /\.node$/
+        : new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+      build.onResolve({ filter }, (args) => ({
+        path: args.path,
+        namespace: "stub-ns",
       }));
     }
     build.onLoad({ filter: /.*/, namespace: "stub-ns" }, () => ({
@@ -42,12 +49,10 @@ await esbuild({
   outfile: path.resolve(apiDir, "index.js"),
   logLevel: "info",
   sourcemap: false,
-  plugins: [stubPlugin],
+  plugins: [stubPlugin, esbuildPluginPino({ transports: [] })],
   external: [
     "*.node",
     "sharp",
-    "better-sqlite3",
-    "sqlite3",
     "canvas",
     "bcrypt",
     "argon2",
