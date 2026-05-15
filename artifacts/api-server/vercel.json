@@ -1,10 +1,12 @@
 {
   "version": 2,
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "mkdir -p public && touch public/.gitkeep",
   "outputDirectory": "public",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "api/**"
     }
   },
   "routes": [
