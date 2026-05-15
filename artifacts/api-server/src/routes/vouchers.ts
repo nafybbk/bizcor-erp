@@ -118,10 +118,19 @@ async function generateVoucherNumber(businessId: number, voucherType: VoucherTyp
   const sep = business?.numberSeparator ?? "-";
   const digits = Number(business?.numberDigits ?? 4);
   const series = Number(business?.numberSeries ?? 1);
-  // Count ALL vouchers (including soft-deleted) to prevent number reuse
-  const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(vouchersTable)
+  // Find highest existing serial to prevent reuse AND respect startNum setting
+  const existing = await db
+    .select({ num: vouchersTable.voucherNumber })
+    .from(vouchersTable)
     .where(and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.voucherType, voucherType)));
-  const serial = startNum + Number(cnt);
+  let maxExisting = 0;
+  for (const { num } of existing) {
+    if (!num) continue;
+    const m = num.match(/(\d+)$/);
+    if (m) maxExisting = Math.max(maxExisting, parseInt(m[1], 10));
+  }
+  // serial = max(startNum, maxExisting+1) — startNum acts as a floor
+  const serial = Math.max(startNum, maxExisting + 1);
   // Only include series in number if explicitly set to > 1 (default=1 means no series prefix)
   return series > 1
     ? `${prefix}${sep}${series}${sep}${String(serial).padStart(digits, "0")}`
