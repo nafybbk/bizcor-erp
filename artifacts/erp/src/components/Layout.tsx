@@ -220,9 +220,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [autoSyncResult, setAutoSyncResult] = useState<{ synced: number; failed: number } | null>(null);
+  const [forceOffline, setForceOffline] = useState(false);
+
+  const toggleForceOffline = () => {
+    setForceOffline(prev => {
+      const next = !prev;
+      if (!next) {
+        // Reconnecting — trigger immediate check
+        setTimeout(() => window.dispatchEvent(new Event("bizcor-check-online")), 100);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const checkOnline = async () => {
+      if (forceOffline) { setIsOnline(false); return; }
       const wasOffline = !isOnline;
       try {
         const h = await api.get<{ status: string; mode?: string }>("/healthz");
@@ -240,6 +253,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     checkOnline();
     const interval = setInterval(checkOnline, 30000);
+    window.addEventListener("bizcor-check-online", checkOnline);
 
     const cached = localStorage.getItem("erp_app_name");
     if (cached) setSoftwareName(cached);
@@ -264,7 +278,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener("app-settings-changed", onSettingsChanged);
 
-    return () => { clearInterval(interval); window.removeEventListener("app-settings-changed", onSettingsChanged); };
+    return () => { clearInterval(interval); window.removeEventListener("app-settings-changed", onSettingsChanged); window.removeEventListener("bizcor-check-online", checkOnline); };
   }, []);
 
   // Close sidebar on mobile when route changes
@@ -475,15 +489,30 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {appMode === "desktop" ? "🖥 Desktop App" : "☁ Cloud"}
                 </div>
               )}
-              {/* Online/Offline */}
-              <div className={`flex items-center gap-2 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
-                {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                <span>{isOnline ? "Connected" : "Offline"}</span>
+              {/* Online/Offline — clickable in desktop mode to force offline */}
+              <div className="flex items-center gap-1">
+                {appMode === "desktop" ? (
+                  <button
+                    onClick={toggleForceOffline}
+                    title={forceOffline ? "Reconnect karo — online ho jao" : "Offline mode mein jao"}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                      isOnline ? "text-green-400 hover:bg-green-900/30 border border-green-700/30" : "text-red-400 hover:bg-red-900/30 border border-red-700/30"
+                    }`}
+                  >
+                    {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                    <span>{isOnline ? "Connected" : forceOffline ? "Offline (Manual)" : "Offline"}</span>
+                  </button>
+                ) : (
+                  <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
+                    {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                    <span>{isOnline ? "Connected" : "Offline"}</span>
+                  </div>
+                )}
                 {draftCount > 0 && (
                   <button onClick={() => navigate("/offline-drafts")}
-                    className="ml-auto flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
+                    className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
                     <CloudOff className="w-3 h-3" />
-                    {draftCount} draft{draftCount > 1 ? "s" : ""}
+                    {draftCount}
                   </button>
                 )}
               </div>
