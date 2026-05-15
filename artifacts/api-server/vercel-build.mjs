@@ -42,11 +42,11 @@ const stubPlugin = {
 };
 
 await esbuild({
-  entryPoints: [path.resolve(artifactDir, "src/vercel-entry.ts")],
+  entryPoints: { index: path.resolve(artifactDir, "src/vercel-entry.ts") },
   platform: "node",
   bundle: true,
   format: "esm",
-  outfile: path.resolve(apiDir, "index.js"),
+  outdir: apiDir,
   logLevel: "info",
   sourcemap: false,
   plugins: [stubPlugin, esbuildPluginPino({ transports: [] })],
