@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
+import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm, mkdir, writeFile } from "node:fs/promises";
 
 globalThis.require = createRequire(import.meta.url);
@@ -48,7 +49,7 @@ await esbuild({
   outfile: path.resolve(apiDir, "index.js"),
   logLevel: "info",
   sourcemap: false,
-  plugins: [stubPlugin],
+  plugins: [stubPlugin, esbuildPluginPino({ transports: [] })],
   external: [
     "*.node",
     "sharp",
