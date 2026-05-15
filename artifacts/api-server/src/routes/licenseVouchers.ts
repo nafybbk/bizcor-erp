@@ -85,7 +85,7 @@ router.post("/redeem-voucher", async (req, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "redeem-voucher error");
-    res.status(500).json({ error: "Internal Server Error", detail: String(err?.message || err) });
+    res.status(500).json({ error: String(err?.message || err) });
   }
 });
 
@@ -166,7 +166,7 @@ router.post("/redeem-voucher-offline", async (req, res) => {
     });
   } catch (err: any) {
     req.log.error({ err }, "redeem-voucher-offline error");
-    res.status(500).json({ error: "Internal Server Error", detail: String(err?.message || err) });
+    res.status(500).json({ error: String(err?.message || err) });
   }
 });
 
