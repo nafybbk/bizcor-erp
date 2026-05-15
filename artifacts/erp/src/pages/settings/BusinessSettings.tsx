@@ -101,6 +101,9 @@ export default function BusinessSettings() {
   const [success, setSuccess] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{ success: boolean; message: string } | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [repairLoading, setRepairLoading] = useState(false);
   const [repairResult, setRepairResult] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -169,10 +172,39 @@ export default function BusinessSettings() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `backup-${form.businessCode || "business"}-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `bizcor-backup-${form.businessCode || "business"}-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } finally { setBackupLoading(false); }
+  };
+
+  const restoreBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setRestoreLoading(true);
+    setRestoreResult(null);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.parties && !data.items && !data.vouchers) {
+        setRestoreResult({ success: false, message: "Galat file format — BizCor backup JSON chahiye" });
+        return;
+      }
+      const res = await api.post<any>("/businesses/restore", {
+        parties: data.parties || [],
+        items: data.items || [],
+        vouchers: data.vouchers || [],
+        voucherItems: data.voucherItems || [],
+        payments: data.payments || [],
+        paymentAllocations: data.paymentAllocations || [],
+      });
+      setRestoreResult({ success: true, message: res.message });
+    } catch (err: any) {
+      setRestoreResult({ success: false, message: err.message || "Restore fail ho gaya" });
+    } finally {
+      setRestoreLoading(false);
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+    }
   };
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -515,8 +547,27 @@ export default function BusinessSettings() {
           <button type="button" onClick={downloadBackup} disabled={backupLoading}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
             {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Download
+            Backup
           </button>
+        </div>
+        <div className="flex items-center justify-between py-2 border-t border-gray-100">
+          <div>
+            <div className="text-sm font-medium text-gray-700">Data Restore (JSON Backup)</div>
+            <div className="text-xs text-gray-500 mt-0.5">Backup file se data import karo (existing records skip honge)</div>
+            {restoreResult && (
+              <div className={`text-xs mt-1 font-medium ${restoreResult.success ? "text-green-600" : "text-red-600"}`}>
+                {restoreResult.success ? "✅ " : "❌ "}{restoreResult.message}
+              </div>
+            )}
+          </div>
+          <div>
+            <input ref={restoreInputRef} type="file" accept=".json" className="hidden" onChange={restoreBackup} />
+            <button type="button" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+              {restoreLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Restore
+            </button>
+          </div>
         </div>
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
           <div>
