@@ -6,63 +6,69 @@ import { requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
 router.use(requireBusiness);
 
-async function ensureLicenseVouchersTable() {
-  const sqlite = (await import("@workspace/db")).sqlite;
-  if (!sqlite) return;
-  sqlite.prepare(`
-    CREATE TABLE IF NOT EXISTS license_vouchers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT NOT NULL UNIQUE,
-      plan_id INTEGER NOT NULL,
-      validity_days INTEGER NOT NULL DEFAULT 30,
-      selling_price TEXT,
-      status TEXT NOT NULL DEFAULT 'active',
-      notes TEXT,
-      generated_by INTEGER,
-      redeemed_by_business_id INTEGER,
-      redeemed_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run();
-}
-
-// Redeem a license voucher — any authenticated business user (admin role only)
+// ─── Cloud: Redeem voucher directly against PostgreSQL ───────────────────────
 router.post("/redeem-voucher", async (req, res) => {
   try {
-    await ensureLicenseVouchersTable();
     const { code } = req.body;
-    if (!code) { res.status(400).json({ error: "Voucher code required" }); return; }
-    if (!req.user?.businessId) { res.status(403).json({ error: "Business context required" }); return; }
-    if (req.user.role !== "business_admin") { res.status(403).json({ error: "Only business admin can redeem vouchers" }); return; }
+    if (!code) {
+      res.status(400).json({ error: "Voucher code daalna zaroori hai" });
+      return;
+    }
+    if (!req.user?.businessId) {
+      res.status(403).json({ error: "Business login required" });
+      return;
+    }
+    if (req.user.role !== "business_admin") {
+      res.status(403).json({ error: "Sirf Business Admin voucher redeem kar sakta hai" });
+      return;
+    }
 
-    const [voucher] = await db.select().from(licenseVouchersTable)
-      .where(eq(licenseVouchersTable.code, code.trim().toUpperCase())).limit(1);
+    const normalizedCode = code.trim().toUpperCase();
 
-    if (!voucher) { res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" }); return; }
-    if (voucher.status === "used") { res.status(400).json({ error: "Yeh voucher pehle hi use ho chuka hai" }); return; }
-    if (voucher.status === "cancelled") { res.status(400).json({ error: "Yeh voucher cancel ho chuka hai" }); return; }
+    const [voucher] = await db
+      .select()
+      .from(licenseVouchersTable)
+      .where(eq(licenseVouchersTable.code, normalizedCode))
+      .limit(1);
 
-    const [plan] = await db.select().from(plansTable).where(eq(plansTable.id, voucher.planId)).limit(1);
-    if (!plan) { res.status(400).json({ error: "Is voucher ka plan nahi mila" }); return; }
+    if (!voucher) {
+      res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" });
+      return;
+    }
+    if (voucher.status === "used") {
+      res.status(400).json({ error: "Yeh voucher pehle hi use ho chuka hai" });
+      return;
+    }
+    if (voucher.status === "cancelled") {
+      res.status(400).json({ error: "Yeh voucher cancel ho chuka hai" });
+      return;
+    }
+
+    const [plan] = await db
+      .select()
+      .from(plansTable)
+      .where(eq(plansTable.id, voucher.planId))
+      .limit(1);
+
+    if (!plan) {
+      res.status(400).json({ error: "Is voucher ka plan nahi mila" });
+      return;
+    }
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
 
-    await db.update(licenseVouchersTable).set({
-      status: "used",
-      redeemedByBusinessId: req.user.businessId,
-      redeemedAt: now,
-    }).where(eq(licenseVouchersTable.id, voucher.id));
+    await db
+      .update(licenseVouchersTable)
+      .set({ status: "used", redeemedByBusinessId: req.user.businessId, redeemedAt: now })
+      .where(eq(licenseVouchersTable.id, voucher.id));
 
-    const [updated] = await db.update(businessesTable).set({
-      planId: plan.id,
-      planStartDate: now,
-      planExpiresAt: expiresAt,
-      isTrial: false,
-      status: "active",
-    }).where(eq(businessesTable.id, req.user.businessId)).returning();
+    const [updated] = await db
+      .update(businessesTable)
+      .set({ planId: plan.id, planStartDate: now, planExpiresAt: expiresAt, isTrial: false })
+      .where(eq(businessesTable.id, req.user.businessId!))
+      .returning();
 
-    // Issue fresh JWT so frontend gets updated planExpiresAt immediately
     const newToken = signToken(
       { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role, businessId: req.user.businessId, sessionToken: req.user.sessionToken },
       expiresAt,
@@ -77,26 +83,38 @@ router.post("/redeem-voucher", async (req, res) => {
       business: updated,
       token: newToken,
     });
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+  } catch (err: any) {
+    req.log.error({ err }, "redeem-voucher error");
+    res.status(500).json({ error: "Internal Server Error", detail: String(err?.message || err) });
   }
 });
 
-// Offline EXE only — validate voucher via cloud, update local SQLite, return fresh token
+// ─── Offline EXE: validate voucher via cloud, update local SQLite ────────────
 router.post("/redeem-voucher-offline", async (req, res) => {
   try {
-    await ensureLicenseVouchersTable();
     const { code } = req.body;
-    if (!code) { res.status(400).json({ error: "Voucher code required" }); return; }
-    if (req.user?.role !== "business_admin") { res.status(403).json({ error: "Only business admin can activate plan" }); return; }
+    if (!code) {
+      res.status(400).json({ error: "Voucher code required" });
+      return;
+    }
+    if (req.user?.role !== "business_admin") {
+      res.status(403).json({ error: "Only business admin can activate plan" });
+      return;
+    }
 
-    const [biz] = await db.select().from(businessesTable).where(eq(businessesTable.id, req.user.businessId!)).limit(1);
-    if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+    const [biz] = await db
+      .select()
+      .from(businessesTable)
+      .where(eq(businessesTable.id, req.user.businessId!))
+      .limit(1);
+
+    if (!biz) {
+      res.status(404).json({ error: "Business not found" });
+      return;
+    }
 
     const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
 
-    // Call cloud public endpoint to validate + consume voucher
     let cloudData: any;
     try {
       const cloudRes = await fetch(`${cloudUrl}/api/activate-offline`, {
@@ -105,7 +123,10 @@ router.post("/redeem-voucher-offline", async (req, res) => {
         body: JSON.stringify({ voucherCode: code.trim().toUpperCase(), businessCode: biz.businessCode }),
       });
       cloudData = await cloudRes.json();
-      if (!cloudRes.ok) { res.status(cloudRes.status).json(cloudData); return; }
+      if (!cloudRes.ok) {
+        res.status(cloudRes.status).json(cloudData);
+        return;
+      }
     } catch {
       res.status(503).json({ error: "Cloud se connect nahi ho saka. Internet check karo aur dobara try karo." });
       return;
@@ -113,24 +134,22 @@ router.post("/redeem-voucher-offline", async (req, res) => {
 
     const expiresAt = new Date(cloudData.expiresAt);
 
-    // Upsert plan in local plans table so auth middleware can read maxUsers etc.
-    const sqlite = (await import("@workspace/db")).sqlite;
-    if (sqlite) {
-      sqlite.prepare(`
-        INSERT OR REPLACE INTO plans (id, name, price, billing_cycle, max_users, validity_days, trial_days, features, is_active, sort_order, created_at)
-        VALUES (?, ?, '0', 'yearly', ?, ?, 0, '[]', 1, 0, datetime('now'))
-      `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers, cloudData.validityDays);
-    }
+    // Upsert plan in local plans table
+    try {
+      const { sqlite } = await import("@workspace/db");
+      if (sqlite) {
+        sqlite.prepare(`
+          INSERT OR REPLACE INTO plans (id, name, price, billing_cycle, max_users, validity_days, trial_days, features, is_active, sort_order, created_at)
+          VALUES (?, ?, '0', 'yearly', ?, ?, 0, '[]', 1, 0, datetime('now'))
+        `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers, cloudData.validityDays);
+      }
+    } catch { /* SQLite not available in cloud mode */ }
 
-    // Update local business record
-    await db.update(businessesTable).set({
-      planId: cloudData.planId,
-      planExpiresAt: expiresAt as unknown as Date,
-      isTrial: false,
-      status: "active",
-    }).where(eq(businessesTable.id, req.user.businessId!));
+    await db
+      .update(businessesTable)
+      .set({ planId: cloudData.planId, planExpiresAt: expiresAt, isTrial: false })
+      .where(eq(businessesTable.id, req.user.businessId!));
 
-    // Issue fresh JWT so frontend gets updated planExpiresAt immediately
     const newToken = signToken(
       { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role, businessId: req.user.businessId, sessionToken: req.user.sessionToken },
       expiresAt,
@@ -145,9 +164,9 @@ router.post("/redeem-voucher-offline", async (req, res) => {
       maxUsers: cloudData.maxUsers,
       token: newToken,
     });
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+  } catch (err: any) {
+    req.log.error({ err }, "redeem-voucher-offline error");
+    res.status(500).json({ error: "Internal Server Error", detail: String(err?.message || err) });
   }
 });
 
