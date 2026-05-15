@@ -90886,8 +90886,14 @@ async function generateVoucherNumber(businessId, voucherType) {
   const sep = business?.numberSeparator ?? "-";
   const digits = Number(business?.numberDigits ?? 4);
   const series = Number(business?.numberSeries ?? 1);
-  const [{ cnt }] = await db.select({ cnt: sql`count(*)` }).from(vouchersTable3).where(and(eq(vouchersTable3.businessId, businessId), eq(vouchersTable3.voucherType, voucherType)));
-  const serial2 = startNum + Number(cnt);
+  const existing = await db.select({ num: vouchersTable3.voucherNumber }).from(vouchersTable3).where(and(eq(vouchersTable3.businessId, businessId), eq(vouchersTable3.voucherType, voucherType)));
+  let maxExisting = 0;
+  for (const { num } of existing) {
+    if (!num) continue;
+    const m = num.match(/(\d+)$/);
+    if (m) maxExisting = Math.max(maxExisting, parseInt(m[1], 10));
+  }
+  const serial2 = Math.max(startNum, maxExisting + 1);
   return series > 1 ? `${prefix}${sep}${series}${sep}${String(serial2).padStart(digits, "0")}` : `${prefix}${sep}${String(serial2).padStart(digits, "0")}`;
 }
 async function getNextVoucherNumber(businessId, voucherType) {
