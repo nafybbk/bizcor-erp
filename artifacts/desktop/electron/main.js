@@ -234,6 +234,28 @@ ipcMain.handle("get-server-info", () => ({
   url: getServerURL(), status: server.getStatus(),
   ip: getLocalIP(), port: server.getServerPort(),
 }));
+ipcMain.handle("get-hardware-info", () => {
+  try {
+    const interfaces = os.networkInterfaces();
+    let mac = "";
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (!iface.internal && iface.mac && iface.mac !== "00:00:00:00:00:00") {
+          mac = iface.mac; break;
+        }
+      }
+      if (mac) break;
+    }
+    const cpus = os.cpus();
+    return {
+      mac,
+      cpu: cpus[0]?.model || "Unknown CPU",
+      osVersion: `${os.type()} ${os.release()}`,
+      hostname: os.hostname(),
+      totalRam: Math.round(os.totalmem() / 1024 / 1024 / 1024) + " GB",
+    };
+  } catch { return { mac: "", cpu: "", osVersion: "", hostname: "", totalRam: "" }; }
+});
 ipcMain.handle("open-in-browser", (_, url) => shell.openExternal(url));
 ipcMain.handle("save-db-url", async (_, dbUrl) => {
   if (setupWindow) { setupWindow.close(); setupWindow = null; }

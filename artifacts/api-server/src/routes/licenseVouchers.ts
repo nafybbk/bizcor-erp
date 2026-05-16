@@ -92,7 +92,7 @@ router.post("/redeem-voucher", async (req, res) => {
 // ─── Offline EXE: validate voucher via cloud, update local SQLite ────────────
 router.post("/redeem-voucher-offline", async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, hardwareFingerprint } = req.body;
     if (!code) {
       res.status(400).json({ error: "Voucher code required" });
       return;
@@ -114,13 +114,21 @@ router.post("/redeem-voucher-offline", async (req, res) => {
     }
 
     const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
+    const clientIp = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
 
     let cloudData: any;
     try {
       const cloudRes = await fetch(`${cloudUrl}/api/activate-offline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voucherCode: code.trim().toUpperCase(), businessCode: biz.businessCode }),
+        body: JSON.stringify({
+          voucherCode: code.trim().toUpperCase(),
+          businessCode: biz.businessCode,
+          hardwareFingerprint: hardwareFingerprint || null,
+          ip: clientIp,
+          businessName: biz.name,
+          businessEmail: biz.email,
+        }),
       });
       cloudData = await cloudRes.json();
       if (!cloudRes.ok) {

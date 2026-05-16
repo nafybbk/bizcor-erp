@@ -72,6 +72,8 @@ router.post("/activate-offline", async (req, res) => {
     const { db, licenseVouchersTable, plansTable, businessesTable } = await import("@workspace/db");
     const { eq } = await import("drizzle-orm");
 
+    const { hardwareFingerprint, ip, businessName, businessEmail } = req.body;
+
     const [voucher] = await db.select().from(licenseVouchersTable)
       .where(eq(licenseVouchersTable.code, voucherCode.trim().toUpperCase())).limit(1);
     if (!voucher) { res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" }); return; }
@@ -88,10 +90,21 @@ router.post("/activate-offline", async (req, res) => {
     const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
     const nowStr = now.toISOString();
 
+    // Save activation log in notes field
+    const activationLog = JSON.stringify({
+      activatedAt: nowStr,
+      businessCode: businessCode.trim().toUpperCase(),
+      businessName: businessName || null,
+      businessEmail: businessEmail || null,
+      ip: ip || null,
+      hardware: hardwareFingerprint || null,
+    });
+
     await db.update(licenseVouchersTable).set({
       status: "used",
       redeemedByBusinessId: biz?.id || null,
       redeemedAt: nowStr as unknown as Date,
+      notes: activationLog,
     }).where(eq(licenseVouchersTable.id, voucher.id));
 
     if (biz) {
@@ -127,6 +140,9 @@ router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 
+// License vouchers — BEFORE requireActivePlan so businesses with no plan can activate
+router.use(licenseVouchersRouter);
+
 // All business routes — plan expiry enforced on every call
 router.use(requireActivePlan);
 router.use("/businesses", businessesRouter);
@@ -140,7 +156,6 @@ router.use("/inventory", inventoryRouter);
 router.use("/accounting", accountingRouter);
 router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
-router.use(licenseVouchersRouter);
 router.use("/cash-bank", cashBankRouter);
 
 export default router;

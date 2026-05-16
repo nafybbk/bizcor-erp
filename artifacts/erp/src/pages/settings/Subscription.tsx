@@ -277,8 +277,18 @@ export default function Subscription() {
     setRedeemResult(null);
     try {
       if (IS_OFFLINE) {
+        // Collect hardware fingerprint from Electron IPC
+        let hardwareFingerprint: any = null;
+        try {
+          const desktop = (window as any).bizcorDesktop;
+          if (desktop?.getHardwareInfo) hardwareFingerprint = await desktop.getHardwareInfo();
+        } catch { /* not in Electron */ }
+
         // Offline EXE: validate via cloud, update local SQLite, get fresh token
-        const res = await api.post<any>("/redeem-voucher-offline", { code: voucherCode.trim() });
+        const res = await api.post<any>("/redeem-voucher-offline", {
+          code: voucherCode.trim(),
+          hardwareFingerprint,
+        });
         // Save fresh token so planExpiresAt updates immediately (no re-login needed)
         if (res.token) localStorage.setItem("erp_token", res.token);
         setRedeemResult({ success: true, message: res.message });
