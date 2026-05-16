@@ -236,6 +236,22 @@ DELETE /api/users/:id
 7. Barcode label print — single ya bulk (quantity per item)
 8. Custom label designer — drag & drop, templates, logo, fields
 
+**License Voucher Reuse System (May 2026 discuss hua):**
+9. Voucher code reuse — same code new PC pe enter kare, purana PC auto-block ho jaaye
+10. Activation time pe save karo: email, phone, MAC address, CPU ID, Windows version, IP address
+11. Tech Panel → All Businesses → per business 2 new tabs:
+    - "Activation Codes" tab — us business ke saare voucher codes + status + reuse count
+    - "Activation Log" tab — har activation ka record (date/time, email, phone, PC fingerprint, IP)
+12. Reuse unlimited — har reuse tech panel mein visible, suspicious ho to manual block
+
+**Support Chat — Login Screen (May 2026 discuss hua):**
+13. Login page pe "Help / ?" button (corner mein) — login se PEHLE bhi accessible
+14. Click kare → chat window khule: Phone, Email, Reason/Message → Send
+15. localStorage mein session ID save — dobara aane pe purana conversation dikhe
+16. Tech Panel → "Support Messages" section — har message ek card (New/Replied status)
+17. Tech panel se direct reply → same chat thread mein user ko dikhe
+18. Koi email ki zaroorat nahi — pure in-app anonymous chat
+
 ### 🔵 MEDIUM TERM FEATURES
 1. Print template editor — invoice/report layout customize
 2. Report Designer — Crystal Reports jaisa, client ke liye custom reports
