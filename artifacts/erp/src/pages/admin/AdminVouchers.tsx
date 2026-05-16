@@ -351,7 +351,24 @@ export default function AdminVouchers() {
                             {copied === v.code ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                         </div>
-                        {v.notes && <div className="text-xs text-gray-400 mt-0.5">{v.notes}</div>}
+                        {v.notes && (() => {
+                          try {
+                            const log = JSON.parse(v.notes);
+                            if (log.hardware || log.ip) {
+                              return (
+                                <div className="text-xs text-gray-400 mt-1 space-y-0.5">
+                                  {log.ip && <div>🌐 IP: <span className="text-gray-600">{log.ip}</span></div>}
+                                  {log.hardware?.mac && <div>🖥️ MAC: <span className="font-mono text-gray-600">{log.hardware.mac}</span></div>}
+                                  {log.hardware?.cpu && <div>⚙️ CPU: <span className="text-gray-600">{log.hardware.cpu}</span></div>}
+                                  {log.hardware?.osVersion && <div>💻 OS: <span className="text-gray-600">{log.hardware.osVersion}</span></div>}
+                                  {log.hardware?.hostname && <div>🏠 Host: <span className="text-gray-600">{log.hardware.hostname}</span></div>}
+                                  {log.businessEmail && <div>✉️ <span className="text-gray-600">{log.businessEmail}</span></div>}
+                                </div>
+                              );
+                            }
+                          } catch { /* notes is plain text, not JSON */ }
+                          return <div className="text-xs text-gray-400 mt-0.5">{v.notes}</div>;
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-700">
                         {v.sellingPrice ? `₹${Number(v.sellingPrice).toLocaleString("en-IN")}` : <span className="text-gray-300">—</span>}
