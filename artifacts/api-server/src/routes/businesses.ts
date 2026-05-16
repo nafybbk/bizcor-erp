@@ -114,18 +114,16 @@ router.post("/register", async (req, res) => {
           // Flag for congratulations banner (timestamp so frontend knows it's new)
           updates.referralRewardedAt = now;
         }
-        await db.execute(sql`
-          UPDATE businesses SET
-            referral_count = ${newCount},
-            referral_reward_count = COALESCE(${(updates as any).referralRewardCount ?? null}, referral_reward_count),
-            plan_id = COALESCE(${(updates as any).planId ?? null}, plan_id),
-            plan_expires_at = COALESCE(${(updates as any).planExpiresAt ?? null}, plan_expires_at),
-            is_trial = COALESCE(${(updates as any).isTrial ?? null}, is_trial),
-            status = COALESCE(${(updates as any).status ?? null}, status),
-            bonus_days_added = COALESCE(${(updates as any).bonusDaysAdded ?? null}, bonus_days_added),
-            referral_rewarded_at = COALESCE(${(updates as any).referralRewardedAt ?? null}, referral_rewarded_at)
-          WHERE id = ${referrer.id}
-        `);
+        // Drizzle ORM update — works on both SQLite + PostgreSQL
+        const setData: Record<string, unknown> = { referralCount: newCount };
+        if ((updates as any).referralRewardCount !== undefined) setData.referralRewardCount = (updates as any).referralRewardCount;
+        if ((updates as any).planId !== undefined) setData.planId = (updates as any).planId;
+        if ((updates as any).planExpiresAt !== undefined) setData.planExpiresAt = (updates as any).planExpiresAt;
+        if ((updates as any).isTrial !== undefined) setData.isTrial = (updates as any).isTrial;
+        if ((updates as any).status !== undefined) setData.status = (updates as any).status;
+        if ((updates as any).bonusDaysAdded !== undefined) setData.bonusDaysAdded = (updates as any).bonusDaysAdded;
+        if ((updates as any).referralRewardedAt !== undefined) setData.referralRewardedAt = (updates as any).referralRewardedAt;
+        await db.update(businessesTable).set(setData).where(eq(businessesTable.id, referrer.id));
       }
     }
 
@@ -175,27 +173,23 @@ router.post("/register", async (req, res) => {
 // Referral status — aapka code, count, reward info
 router.get("/referral-status", requireBusiness, async (req, res) => {
   try {
-    const result = await db.execute(sql`
-      SELECT referral_code, referral_count, referral_reward_count, referral_rewarded_at, bonus_days_added,
-             plan_id, plan_expires_at, is_trial
-      FROM businesses WHERE id = ${req.user!.businessId!}
-    `);
-    const rows = (result as any).rows ?? result;
-    const b = rows[0];
+    // Drizzle ORM query — works on both SQLite + PostgreSQL
+    const b = await db.query.businessesTable.findFirst({
+      where: eq(businessesTable.id, req.user!.businessId!),
+    });
     if (!b) { res.status(404).json({ error: "Not Found" }); return; }
 
-    const rewardCount = Number(b.referral_reward_count || 0);
-    const referralCount = Number(b.referral_count || 0);
+    const rewardCount = Number((b as any).referralRewardCount || 0);
+    const referralCount = Number((b as any).referralCount || 0);
     const nextMilestone = (rewardCount + 1) * 5;
     const progressToNext = rewardCount < 2 ? referralCount % 5 : 5;
     const maxRewardsReached = rewardCount >= 2;
 
-    // Congratulations flag — reward happened within last 24 hrs
-    const rewardedAt = b.referral_rewarded_at ? new Date(b.referral_rewarded_at) : null;
+    const rewardedAt = (b as any).referralRewardedAt ? new Date((b as any).referralRewardedAt) : null;
     const showCongrats = rewardedAt && (Date.now() - rewardedAt.getTime() < 24 * 60 * 60 * 1000);
 
     res.json({
-      referralCode: b.referral_code,
+      referralCode: (b as any).referralCode,
       referralCount,
       rewardCount,
       progressToNext,
@@ -203,7 +197,7 @@ router.get("/referral-status", requireBusiness, async (req, res) => {
       maxRewardsReached,
       showCongrats: !!showCongrats,
       rewardedAt: rewardedAt?.toISOString() || null,
-      bonusDaysAdded: Number(b.bonus_days_added || 0),
+      bonusDaysAdded: Number((b as any).bonusDaysAdded || 0),
     });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });

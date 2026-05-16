@@ -332,12 +332,10 @@ async function updateVoucher(req: any, res: any) {
 async function deleteVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
   const id = Number(req.params.id);
-  // Soft delete — move to Bin (raw SQL to avoid Drizzle column-mapping issues on Supabase)
-  await db.execute(sql`
-    UPDATE vouchers
-    SET deleted_at = NOW()
-    WHERE id = ${id} AND business_id = ${businessId}
-  `);
+  // Soft delete — Drizzle ORM (works on both SQLite + PostgreSQL)
+  await db.update(vouchersTable)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
   res.json({ success: true });
 }
 
@@ -378,32 +376,28 @@ router.get("/bin", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const typeParam = req.query.type as string | undefined;
-    const result = await db.execute(typeParam ? sql`
-      SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
-             v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
-             p.name AS "partyName"
-      FROM vouchers v
-      LEFT JOIN parties p ON p.id = v.party_id
-      WHERE v.business_id = ${businessId}
-        AND v.deleted_at IS NOT NULL
-        AND v.voucher_type = ${typeParam}
-      ORDER BY v.deleted_at DESC
-    ` : sql`
-      SELECT v.id, v.voucher_type AS "voucherType", v.voucher_number AS "voucherNumber",
-             v.date, v.grand_total AS "grandTotal", v.status, v.deleted_at AS "deletedAt",
-             p.name AS "partyName"
-      FROM vouchers v
-      LEFT JOIN parties p ON p.id = v.party_id
-      WHERE v.business_id = ${businessId}
-        AND v.deleted_at IS NOT NULL
-      ORDER BY v.deleted_at DESC
-    `);
-    const rows: any[] = (result as any).rows ?? result;
-    const vouchers = rows.map((v: any) => ({
-      ...v,
-      grandTotal: Number(v.grandTotal || 0),
-    }));
-    res.json(vouchers);
+    // Drizzle ORM — works on both SQLite + PostgreSQL
+    const conditions: any[] = [
+      eq(vouchersTable.businessId, businessId),
+      isNotNull(vouchersTable.deletedAt),
+    ];
+    if (typeParam) conditions.push(eq(vouchersTable.voucherType, typeParam as any));
+
+    const rows = await db.select({
+      id: vouchersTable.id,
+      voucherType: vouchersTable.voucherType,
+      voucherNumber: vouchersTable.voucherNumber,
+      date: vouchersTable.date,
+      grandTotal: vouchersTable.grandTotal,
+      status: vouchersTable.status,
+      deletedAt: vouchersTable.deletedAt,
+      partyName: partiesTable.name,
+    }).from(vouchersTable)
+      .leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
+      .where(and(...conditions))
+      .orderBy(desc(vouchersTable.deletedAt));
+
+    res.json(rows.map((v: any) => ({ ...v, grandTotal: Number(v.grandTotal || 0) })));
   } catch (err: any) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error", detail: err?.message });
@@ -414,15 +408,11 @@ router.post("/bin/:id/restore", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
-    const result = await db.execute(sql`
-      UPDATE vouchers
-      SET deleted_at = NULL
-      WHERE id = ${id} AND business_id = ${businessId}
-      RETURNING id
-    `);
-    const rows: any[] = (result as any).rows ?? result;
-    if (!rows.length) { res.status(404).json({ error: "Not Found" }); return; }
-    res.json({ success: true, id: rows[0].id });
+    // Drizzle ORM update — works on both SQLite + PostgreSQL
+    await db.update(vouchersTable)
+      .set({ deletedAt: null })
+      .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+    res.json({ success: true, id });
   } catch (err: any) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -433,8 +423,9 @@ router.delete("/bin/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
-    await db.execute(sql`DELETE FROM voucher_items WHERE voucher_id = ${id}`);
-    await db.execute(sql`DELETE FROM vouchers WHERE id = ${id} AND business_id = ${businessId}`);
+    // Drizzle ORM delete — works on both SQLite + PostgreSQL
+    await db.delete(voucherItemsTable).where(eq(voucherItemsTable.voucherId, id));
+    await db.delete(vouchersTable).where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err: any) {
     req.log.error(err);
