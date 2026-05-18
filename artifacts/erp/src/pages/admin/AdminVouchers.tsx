@@ -376,12 +376,32 @@ export default function AdminVouchers() {
                       <td className="px-4 py-3 text-center text-xs text-gray-600">{v.validityDays} {t("days", lang)}</td>
                       {selectedStatus === "used" && (
                         <td className="px-4 py-3 text-xs text-gray-600">
-                          {v.redeemedByBusiness ? (
-                            <div>
-                              <div className="font-medium">{v.redeemedByBusiness}</div>
-                              <div className="text-gray-400">{v.redeemedAt ? fmt.date(v.redeemedAt) : ""}</div>
-                            </div>
-                          ) : <span className="text-gray-400">—</span>}
+                          {(() => {
+                            // Parse activation log from notes if no direct business link
+                            let notesBiz: { name?: string; code?: string; email?: string } | null = null;
+                            if (!v.redeemedByBusiness && v.notes) {
+                              try {
+                                const log = JSON.parse(v.notes);
+                                if (log.businessName || log.businessCode || log.businessEmail) {
+                                  notesBiz = { name: log.businessName, code: log.businessCode, email: log.businessEmail };
+                                }
+                              } catch { /* plain text notes */ }
+                            }
+                            const bizName = v.redeemedByBusiness || notesBiz?.name;
+                            const bizCode = notesBiz?.code;
+                            const bizEmail = notesBiz?.email;
+                            if (bizName || bizCode || bizEmail) {
+                              return (
+                                <div>
+                                  {bizName && <div className="font-medium text-gray-800">{bizName}</div>}
+                                  {bizCode && <div className="text-gray-400">Code: {bizCode}</div>}
+                                  {bizEmail && <div className="text-gray-400">{bizEmail}</div>}
+                                  {v.redeemedAt && <div className="text-gray-400 mt-0.5">{fmt.date(v.redeemedAt)}</div>}
+                                </div>
+                              );
+                            }
+                            return <span className="text-gray-400">—</span>;
+                          })()}
                         </td>
                       )}
                       <td className="px-4 py-3 text-xs text-gray-400">{fmt.date(v.createdAt)}</td>
