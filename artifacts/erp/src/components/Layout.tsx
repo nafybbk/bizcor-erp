@@ -220,12 +220,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [autoSyncResult, setAutoSyncResult] = useState<{ synced: number; failed: number } | null>(null);
-  const [forceOffline, setForceOffline] = useState(false);
+  const [forceOffline, setForceOffline] = useState(
+    () => localStorage.getItem("erp_force_offline") === "1"
+  );
 
   const toggleForceOffline = () => {
     setForceOffline(prev => {
       const next = !prev;
-      if (!next) {
+      if (next) {
+        localStorage.setItem("erp_force_offline", "1");
+      } else {
+        localStorage.removeItem("erp_force_offline");
         // Reconnecting — trigger immediate check
         setTimeout(() => window.dispatchEvent(new Event("bizcor-check-online")), 100);
       }
