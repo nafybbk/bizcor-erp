@@ -245,9 +245,9 @@ function ReferralSection() {
   );
 }
 
-// Detect offline EXE mode — VITE_API_URL set + HTTP protocol = desktop EXE build
-// Cloud web app is always HTTPS, so this is false on erp.naewtgroup.com
-const IS_OFFLINE = !!import.meta.env.VITE_API_URL && window.location.protocol !== "https:";
+// Detect desktop EXE mode — window.bizcorDesktop is injected by Electron preload only
+// Never present in browser (erp.naewtgroup.com), always present in EXE
+const IS_OFFLINE = !!(window as any).bizcorDesktop;
 
 export default function Subscription() {
   const [business, setBusiness] = useState<any>(null);
