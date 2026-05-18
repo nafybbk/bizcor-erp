@@ -418,6 +418,16 @@ function runSqliteMigrations() {
     "ALTER TABLE users ADD COLUMN last_login_ip TEXT",
     "ALTER TABLE users ADD COLUMN can_edit INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE users ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 1",
+    // items — columns added in later versions
+    "ALTER TABLE items ADD COLUMN low_stock_alert TEXT DEFAULT '0'",
+    "ALTER TABLE items ADD COLUMN shipping_addresses TEXT",
+    // parties — columns added in later versions
+    "ALTER TABLE parties ADD COLUMN credit_limit TEXT DEFAULT '0'",
+    "ALTER TABLE parties ADD COLUMN credit_days INTEGER DEFAULT 0",
+    "ALTER TABLE parties ADD COLUMN pan TEXT",
+    "ALTER TABLE parties ADD COLUMN email TEXT",
+    "ALTER TABLE parties ADD COLUMN city TEXT",
+    "ALTER TABLE parties ADD COLUMN pincode TEXT",
   ];
   let applied = 0;
   for (const stmt of migrations) {
