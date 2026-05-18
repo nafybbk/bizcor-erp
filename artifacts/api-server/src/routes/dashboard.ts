@@ -58,7 +58,8 @@ router.get("/summary", async (req, res) => {
     });
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    const isOffline = !!process.env.SQLITE_PATH;
+    res.status(500).json({ error: isOffline ? (err as Error).message : "Internal Server Error" });
   }
 });
 
