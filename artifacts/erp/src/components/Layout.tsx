@@ -489,30 +489,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   {appMode === "desktop" ? "🖥 Desktop App" : "☁ Cloud"}
                 </div>
               )}
-              {/* Online/Offline — clickable in desktop mode to force offline */}
-              <div className="flex items-center gap-1">
-                {appMode === "desktop" ? (
-                  <button
-                    onClick={toggleForceOffline}
-                    title={forceOffline ? "Reconnect karo — online ho jao" : "Offline mode mein jao"}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                      isOnline ? "text-green-400 hover:bg-green-900/30 border border-green-700/30" : "text-red-400 hover:bg-red-900/30 border border-red-700/30"
-                    }`}
-                  >
-                    {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                    <span>{isOnline ? "Connected" : forceOffline ? "Offline (Manual)" : "Offline"}</span>
-                  </button>
-                ) : (
+              {/* Online/Offline toggle */}
+              <div className="space-y-1">
+                {/* Status row */}
+                <div className="flex items-center gap-1">
                   <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${isOnline ? "text-green-400" : "text-red-400"}`}>
                     {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                    <span>{isOnline ? "Connected" : "Offline"}</span>
+                    <span>{isOnline ? "Connected" : forceOffline ? "Offline (Manual)" : "Offline"}</span>
                   </div>
-                )}
-                {draftCount > 0 && (
-                  <button onClick={() => navigate("/offline-drafts")}
-                    className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
-                    <CloudOff className="w-3 h-3" />
-                    {draftCount}
+                  {draftCount > 0 && (
+                    <button onClick={() => navigate("/offline-drafts")}
+                      className="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white rounded-full px-2 py-0.5 text-xs font-bold transition-colors">
+                      <CloudOff className="w-3 h-3" />
+                      {draftCount}
+                    </button>
+                  )}
+                </div>
+                {/* Offline toggle — only in desktop mode */}
+                {appMode === "desktop" && (
+                  <button
+                    onClick={toggleForceOffline}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                      forceOffline
+                        ? "bg-red-900/40 border-red-600 text-red-300 hover:bg-red-900/60"
+                        : "bg-slate-700/50 border-slate-600 text-slate-300 hover:bg-slate-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {forceOffline ? <WifiOff className="w-3 h-3" /> : <Wifi className="w-3 h-3" />}
+                      {forceOffline ? "Offline Mode ON" : "Go Offline"}
+                    </span>
+                    {/* Toggle switch visual */}
+                    <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${forceOffline ? "bg-red-500" : "bg-slate-500"}`}>
+                      <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${forceOffline ? "translate-x-3.5" : "translate-x-0.5"}`} />
+                    </span>
                   </button>
                 )}
               </div>
