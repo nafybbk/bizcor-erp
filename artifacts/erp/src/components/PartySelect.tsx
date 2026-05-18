@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Loader2 } from "lucide-react";
 
 interface Party {
   id: number;
@@ -101,9 +101,13 @@ export default function PartySelect({
         />
       </div>
 
-      {open && (filtered.length > 0 || isNew) && (
+      {open && (filtered.length > 0 || isNew || parties.length === 0) && (
         <div className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-          {parties.length > 0 && (
+          {parties.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-gray-400 text-center flex items-center justify-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading parties...
+            </div>
+          ) : (
             <div className="px-3 py-1 text-[10px] text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0">
               {search.trim()
                 ? `${filtered.length} of ${parties.length} match`
