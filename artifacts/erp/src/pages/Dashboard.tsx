@@ -137,7 +137,7 @@ function BinMonthEndAlert({ binCount }: { binCount: number }) {
   );
 }
 
-const isDesktopApp = () => !!(window as any).electronAPI;
+const isDesktopApp = () => !!(window as any).bizcorDesktop;
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
