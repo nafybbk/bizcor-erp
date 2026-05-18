@@ -27,7 +27,13 @@ export default function LocationModal({ onClose }: LocationModalProps) {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
+  const isDesktopApp = !!(window as any).bizcorDesktop;
+
   const handleDetect = async () => {
+    if (isDesktopApp) {
+      setError("Desktop app mein GPS auto-detect nahi hota. Neeche location ka naam likhein aur Save karein.");
+      return;
+    }
     setDetecting(true);
     setError("");
     try {
