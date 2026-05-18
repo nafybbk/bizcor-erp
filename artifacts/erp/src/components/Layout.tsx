@@ -606,6 +606,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <LogOut className="w-4 h-4" />
               {L.signOut}
             </button>
+
+            {/* App version */}
+            <div className="px-2 pt-1 flex items-center justify-between">
+              <span className="text-slate-600 text-[10px]">v2.2.5</span>
+              {appMode && (
+                <span className="text-slate-600 text-[10px]">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
+              )}
+            </div>
           </div>
         </div>
       </aside>

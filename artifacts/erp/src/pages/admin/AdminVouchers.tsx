@@ -98,7 +98,7 @@ export default function AdminVouchers() {
   }, [selectedPlanId, selectedStatus, page, search]);
 
   useEffect(() => { loadCounts(); }, []);
-  useEffect(() => { if (selectedPlanId !== null) loadVouchers(); }, [selectedPlanId, selectedStatus, page, search]);
+  useEffect(() => { if (selectedPlanId !== null) loadVouchers(); }, [loadVouchers, selectedPlanId]);
 
   // When plan or status changes, reset page
   const selectPlan = (planId: number) => {
