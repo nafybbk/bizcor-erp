@@ -78,8 +78,12 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
 
   const del = async (id: number) => {
     if (!confirm("Delete this record?")) return;
-    await api.delete(`/${voucherType}/${id}`);
-    load();
+    try {
+      await api.delete(`/${voucherType}/${id}`);
+      load();
+    } catch (err: any) {
+      alert(err?.message || "Delete failed. Please try again.");
+    }
   };
 
   const exportCSV = () => {
