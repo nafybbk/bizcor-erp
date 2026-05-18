@@ -56,7 +56,7 @@ router.post("/tech-login", async (req, res) => {
     const token = signToken({ id: admin.id, email: admin.email, name: admin.name, role: "super_admin" });
     logLogin({ userId: admin.id, userName: admin.name, role: "super_admin", ipAddress: getIp(req), userAgent: req.headers["user-agent"] });
     res.json({ token, user: { id: admin.id, email: admin.email, name: admin.name, role: "super_admin" } });
-  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+  } catch (err: any) { req.log.error(err); res.status(500).json({ error: "Internal Server Error", detail: String(err?.message || err) }); }
 });
 
 router.post("/login", async (req, res) => {
