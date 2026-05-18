@@ -375,6 +375,57 @@ function runSqliteInit() {
   logger.info("SQLite schema initialized — all tables ready");
 }
 
+// ─── SQLite Migrations (offline EXE — safe ALTER TABLE for existing databases) ─
+function runSqliteMigrations() {
+  if (!sqlite) return;
+  // Each migration wrapped in try-catch — silently skips if column already exists
+  const migrations = [
+    // vouchers — CRITICAL: without deleted_at all voucher list queries fail
+    "ALTER TABLE vouchers ADD COLUMN deleted_at TEXT",
+    "ALTER TABLE vouchers ADD COLUMN transport_name TEXT",
+    // businesses — new settings columns
+    "ALTER TABLE businesses ADD COLUMN si_start_number INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN cn_start_number INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN pb_start_number INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN dn_start_number INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN serial_number_mode TEXT DEFAULT 'auto'",
+    "ALTER TABLE businesses ADD COLUMN number_series INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN number_digits INTEGER DEFAULT 4",
+    "ALTER TABLE businesses ADD COLUMN number_separator TEXT DEFAULT '-'",
+    "ALTER TABLE businesses ADD COLUMN bank_name TEXT",
+    "ALTER TABLE businesses ADD COLUMN bank_account TEXT",
+    "ALTER TABLE businesses ADD COLUMN bank_ifsc TEXT",
+    "ALTER TABLE businesses ADD COLUMN bank_branch TEXT",
+    "ALTER TABLE businesses ADD COLUMN signatory_name TEXT",
+    "ALTER TABLE businesses ADD COLUMN invoice_footer TEXT",
+    "ALTER TABLE businesses ADD COLUMN print_show_prefix INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN print_show_series INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN print_show_zeros INTEGER DEFAULT 1",
+    "ALTER TABLE businesses ADD COLUMN referral_code TEXT",
+    "ALTER TABLE businesses ADD COLUMN referred_by TEXT",
+    "ALTER TABLE businesses ADD COLUMN referral_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN referral_reward_count INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN referral_rewarded_at TEXT",
+    "ALTER TABLE businesses ADD COLUMN bonus_days_added INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
+    "ALTER TABLE businesses ADD COLUMN is_trial INTEGER NOT NULL DEFAULT 0",
+    // users — new columns
+    "ALTER TABLE users ADD COLUMN plain_password TEXT",
+    "ALTER TABLE users ADD COLUMN login_pin TEXT",
+    "ALTER TABLE users ADD COLUMN session_token TEXT",
+    "ALTER TABLE users ADD COLUMN last_seen_at TEXT",
+    "ALTER TABLE users ADD COLUMN last_login_at TEXT",
+    "ALTER TABLE users ADD COLUMN last_login_ip TEXT",
+    "ALTER TABLE users ADD COLUMN can_edit INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE users ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 1",
+  ];
+  let applied = 0;
+  for (const stmt of migrations) {
+    try { sqlite.exec(stmt); applied++; } catch { /* column already exists — skip */ }
+  }
+  logger.info({ applied }, "SQLite migrations done");
+}
+
 // ─── PG Migrations (cloud mode only) ─────────────────────────────────────────
 
 import { sql } from "drizzle-orm";
@@ -478,8 +529,9 @@ app.listen(port, async (err) => {
   logger.info({ port, mode: isOfflineMode ? "offline-sqlite" : "cloud-postgres" }, "Server listening");
 
   if (isOfflineMode) {
-    // SQLite: create all tables synchronously, then seed
+    // SQLite: create all tables, then run migrations for existing DBs
     runSqliteInit();
+    runSqliteMigrations();
   } else {
     // PostgreSQL: run incremental migrations
     await runPgMigrations();
