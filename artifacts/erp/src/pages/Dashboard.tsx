@@ -49,7 +49,7 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
           <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
           <div className="flex-1">
             <span className="text-sm font-semibold text-red-700">Plan Expired — </span>
-            <span className="text-sm text-red-600">Apna plan renew karo, warna features band ho jayenge.</span>
+            <span className="text-sm text-red-600">Renew your plan to keep all features active.</span>
           </div>
           <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Renew Now</a>
         </div>
@@ -59,8 +59,8 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
       <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
         <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
         <div className="flex-1">
-          <span className="text-sm font-semibold text-amber-700">Plan {daysLeft} din mein expire hoga — </span>
-          <span className="text-sm text-amber-600">Abhi renew karo uninterrupted access ke liye.</span>
+          <span className="text-sm font-semibold text-amber-700">Plan expires in {daysLeft} days — </span>
+          <span className="text-sm text-amber-600">Renew now for uninterrupted access.</span>
         </div>
         <a href="/settings/subscription" className="text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 whitespace-nowrap">Renew</a>
       </div>
@@ -73,10 +73,10 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
       <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl">
         <XCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
         <div className="flex-1">
-          <span className="text-sm font-semibold text-red-700">Free Trial Khatam! — </span>
-          <span className="text-sm text-red-600">Plan activate karo ya License Voucher redeem karo.</span>
+          <span className="text-sm font-semibold text-red-700">Free Trial Ended — </span>
+          <span className="text-sm text-red-600">Activate a plan or redeem a License Voucher.</span>
         </div>
-        <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Plan Lelo</a>
+        <a href="/settings/subscription" className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 whitespace-nowrap">Get Plan</a>
       </div>
     );
   }
@@ -94,14 +94,14 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
         <Clock className={`w-5 h-5 ${textColor} flex-shrink-0`} />
         <div className="flex-1">
           <span className={`text-sm font-semibold ${textColor}`}>
-            Free Trial: {daysLeft} din bacha hai{isExpiringSoon ? " ⚡" : ""}
+            Free Trial: {daysLeft} {daysLeft === 1 ? "day" : "days"} left{isExpiringSoon ? " ⚡" : ""}
           </span>
           <span className={`text-sm ${subColor} ml-1`}>
-            — {isExpiringSoon ? "Jaldi plan lo!" : "Plan activate karo unlimited access ke liye."}
+            — {isExpiringSoon ? "Renew soon!" : "Activate a plan for unlimited access."}
           </span>
         </div>
         <a href="/settings/subscription" className={`text-xs px-3 py-1.5 rounded-lg whitespace-nowrap text-white ${isExpiringSoon ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}>
-          Plan Dekhein
+          View Plans
         </a>
       </div>
       <div className="w-full h-1.5 bg-white/60 rounded-full overflow-hidden">
@@ -124,18 +124,20 @@ function BinMonthEndAlert({ binCount }: { binCount: number }) {
       <Archive className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
       <div className="flex-1">
         <span className="text-sm font-semibold text-orange-800">
-          Month end mein {daysLeft} din bache hain —{" "}
+          {daysLeft} {daysLeft === 1 ? "day" : "days"} left this month —{" "}
         </span>
         <span className="text-sm text-orange-700">
-          Bin mein <strong>{binCount}</strong> {binCount === 1 ? "doc hai" : "docs hain"}. Invoice banate waqt "Bin se lo" se use ya Bin mein permanently delete karo.
+          <strong>{binCount}</strong> {binCount === 1 ? "doc" : "docs"} in Bin. Use "Load from Bin" when creating a voucher, or permanently delete from the Bin.
         </span>
       </div>
       <a href="/vouchers/bin" className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg hover:bg-orange-600 whitespace-nowrap">
-        Bin Dekho
+        View Bin
       </a>
     </div>
   );
 }
+
+const isDesktopApp = () => !!(window as any).electronAPI;
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -143,13 +145,15 @@ export default function Dashboard() {
   const [topParties, setTopParties] = useState<any[]>([]);
   const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [period, setPeriod] = useState("this_month");
   const [binCount, setBinCount] = useState(0);
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
+    setLoadError(null);
     Promise.all([
-      api.get<Summary>(`/dashboard/summary?period=${period}`).catch(() => null),
+      api.get<Summary>(`/dashboard/summary?period=${period}`).catch((e) => { setLoadError(e?.message || "Server error"); return null; }),
       api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
@@ -161,19 +165,30 @@ export default function Dashboard() {
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
       setBinCount(Array.isArray(bin) ? bin.length : 0);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [period]);
+  };
+
+  useEffect(() => { loadData(); }, [period]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
   }
 
   if (!summary) {
+    const isDesktop = isDesktopApp();
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-4">
         <AlertTriangle className="w-8 h-8 text-amber-500" />
-        <p className="text-sm font-medium text-gray-700">Dashboard load nahi ho saka</p>
-        <p className="text-xs text-gray-500">Internet connection check karein aur dobara try karein</p>
-        <button onClick={() => window.location.reload()} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Refresh Karo</button>
+        <p className="text-sm font-semibold text-gray-800">Dashboard load nahi ho saka</p>
+        {isDesktop ? (
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">Local server se data nahi mila — database mein koi problem ho sakti hai</p>
+            {loadError && <p className="text-xs text-red-500 font-mono bg-red-50 px-2 py-1 rounded">{loadError}</p>}
+            <p className="text-xs text-amber-600 font-medium mt-2">Agar pehle data tha: v2.2.0+ install karo — purana data wapas aa jayega</p>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">Internet connection check karein aur dobara try karein</p>
+        )}
+        <button onClick={loadData} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Dobara Try Karo</button>
       </div>
     );
   }
