@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable } from "@workspace/db";
-import { eq, count, sql, like, and, desc, gte, inArray } from "drizzle-orm";
+import { eq, count, sql, like, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
@@ -469,11 +469,22 @@ router.get("/vouchers", async (req, res) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 25;
-    const statusFilter = req.query.status as string;
+    const statusFilter = (req.query.status as string) || "";
     const planIdFilter = req.query.planId ? Number(req.query.planId) : null;
-    const search = (req.query.search as string)?.toUpperCase();
+    const search = (req.query.search as string)?.trim().toUpperCase() || "";
 
-    const allVouchers = await db.select({
+    // Build WHERE conditions at DB level — no in-memory filtering
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (statusFilter) conditions.push(eq(licenseVouchersTable.status, statusFilter as "active" | "used" | "cancelled"));
+    if (planIdFilter) conditions.push(eq(licenseVouchersTable.planId, planIdFilter));
+    if (search) conditions.push(or(
+      sql`upper(${licenseVouchersTable.code}) like ${"%" + search + "%"}`,
+      sql`upper(coalesce(${licenseVouchersTable.notes}, '')) like ${"%" + search + "%"}`
+    ) as ReturnType<typeof eq>);
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const cols = {
       id: licenseVouchersTable.id,
       code: licenseVouchersTable.code,
       planId: licenseVouchersTable.planId,
@@ -485,22 +496,23 @@ router.get("/vouchers", async (req, res) => {
       redeemedByBusinessId: licenseVouchersTable.redeemedByBusinessId,
       redeemedAt: licenseVouchersTable.redeemedAt,
       createdAt: licenseVouchersTable.createdAt,
-    }).from(licenseVouchersTable)
-      .leftJoin(plansTable, eq(licenseVouchersTable.planId, plansTable.id))
-      .orderBy(sql`${licenseVouchersTable.createdAt} desc`);
+    };
 
-    let filtered = allVouchers;
-    if (statusFilter) filtered = filtered.filter((v: any) => v.status === statusFilter);
-    if (planIdFilter) filtered = filtered.filter((v: any) => v.planId === planIdFilter);
-    if (search) filtered = filtered.filter((v: any) => v.code.includes(search) || v.notes?.toUpperCase().includes(search));
+    const [countRows, page_data] = await Promise.all([
+      db.select({ cnt: count() }).from(licenseVouchersTable).where(where),
+      db.select(cols).from(licenseVouchersTable)
+        .leftJoin(plansTable, eq(licenseVouchersTable.planId, plansTable.id))
+        .where(where)
+        .orderBy(desc(licenseVouchersTable.createdAt))
+        .limit(limit).offset((page - 1) * limit),
+    ]);
 
-    const total = filtered.length;
-    const page_data = filtered.slice((page - 1) * limit, page * limit);
+    const total = Number(countRows[0]?.cnt ?? 0);
 
     // Attach business names for redeemed vouchers
     const bizIds = page_data.filter((v: any) => v.redeemedByBusinessId).map((v: any) => v.redeemedByBusinessId!);
     const businesses = bizIds.length
-      ? await db.select({ id: businessesTable.id, name: businessesTable.name }).from(businessesTable).where(sql`${businessesTable.id} = ANY(${bizIds})`)
+      ? await db.select({ id: businessesTable.id, name: businessesTable.name }).from(businessesTable).where(inArray(businessesTable.id, bizIds))
       : [];
 
     const data = page_data.map((v: any) => ({
