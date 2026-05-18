@@ -82,23 +82,33 @@ export default function AdminVouchers() {
     }).catch(console.error).finally(() => setCountsLoading(false));
   }, []);
 
-  const loadVouchers = useCallback(() => {
-    if (selectedPlanId === null) return;
+  const fetchVouchers = (planId: number, status: string, pg: number, q: string) => {
     setLoading(true);
     const p = new URLSearchParams({
-      page: String(page), limit: String(LIMIT),
-      planId: String(selectedPlanId),
-      status: selectedStatus,
+      page: String(pg), limit: String(LIMIT),
+      planId: String(planId),
+      status,
     });
-    if (search) p.set("search", search);
+    if (q) p.set("search", q);
     api.get<any>(`/super-admin/vouchers?${p}`)
       .then(v => { setVouchers(v.data || []); setTotal(v.total || 0); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [selectedPlanId, selectedStatus, page, search]);
+  };
+
+  // Keep loadVouchers for manual refresh calls (e.g. after generate)
+  const loadVouchers = () => {
+    if (selectedPlanId === null) return;
+    fetchVouchers(selectedPlanId, selectedStatus, page, search);
+  };
 
   useEffect(() => { loadCounts(); }, []);
-  useEffect(() => { if (selectedPlanId !== null) loadVouchers(); }, [loadVouchers, selectedPlanId]);
+
+  // This effect directly uses current values — zero stale closure risk
+  useEffect(() => {
+    if (selectedPlanId !== null) fetchVouchers(selectedPlanId, selectedStatus, page, search);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlanId, selectedStatus, page, search]);
 
   // When plan or status changes, reset page
   const selectPlan = (planId: number) => {
