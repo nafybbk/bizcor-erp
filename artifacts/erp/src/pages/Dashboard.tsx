@@ -137,19 +137,23 @@ function BinMonthEndAlert({ binCount }: { binCount: number }) {
   );
 }
 
+const isDesktopApp = () => !!(window as any).electronAPI;
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [trend, setTrend] = useState<any[]>([]);
   const [topParties, setTopParties] = useState<any[]>([]);
   const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [period, setPeriod] = useState("this_month");
   const [binCount, setBinCount] = useState(0);
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
+    setLoadError(null);
     Promise.all([
-      api.get<Summary>(`/dashboard/summary?period=${period}`).catch(() => null),
+      api.get<Summary>(`/dashboard/summary?period=${period}`).catch((e) => { setLoadError(e?.message || "Server error"); return null; }),
       api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
@@ -161,19 +165,30 @@ export default function Dashboard() {
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
       setBinCount(Array.isArray(bin) ? bin.length : 0);
     }).catch(console.error).finally(() => setLoading(false));
-  }, [period]);
+  };
+
+  useEffect(() => { loadData(); }, [period]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
   }
 
   if (!summary) {
+    const isDesktop = isDesktopApp();
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center px-4">
         <AlertTriangle className="w-8 h-8 text-amber-500" />
-        <p className="text-sm font-medium text-gray-700">Dashboard could not be loaded</p>
-        <p className="text-xs text-gray-500">Check your internet connection and try again</p>
-        <button onClick={() => window.location.reload()} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Refresh</button>
+        <p className="text-sm font-semibold text-gray-800">Dashboard load nahi ho saka</p>
+        {isDesktop ? (
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">Local server se data nahi mila — database mein koi problem ho sakti hai</p>
+            {loadError && <p className="text-xs text-red-500 font-mono bg-red-50 px-2 py-1 rounded">{loadError}</p>}
+            <p className="text-xs text-amber-600 font-medium mt-2">Agar pehle data tha: v2.2.0+ install karo — purana data wapas aa jayega</p>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500">Internet connection check karein aur dobara try karein</p>
+        )}
+        <button onClick={loadData} className="text-xs px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Dobara Try Karo</button>
       </div>
     );
   }
