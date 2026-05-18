@@ -103,15 +103,15 @@ router.post("/activate-offline", async (req, res) => {
     await db.update(licenseVouchersTable).set({
       status: "used",
       redeemedByBusinessId: biz?.id || null,
-      redeemedAt: nowStr as unknown as Date,
+      redeemedAt: now,
       notes: activationLog,
     }).where(eq(licenseVouchersTable.id, voucher.id));
 
     if (biz) {
       await db.update(businessesTable).set({
         planId: plan.id,
-        planStartDate: nowStr as unknown as Date,
-        planExpiresAt: expiresAt as unknown as Date,
+        planStartDate: now,
+        planExpiresAt: expiresAt,
         isTrial: false,
         status: "active",
       }).where(eq(businessesTable.id, biz.id));
