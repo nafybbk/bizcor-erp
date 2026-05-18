@@ -332,9 +332,10 @@ async function updateVoucher(req: any, res: any) {
 async function deleteVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
   const id = Number(req.params.id);
-  // Soft delete — Drizzle ORM (works on both SQLite + PostgreSQL)
+  // Use sql`` template — works for SQLite (text column) AND PostgreSQL (timestamp column)
+  // Passing new Date() directly fails in SQLite because better-sqlite3 cannot bind Date objects
   await db.update(vouchersTable)
-    .set({ deletedAt: new Date() })
+    .set({ deletedAt: sql`${new Date().toISOString()}` as unknown as Date })
     .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
   res.json({ success: true });
 }
