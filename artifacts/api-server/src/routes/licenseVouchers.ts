@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, licenseVouchersTable, plansTable, businessesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireBusiness, signToken } from "../middlewares/auth";
 
 const router = Router();
@@ -140,27 +140,37 @@ router.post("/redeem-voucher-offline", async (req, res) => {
       return;
     }
 
-    const expiresAt = new Date(cloudData.expiresAt);
+    // Validate and normalize expiresAt — always ensure a valid Date
+    const rawExpiry = cloudData.expiresAt;
+    const expiresAtDate = rawExpiry ? new Date(rawExpiry) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const expiresAtISO = (!expiresAtDate || isNaN(expiresAtDate.getTime()))
+      ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+      : expiresAtDate.toISOString();
 
-    // Upsert plan in local plans table
+    // Upsert plan in local plans table (SQLite only)
     try {
       const { sqlite } = await import("@workspace/db");
       if (sqlite) {
         sqlite.prepare(`
           INSERT OR REPLACE INTO plans (id, name, price, billing_cycle, max_users, validity_days, trial_days, features, is_active, sort_order, created_at)
           VALUES (?, ?, '0', 'yearly', ?, ?, 0, '[]', 1, 0, datetime('now'))
-        `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers, cloudData.validityDays);
+        `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers ?? 5, cloudData.validityDays ?? 365);
       }
-    } catch { /* SQLite not available in cloud mode */ }
+    } catch { /* SQLite not available in cloud/PG mode */ }
 
+    // Use sql`` template for planExpiresAt — works for both SQLite (text column) and PG (timestamp column)
     await db
       .update(businessesTable)
-      .set({ planId: cloudData.planId, planExpiresAt: expiresAt, isTrial: false })
+      .set({
+        planId: cloudData.planId ? Number(cloudData.planId) : null,
+        planExpiresAt: sql`${expiresAtISO}` as unknown as Date,
+        isTrial: false,
+      })
       .where(eq(businessesTable.id, req.user.businessId!));
 
     const newToken = signToken(
       { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role, businessId: req.user.businessId, sessionToken: req.user.sessionToken },
-      expiresAt,
+      expiresAtDate,
       false
     );
 
