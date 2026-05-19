@@ -171,6 +171,22 @@ router.post("/register", async (req, res) => {
 });
 
 // Referral status — aapka code, count, reward info
+// Returns the voucher code this business activated (for "forgot my code" UX)
+router.get("/my-voucher", requireBusiness, async (req, res) => {
+  try {
+    const { licenseVouchersTable } = await import("@workspace/db");
+    const [voucher] = await db.select({
+      code: licenseVouchersTable.code,
+      redeemedAt: licenseVouchersTable.redeemedAt,
+      validityDays: licenseVouchersTable.validityDays,
+    }).from(licenseVouchersTable)
+      .where(eq(licenseVouchersTable.redeemedByBusinessId, req.user!.businessId!))
+      .orderBy((t: any) => t.redeemedAt)
+      .limit(1);
+    res.json({ code: voucher?.code || null, redeemedAt: voucher?.redeemedAt || null });
+  } catch { res.json({ code: null, redeemedAt: null }); }
+});
+
 router.get("/referral-status", requireBusiness, async (req, res) => {
   try {
     // Drizzle ORM query — works on both SQLite + PostgreSQL
