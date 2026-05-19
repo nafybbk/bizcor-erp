@@ -85,7 +85,15 @@ export default function Receivables() {
                   {show("party") && <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>}
                   {show("total") && <td className="px-4 py-3 text-right">{fmt.currency(r.totalAmount)}</td>}
                   {show("received") && <td className="px-4 py-3 text-right text-green-600">{fmt.currency(r.paidAmount)}</td>}
-                  {show("balance") && <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(r.balanceDue)}</td>}
+                  {show("balance") && (
+                    <td className="px-4 py-3 text-right font-bold">
+                      {r.balanceDue < 0 ? (
+                        <span className="text-green-600">{fmt.currency(Math.abs(r.balanceDue))} <span className="text-xs font-normal bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Cr</span></span>
+                      ) : (
+                        <span className="text-red-600">{fmt.currency(r.balanceDue)}</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
