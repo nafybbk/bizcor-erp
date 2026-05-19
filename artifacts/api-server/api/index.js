@@ -101673,10 +101673,6 @@ router19.post("/activate-offline", async (req, res) => {
       res.status(404).json({ error: "Voucher code galat hai ya exist nahi karta" });
       return;
     }
-    if (voucher.status === "used") {
-      res.status(400).json({ error: "Yeh voucher pehle hi use ho chuka hai" });
-      return;
-    }
     if (voucher.status === "cancelled") {
       res.status(400).json({ error: "Yeh voucher cancel ho chuka hai" });
       return;
@@ -101687,6 +101683,13 @@ router19.post("/activate-offline", async (req, res) => {
       return;
     }
     const [biz] = await db2.select().from(businessesTable4).where(eq2(businessesTable4.businessCode, businessCode.trim().toUpperCase())).limit(1);
+    if (voucher.status === "used") {
+      const isSameBusiness = biz && voucher.redeemedByBusinessId === biz.id;
+      if (!isSameBusiness) {
+        res.status(400).json({ error: "Yeh voucher kisi aur business ke liye use ho chuka hai" });
+        return;
+      }
+    }
     const now = /* @__PURE__ */ new Date();
     const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1e3);
     const nowStr = now.toISOString();
