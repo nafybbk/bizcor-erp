@@ -91739,7 +91739,7 @@ async function computeOutstanding(businessId, invoiceType, paymentType, creditTy
     const openingType = party?.openingBalanceType || "debit";
     const opening = invoiceType === "sales_invoice" ? openingType === "debit" ? openingBal : -openingBal : openingType === "credit" ? openingBal : -openingBal;
     const balanceDue = opening + invoiceTotal - cn - received;
-    if (balanceDue > 1e-3) {
+    if (Math.abs(balanceDue) > 1e-3) {
       data.push({ partyId, partyName: party?.name || "Unknown", totalAmount: invoiceTotal, paidAmount: received, balanceDue, overdue: balanceDue });
     }
   }

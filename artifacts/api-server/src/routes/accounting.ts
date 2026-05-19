@@ -233,7 +233,7 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
       ? (openingType === "debit" ? openingBal : -openingBal)
       : (openingType === "credit" ? openingBal : -openingBal);
     const balanceDue = opening + invoiceTotal - cn - received;
-    if (balanceDue > 0.001) {
+    if (Math.abs(balanceDue) > 0.001) {
       data.push({ partyId, partyName: party?.name || "Unknown", totalAmount: invoiceTotal, paidAmount: received, balanceDue, overdue: balanceDue });
     }
   }
