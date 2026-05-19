@@ -240,7 +240,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkOnline = async () => {
-      if (forceOffline) { setIsOnline(false); return; }
+      if (forceOffline && appMode !== "cloud") { setIsOnline(false); return; }
       const wasOffline = !isOnline;
       try {
         const h = await api.get<{ status: string; mode?: string }>("/healthz");
