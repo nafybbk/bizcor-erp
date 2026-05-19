@@ -8,6 +8,7 @@ const { autoUpdater } = require("electron-updater");
 const trial = require("./trial");
 const server = require("./server-manager");
 const heartbeat = require("./heartbeat");
+const mdns = require("./mdns");
 
 let tray = null;
 let mainWindow = null;
@@ -367,6 +368,8 @@ if (!gotTheLock) {
       if (status === "running") {
         closeSplash();
         openMainWindow();
+        // Advertise bizcor.local on the LAN
+        mdns.start(server.getServerPort());
         // Start weekly heartbeat 10s after server is ready
         setTimeout(() => startHeartbeat().catch(() => {}), 10000);
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
@@ -381,7 +384,7 @@ if (!gotTheLock) {
   });
 
   app.on("window-all-closed", () => {});
-  app.on("before-quit", async () => { isQuitting = true; heartbeat.stop(); await server.stop(); });
+  app.on("before-quit", async () => { isQuitting = true; heartbeat.stop(); mdns.stop(); await server.stop(); });
 }
 
 // ─── Auto Updater ─────────────────────────────────────────────────────────────
