@@ -632,6 +632,7 @@ router.get("/users", async (req, res) => {
              b.plan_expires_at AS "planExpiresAt", b.is_trial AS "isTrial"
       FROM users u
       LEFT JOIN businesses b ON b.id = u.business_id
+      WHERE u.role IN ('business_admin', 'staff') AND u.business_id IS NOT NULL
       ORDER BY u.created_at DESC
     `);
     const allUsersRows = allUsers.rows as any[];
