@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
@@ -185,6 +185,109 @@ router.get("/my-voucher", requireBusiness, async (req, res) => {
       .limit(1);
     res.json({ code: voucher?.code || null, redeemedAt: voucher?.redeemedAt || null });
   } catch { res.json({ code: null, redeemedAt: null }); }
+});
+
+// ─── My Subscriptions ────────────────────────────────────────────────────────
+router.get("/my-subscriptions", requireBusiness, async (req, res) => {
+  try {
+    const bizId = req.user!.businessId!;
+
+    // Auto-delete vouchers expired > 30 days for this business
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const allVouchers = await db.select({
+      id: licenseVouchersTable.id,
+      code: licenseVouchersTable.code,
+      planId: licenseVouchersTable.planId,
+      validityDays: licenseVouchersTable.validityDays,
+      redeemedAt: licenseVouchersTable.redeemedAt,
+      status: licenseVouchersTable.status,
+    }).from(licenseVouchersTable)
+      .where(eq(licenseVouchersTable.redeemedByBusinessId, bizId));
+
+    // Auto-delete expired > 30 days (soft: just filter from response; actually delete)
+    const toDelete: number[] = [];
+    const visible: any[] = [];
+    const now = Date.now();
+    for (const v of allVouchers) {
+      const redeemedAt = v.redeemedAt ? new Date(v.redeemedAt).getTime() : null;
+      const expiresAt = redeemedAt ? redeemedAt + (v.validityDays * 86400000) : null;
+      const expiredMs = expiresAt ? now - expiresAt : null;
+      if (expiredMs !== null && expiredMs > 30 * 86400000) {
+        toDelete.push(v.id); // expired > 30 days — auto-delete
+      } else {
+        visible.push({ ...v, expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null });
+      }
+    }
+    // Auto-delete stale entries
+    if (toDelete.length > 0) {
+      for (const id of toDelete) {
+        await db.delete(licenseVouchersTable).where(eq(licenseVouchersTable.id, id)).catch(() => {});
+      }
+    }
+
+    // Enrich with plan details
+    const plans = await db.select().from(plansTable);
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+
+    const subscriptions = visible.map(v => {
+      const plan = plans.find(p => p.id === v.planId);
+      const isActive = business?.planId === v.planId &&
+        business?.planExpiresAt &&
+        new Date(business.planExpiresAt).getTime() > now;
+      return {
+        id: v.id,
+        code: v.code,
+        planId: v.planId,
+        planName: plan?.name || "Unknown Plan",
+        maxUsers: plan?.maxUsers || null,
+        validityDays: v.validityDays,
+        redeemedAt: v.redeemedAt,
+        expiresAt: v.expiresAt,
+        isExpired: v.expiresAt ? new Date(v.expiresAt).getTime() < now : false,
+        isActive: !!isActive,
+      };
+    }).sort((a, b) => new Date(b.redeemedAt ?? 0).getTime() - new Date(a.redeemedAt ?? 0).getTime());
+
+    res.json({ data: subscriptions });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// Activate a specific subscribed plan (switch plan)
+router.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
+  try {
+    const bizId = req.user!.businessId!;
+    const voucherId = Number(req.params.voucherId);
+
+    const voucher = await db.query.licenseVouchersTable.findFirst({
+      where: and(eq(licenseVouchersTable.id, voucherId), eq(licenseVouchersTable.redeemedByBusinessId, bizId)),
+    });
+    if (!voucher) { res.status(404).json({ error: "Voucher nahi mila" }); return; }
+
+    const redeemedAt = voucher.redeemedAt ? new Date(voucher.redeemedAt).getTime() : Date.now();
+    const expiresAt = new Date(redeemedAt + voucher.validityDays * 86400000);
+    if (expiresAt.getTime() < Date.now()) {
+      res.status(400).json({ error: "Ye voucher expire ho chuka hai — activate nahi ho sakta" }); return;
+    }
+
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, voucher.planId) });
+
+    await db.update(businessesTable).set({
+      planId: voucher.planId,
+      planExpiresAt: expiresAt,
+      isTrial: false,
+    }).where(eq(businessesTable.id, bizId));
+
+    // Return fresh token with updated plan info
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, req.user!.id) });
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    const token = signToken({ ...user!, business: business! });
+
+    res.json({
+      success: true,
+      message: `${plan?.name || "Plan"} activate ho gaya! Validity: ${voucher.validityDays} din`,
+      token,
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.get("/referral-status", requireBusiness, async (req, res) => {
