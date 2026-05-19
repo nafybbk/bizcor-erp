@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import {
   CreditCard, Check, Users, FileText, Package, Building2,
   Calendar, AlertCircle, Clock, Ticket, Loader2, X, CheckCircle2, Crown, Zap,
-  Gift, Copy, Share2, Trophy, Star,
+  Gift, Copy, Share2, Trophy, Star, History, RotateCcw,
 } from "lucide-react";
 
 const MODULE_LABELS: Record<string, string> = {
@@ -260,6 +260,9 @@ export default function Subscription() {
   const [showVoucherFor, setShowVoucherFor] = useState<number | null>(null);
   const [myVoucher, setMyVoucher] = useState<{ code: string | null; redeemedAt: string | null } | null>(null);
   const [voucherCopied, setVoucherCopied] = useState(false);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [activatingId, setActivatingId] = useState<number | null>(null);
+  const [activateMsg, setActivateMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -270,11 +273,25 @@ export default function Subscription() {
       setBusiness(b);
       setPlans(Array.isArray(pl) ? pl : []);
     }).catch(console.error).finally(() => setLoading(false));
-    // Fetch the activated voucher code separately (non-blocking)
     api.get<any>("/businesses/my-voucher").then(setMyVoucher).catch(() => {});
+    api.get<any>("/businesses/my-subscriptions").then(r => setSubscriptions(r.data ?? [])).catch(() => {});
   };
 
   useEffect(() => { load(); }, []);
+
+  const activatePlan = async (sub: any) => {
+    if (sub.isExpired) return;
+    setActivatingId(sub.id);
+    setActivateMsg(null);
+    try {
+      const r = await api.post<any>(`/businesses/activate-plan/${sub.id}`, {});
+      if (r.token) localStorage.setItem("erp_token", r.token);
+      setActivateMsg({ id: sub.id, msg: r.message || "Plan activate ho gaya!", ok: true });
+      load();
+    } catch (e: any) {
+      setActivateMsg({ id: sub.id, msg: e.message || "Error", ok: false });
+    } finally { setActivatingId(null); }
+  };
 
   const redeemVoucher = async () => {
     if (!voucherCode.trim()) return;
@@ -423,6 +440,119 @@ export default function Subscription() {
             {voucherCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {voucherCopied ? "Copied!" : "Copy"}
           </button>
+        </div>
+      )}
+
+      {/* ── My Plans — Subscription History ─────────────────────────────── */}
+      {subscriptions.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+            <History className="w-4 h-4 text-indigo-500" /> Mere Plans
+            <span className="text-xs text-gray-400 font-normal ml-1">({subscriptions.length})</span>
+          </h2>
+          <div className="max-h-72 overflow-y-auto space-y-2 pr-1 rounded-xl">
+            {subscriptions.map(sub => {
+              const redeemedDate = sub.redeemedAt ? new Date(sub.redeemedAt) : null;
+              const expiresDate = sub.expiresAt ? new Date(sub.expiresAt) : null;
+              const daysRemaining = expiresDate
+                ? Math.ceil((expiresDate.getTime() - Date.now()) / 86400000)
+                : null;
+              const isCurrentlyActive = sub.isActive;
+              const isExpired = sub.isExpired;
+              const isActivating = activatingId === sub.id;
+
+              return (
+                <div
+                  key={sub.id}
+                  className={`rounded-xl border p-3.5 flex items-start gap-3 transition-all ${
+                    isCurrentlyActive
+                      ? "border-green-400 bg-green-50 shadow-sm"
+                      : isExpired
+                      ? "border-gray-200 bg-gray-50 opacity-70"
+                      : "border-indigo-200 bg-white hover:border-indigo-300"
+                  }`}
+                >
+                  {/* Status icon */}
+                  <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                    isCurrentlyActive ? "bg-green-100" : isExpired ? "bg-gray-100" : "bg-indigo-50"
+                  }`}>
+                    {isCurrentlyActive
+                      ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      : isExpired
+                      ? <Clock className="w-4 h-4 text-gray-400" />
+                      : <Crown className="w-4 h-4 text-indigo-500" />
+                    }
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900 text-sm">{sub.planName}</span>
+                      {isCurrentlyActive && (
+                        <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">Active</span>
+                      )}
+                      {isExpired && (
+                        <span className="text-xs bg-gray-400 text-white px-2 py-0.5 rounded-full">Expired</span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
+                      <span className="font-mono font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded tracking-wider">
+                        {sub.code}
+                      </span>
+                      {sub.maxUsers && (
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" /> {sub.maxUsers} users
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> {sub.validityDays} din
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs">
+                      {redeemedDate && (
+                        <span className="text-gray-400">
+                          Activated: {redeemedDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      )}
+                      {expiresDate && (
+                        <span className={daysRemaining !== null && daysRemaining <= 0 ? "text-red-500" : daysRemaining !== null && daysRemaining <= 15 ? "text-orange-500 font-medium" : "text-gray-400"}>
+                          Expires: {expiresDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                          {daysRemaining !== null && daysRemaining > 0 && ` (${daysRemaining}d baki)`}
+                          {daysRemaining !== null && daysRemaining <= 0 && " · Expired"}
+                        </span>
+                      )}
+                    </div>
+
+                    {activateMsg?.id === sub.id && (
+                      <div className={`mt-1.5 text-xs px-2 py-1 rounded-lg ${activateMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                        {activateMsg.msg}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Activate button */}
+                  {!isExpired && !isCurrentlyActive && (
+                    <button
+                      onClick={() => activatePlan(sub)}
+                      disabled={isActivating}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+                    >
+                      {isActivating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                      Switch
+                    </button>
+                  )}
+                  {isCurrentlyActive && (
+                    <span className="shrink-0 text-xs text-green-600 font-semibold px-2 py-1.5 bg-green-100 rounded-lg">
+                      ✓ Using
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400">Expired plans automatically delete hote hain 30 din baad · Kisi bhi valid plan ko switch kar sakte hain</p>
         </div>
       )}
 
