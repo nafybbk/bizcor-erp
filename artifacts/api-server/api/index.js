@@ -91328,7 +91328,8 @@ router10.get("/outstanding", async (req, res) => {
     const vouchers = await db.select().from(vouchersTable3).where(and(
       eq(vouchersTable3.businessId, businessId),
       eq(vouchersTable3.partyId, Number(partyId)),
-      inArray(vouchersTable3.voucherType, voucherTypes)
+      inArray(vouchersTable3.voucherType, voucherTypes),
+      isNull(vouchersTable3.deletedAt)
     ));
     const allPayments = await db.select().from(paymentsTable3).where(
       and(eq(paymentsTable3.businessId, businessId), eq(paymentsTable3.partyId, Number(partyId)))
