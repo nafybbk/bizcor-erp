@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { Plus, Loader2, Trash2, Edit2, X, ShieldCheck, User, KeyRound, PencilOff, Trash } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
+import { useAuth } from "@/lib/auth";
 
 const emptyForm = {
   name: "", email: "", password: "", role: "staff" as "business_admin" | "staff",
@@ -35,10 +36,12 @@ function YesNoToggle({ value, onChange }: { value: boolean; onChange: (v: boolea
 
 export default function Users() {
   const lang = useLang();
+  const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editRole, setEditRole] = useState<string>("staff");
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -50,9 +53,16 @@ export default function Users() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditId(null); setForm({ ...emptyForm }); setError(""); setShowModal(true); };
+  const openCreate = () => {
+    setEditId(null);
+    setEditRole("staff");
+    setForm({ ...emptyForm, email: user?.email || "" });
+    setError("");
+    setShowModal(true);
+  };
   const openEdit = (u: any) => {
     setEditId(u.id);
+    setEditRole(u.role);
     setForm({
       name: u.name, email: u.email, password: "", role: u.role,
       permissions: u.permissions || [], loginPin: "",
@@ -170,26 +180,47 @@ export default function Users() {
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="User ka naam" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                <input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{editId ? t("newPasswordHint", lang) : "Password *"}</label>
-                <input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
-              </div>
+
+              {/* Email — editable for admin, prefilled+readonly for new staff */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Login PIN
-                  <span className="text-gray-400 font-normal text-xs ml-1">({t("loginPinHint", lang)})</span>
+                  Email (Login Email)
+                  {!editId && <span className="ml-1 text-xs text-gray-400">(admin wali auto-fill)</span>}
+                </label>
+                <input
+                  type="email"
+                  className={`${inputCls} ${!editId ? "bg-gray-50 text-gray-500" : ""}`}
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  readOnly={!editId}
+                />
+                {!editId && (
+                  <p className="text-xs text-blue-600 mt-1">Naye user ka email admin wala hoga — alag password/email ki zarurat nahi</p>
+                )}
+              </div>
+
+              {/* Password — only shown when editing (admin can change), hidden for new staff */}
+              {editId ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t("newPasswordHint", lang)}
+                  </label>
+                  <input type="password" className={inputCls} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Khali chhodo agar change na karna ho" />
+                </div>
+              ) : null}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Login PIN *
+                  <span className="text-gray-400 font-normal text-xs ml-1">(har user ka alag PIN hona chahiye)</span>
                 </label>
                 <input
                   type="password"
                   inputMode="numeric"
                   maxLength={8}
-                  placeholder={editId ? t("enterNewPin", lang) : "4–8 digit PIN"}
+                  placeholder={editId ? t("enterNewPin", lang) : "4–8 digit PIN daalo"}
                   className={inputCls}
                   value={form.loginPin}
                   onChange={e => setForm(f => ({ ...f, loginPin: e.target.value.replace(/\D/g, "") }))}
