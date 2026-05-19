@@ -89503,6 +89503,25 @@ router3.patch("/users/:id/block", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+router3.delete("/users/:id", async (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable3.id, userId) });
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (user.role === "business_admin") {
+      res.status(403).json({ error: "Business admin ko delete nahi kar sakte. Pehle business delete karein." });
+      return;
+    }
+    await db.delete(usersTable3).where(eq(usersTable3.id, userId));
+    res.json({ success: true, message: `${user.name} delete ho gaya` });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 router3.get("/businesses/:id/parties", async (req, res) => {
   try {
     const bizId = Number(req.params.id);
