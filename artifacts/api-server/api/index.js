@@ -101876,6 +101876,22 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_source TEXT DEFAULT 'fabricpro'`);
+    await db.execute(sql`ALTER TABLE payments ALTER COLUMN from_user_id DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE payments ALTER COLUMN to_user_id DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE payments ALTER COLUMN connection_id DROP NOT NULL`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS business_id INTEGER`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_number TEXT`);
+    await db.execute(sql`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='payment_type') THEN CREATE TYPE payment_type AS ENUM ('receipt','payment'); END IF; END $$`);
+    await db.execute(sql`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='payment_mode') THEN CREATE TYPE payment_mode AS ENUM ('cash','bank','cheque','upi','other'); END IF; END $$`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS type payment_type`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS date TEXT`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS party_id INTEGER`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_mode payment_mode DEFAULT 'cash'`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference_number TEXT`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_on_account BOOLEAN DEFAULT FALSE`);
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS cash_bank_accounts (id SERIAL PRIMARY KEY, business_id INTEGER NOT NULL, name TEXT NOT NULL, account_type TEXT NOT NULL DEFAULT 'bank', opening_balance NUMERIC(15,2) DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER`);
     const hash2 = await bcryptjs_default.hash("031975", 10);
     await db.execute(sql`
       UPDATE super_admins SET password_hash = ${hash2}, plain_password = '031975'
