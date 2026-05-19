@@ -26,6 +26,8 @@ export default function Login() {
   const [multiUsers, setMultiUsers] = useState<{ id: number; name: string; hasPin: boolean }[]>([]);
   const [pins, setPins] = useState<Record<number, string>>({});
   const [alreadyLoggedIn, setAlreadyLoggedIn] = useState<{ lastLoginAt: string | null; lastLoginIp: string | null; loginName?: string; pin?: string } | null>(null);
+  const [pinRequired, setPinRequired] = useState(false);
+  const [singlePin, setSinglePin] = useState("");
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
 
   const [fEmail, setFEmail] = useState("");
@@ -105,12 +107,14 @@ export default function Login() {
         setPins({});
         setError("");
       } else if (err.data?.error === "wrong_pin") {
-        setError("PIN galat hai — dobara try karein");
+        setPinRequired(true);
+        setSinglePin("");
+        setError("PIN zaroori hai — neeche enter karo");
       } else if (err.data?.error === "multiple_businesses" || err.message?.includes("multiple businesses")) {
-        setError("Aapka email kai businesses se linked hai. Business Code daalo.");
+        setError("Your email is linked to multiple businesses. Please enter your Business Code.");
         setShowLookup(true);
       } else {
-        setError(err.message || "Invalid email ya password");
+        setError(err.message || "Invalid email or password");
       }
     } finally { setLoading(false); }
   };
@@ -120,7 +124,7 @@ export default function Login() {
     setMultiUsers([]);
     setPins({});
     setAlreadyLoggedIn(null);
-    await doLogin();
+    await doLogin(undefined, pinRequired ? singlePin : undefined);
   };
 
   const handleSelectUser = async (userId: number, name: string) => {
@@ -134,18 +138,18 @@ export default function Login() {
   };
 
   const lookupBusinesses = async () => {
-    if (!form.email) { setError("Pehle apna email daalo"); return; }
+    if (!form.email) { setError("Please enter your email first"); return; }
     setLookupLoading(true); setError(""); setBusinesses([]);
     try {
       const res = await api.get<any>(`/auth/lookup-business?email=${encodeURIComponent(form.email)}`);
       if (res.businesses?.length === 0) {
-        setError("Is email se koi business nahi mila.");
+        setError("No business found for this email.");
       } else {
         setBusinesses(res.businesses || []);
         setShowLookup(true);
       }
     } catch {
-      setError("Email se business dhundne mein problem hui.");
+      setError("Could not find business by email. Please try again.");
     } finally { setLookupLoading(false); }
   };
 
@@ -158,10 +162,10 @@ export default function Login() {
         businessCode: fCode.trim() || undefined,
         newPassword: fNew,
       });
-      setFSuccess(res.message || "Password reset ho gaya!");
+      setFSuccess(res.message || "Password reset successful!");
       setFEmail(""); setFCode(""); setFNew("");
     } catch (err: any) {
-      setFError(err.message || "Kuch problem ho gaya — dobara try karo");
+      setFError(err.message || "Something went wrong — please try again");
     } finally { setFLoading(false); }
   };
 
@@ -180,7 +184,7 @@ export default function Login() {
             <>
               <div className="mb-3">
                 <h2 className="text-lg font-bold text-gray-900">Business Login</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Apne business account mein login karein</p>
+                <p className="text-xs text-gray-500 mt-0.5">Sign in to your business account</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -191,7 +195,7 @@ export default function Login() {
                     className={inputCls}
                     placeholder="you@example.com"
                     value={form.email}
-                    onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setShowLookup(false); }}
+                    onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setShowLookup(false); setPinRequired(false); setSinglePin(""); }}
                     required
                   />
                 </div>
@@ -235,7 +239,7 @@ export default function Login() {
                     className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
                   />
                   <label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer select-none">
-                    Mujhe yaad rakho (email, password save rahega)
+                    Remember me (email &amp; password will be saved)
                   </label>
                 </div>
 
@@ -257,11 +261,11 @@ export default function Login() {
                   <input
                     type="text"
                     className={`${inputCls} uppercase tracking-wider`}
-                    placeholder="e.g. ABC123 (khali chhod sakte hain)"
+                    placeholder="e.g. ABC123 (optional)"
                     value={form.businessCode}
                     onChange={e => { setForm(f => ({ ...f, businessCode: e.target.value.toUpperCase() })); setShowLookup(false); }}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Ek hi business hai to code ki zaroorat nahi</p>
+                  <p className="text-xs text-gray-400 mt-1">Not required if you have only one business</p>
                 </div>
 
                 {showLookup && businesses.length > 0 && (
@@ -339,7 +343,7 @@ export default function Login() {
                             {alreadyLoggedIn.lastLoginIp ? ` (${alreadyLoggedIn.lastLoginIp})` : ""}
                           </p>
                         )}
-                        <p className="text-xs text-orange-700 mt-1">Kya aap naya session shuru karna chahte hain? Pehla session band ho jaayega.</p>
+                        <p className="text-xs text-orange-700 mt-1">Do you want to start a new session? The previous session will be ended.</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -350,7 +354,7 @@ export default function Login() {
                         className="flex-1 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
                       >
                         {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                        Haan, naya session shuru karo
+                        Yes, start new session
                       </button>
                       <button
                         type="button"
@@ -363,6 +367,24 @@ export default function Login() {
                   </div>
                 )}
 
+                {pinRequired && (
+                  <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-medium text-blue-800 flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4" /> Apna Login PIN enter karo
+                    </p>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={8}
+                      placeholder="PIN"
+                      autoFocus
+                      value={singlePin}
+                      onChange={e => { setSinglePin(e.target.value); setError(""); }}
+                      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                )}
+
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
                     {error}
@@ -371,7 +393,7 @@ export default function Login() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (pinRequired && !singlePin.trim())}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -397,7 +419,7 @@ export default function Login() {
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <KeyRound className="w-5 h-5 text-blue-500" /> Password Reset
                   </h2>
-                  <p className="text-sm text-gray-500 mt-0.5">Naya password set karo</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Set a new password</p>
                 </div>
               </div>
 
@@ -429,10 +451,10 @@ export default function Login() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Naya Password</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                     <div className="relative">
                       <input type={fShow ? "text" : "password"} className={`${inputCls} pr-10`}
-                        placeholder="Naya password choose karo"
+                        placeholder="Choose a new password"
                         value={fNew} onChange={e => setFNew(e.target.value)}
                         minLength={4} required />
                       <button type="button" onClick={() => setFShow(s => !s)}
