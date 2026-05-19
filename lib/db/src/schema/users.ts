@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   sessionToken: text("session_token"),
   lastLoginAt: timestamp("last_login_at"),
   lastLoginIp: text("last_login_ip"),
+  appSource: text("app_source").default("bizcor"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
