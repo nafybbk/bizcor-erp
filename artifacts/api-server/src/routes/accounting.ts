@@ -264,51 +264,43 @@ router.get("/outstanding-payables", async (req, res) => {
   }
 });
 
-// Data repair: recalculate paidAmount on all vouchers from actual payment amounts
+// Data repair: recalculate paidAmount on ALL vouchers from actual payment_allocations
 router.post("/repair-voucher-balances", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    // Get all payments for this business
+
+    // Get all non-deleted vouchers for this business
+    const vouchers = await db.select().from(vouchersTable).where(
+      and(eq(vouchersTable.businessId, businessId), isNull(vouchersTable.deletedAt))
+    );
+
+    // Get all allocations for payments belonging to this business
     const payments = await db.select().from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
-    const allAllocs = await db.select().from(paymentAllocationsTable);
-    const paymentMap = new Map<number, number>(payments.map(p => [p.id, Number(p.amount)]));
+    const paymentIds = payments.map(p => p.id);
+    const allAllocs = paymentIds.length > 0
+      ? await db.select().from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, paymentIds))
+      : [];
 
-    // Group allocs by voucher. For each payment, cap allocated at payment.amount proportionally
+    // Build voucher → total paid map from allocations only
     const voucherPaid = new Map<number, number>();
-    // Per payment: sum allocations, then distribute proportionally if over-allocated
-    const allocsByPayment = new Map<number, typeof allAllocs>();
     for (const a of allAllocs) {
-      const g = allocsByPayment.get(a.paymentId) || [];
-      g.push(a);
-      allocsByPayment.set(a.paymentId, g);
+      voucherPaid.set(a.voucherId, (voucherPaid.get(a.voucherId) ?? 0) + Number(a.allocatedAmount));
     }
 
-    for (const [paymentId, allocs] of allocsByPayment) {
-      const payAmt = paymentMap.get(paymentId) ?? 0;
-      const totalAlloc = allocs.reduce((s, a) => s + Number(a.allocatedAmount), 0);
-      for (const a of allocs) {
-        const raw = Number(a.allocatedAmount);
-        // Cap: if totalAlloc > payAmt, scale down proportionally
-        const safe = totalAlloc > payAmt + 0.001 ? (raw / totalAlloc) * payAmt : raw;
-        const prev = voucherPaid.get(a.voucherId) ?? 0;
-        voucherPaid.set(a.voucherId, prev + safe);
-        // Update alloc record with corrected amount
-        await db.update(paymentAllocationsTable)
-          .set({ allocatedAmount: String(safe.toFixed(2)) })
-          .where(and(eq(paymentAllocationsTable.paymentId, paymentId), eq(paymentAllocationsTable.voucherId, a.voucherId)));
-      }
-    }
-
-    // Update each voucher's paidAmount and status
+    // Update EVERY voucher — 0 if no allocations, actual sum if allocations exist
     let fixed = 0;
-    for (const [voucherId, paid] of voucherPaid) {
-      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, voucherId) });
-      if (!voucher || voucher.businessId !== businessId) continue;
+    for (const voucher of vouchers) {
       const grandTotal = Number(voucher.grandTotal);
-      const safePaid = Math.min(paid, grandTotal);
-      const status = safePaid >= grandTotal - 0.001 ? "paid" : safePaid > 0 ? "partial" : "posted";
-      await db.update(vouchersTable).set({ paidAmount: String(safePaid.toFixed(2)), status }).where(eq(vouchersTable.id, voucherId));
-      fixed++;
+      const paid = Math.min(voucherPaid.get(voucher.id) ?? 0, grandTotal);
+      const status = paid >= grandTotal - 0.001 ? "paid" : paid > 0 ? "partial" : "posted";
+      const currentPaid = Number(voucher.paidAmount ?? 0);
+      // Only write if something actually changed
+      if (Math.abs(currentPaid - paid) > 0.001 || voucher.status !== status) {
+        await db.update(vouchersTable)
+          .set({ paidAmount: String(paid.toFixed(2)), status })
+          .where(eq(vouchersTable.id, voucher.id));
+        fixed++;
+      }
     }
     res.json({ ok: true, vouchersFixed: fixed });
   } catch (err) {
