@@ -148,12 +148,13 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   try {
     ensureRightsCols();
-    const { name, role, permissions, isActive, password, loginPin, canEdit, canDelete } = req.body;
+    const { name, email, role, permissions, isActive, password, loginPin, canEdit, canDelete } = req.body;
     const id = Number(req.params.id);
     const biz = req.user!.businessId!;
 
     const updateData: Record<string, unknown> = {};
     if (name !== undefined)        updateData.name = name;
+    if (email !== undefined && email.trim()) updateData.email = email.trim().toLowerCase();
     if (role !== undefined)        updateData.role = role;
     if (permissions !== undefined) updateData.permissions = permissions;
     if (isActive !== undefined)    updateData.isActive = isActive;
