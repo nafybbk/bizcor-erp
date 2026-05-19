@@ -144,6 +144,25 @@ router.post("/activate-offline", async (req, res) => {
   }
 });
 
+// ─── LAN IP Tracker (in-memory, desktop only) ────────────────────────────────
+const _recentIPs = new Map<string, number>(); // ip → last seen timestamp
+
+export function trackIP(ip: string) {
+  if (!ip || ip === "::1" || ip === "127.0.0.1") return; // skip localhost
+  _recentIPs.set(ip, Date.now());
+  // Clean up IPs not seen in last 10 min
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [k, v] of _recentIPs) if (v < cutoff) _recentIPs.delete(k);
+}
+
+// Middleware to call from app.ts — attach to router
+router.use((req, _res, next) => {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    || req.socket?.remoteAddress || "";
+  trackIP(ip);
+  next();
+});
+
 // Desktop-only — returns first registered business code (for heartbeat, no auth)
 router.get("/desktop/business-code", async (_req, res) => {
   try {
@@ -153,6 +172,19 @@ router.get("/desktop/business-code", async (_req, res) => {
       .from(businessesTable).orderBy(asc(businessesTable.id)).limit(1);
     res.json({ businessCode: biz?.businessCode || null });
   } catch { res.json({ businessCode: null }); }
+});
+
+// Desktop-only — recent LAN clients (last 5 min)
+router.get("/desktop/connected-clients", (_req, res) => {
+  const cutoff5min = Date.now() - 5 * 60 * 1000;
+  const clients = Array.from(_recentIPs.entries())
+    .filter(([, t]) => t >= cutoff5min)
+    .sort((a, b) => b[1] - a[1])
+    .map(([ip, lastSeen]) => ({
+      ip,
+      lastSeenMinutesAgo: Math.floor((Date.now() - lastSeen) / 60000),
+    }));
+  res.json({ count: clients.length, clients });
 });
 
 // Public — offline EXE weekly heartbeat (no business auth needed)
