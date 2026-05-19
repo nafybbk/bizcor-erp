@@ -89679,6 +89679,19 @@ router4.post("/register", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
   }
 });
+router4.get("/my-voucher", requireBusiness, async (req, res) => {
+  try {
+    const { licenseVouchersTable: licenseVouchersTable4 } = await init_src().then(() => src_exports);
+    const [voucher] = await db.select({
+      code: licenseVouchersTable4.code,
+      redeemedAt: licenseVouchersTable4.redeemedAt,
+      validityDays: licenseVouchersTable4.validityDays
+    }).from(licenseVouchersTable4).where(eq(licenseVouchersTable4.redeemedByBusinessId, req.user.businessId)).orderBy((t) => t.redeemedAt).limit(1);
+    res.json({ code: voucher?.code || null, redeemedAt: voucher?.redeemedAt || null });
+  } catch {
+    res.json({ code: null, redeemedAt: null });
+  }
+});
 router4.get("/referral-status", requireBusiness, async (req, res) => {
   try {
     const b = await db.query.businessesTable.findFirst({
@@ -101733,6 +101746,18 @@ router19.post("/activate-offline", async (req, res) => {
     res.status(500).json({ error: err?.message || String(err) });
   }
 });
+var _recentIPs = /* @__PURE__ */ new Map();
+function trackIP(ip) {
+  if (!ip || ip === "::1" || ip === "127.0.0.1") return;
+  _recentIPs.set(ip, Date.now());
+  const cutoff = Date.now() - 10 * 60 * 1e3;
+  for (const [k, v] of _recentIPs) if (v < cutoff) _recentIPs.delete(k);
+}
+router19.use((req, _res, next) => {
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "";
+  trackIP(ip);
+  next();
+});
 router19.get("/desktop/business-code", async (_req, res) => {
   try {
     const { db: db2, businessesTable: businessesTable4 } = await init_src().then(() => src_exports);
@@ -101742,6 +101767,14 @@ router19.get("/desktop/business-code", async (_req, res) => {
   } catch {
     res.json({ businessCode: null });
   }
+});
+router19.get("/desktop/connected-clients", (_req, res) => {
+  const cutoff5min = Date.now() - 5 * 60 * 1e3;
+  const clients = Array.from(_recentIPs.entries()).filter(([, t]) => t >= cutoff5min).sort((a, b) => b[1] - a[1]).map(([ip, lastSeen]) => ({
+    ip,
+    lastSeenMinutesAgo: Math.floor((Date.now() - lastSeen) / 6e4)
+  }));
+  res.json({ count: clients.length, clients });
 });
 router19.post("/heartbeat", async (req, res) => {
   try {
