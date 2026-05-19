@@ -1,9 +1,21 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, sqlite } from "@workspace/db";
-import { usersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { usersTable, plansTable, businessesTable } from "@workspace/db";
+import { eq, and, sql, count } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+
+// Helper: get plan-based user limit for a business
+async function getPlanLimit(businessId: number): Promise<{ maxUsers: number; label: string }> {
+  const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+  if (!biz) return { maxUsers: 2, label: "Free" };
+  if (biz.planId) {
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, biz.planId) });
+    return { maxUsers: plan?.maxUsers ?? 2, label: plan?.name ?? "Paid" };
+  }
+  if (biz.isTrial) return { maxUsers: 3, label: "Trial" };
+  return { maxUsers: 2, label: "Free" };
+}
 
 const router = Router();
 router.use(requireBusiness);
@@ -49,6 +61,9 @@ router.get("/", async (req, res) => {
     const biz = req.user!.businessId!;
     await ensureRightsCols();
 
+    // Get plan limit
+    const planLimit = await getPlanLimit(biz);
+
     // Use Drizzle db.select() — works for both SQLite and PostgreSQL
     const rows = await db.select({
       id: usersTable.id,
@@ -78,7 +93,27 @@ router.get("/", async (req, res) => {
         : (u.permissions ? (() => { try { return JSON.parse(u.permissions); } catch { return []; } })() : []),
     }));
 
-    res.json({ data: users });
+    // Mark users beyond plan limit as overLimit
+    // Admin always gets slot 1; remaining slots go to staff sorted by createdAt
+    const admins = users.filter(u => u.role === "business_admin");
+    const staff = users.filter(u => u.role !== "business_admin")
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+
+    const allSorted = [...admins, ...staff];
+    const usersWithLimit = allSorted.map((u, idx) => ({
+      ...u,
+      overLimit: idx >= planLimit.maxUsers,
+    }));
+
+    res.json({
+      data: usersWithLimit,
+      planInfo: {
+        maxUsers: planLimit.maxUsers,
+        label: planLimit.label,
+        currentCount: users.length,
+        canAddMore: users.length < planLimit.maxUsers,
+      },
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -94,6 +129,18 @@ router.post("/", async (req, res) => {
       return;
     }
     const biz = req.user!.businessId!;
+
+    // ── PLAN LIMIT CHECK ─────────────────────────────────────────────────────
+    const planLimit = await getPlanLimit(biz);
+    const [{ total: currentCount }] = await db.select({ total: count() })
+      .from(usersTable).where(eq(usersTable.businessId, biz));
+    if (Number(currentCount) >= planLimit.maxUsers) {
+      res.status(403).json({
+        error: "Plan Limit Reached",
+        message: `Plan limit puri ho gayi. ${planLimit.label} plan mein max ${planLimit.maxUsers} users allowed hain. Plan upgrade karein.`,
+      });
+      return;
+    }
 
     // If email/password not provided, copy from the current logged-in admin user
     let finalEmail = email?.trim().toLowerCase();
