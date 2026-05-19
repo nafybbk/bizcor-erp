@@ -418,6 +418,7 @@ function runSqliteMigrations() {
     "ALTER TABLE users ADD COLUMN last_login_ip TEXT",
     "ALTER TABLE users ADD COLUMN can_edit INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE users ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE users ADD COLUMN app_source TEXT DEFAULT 'bizcor'",
     // items — columns added in later versions
     "ALTER TABLE items ADD COLUMN low_stock_alert TEXT DEFAULT '0'",
     "ALTER TABLE items ADD COLUMN shipping_addresses TEXT",
