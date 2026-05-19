@@ -261,6 +261,7 @@ export default function Subscription() {
   const [myVoucher, setMyVoucher] = useState<{ code: string | null; redeemedAt: string | null } | null>(null);
   const [voucherCopied, setVoucherCopied] = useState(false);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subsLoading, setSubsLoading] = useState(true);
   const [activatingId, setActivatingId] = useState<number | null>(null);
   const [activateMsg, setActivateMsg] = useState<{ id: number; msg: string; ok: boolean } | null>(null);
 
@@ -274,7 +275,11 @@ export default function Subscription() {
       setPlans(Array.isArray(pl) ? pl : []);
     }).catch(console.error).finally(() => setLoading(false));
     api.get<any>("/businesses/my-voucher").then(setMyVoucher).catch(() => {});
-    api.get<any>("/businesses/my-subscriptions").then(r => setSubscriptions(r.data ?? [])).catch(() => {});
+    setSubsLoading(true);
+    api.get<any>("/businesses/my-subscriptions")
+      .then(r => setSubscriptions(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setSubscriptions([]))
+      .finally(() => setSubsLoading(false));
   };
 
   useEffect(() => { load(); }, []);
@@ -444,12 +449,24 @@ export default function Subscription() {
       )}
 
       {/* ── My Plans — Subscription History ─────────────────────────────── */}
-      {subscriptions.length > 0 && (
-        <div className="space-y-3">
+      <div className="space-y-3">
           <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
             <History className="w-4 h-4 text-indigo-500" /> Mere Plans
-            <span className="text-xs text-gray-400 font-normal ml-1">({subscriptions.length})</span>
+            {!subsLoading && subscriptions.length > 0 && (
+              <span className="text-xs text-gray-400 font-normal ml-1">({subscriptions.length})</span>
+            )}
           </h2>
+          {subsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading...
+            </div>
+          ) : subscriptions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-6 text-center text-sm text-gray-400">
+              Abhi koi plan activate nahi hai.<br />
+              <span className="text-xs">Neeche voucher code enter kar ke plan activate karo.</span>
+            </div>
+          ) : (
+          <>
           <div className="max-h-72 overflow-y-auto space-y-2 pr-1 rounded-xl">
             {subscriptions.map(sub => {
               const redeemedDate = sub.redeemedAt ? new Date(sub.redeemedAt) : null;
@@ -526,8 +543,8 @@ export default function Subscription() {
                     </div>
 
                     {activateMsg?.id === sub.id && (
-                      <div className={`mt-1.5 text-xs px-2 py-1 rounded-lg ${activateMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
-                        {activateMsg.msg}
+                      <div className={`mt-1.5 text-xs px-2 py-1 rounded-lg ${activateMsg?.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                        {activateMsg?.msg}
                       </div>
                     )}
                   </div>
@@ -553,8 +570,9 @@ export default function Subscription() {
             })}
           </div>
           <p className="text-xs text-gray-400">Expired plans automatically delete hote hain 30 din baad · Kisi bhi valid plan ko switch kar sakte hain</p>
+          </>
+          )}
         </div>
-      )}
 
       {/* Support contact — desktop exe only */}
       {IS_OFFLINE && (
