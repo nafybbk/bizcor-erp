@@ -20,6 +20,7 @@ export const usersTable = sqliteTable("users", {
   lastSeenAt: text("last_seen_at"),
   lastLoginAt: text("last_login_at"),
   lastLoginIp: text("last_login_ip"),
+  appSource: text("app_source").default("bizcor"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
