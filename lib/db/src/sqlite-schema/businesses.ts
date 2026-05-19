@@ -49,6 +49,7 @@ export const businessesTable = sqliteTable("businesses", {
   businessType: text("business_type"),
   logo: text("logo"),
   planId: integer("plan_id"),
+  activeVoucherId: integer("active_voucher_id"),
   planStartDate: text("plan_start_date"),
   planExpiresAt: text("plan_expires_at"),
   isTrial: integer("is_trial", { mode: "boolean" }).notNull().default(false),
