@@ -89747,15 +89747,15 @@ router4.get("/backup", requireBusiness, async (req, res) => {
     const voucherIds = vouchers.map((v) => v.id);
     let voucherItems = [];
     if (voucherIds.length > 0) {
-      const { inArray: inArray3 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      voucherItems = await db.select().from(voucherItemsTable3).where(inArray3(voucherItemsTable3.voucherId, voucherIds));
+      const { inArray: inArray2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      voucherItems = await db.select().from(voucherItemsTable3).where(inArray2(voucherItemsTable3.voucherId, voucherIds));
     }
     const payments = await db.select().from(paymentsTable3).where(eq(paymentsTable3.businessId, businessId));
     const paymentIds = payments.map((p) => p.id);
     let paymentAllocations = [];
     if (paymentIds.length > 0) {
-      const { inArray: inArray3 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      paymentAllocations = await db.select().from(paymentAllocationsTable3).where(inArray3(paymentAllocationsTable3.paymentId, paymentIds));
+      const { inArray: inArray2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      paymentAllocations = await db.select().from(paymentAllocationsTable3).where(inArray2(paymentAllocationsTable3.paymentId, paymentIds));
     }
     const filename = `bizcor-backup-${business?.businessCode || businessId}-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
     res.setHeader("Content-Type", "application/json");
@@ -89781,7 +89781,7 @@ router4.post("/restore", requireBusiness, async (req, res) => {
   try {
     const businessId = req.user.businessId;
     const { parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
-    const { inArray: inArray3 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { inArray: inArray2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     let imported = { parties: 0, items: 0, vouchers: 0, payments: 0 };
     const existingParties = await db.select().from(partiesTable3).where(eq(partiesTable3.businessId, businessId));
     const existingPartyNames = new Set(existingParties.map((p) => p.name?.toLowerCase()));
@@ -91770,36 +91770,26 @@ router12.get("/outstanding-payables", async (req, res) => {
 router12.post("/repair-voucher-balances", async (req, res) => {
   try {
     const businessId = req.user.businessId;
+    const vouchers = await db.select().from(vouchersTable3).where(
+      and(eq(vouchersTable3.businessId, businessId), isNull(vouchersTable3.deletedAt))
+    );
     const payments = await db.select().from(paymentsTable3).where(eq(paymentsTable3.businessId, businessId));
-    const allAllocs = await db.select().from(paymentAllocationsTable3);
-    const paymentMap = new Map(payments.map((p) => [p.id, Number(p.amount)]));
+    const paymentIds = payments.map((p) => p.id);
+    const allAllocs = paymentIds.length > 0 ? await db.select().from(paymentAllocationsTable3).where(inArray(paymentAllocationsTable3.paymentId, paymentIds)) : [];
     const voucherPaid = /* @__PURE__ */ new Map();
-    const allocsByPayment = /* @__PURE__ */ new Map();
     for (const a of allAllocs) {
-      const g = allocsByPayment.get(a.paymentId) || [];
-      g.push(a);
-      allocsByPayment.set(a.paymentId, g);
-    }
-    for (const [paymentId, allocs] of allocsByPayment) {
-      const payAmt = paymentMap.get(paymentId) ?? 0;
-      const totalAlloc = allocs.reduce((s2, a) => s2 + Number(a.allocatedAmount), 0);
-      for (const a of allocs) {
-        const raw = Number(a.allocatedAmount);
-        const safe = totalAlloc > payAmt + 1e-3 ? raw / totalAlloc * payAmt : raw;
-        const prev = voucherPaid.get(a.voucherId) ?? 0;
-        voucherPaid.set(a.voucherId, prev + safe);
-        await db.update(paymentAllocationsTable3).set({ allocatedAmount: String(safe.toFixed(2)) }).where(and(eq(paymentAllocationsTable3.paymentId, paymentId), eq(paymentAllocationsTable3.voucherId, a.voucherId)));
-      }
+      voucherPaid.set(a.voucherId, (voucherPaid.get(a.voucherId) ?? 0) + Number(a.allocatedAmount));
     }
     let fixed = 0;
-    for (const [voucherId, paid] of voucherPaid) {
-      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable3.id, voucherId) });
-      if (!voucher || voucher.businessId !== businessId) continue;
+    for (const voucher of vouchers) {
       const grandTotal = Number(voucher.grandTotal);
-      const safePaid = Math.min(paid, grandTotal);
-      const status = safePaid >= grandTotal - 1e-3 ? "paid" : safePaid > 0 ? "partial" : "posted";
-      await db.update(vouchersTable3).set({ paidAmount: String(safePaid.toFixed(2)), status }).where(eq(vouchersTable3.id, voucherId));
-      fixed++;
+      const paid = Math.min(voucherPaid.get(voucher.id) ?? 0, grandTotal);
+      const status = paid >= grandTotal - 1e-3 ? "paid" : paid > 0 ? "partial" : "posted";
+      const currentPaid = Number(voucher.paidAmount ?? 0);
+      if (Math.abs(currentPaid - paid) > 1e-3 || voucher.status !== status) {
+        await db.update(vouchersTable3).set({ paidAmount: String(paid.toFixed(2)), status }).where(eq(vouchersTable3.id, voucher.id));
+        fixed++;
+      }
     }
     res.json({ ok: true, vouchersFixed: fixed });
   } catch (err) {
