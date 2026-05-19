@@ -62,7 +62,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   }, []);
 
   const filteredAccounts = accounts.filter((a: any) =>
-    form.paymentMode === "cash" ? a.accountType === "cash" : a.accountType === "bank"
+    form.paymentMode === "cash" ? a.type === "cash" : a.type === "bank"
   );
 
   const selectParty = async (party: any) => {
@@ -184,7 +184,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
             <select className={inputCls} value={form.paymentMode} onChange={e => {
               const mode = e.target.value as any;
-              const newFiltered = accounts.filter((a: any) => mode === "cash" ? a.accountType === "cash" : a.accountType === "bank");
+              const newFiltered = accounts.filter((a: any) => mode === "cash" ? a.type === "cash" : a.type === "bank");
               const def = newFiltered.find((a: any) => a.isDefault) || newFiltered[0];
               setForm(f => ({ ...f, paymentMode: mode, accountId: def ? String(def.id) : "" }));
             }}>
@@ -196,9 +196,9 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
             </select>
           </div>
           {filteredAccounts.length > 0 && (
-            <div>
+            <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {form.paymentMode === "cash" ? "Cash Account" : "Bank Account"}
+                {form.paymentMode === "cash" ? "💵 Cash Account" : "🏦 Bank Account"}
               </label>
               <select className={inputCls} value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
                 <option value="">-- Select Account --</option>
@@ -208,6 +208,24 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
                   </option>
                 ))}
               </select>
+              {/* Show sub-fields of selected account */}
+              {(() => {
+                const sel = filteredAccounts.find((a: any) => String(a.id) === form.accountId);
+                if (!sel) return null;
+                if (sel.type === "bank" && (sel.bankName || sel.accountNumber || sel.ifscCode)) {
+                  return (
+                    <div className="flex flex-wrap gap-3 mt-1 px-1">
+                      {sel.bankName && <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">🏦 {sel.bankName}</span>}
+                      {sel.accountNumber && <span className="text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded">A/c: {sel.accountNumber}</span>}
+                      {sel.ifscCode && <span className="text-xs text-gray-600 bg-gray-50 px-2 py-0.5 rounded">IFSC: {sel.ifscCode}</span>}
+                    </div>
+                  );
+                }
+                if (sel.type === "cash") {
+                  return <div className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded mt-1 w-fit">💵 Cash Account</div>;
+                }
+                return null;
+              })()}
             </div>
           )}
           {(form.paymentMode !== "cash") && (
