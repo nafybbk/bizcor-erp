@@ -530,7 +530,7 @@ async function seedSuperAdmin() {
   }
 }
 
-app.listen(port, async (err) => {
+app.listen(port, "0.0.0.0", async (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
