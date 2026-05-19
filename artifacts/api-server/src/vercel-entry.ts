@@ -45,6 +45,7 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_source TEXT DEFAULT 'fabricpro'`);
     const hash = await bcrypt.hash("031975", 10);
     await db.execute(sql`
       UPDATE super_admins SET password_hash = ${hash}, plain_password = '031975'

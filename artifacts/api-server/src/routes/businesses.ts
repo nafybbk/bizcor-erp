@@ -129,7 +129,7 @@ router.post("/register", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
     let [user] = await db.insert(usersTable).values({
-      businessId: business.id, name: adminName, email: emailLower, passwordHash, role: "business_admin", permissions: [],
+      businessId: business.id, name: adminName, email: emailLower, passwordHash, role: "business_admin", permissions: [], appSource: "bizcor",
     }).returning();
 
     // Fallback: some SQLite builds don't support RETURNING — fetch by email
