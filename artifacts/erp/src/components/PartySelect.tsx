@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, Plus, Loader2 } from "lucide-react";
 
 interface Party {
@@ -20,6 +20,7 @@ interface PartySelectProps {
   onAddNew?: (name: string) => void;
   addNewLabel?: string;
   required?: boolean;
+  onSearch?: (q: string) => void;
 }
 
 export default function PartySelect({
@@ -32,11 +33,13 @@ export default function PartySelect({
   onAddNew,
   addNewLabel = "Add new",
   required,
+  onSearch,
 }: PartySelectProps) {
   const [search, setSearch] = useState(value);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSearch(value);
@@ -51,6 +54,12 @@ export default function PartySelect({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const triggerSearch = useCallback((q: string) => {
+    if (!onSearch) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onSearch(q), 250);
+  }, [onSearch]);
 
   const [showAll, setShowAll] = useState(false);
 
@@ -89,8 +98,9 @@ export default function PartySelect({
             setSearch(e.target.value);
             setShowAll(false);
             setOpen(true);
+            triggerSearch(e.target.value);
           }}
-          onFocus={() => { setOpen(true); setShowAll(true); }}
+          onFocus={() => { setOpen(true); setShowAll(true); triggerSearch(search); }}
           onKeyDown={e => {
             if (e.key === "Enter" && filtered.length > 0) {
               e.preventDefault();
