@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, desc } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
 
@@ -186,11 +186,11 @@ router.get("/my-voucher", requireBusiness, async (req, res) => {
       if (v) { res.json({ code: v.code, redeemedAt: v.redeemedAt }); return; }
     }
 
-    // Fallback: most recently redeemed voucher for this business
+    // Fallback: most recently redeemed voucher (DESC = newest first)
     const [latest] = await db.select({ code: licenseVouchersTable.code, redeemedAt: licenseVouchersTable.redeemedAt })
       .from(licenseVouchersTable)
       .where(eq(licenseVouchersTable.redeemedByBusinessId, bizId))
-      .orderBy(licenseVouchersTable.redeemedAt)
+      .orderBy(desc(licenseVouchersTable.redeemedAt))
       .limit(1);
     res.json({ code: latest?.code || null, redeemedAt: latest?.redeemedAt || null });
   } catch { res.json({ code: null, redeemedAt: null }); }
