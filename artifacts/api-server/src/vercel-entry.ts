@@ -41,6 +41,7 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_prefix BOOLEAN DEFAULT TRUE`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_series BOOLEAN DEFAULT TRUE`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_zeros BOOLEAN DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS active_voucher_id INTEGER`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS business_id INTEGER`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
