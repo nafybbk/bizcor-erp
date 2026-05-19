@@ -90101,6 +90101,16 @@ var import_express5 = __toESM(require_express2(), 1);
 await init_src();
 await init_src();
 init_drizzle_orm();
+async function getPlanLimit(businessId) {
+  const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, businessId) });
+  if (!biz) return { maxUsers: 2, label: "Free" };
+  if (biz.planId) {
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable3.id, biz.planId) });
+    return { maxUsers: plan?.maxUsers ?? 2, label: plan?.name ?? "Paid" };
+  }
+  if (biz.isTrial) return { maxUsers: 3, label: "Trial" };
+  return { maxUsers: 2, label: "Free" };
+}
 var router5 = (0, import_express5.Router)();
 router5.use(requireBusiness);
 var _rightColsDone = false;
@@ -90145,6 +90155,7 @@ router5.get("/", async (req, res) => {
   try {
     const biz = req.user.businessId;
     await ensureRightsCols();
+    const planLimit = await getPlanLimit(biz);
     const rows = await db.select({
       id: usersTable3.id,
       name: usersTable3.name,
@@ -90175,7 +90186,22 @@ router5.get("/", async (req, res) => {
         }
       })() : []
     }));
-    res.json({ data: users });
+    const admins = users.filter((u) => u.role === "business_admin");
+    const staff = users.filter((u) => u.role !== "business_admin").sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+    const allSorted = [...admins, ...staff];
+    const usersWithLimit = allSorted.map((u, idx) => ({
+      ...u,
+      overLimit: idx >= planLimit.maxUsers
+    }));
+    res.json({
+      data: usersWithLimit,
+      planInfo: {
+        maxUsers: planLimit.maxUsers,
+        label: planLimit.label,
+        currentCount: users.length,
+        canAddMore: users.length < planLimit.maxUsers
+      }
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -90190,6 +90216,15 @@ router5.post("/", async (req, res) => {
       return;
     }
     const biz = req.user.businessId;
+    const planLimit = await getPlanLimit(biz);
+    const [{ total: currentCount }] = await db.select({ total: count() }).from(usersTable3).where(eq(usersTable3.businessId, biz));
+    if (Number(currentCount) >= planLimit.maxUsers) {
+      res.status(403).json({
+        error: "Plan Limit Reached",
+        message: `Plan limit puri ho gayi. ${planLimit.label} plan mein max ${planLimit.maxUsers} users allowed hain. Plan upgrade karein.`
+      });
+      return;
+    }
     let finalEmail = email3?.trim().toLowerCase();
     let passwordHash;
     if (!finalEmail || !password) {
