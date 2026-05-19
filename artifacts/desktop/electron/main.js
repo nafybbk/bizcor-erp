@@ -202,6 +202,25 @@ function buildTray() {
   tray.on("double-click", () => openMainWindow());
 }
 
+let _connectedCount = 0;
+
+async function refreshConnectedCount() {
+  if (server.getStatus() !== "running") return;
+  try {
+    const http = require("http");
+    await new Promise((resolve) => {
+      http.get(`http://localhost:${server.getServerPort()}/api/desktop/connected-clients`, (res) => {
+        let data = "";
+        res.on("data", c => { data += c; });
+        res.on("end", () => {
+          try { _connectedCount = JSON.parse(data).count || 0; } catch { _connectedCount = 0; }
+          resolve(null);
+        });
+      }).on("error", () => resolve(null));
+    });
+  } catch { _connectedCount = 0; }
+}
+
 function refreshTray() {
   if (!tray) return;
   const st = server.getStatus();
@@ -213,11 +232,16 @@ function refreshTray() {
     trialStatus.phase === 3 ? `Grace period: ${trialStatus.daysLeft} days left` :
     "Trial Expired — Locked";
 
+  const clientsLabel = st === "running"
+    ? `LAN Clients: ${_connectedCount} active (last 5 min)`
+    : "LAN Clients: server stopped";
+
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "BizCor ERP", enabled: false },
     { label: trialLabel, enabled: false },
     { type: "separator" },
     { label: st === "running" ? `Running — ${url}` : `Server: ${st}`, enabled: false },
+    { label: clientsLabel, enabled: false },
     { type: "separator" },
     { label: "Open Dashboard", click: () => openMainWindow() },
     { label: "Open in Browser", enabled: st === "running", click: () => shell.openExternal(url) },
@@ -370,6 +394,10 @@ if (!gotTheLock) {
         openMainWindow();
         // Advertise bizcor.local on the LAN
         mdns.start(server.getServerPort());
+        // Refresh connected clients count every 60 seconds
+        setInterval(() => {
+          refreshConnectedCount().then(() => refreshTray()).catch(() => {});
+        }, 60000);
         // Start weekly heartbeat 10s after server is ready
         setTimeout(() => startHeartbeat().catch(() => {}), 10000);
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);

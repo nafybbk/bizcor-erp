@@ -248,6 +248,7 @@ function ReferralSection() {
 // Detect desktop EXE mode — window.bizcorDesktop is injected by Electron preload only
 // Never present in browser (erp.naewtgroup.com), always present in EXE
 const IS_OFFLINE = !!(window as any).bizcorDesktop;
+const SUPPORT_EMAIL = "support@naewtgroup.com";
 
 export default function Subscription() {
   const [business, setBusiness] = useState<any>(null);
@@ -257,6 +258,8 @@ export default function Subscription() {
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [redeemResult, setRedeemResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showVoucherFor, setShowVoucherFor] = useState<number | null>(null);
+  const [myVoucher, setMyVoucher] = useState<{ code: string | null; redeemedAt: string | null } | null>(null);
+  const [voucherCopied, setVoucherCopied] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -267,6 +270,8 @@ export default function Subscription() {
       setBusiness(b);
       setPlans(Array.isArray(pl) ? pl : []);
     }).catch(console.error).finally(() => setLoading(false));
+    // Fetch the activated voucher code separately (non-blocking)
+    api.get<any>("/businesses/my-voucher").then(setMyVoucher).catch(() => {});
   };
 
   useEffect(() => { load(); }, []);
@@ -391,6 +396,48 @@ export default function Subscription() {
           )}
         </div>
       </div>
+
+      {/* My License Code (show if voucher was activated) */}
+      {myVoucher?.code && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Ticket className="w-5 h-5 text-blue-500 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-blue-500 font-medium">Mera License Code</p>
+              <p className="text-lg font-black font-mono tracking-widest text-blue-800 truncate">{myVoucher.code}</p>
+              {myVoucher.redeemedAt && (
+                <p className="text-xs text-blue-400 mt-0.5">
+                  Activated: {new Date(myVoucher.redeemedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(myVoucher.code!).then(() => {
+                setVoucherCopied(true);
+                setTimeout(() => setVoucherCopied(false), 2000);
+              });
+            }}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+            {voucherCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            {voucherCopied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      )}
+
+      {/* Support contact — desktop exe only */}
+      {IS_OFFLINE && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">License bhool gaye ya koi problem hai?</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Email karo: <a href={`mailto:${SUPPORT_EMAIL}`} className="font-bold underline hover:text-amber-900">{SUPPORT_EMAIL}</a>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Referral Program */}
       <ReferralSection />
