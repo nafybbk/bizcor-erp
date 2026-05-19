@@ -89981,9 +89981,7 @@ router4.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
   try {
     const bizId = req.user.businessId;
     const voucherId = Number(req.params.voucherId);
-    const voucher = await db.query.licenseVouchersTable.findFirst({
-      where: and(eq(licenseVouchersTable3.id, voucherId), eq(licenseVouchersTable3.redeemedByBusinessId, bizId))
-    });
+    const [voucher] = await db.select().from(licenseVouchersTable3).where(and(eq(licenseVouchersTable3.id, voucherId), eq(licenseVouchersTable3.redeemedByBusinessId, bizId))).limit(1);
     if (!voucher) {
       res.status(404).json({ error: "Voucher nahi mila" });
       return;
@@ -89994,7 +89992,7 @@ router4.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
       res.status(400).json({ error: "Ye voucher expire ho chuka hai \u2014 activate nahi ho sakta" });
       return;
     }
-    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable3.id, voucher.planId) });
+    const [plan] = await db.select().from(plansTable3).where(eq(plansTable3.id, voucher.planId)).limit(1);
     await db.update(businessesTable3).set({
       planId: voucher.planId,
       planExpiresAt: expiresAt,
