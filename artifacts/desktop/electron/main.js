@@ -7,6 +7,7 @@ const { autoUpdater } = require("electron-updater");
 
 const trial = require("./trial");
 const server = require("./server-manager");
+const heartbeat = require("./heartbeat");
 
 let tray = null;
 let mainWindow = null;
@@ -227,9 +228,53 @@ function refreshTray() {
   ]));
 }
 
+// ─── Heartbeat ───────────────────────────────────────────────────────────────
+
+/** Fetch business code from local server (first registered business) */
+async function fetchLocalBusinessCode() {
+  return new Promise((resolve) => {
+    const http = require("http");
+    http.get(`http://localhost:${server.getServerPort()}/api/desktop/business-code`, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try { resolve(JSON.parse(data).businessCode || null); }
+        catch { resolve(null); }
+      });
+    }).on("error", () => resolve(null));
+  });
+}
+
+function showHeartbeatWarning(phase, message) {
+  if (!mainWindow) return;
+  const isExpired = phase === "expired";
+  const isCritical = phase === "critical";
+
+  dialog.showMessageBox(mainWindow, {
+    type: isExpired || isCritical ? "error" : "warning",
+    title: isExpired ? "License Expired — BizCor ERP" : "License Warning — BizCor ERP",
+    message: isExpired ? "License Expire Ho Gaya" : "License Warning",
+    detail: message + (isExpired
+      ? "\n\nNaya plan lene ke liye Tech Support se contact karo."
+      : "\n\nYeh sirf ek reminder hai. App normally kaam karti rahegi."),
+    buttons: ["OK"],
+  }).catch(() => {});
+}
+
+async function startHeartbeat() {
+  try {
+    const businessCode = await fetchLocalBusinessCode();
+    if (!businessCode) return; // No business registered yet — skip
+    heartbeat.start(businessCode, (phase, message) => {
+      showHeartbeatWarning(phase, message);
+    });
+  } catch (_) {}
+}
+
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
 ipcMain.handle("get-trial-status", () => trial.getTrialStatus());
+ipcMain.handle("get-heartbeat-status", () => heartbeat.getStatus());
 ipcMain.handle("get-server-info", () => ({
   url: getServerURL(), status: server.getStatus(),
   ip: getLocalIP(), port: server.getServerPort(),
@@ -322,6 +367,8 @@ if (!gotTheLock) {
       if (status === "running") {
         closeSplash();
         openMainWindow();
+        // Start weekly heartbeat 10s after server is ready
+        setTimeout(() => startHeartbeat().catch(() => {}), 10000);
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
       } else if (status === "error") {
         closeSplash();
@@ -334,7 +381,7 @@ if (!gotTheLock) {
   });
 
   app.on("window-all-closed", () => {});
-  app.on("before-quit", async () => { isQuitting = true; await server.stop(); });
+  app.on("before-quit", async () => { isQuitting = true; heartbeat.stop(); await server.stop(); });
 }
 
 // ─── Auto Updater ─────────────────────────────────────────────────────────────
