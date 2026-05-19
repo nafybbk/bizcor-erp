@@ -82,7 +82,8 @@ router.get("/outstanding", async (req, res) => {
     const vouchers = await db.select().from(vouchersTable).where(and(
       eq(vouchersTable.businessId, businessId),
       eq(vouchersTable.partyId, Number(partyId)),
-      inArray(vouchersTable.voucherType, voucherTypes as any[])
+      inArray(vouchersTable.voucherType, voucherTypes as any[]),
+      isNull(vouchersTable.deletedAt)
     ));
     // Use FIFO to correctly compute per-bill balance (independent of payment_allocations)
     const allPayments = await db.select().from(paymentsTable).where(
