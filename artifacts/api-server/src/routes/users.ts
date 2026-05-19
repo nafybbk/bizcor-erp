@@ -89,17 +89,35 @@ router.post("/", async (req, res) => {
   try {
     ensureRightsCols();
     const { name, email, password, role, permissions, loginPin, canEdit, canDelete } = req.body;
-    if (!name || !email || !password) {
-      res.status(400).json({ error: "Bad Request", message: "Name, email and password required" });
+    if (!name) {
+      res.status(400).json({ error: "Bad Request", message: "Name required" });
       return;
     }
     const biz = req.user!.businessId!;
-    const passwordHash = await bcrypt.hash(password, 10);
+
+    // If email/password not provided, copy from the current logged-in admin user
+    let finalEmail = email?.trim().toLowerCase();
+    let passwordHash: string;
+
+    if (!finalEmail || !password) {
+      // Fetch admin user of this business
+      const adminUser = await db.query.usersTable.findFirst({
+        where: and(eq(usersTable.businessId, biz), eq(usersTable.role, "business_admin")),
+      });
+      if (!finalEmail) finalEmail = adminUser?.email || req.user!.email!;
+      if (!password) {
+        passwordHash = adminUser?.passwordHash || await bcrypt.hash("changeme", 10);
+      } else {
+        passwordHash = await bcrypt.hash(password, 10);
+      }
+    } else {
+      passwordHash = await bcrypt.hash(password, 10);
+    }
 
     await db.insert(usersTable).values({
       businessId: biz,
       name,
-      email: email.toLowerCase().trim(),
+      email: finalEmail,
       passwordHash,
       role: role || "staff",
       permissions: permissions || [],
@@ -110,12 +128,11 @@ router.post("/", async (req, res) => {
 
     // Store plain password (non-fatal — column ensured above)
     try {
-      const emailClean = email.toLowerCase().trim();
-      if (sqlite) {
+      if (password && sqlite) {
         sqlite.prepare("UPDATE users SET plain_password = ? WHERE email = ? AND business_id = ?")
-          .run(password, emailClean, biz);
-      } else {
-        await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE email = ${emailClean} AND business_id = ${biz}`);
+          .run(password, finalEmail, biz);
+      } else if (password) {
+        await db.execute(sql`UPDATE users SET plain_password = ${password} WHERE email = ${finalEmail} AND business_id = ${biz}`);
       }
     } catch { /* non-fatal */ }
 
