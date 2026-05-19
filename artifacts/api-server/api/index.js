@@ -89970,11 +89970,23 @@ router4.get("/my-subscriptions", requireBusiness, async (req, res) => {
     const plans = await db.select().from(plansTable3);
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
     const bizPlanExpiresMs = business?.planExpiresAt ? new Date(business.planExpiresAt).getTime() : null;
+    let activeVoucherId = null;
+    if (business?.planId && bizPlanExpiresMs && bizPlanExpiresMs > now) {
+      const samePlanVouchers = visible.filter((v) => v.planId === business.planId);
+      if (samePlanVouchers.length === 1) {
+        activeVoucherId = samePlanVouchers[0].id;
+      } else if (samePlanVouchers.length > 1) {
+        const best = samePlanVouchers.reduce((prev, curr) => {
+          const prevDiff = Math.abs(bizPlanExpiresMs - (prev.expiresAt ? new Date(prev.expiresAt).getTime() : 0));
+          const currDiff = Math.abs(bizPlanExpiresMs - (curr.expiresAt ? new Date(curr.expiresAt).getTime() : 0));
+          return currDiff < prevDiff ? curr : prev;
+        });
+        activeVoucherId = best.id;
+      }
+    }
     const subscriptions = visible.map((v) => {
       const plan = plans.find((p) => p.id === v.planId);
-      const voucherExpiresMs = v.expiresAt ? new Date(v.expiresAt).getTime() : null;
-      const expiryMatches = bizPlanExpiresMs && voucherExpiresMs ? Math.abs(bizPlanExpiresMs - voucherExpiresMs) < 5 * 60 * 1e3 : false;
-      const isActive = business?.planId === v.planId && expiryMatches && bizPlanExpiresMs > now;
+      const isActive = v.id === activeVoucherId;
       return {
         id: v.id,
         code: v.code,
