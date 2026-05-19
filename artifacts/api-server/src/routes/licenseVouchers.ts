@@ -65,7 +65,7 @@ router.post("/redeem-voucher", async (req, res) => {
 
     const [updated] = await db
       .update(businessesTable)
-      .set({ planId: plan.id, planStartDate: now, planExpiresAt: expiresAt, isTrial: false })
+      .set({ planId: plan.id, activeVoucherId: voucher.id, planStartDate: now, planExpiresAt: expiresAt, isTrial: false })
       .where(eq(businessesTable.id, req.user.businessId!))
       .returning();
 
