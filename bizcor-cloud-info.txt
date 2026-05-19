@@ -11,10 +11,12 @@ Frontend + Backend dono Vercel pe hain
 GitHub push hote hi Vercel auto-deploy kar leta hai
 
 DATABASE:
-Supabase (Replit ka local DB production mein kaam nahi aata)
-Host: aws-1-ap-south-1.pooler.supabase.com:6543
+Supabase — BizCor ka APNA alag database (naewt-db se bilkul alag)
+Project ID: bljbfuqtcokadfroufsx
+Pooler URL: postgresql://postgres.bljbfuqtcokadfroufsx:%40Nafees2816%40@aws-1-ap-south-1.pooler.supabase.com:6543/postgres
 Password: @Nafees2816@
 Naye columns/tables ke liye: Supabase Dashboard > SQL Editor mein manually run karo
+(naewt-db ab BizCor ke liye use NAHI hoti — woh Naewt Trust ke liye reserved hai)
 
 PRODUCTION URLS:
 Business login: erp.naewtgroup.com
@@ -28,11 +30,18 @@ Replit ka DATABASE_URL local PostgreSQL hai jo production se alag hai
 CODE DEPLOY FLOW:
 1. Code change hoti hai → GitHub pe push hota hai
 2. Vercel auto-deploy kar leta hai (frontend + backend dono)
-3. Naya DB column chahiye → Supabase SQL Editor mein alag se run karo
+3. Naya DB column chahiye → Supabase Dashboard (bljbfuqtcokadfroufsx project) > SQL Editor mein manually run karo
+
+VERCEL PROJECTS:
+- bizcor-erp-erp → Frontend (erp.naewtgroup.com) — env var: VITE_API_URL
+- bizcor-erp-api-server → Backend API — env var: SUPABASE_DATABASE_URL (bizcor-db pooler URL upar)
 
 TECH LOGIN CREDENTIALS:
 Phone: 9999999999
 Password: 031975
+
+TEST BUSINESS:
+Code: P0IUKG, Email: juliebizcor@gmail.com, Password: bizcor123
 
 ========================================
 Har naye session mein ye text paste karo
