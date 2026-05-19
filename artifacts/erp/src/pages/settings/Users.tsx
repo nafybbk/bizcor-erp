@@ -73,6 +73,8 @@ export default function Users() {
   };
 
   const save = async () => {
+    if (!form.name.trim()) { setError("Name required — user ka naam daalo"); return; }
+    if (!editId && !form.loginPin) { setError("Login PIN required — 4–8 digit PIN daalo"); return; }
     setSaving(true); setError("");
     try {
       const payload: any = { ...form };
