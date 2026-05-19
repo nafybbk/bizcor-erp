@@ -89922,6 +89922,97 @@ router4.get("/my-voucher", requireBusiness, async (req, res) => {
     res.json({ code: null, redeemedAt: null });
   }
 });
+router4.get("/my-subscriptions", requireBusiness, async (req, res) => {
+  try {
+    const bizId = req.user.businessId;
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3);
+    const allVouchers = await db.select({
+      id: licenseVouchersTable3.id,
+      code: licenseVouchersTable3.code,
+      planId: licenseVouchersTable3.planId,
+      validityDays: licenseVouchersTable3.validityDays,
+      redeemedAt: licenseVouchersTable3.redeemedAt,
+      status: licenseVouchersTable3.status
+    }).from(licenseVouchersTable3).where(eq(licenseVouchersTable3.redeemedByBusinessId, bizId));
+    const toDelete = [];
+    const visible = [];
+    const now = Date.now();
+    for (const v of allVouchers) {
+      const redeemedAt = v.redeemedAt ? new Date(v.redeemedAt).getTime() : null;
+      const expiresAt = redeemedAt ? redeemedAt + v.validityDays * 864e5 : null;
+      const expiredMs = expiresAt ? now - expiresAt : null;
+      if (expiredMs !== null && expiredMs > 30 * 864e5) {
+        toDelete.push(v.id);
+      } else {
+        visible.push({ ...v, expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null });
+      }
+    }
+    if (toDelete.length > 0) {
+      for (const id of toDelete) {
+        await db.delete(licenseVouchersTable3).where(eq(licenseVouchersTable3.id, id)).catch(() => {
+        });
+      }
+    }
+    const plans = await db.select().from(plansTable3);
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
+    const subscriptions = visible.map((v) => {
+      const plan = plans.find((p) => p.id === v.planId);
+      const isActive = business?.planId === v.planId && business?.planExpiresAt && new Date(business.planExpiresAt).getTime() > now;
+      return {
+        id: v.id,
+        code: v.code,
+        planId: v.planId,
+        planName: plan?.name || "Unknown Plan",
+        maxUsers: plan?.maxUsers || null,
+        validityDays: v.validityDays,
+        redeemedAt: v.redeemedAt,
+        expiresAt: v.expiresAt,
+        isExpired: v.expiresAt ? new Date(v.expiresAt).getTime() < now : false,
+        isActive: !!isActive
+      };
+    }).sort((a, b) => new Date(b.redeemedAt ?? 0).getTime() - new Date(a.redeemedAt ?? 0).getTime());
+    res.json({ data: subscriptions });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+router4.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
+  try {
+    const bizId = req.user.businessId;
+    const voucherId = Number(req.params.voucherId);
+    const voucher = await db.query.licenseVouchersTable.findFirst({
+      where: and(eq(licenseVouchersTable3.id, voucherId), eq(licenseVouchersTable3.redeemedByBusinessId, bizId))
+    });
+    if (!voucher) {
+      res.status(404).json({ error: "Voucher nahi mila" });
+      return;
+    }
+    const redeemedAt = voucher.redeemedAt ? new Date(voucher.redeemedAt).getTime() : Date.now();
+    const expiresAt = new Date(redeemedAt + voucher.validityDays * 864e5);
+    if (expiresAt.getTime() < Date.now()) {
+      res.status(400).json({ error: "Ye voucher expire ho chuka hai \u2014 activate nahi ho sakta" });
+      return;
+    }
+    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable3.id, voucher.planId) });
+    await db.update(businessesTable3).set({
+      planId: voucher.planId,
+      planExpiresAt: expiresAt,
+      isTrial: false
+    }).where(eq(businessesTable3.id, bizId));
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable3.id, req.user.id) });
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
+    const token = signToken({ ...user, business });
+    res.json({
+      success: true,
+      message: `${plan?.name || "Plan"} activate ho gaya! Validity: ${voucher.validityDays} din`,
+      token
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 router4.get("/referral-status", requireBusiness, async (req, res) => {
   try {
     const b = await db.query.businessesTable.findFirst({
