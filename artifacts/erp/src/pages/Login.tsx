@@ -26,6 +26,8 @@ export default function Login() {
   const [multiUsers, setMultiUsers] = useState<{ id: number; name: string; hasPin: boolean }[]>([]);
   const [pins, setPins] = useState<Record<number, string>>({});
   const [alreadyLoggedIn, setAlreadyLoggedIn] = useState<{ lastLoginAt: string | null; lastLoginIp: string | null; loginName?: string; pin?: string } | null>(null);
+  const [pinRequired, setPinRequired] = useState(false);
+  const [singlePin, setSinglePin] = useState("");
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
 
   const [fEmail, setFEmail] = useState("");
@@ -105,7 +107,9 @@ export default function Login() {
         setPins({});
         setError("");
       } else if (err.data?.error === "wrong_pin") {
-        setError("Incorrect PIN — please try again");
+        setPinRequired(true);
+        setSinglePin("");
+        setError("PIN zaroori hai — neeche enter karo");
       } else if (err.data?.error === "multiple_businesses" || err.message?.includes("multiple businesses")) {
         setError("Your email is linked to multiple businesses. Please enter your Business Code.");
         setShowLookup(true);
@@ -120,7 +124,7 @@ export default function Login() {
     setMultiUsers([]);
     setPins({});
     setAlreadyLoggedIn(null);
-    await doLogin();
+    await doLogin(undefined, pinRequired ? singlePin : undefined);
   };
 
   const handleSelectUser = async (userId: number, name: string) => {
@@ -191,7 +195,7 @@ export default function Login() {
                     className={inputCls}
                     placeholder="you@example.com"
                     value={form.email}
-                    onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setShowLookup(false); }}
+                    onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setShowLookup(false); setPinRequired(false); setSinglePin(""); }}
                     required
                   />
                 </div>
@@ -363,6 +367,24 @@ export default function Login() {
                   </div>
                 )}
 
+                {pinRequired && (
+                  <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-medium text-blue-800 flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4" /> Apna Login PIN enter karo
+                    </p>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={8}
+                      placeholder="PIN"
+                      autoFocus
+                      value={singlePin}
+                      onChange={e => { setSinglePin(e.target.value); setError(""); }}
+                      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                )}
+
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
                     {error}
@@ -371,7 +393,7 @@ export default function Login() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (pinRequired && !singlePin.trim())}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
