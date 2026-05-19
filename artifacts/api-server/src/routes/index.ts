@@ -144,6 +144,70 @@ router.post("/activate-offline", async (req, res) => {
   }
 });
 
+// Desktop-only — returns first registered business code (for heartbeat, no auth)
+router.get("/desktop/business-code", async (_req, res) => {
+  try {
+    const { db, businessesTable } = await import("@workspace/db");
+    const { asc } = await import("drizzle-orm");
+    const [biz] = await db.select({ businessCode: businessesTable.businessCode })
+      .from(businessesTable).orderBy(asc(businessesTable.id)).limit(1);
+    res.json({ businessCode: biz?.businessCode || null });
+  } catch { res.json({ businessCode: null }); }
+});
+
+// Public — offline EXE weekly heartbeat (no business auth needed)
+router.post("/heartbeat", async (req, res) => {
+  try {
+    const { businessCode, machineId, appVersion } = req.body || {};
+    if (!businessCode) { res.status(400).json({ status: "error", message: "businessCode required" }); return; }
+
+    const { db, businessesTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+
+    const [biz] = await db.select().from(businessesTable)
+      .where(eq(businessesTable.businessCode, businessCode.trim().toUpperCase())).limit(1);
+
+    if (!biz) { res.status(404).json({ status: "error", message: "Business not found" }); return; }
+
+    const now = new Date();
+    const expiresAt = biz.planExpiresAt ? new Date(biz.planExpiresAt) : null;
+    const daysLeft = expiresAt ? Math.ceil((expiresAt.getTime() - now.getTime()) / 86400000) : null;
+
+    let status: "active" | "warning" | "expired" | "trial" = "active";
+    let message = "License valid";
+
+    if (biz.isTrial) {
+      status = "trial";
+      message = daysLeft !== null ? `Trial — ${daysLeft} din bacha` : "Trial active";
+    } else if (!expiresAt || daysLeft === null) {
+      status = "active";
+      message = "License valid (no expiry)";
+    } else if (daysLeft <= 0) {
+      status = "expired";
+      message = "License expired. Please renew.";
+    } else if (daysLeft <= 30) {
+      status = "warning";
+      message = `License ${daysLeft} din mein expire hoga. Renew karo.`;
+    } else {
+      status = "active";
+      message = `License valid — ${daysLeft} din bache hain`;
+    }
+
+    res.json({
+      status,
+      message,
+      businessName: biz.businessName,
+      planExpiresAt: expiresAt?.toISOString() || null,
+      daysLeft,
+      checkedAt: now.toISOString(),
+      machineId: machineId || null,
+      appVersion: appVersion || null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", message: err?.message || "Server error" });
+  }
+});
+
 router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
