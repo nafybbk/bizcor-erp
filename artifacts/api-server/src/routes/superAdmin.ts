@@ -78,7 +78,7 @@ router.get("/businesses", async (req, res) => {
     const [{ total }] = await db.select({ total: count() }).from(businessesTable).where(conditions.length ? and(...conditions) : undefined);
     const businesses = await db.select().from(businessesTable).where(conditions.length ? and(...conditions) : undefined)
       .limit(limit).offset((page - 1) * limit).orderBy(sql`${businessesTable.createdAt} desc`);
-    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).groupBy(usersTable.businessId);
+    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).where(sql`${usersTable.appSource} = 'bizcor'`).groupBy(usersTable.businessId);
     const allPlans = await db.select().from(plansTable);
     const data = businesses.map(b => ({
       ...b,
@@ -348,7 +348,7 @@ router.get("/buyers", async (req, res) => {
       .orderBy(sql`${businessesTable.planStartDate} desc nulls last`);
 
     const allPlans = await db.select().from(plansTable);
-    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).groupBy(usersTable.businessId);
+    const userCounts = await db.select({ businessId: usersTable.businessId, cnt: count() }).from(usersTable).where(sql`${usersTable.appSource} = 'bizcor'`).groupBy(usersTable.businessId);
 
     // Get voucher codes used by each business
     const redeemedVouchers = await db.select({
@@ -632,6 +632,7 @@ router.get("/users", async (req, res) => {
              b.plan_expires_at AS "planExpiresAt", b.is_trial AS "isTrial"
       FROM users u
       LEFT JOIN businesses b ON b.id = u.business_id
+      WHERE u.app_source = 'bizcor'
       ORDER BY u.created_at DESC
     `);
     const allUsersRows = allUsers.rows as any[];
