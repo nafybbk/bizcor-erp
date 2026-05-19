@@ -91324,7 +91324,8 @@ router10.get("/outstanding", async (req, res) => {
       return;
     }
     const voucherTypes = type === "receivable" ? ["sales_invoice"] : type === "payable" ? ["purchase_bill"] : ["sales_invoice", "purchase_bill"];
-    const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable3.id, Number(partyId)) });
+    const partyRows = await db.select().from(partiesTable3).where(eq(partiesTable3.id, Number(partyId)));
+    const party = partyRows[0] ?? null;
     const vouchers = await db.select().from(vouchersTable3).where(and(
       eq(vouchersTable3.businessId, businessId),
       eq(vouchersTable3.partyId, Number(partyId)),

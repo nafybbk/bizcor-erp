@@ -73,7 +73,10 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
       const data = await api.get<any>(`/payments/outstanding?partyId=${party.id}&type=${vType}`);
       setOutstanding(data.bills || []);
       setAllocations([]);
-    } catch {}
+    } catch (err: any) {
+      console.error("Outstanding bills fetch error:", err?.message || err);
+      setOutstanding([]);
+    }
   };
 
   const paymentAmount = Number(form.amount) || 0;

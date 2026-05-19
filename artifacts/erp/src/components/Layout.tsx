@@ -240,12 +240,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkOnline = async () => {
-      if (forceOffline && appMode !== "cloud") { setIsOnline(false); return; }
       const wasOffline = !isOnline;
       try {
         const h = await api.get<{ status: string; mode?: string }>("/healthz");
-        setIsOnline(true);
         if (h.mode) setAppMode(h.mode as "desktop" | "cloud");
+        // Desktop = local server always running; stale forceOffline makes no sense → auto-clear
+        if (h.mode === "desktop" && forceOffline) {
+          localStorage.removeItem("erp_force_offline");
+          setForceOffline(false);
+        }
+        setIsOnline(true);
         if (wasOffline && getDraftCount() > 0) {
           setAutoSyncing(true);
           try {
@@ -609,7 +613,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-600 text-[10px]">v2.3.0</span>
+              <span className="text-slate-600 text-[10px]">v2.3.1</span>
               {appMode && (
                 <span className="text-slate-600 text-[10px]">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
