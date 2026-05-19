@@ -78,7 +78,8 @@ router.get("/outstanding", async (req, res) => {
     const { partyId, type } = req.query;
     if (!partyId) { res.status(400).json({ error: "partyId required" }); return; }
     const voucherTypes = type === "receivable" ? ["sales_invoice"] : type === "payable" ? ["purchase_bill"] : ["sales_invoice", "purchase_bill"];
-    const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, Number(partyId)) });
+    const partyRows = await db.select().from(partiesTable).where(eq(partiesTable.id, Number(partyId)));
+    const party = partyRows[0] ?? null;
     const vouchers = await db.select().from(vouchersTable).where(and(
       eq(vouchersTable.businessId, businessId),
       eq(vouchersTable.partyId, Number(partyId)),
