@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "electron-updater": "^6.3.9",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "bonjour-service": "^1.2.1"
   },
   "devDependencies": {
     "electron": "^31.7.7",
