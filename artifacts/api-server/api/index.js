@@ -89927,7 +89927,7 @@ router4.get("/my-voucher", requireBusiness, async (req, res) => {
         return;
       }
     }
-    const [latest] = await db.select({ code: licenseVouchersTable3.code, redeemedAt: licenseVouchersTable3.redeemedAt }).from(licenseVouchersTable3).where(eq(licenseVouchersTable3.redeemedByBusinessId, bizId)).orderBy(licenseVouchersTable3.redeemedAt).limit(1);
+    const [latest] = await db.select({ code: licenseVouchersTable3.code, redeemedAt: licenseVouchersTable3.redeemedAt }).from(licenseVouchersTable3).where(eq(licenseVouchersTable3.redeemedByBusinessId, bizId)).orderBy(desc(licenseVouchersTable3.redeemedAt)).limit(1);
     res.json({ code: latest?.code || null, redeemedAt: latest?.redeemedAt || null });
   } catch {
     res.json({ code: null, redeemedAt: null });
