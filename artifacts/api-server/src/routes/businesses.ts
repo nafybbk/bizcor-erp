@@ -246,14 +246,27 @@ router.get("/my-subscriptions", requireBusiness, async (req, res) => {
 
     const bizPlanExpiresMs = business?.planExpiresAt ? new Date(business.planExpiresAt).getTime() : null;
 
+    // Find the ONE voucher that best matches the currently active plan
+    // Use closest expiry match so same-plan duplicate vouchers don't both show "active"
+    let activeVoucherId: number | null = null;
+    if (business?.planId && bizPlanExpiresMs && bizPlanExpiresMs > now) {
+      const samePlanVouchers = visible.filter(v => v.planId === business.planId);
+      if (samePlanVouchers.length === 1) {
+        activeVoucherId = samePlanVouchers[0].id;
+      } else if (samePlanVouchers.length > 1) {
+        // Pick the voucher whose computed expiresAt is CLOSEST to business.planExpiresAt
+        const best = samePlanVouchers.reduce((prev, curr) => {
+          const prevDiff = Math.abs(bizPlanExpiresMs - (prev.expiresAt ? new Date(prev.expiresAt).getTime() : 0));
+          const currDiff = Math.abs(bizPlanExpiresMs - (curr.expiresAt ? new Date(curr.expiresAt).getTime() : 0));
+          return currDiff < prevDiff ? curr : prev;
+        });
+        activeVoucherId = best.id;
+      }
+    }
+
     const subscriptions = visible.map(v => {
       const plan = plans.find(p => p.id === v.planId);
-      // Match by planId + expiry date (within 5-min tolerance) to identify the SPECIFIC active voucher
-      const voucherExpiresMs = v.expiresAt ? new Date(v.expiresAt).getTime() : null;
-      const expiryMatches = bizPlanExpiresMs && voucherExpiresMs
-        ? Math.abs(bizPlanExpiresMs - voucherExpiresMs) < 5 * 60 * 1000
-        : false;
-      const isActive = business?.planId === v.planId && expiryMatches && bizPlanExpiresMs! > now;
+      const isActive = v.id === activeVoucherId;
       return {
         id: v.id,
         code: v.code,
