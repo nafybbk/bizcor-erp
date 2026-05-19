@@ -50,6 +50,7 @@ export const businessesTable = pgTable("businesses", {
   businessType: text("business_type"),
   logo: text("logo"),
   planId: integer("plan_id").references(() => plansTable.id),
+  activeVoucherId: integer("active_voucher_id"),
   planStartDate: timestamp("plan_start_date"),
   planExpiresAt: timestamp("plan_expires_at"),
   isTrial: boolean("is_trial").notNull().default(false),
