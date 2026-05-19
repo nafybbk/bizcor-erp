@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { Loader2 } from "lucide-react";
@@ -38,8 +38,13 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const partyType = type === "receipt" ? "customer" : "supplier";
   const listHref = type === "receipt" ? "/payments/receipts" : "/payments/payments";
 
+  const searchParties = useCallback(async (q: string) => {
+    const r = await api.get<any>(`/parties?type=${partyType}&search=${encodeURIComponent(q)}&limit=50`);
+    setParties(r.data || []);
+  }, [partyType]);
+
   useEffect(() => {
-    api.get<any>(`/parties?type=${partyType}&limit=200`).then(r => setParties(r.data || [])).catch(console.error);
+    searchParties("");
     api.get<any>("/cash-bank/accounts").then(r => {
       const list = Array.isArray(r) ? r : (r.data || []);
       setAccounts(list);
@@ -162,6 +167,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
             parties={parties}
             value={partySearch}
             onSelect={p => { selectParty(p); }}
+            onSearch={searchParties}
             placeholder={`Search ${partyType}...`}
             required
           />
