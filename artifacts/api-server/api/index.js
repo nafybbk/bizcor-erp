@@ -89911,13 +89911,27 @@ router4.post("/register", async (req, res) => {
 });
 router4.get("/my-voucher", requireBusiness, async (req, res) => {
   try {
-    const { licenseVouchersTable: licenseVouchersTable4 } = await init_src().then(() => src_exports);
-    const [voucher] = await db.select({
-      code: licenseVouchersTable4.code,
-      redeemedAt: licenseVouchersTable4.redeemedAt,
-      validityDays: licenseVouchersTable4.validityDays
-    }).from(licenseVouchersTable4).where(eq(licenseVouchersTable4.redeemedByBusinessId, req.user.businessId)).orderBy((t) => t.redeemedAt).limit(1);
-    res.json({ code: voucher?.code || null, redeemedAt: voucher?.redeemedAt || null });
+    const bizId = req.user.businessId;
+    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
+    const allVouchers = await db.select({
+      code: licenseVouchersTable3.code,
+      redeemedAt: licenseVouchersTable3.redeemedAt,
+      validityDays: licenseVouchersTable3.validityDays,
+      planId: licenseVouchersTable3.planId
+    }).from(licenseVouchersTable3).where(eq(licenseVouchersTable3.redeemedByBusinessId, bizId));
+    const bizExpiresMs = business?.planExpiresAt ? new Date(business.planExpiresAt).getTime() : null;
+    let active = allVouchers.find((v) => {
+      if (!bizExpiresMs || v.planId !== business?.planId) return false;
+      const redeemedAt = v.redeemedAt ? new Date(v.redeemedAt).getTime() : null;
+      const vExpiresMs = redeemedAt ? redeemedAt + v.validityDays * 864e5 : null;
+      return vExpiresMs ? Math.abs(bizExpiresMs - vExpiresMs) < 5 * 60 * 1e3 : false;
+    });
+    if (!active && allVouchers.length > 0) {
+      active = allVouchers.sort(
+        (a, b) => new Date(b.redeemedAt ?? 0).getTime() - new Date(a.redeemedAt ?? 0).getTime()
+      )[0];
+    }
+    res.json({ code: active?.code || null, redeemedAt: active?.redeemedAt || null });
   } catch {
     res.json({ code: null, redeemedAt: null });
   }
@@ -89955,9 +89969,12 @@ router4.get("/my-subscriptions", requireBusiness, async (req, res) => {
     }
     const plans = await db.select().from(plansTable3);
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
+    const bizPlanExpiresMs = business?.planExpiresAt ? new Date(business.planExpiresAt).getTime() : null;
     const subscriptions = visible.map((v) => {
       const plan = plans.find((p) => p.id === v.planId);
-      const isActive = business?.planId === v.planId && business?.planExpiresAt && new Date(business.planExpiresAt).getTime() > now;
+      const voucherExpiresMs = v.expiresAt ? new Date(v.expiresAt).getTime() : null;
+      const expiryMatches = bizPlanExpiresMs && voucherExpiresMs ? Math.abs(bizPlanExpiresMs - voucherExpiresMs) < 5 * 60 * 1e3 : false;
+      const isActive = business?.planId === v.planId && expiryMatches && bizPlanExpiresMs > now;
       return {
         id: v.id,
         code: v.code,
