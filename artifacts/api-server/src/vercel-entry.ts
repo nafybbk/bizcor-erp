@@ -46,6 +46,13 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions JSONB`);
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS app_source TEXT DEFAULT 'fabricpro'`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_edit BOOLEAN DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_delete BOOLEAN DEFAULT TRUE`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_pin TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_token TEXT`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
     await db.execute(sql`ALTER TABLE payments ALTER COLUMN from_user_id DROP NOT NULL`);
     await db.execute(sql`ALTER TABLE payments ALTER COLUMN to_user_id DROP NOT NULL`);
     await db.execute(sql`ALTER TABLE payments ALTER COLUMN connection_id DROP NOT NULL`);
