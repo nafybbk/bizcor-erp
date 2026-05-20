@@ -93097,8 +93097,7 @@ var import_express15 = __toESM(require_express2(), 1);
 await init_src();
 init_drizzle_orm();
 var router15 = (0, import_express15.Router)();
-router15.use(requireBusiness);
-router15.post("/redeem-voucher", async (req, res) => {
+router15.post("/redeem-voucher", requireBusiness, async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) {
@@ -93154,7 +93153,7 @@ router15.post("/redeem-voucher", async (req, res) => {
     res.status(500).json({ error: String(err?.message || err) });
   }
 });
-router15.post("/redeem-voucher-offline", async (req, res) => {
+router15.post("/redeem-voucher-offline", requireBusiness, async (req, res) => {
   try {
     const { code, hardwareFingerprint } = req.body;
     if (!code) {
