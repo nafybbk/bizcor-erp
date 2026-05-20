@@ -312,6 +312,7 @@ function runSqliteInit() {
       reference_number TEXT,
       notes TEXT,
       is_on_account INTEGER NOT NULL DEFAULT 0,
+      account_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -429,6 +430,10 @@ function runSqliteMigrations() {
     "ALTER TABLE parties ADD COLUMN email TEXT",
     "ALTER TABLE parties ADD COLUMN city TEXT",
     "ALTER TABLE parties ADD COLUMN pincode TEXT",
+    // payments — account_id for Cash & Bank linking
+    "ALTER TABLE payments ADD COLUMN account_id INTEGER",
+    // businesses — active_voucher_id for exact license tracking
+    "ALTER TABLE businesses ADD COLUMN active_voucher_id INTEGER",
   ];
   let applied = 0;
   for (const stmt of migrations) {
