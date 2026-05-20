@@ -90104,14 +90104,20 @@ router4.get("/backup", requireBusiness, async (req, res) => {
       const { inArray: inArray2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       paymentAllocations = await db.select().from(paymentAllocationsTable3).where(inArray2(paymentAllocationsTable3.paymentId, paymentIds));
     }
+    const units = await db.select().from(unitsTable3).where(eq(unitsTable3.businessId, businessId));
+    const taxRates = await db.select().from(taxRatesTable3).where(eq(taxRatesTable3.businessId, businessId));
+    const hsnCodes = await db.select().from(hsnCodesTable3).where(eq(hsnCodesTable3.businessId, businessId));
     const filename = `bizcor-backup-${business?.businessCode || businessId}-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.json({
       exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      version: "2.0",
+      version: "2.1",
       business,
       users: users.map((u) => ({ ...u, passwordHash: void 0 })),
+      units,
+      taxRates,
+      hsnCodes,
       parties,
       items,
       vouchers,
@@ -90127,9 +90133,50 @@ router4.get("/backup", requireBusiness, async (req, res) => {
 router4.post("/restore", requireBusiness, async (req, res) => {
   try {
     const businessId = req.user.businessId;
-    const { parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
+    const { units = [], taxRates = [], hsnCodes = [], parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
     const { inArray: inArray2 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    let imported = { parties: 0, items: 0, vouchers: 0, payments: 0 };
+    let imported = { units: 0, taxRates: 0, hsnCodes: 0, parties: 0, items: 0, vouchers: 0, payments: 0 };
+    const existingUnits = await db.select().from(unitsTable3).where(eq(unitsTable3.businessId, businessId));
+    const existingUnitNames = new Set(existingUnits.map((u) => u.name?.toLowerCase()));
+    const unitIdMap = {};
+    for (const unit of units) {
+      const existing = existingUnits.find((e) => e.name?.toLowerCase() === unit.name?.toLowerCase());
+      if (existing) {
+        unitIdMap[unit.id] = existing.id;
+        continue;
+      }
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = unit;
+      const [inserted] = await db.insert(unitsTable3).values({ ...rest, businessId }).returning({ id: unitsTable3.id });
+      if (inserted) {
+        unitIdMap[oldId] = inserted.id;
+        imported.units++;
+      }
+    }
+    const existingTaxRates = await db.select().from(taxRatesTable3).where(eq(taxRatesTable3.businessId, businessId));
+    const existingTaxNames = new Set(existingTaxRates.map((t) => t.name?.toLowerCase()));
+    const taxRateIdMap = {};
+    for (const tr of taxRates) {
+      const existing = existingTaxRates.find((e) => e.name?.toLowerCase() === tr.name?.toLowerCase());
+      if (existing) {
+        taxRateIdMap[tr.id] = existing.id;
+        continue;
+      }
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = tr;
+      const [inserted] = await db.insert(taxRatesTable3).values({ ...rest, businessId }).returning({ id: taxRatesTable3.id });
+      if (inserted) {
+        taxRateIdMap[oldId] = inserted.id;
+        imported.taxRates++;
+      }
+    }
+    const existingHsn = await db.select().from(hsnCodesTable3).where(eq(hsnCodesTable3.businessId, businessId));
+    const existingHsnCodes = new Set(existingHsn.map((h) => h.code?.toLowerCase()));
+    for (const hsn of hsnCodes) {
+      if (existingHsnCodes.has(hsn.code?.toLowerCase())) continue;
+      const { id: _id, businessId: _bid, createdAt, ...rest } = hsn;
+      await db.insert(hsnCodesTable3).values({ ...rest, businessId }).catch(() => {
+      });
+      imported.hsnCodes++;
+    }
     const existingParties = await db.select().from(partiesTable3).where(eq(partiesTable3.businessId, businessId));
     const existingPartyNames = new Set(existingParties.map((p) => p.name?.toLowerCase()));
     const newParties = parties.filter((p) => !existingPartyNames.has(p.name?.toLowerCase()));
@@ -90209,7 +90256,7 @@ router4.post("/restore", requireBusiness, async (req, res) => {
     }
     res.json({
       success: true,
-      message: `Restore complete! ${imported.parties} parties, ${imported.items} items, ${imported.vouchers} vouchers, ${imported.payments} payments imported.`,
+      message: `Restore complete! ${imported.units} units, ${imported.taxRates} tax rates, ${imported.hsnCodes} HSN codes, ${imported.parties} parties, ${imported.items} items, ${imported.vouchers} vouchers, ${imported.payments} payments imported.`,
       imported
     });
   } catch (err) {

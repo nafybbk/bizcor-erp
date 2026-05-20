@@ -26,6 +26,15 @@ export default function Register() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Clear any stale session from previous login so register always starts fresh
+  React.useEffect(() => {
+    localStorage.removeItem("erp_token");
+    localStorage.removeItem("erp_user");
+    localStorage.removeItem("erp_business");
+    sessionStorage.removeItem("erp_token");
+    sessionStorage.removeItem("erp_user");
+  }, []);
   const [successData, setSuccessData] = useState<{ businessCode: string; businessName: string } | null>(null);
   const [form, setForm] = useState({
     businessName: "", gstin: "", pan: "", address: "", city: "", state: "", stateCode: "",

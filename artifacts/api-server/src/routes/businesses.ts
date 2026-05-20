@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, hsnCodesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
 const router = Router();
@@ -376,14 +376,21 @@ router.get("/backup", requireBusiness, async (req, res) => {
       paymentAllocations = await db.select().from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, paymentIds));
     }
 
+    const units = await db.select().from(unitsTable).where(eq(unitsTable.businessId, businessId));
+    const taxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
+    const hsnCodes = await db.select().from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
+
     const filename = `bizcor-backup-${business?.businessCode || businessId}-${new Date().toISOString().split("T")[0]}.json`;
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.json({
       exportedAt: new Date().toISOString(),
-      version: "2.0",
+      version: "2.1",
       business,
       users: users.map(u => ({ ...u, passwordHash: undefined })),
+      units,
+      taxRates,
+      hsnCodes,
       parties,
       items,
       vouchers,
@@ -398,10 +405,44 @@ router.get("/backup", requireBusiness, async (req, res) => {
 router.post("/restore", requireBusiness, async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const { parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
+    const { units = [], taxRates = [], hsnCodes = [], parties = [], items = [], vouchers = [], voucherItems = [], payments = [], paymentAllocations = [] } = req.body;
     const { inArray } = await import("drizzle-orm");
 
-    let imported = { parties: 0, items: 0, vouchers: 0, payments: 0 };
+    let imported = { units: 0, taxRates: 0, hsnCodes: 0, parties: 0, items: 0, vouchers: 0, payments: 0 };
+
+    // Restore units — skip if same name already exists
+    const existingUnits = await db.select().from(unitsTable).where(eq(unitsTable.businessId, businessId));
+    const existingUnitNames = new Set(existingUnits.map((u: any) => u.name?.toLowerCase()));
+    const unitIdMap: Record<number, number> = {};
+    for (const unit of units) {
+      const existing = existingUnits.find((e: any) => e.name?.toLowerCase() === unit.name?.toLowerCase());
+      if (existing) { unitIdMap[unit.id] = existing.id; continue; }
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = unit;
+      const [inserted] = await db.insert(unitsTable).values({ ...rest, businessId }).returning({ id: unitsTable.id });
+      if (inserted) { unitIdMap[oldId] = inserted.id; imported.units++; }
+    }
+
+    // Restore tax rates — skip if same name already exists
+    const existingTaxRates = await db.select().from(taxRatesTable).where(eq(taxRatesTable.businessId, businessId));
+    const existingTaxNames = new Set(existingTaxRates.map((t: any) => t.name?.toLowerCase()));
+    const taxRateIdMap: Record<number, number> = {};
+    for (const tr of taxRates) {
+      const existing = existingTaxRates.find((e: any) => e.name?.toLowerCase() === tr.name?.toLowerCase());
+      if (existing) { taxRateIdMap[tr.id] = existing.id; continue; }
+      const { id: oldId, businessId: _bid, createdAt, ...rest } = tr;
+      const [inserted] = await db.insert(taxRatesTable).values({ ...rest, businessId }).returning({ id: taxRatesTable.id });
+      if (inserted) { taxRateIdMap[oldId] = inserted.id; imported.taxRates++; }
+    }
+
+    // Restore HSN codes — skip if same code already exists
+    const existingHsn = await db.select().from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
+    const existingHsnCodes = new Set(existingHsn.map((h: any) => h.code?.toLowerCase()));
+    for (const hsn of hsnCodes) {
+      if (existingHsnCodes.has(hsn.code?.toLowerCase())) continue;
+      const { id: _id, businessId: _bid, createdAt, ...rest } = hsn;
+      await db.insert(hsnCodesTable).values({ ...rest, businessId }).catch(() => {});
+      imported.hsnCodes++;
+    }
 
     // Restore parties — skip if same businessId+name already exists
     const existingParties = await db.select().from(partiesTable).where(eq(partiesTable.businessId, businessId));
@@ -491,7 +532,7 @@ router.post("/restore", requireBusiness, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Restore complete! ${imported.parties} parties, ${imported.items} items, ${imported.vouchers} vouchers, ${imported.payments} payments imported.`,
+      message: `Restore complete! ${imported.units} units, ${imported.taxRates} tax rates, ${imported.hsnCodes} HSN codes, ${imported.parties} parties, ${imported.items} items, ${imported.vouchers} vouchers, ${imported.payments} payments imported.`,
       imported,
     });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
