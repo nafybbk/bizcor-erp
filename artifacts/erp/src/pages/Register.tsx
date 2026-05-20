@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { Building2, Loader2, Gift } from "lucide-react";
@@ -28,7 +28,7 @@ export default function Register() {
   const [error, setError] = useState("");
 
   // Clear any stale session from previous login so register always starts fresh
-  React.useEffect(() => {
+  useEffect(() => {
     localStorage.removeItem("erp_token");
     localStorage.removeItem("erp_user");
     localStorage.removeItem("erp_business");
