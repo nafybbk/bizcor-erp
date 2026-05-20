@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, pool } from "@workspace/db";
+import { db } from "@workspace/db";
 import {
   cashBankAccountsTable, expenseHeadsTable, expenseVouchersTable, contraEntriesTable,
   paymentsTable, partiesTable,
@@ -10,11 +10,15 @@ import { requireBusiness } from "../middlewares/auth";
 const router = Router();
 router.use(requireBusiness);
 
-// ─── Startup migration — create tables if missing ─────────────────────────
+// ─── Startup migration — only runs in PG mode (SQLite tables created in runSqliteInit) ────
+const isSQLite = !!process.env.SQLITE_PATH;
 let migrated = false;
 async function ensureTables() {
   if (migrated) return;
   migrated = true;
+  if (isSQLite) return; // SQLite tables already created in index.ts runSqliteInit
+  // PG-only migration
+  const { pool } = await import("@workspace/db");
   await pool.query(`
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_type') THEN
@@ -187,26 +191,37 @@ router.get("/expenses", async (req, res) => {
     if (accountId) conditions.push(eq(expenseVouchersTable.accountId, Number(accountId)));
     if (expenseHeadId) conditions.push(eq(expenseVouchersTable.expenseHeadId, Number(expenseHeadId)));
 
-    const rows = await pool.query(`
-      SELECT ev.*, eh.name as expense_head_name, cb.name as account_name
-      FROM expense_vouchers ev
-      LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
-      LEFT JOIN cash_bank_accounts cb ON ev.account_id = cb.id
-      WHERE ev.business_id = $1
-      ${fromDate ? `AND ev.date >= '${String(fromDate)}'` : ""}
-      ${toDate ? `AND ev.date <= '${String(toDate)}'` : ""}
-      ${accountId ? `AND ev.account_id = ${Number(accountId)}` : ""}
-      ${expenseHeadId ? `AND ev.expense_head_id = ${Number(expenseHeadId)}` : ""}
-      ORDER BY ev.date DESC, ev.id DESC
-      LIMIT ${Number(limit)} OFFSET ${(Number(page) - 1) * Number(limit)}
-    `, [businessId]);
+    const rows = await db.select({
+      id: expenseVouchersTable.id,
+      businessId: expenseVouchersTable.businessId,
+      expenseNumber: expenseVouchersTable.expenseNumber,
+      date: expenseVouchersTable.date,
+      expenseHeadId: expenseVouchersTable.expenseHeadId,
+      accountId: expenseVouchersTable.accountId,
+      amount: expenseVouchersTable.amount,
+      paymentMode: expenseVouchersTable.paymentMode,
+      referenceNumber: expenseVouchersTable.referenceNumber,
+      notes: expenseVouchersTable.notes,
+      createdAt: expenseVouchersTable.createdAt,
+      expenseHeadName: expenseHeadsTable.name,
+      accountName: cashBankAccountsTable.name,
+    }).from(expenseVouchersTable)
+      .leftJoin(expenseHeadsTable, eq(expenseVouchersTable.expenseHeadId, expenseHeadsTable.id))
+      .leftJoin(cashBankAccountsTable, eq(expenseVouchersTable.accountId, cashBankAccountsTable.id))
+      .where(and(...conditions))
+      .orderBy(desc(expenseVouchersTable.date), desc(expenseVouchersTable.id))
+      .limit(Number(limit))
+      .offset((Number(page) - 1) * Number(limit));
 
-    const countRow = await pool.query(`SELECT COUNT(*) as total, COALESCE(SUM(amount),0) as total_amount FROM expense_vouchers WHERE business_id = $1 ${fromDate ? `AND date >= '${String(fromDate)}'` : ""} ${toDate ? `AND date <= '${String(toDate)}'` : ""} ${accountId ? `AND account_id = ${Number(accountId)}` : ""} ${expenseHeadId ? `AND expense_head_id = ${Number(expenseHeadId)}` : ""}`, [businessId]);
+    const [{ total, totalAmount }] = await db.select({
+      total: sql<number>`count(*)`,
+      totalAmount: sql<number>`coalesce(sum(${expenseVouchersTable.amount}), 0)`,
+    }).from(expenseVouchersTable).where(and(...conditions));
 
     res.json({
-      data: rows.rows.map((r: any) => ({ ...r, amount: Number(r.amount) })),
-      total: Number(countRow.rows[0].total),
-      totalAmount: Number(countRow.rows[0].total_amount),
+      data: rows.map(r => ({ ...r, amount: Number(r.amount) })),
+      total: Number(total),
+      totalAmount: Number(totalAmount),
     });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
@@ -232,17 +247,27 @@ router.get("/expenses/:id", async (req, res) => {
   try {
     await ensureTables();
     const businessId = req.user!.businessId!;
-    const rows = await pool.query(
-      `SELECT ev.*, eh.name as expense_head_name, cb.name as account_name
-       FROM expense_vouchers ev
-       LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
-       LEFT JOIN cash_bank_accounts cb ON ev.account_id = cb.id
-       WHERE ev.id = $1 AND ev.business_id = $2`,
-      [Number(req.params.id), businessId]
-    );
-    if (!rows.rows.length) { res.status(404).json({ error: "Not Found" }); return; }
-    const r = rows.rows[0];
-    res.json({ ...r, amount: Number(r.amount), expenseHeadId: r.expense_head_id, accountId: r.account_id, paymentMode: r.payment_mode, referenceNumber: r.reference_number });
+    const rows = await db.select({
+      id: expenseVouchersTable.id,
+      businessId: expenseVouchersTable.businessId,
+      expenseNumber: expenseVouchersTable.expenseNumber,
+      date: expenseVouchersTable.date,
+      expenseHeadId: expenseVouchersTable.expenseHeadId,
+      accountId: expenseVouchersTable.accountId,
+      amount: expenseVouchersTable.amount,
+      paymentMode: expenseVouchersTable.paymentMode,
+      referenceNumber: expenseVouchersTable.referenceNumber,
+      notes: expenseVouchersTable.notes,
+      createdAt: expenseVouchersTable.createdAt,
+      expenseHeadName: expenseHeadsTable.name,
+      accountName: cashBankAccountsTable.name,
+    }).from(expenseVouchersTable)
+      .leftJoin(expenseHeadsTable, eq(expenseVouchersTable.expenseHeadId, expenseHeadsTable.id))
+      .leftJoin(cashBankAccountsTable, eq(expenseVouchersTable.accountId, cashBankAccountsTable.id))
+      .where(and(eq(expenseVouchersTable.id, Number(req.params.id)), eq(expenseVouchersTable.businessId, businessId)));
+    if (!rows.length) { res.status(404).json({ error: "Not Found" }); return; }
+    const r = rows[0];
+    res.json({ ...r, amount: Number(r.amount) });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
@@ -274,24 +299,50 @@ router.delete("/expenses/:id", async (req, res) => {
 });
 
 // ─── CONTRA ENTRIES ───────────────────────────────────────────────────────
+const fromAcct = { id: cashBankAccountsTable.id, name: cashBankAccountsTable.name };
+
 router.get("/contra", async (req, res) => {
   try {
     await ensureTables();
     const businessId = req.user!.businessId!;
     const { fromDate, toDate, page = "1", limit = "50" } = req.query;
-    const rows = await pool.query(`
-      SELECT ce.*, fa.name as from_account_name, ta.name as to_account_name
-      FROM contra_entries ce
-      LEFT JOIN cash_bank_accounts fa ON ce.from_account_id = fa.id
-      LEFT JOIN cash_bank_accounts ta ON ce.to_account_id = ta.id
-      WHERE ce.business_id = $1
-      ${fromDate ? `AND ce.date >= '${String(fromDate)}'` : ""}
-      ${toDate ? `AND ce.date <= '${String(toDate)}'` : ""}
-      ORDER BY ce.date DESC, ce.id DESC
-      LIMIT ${Number(limit)} OFFSET ${(Number(page) - 1) * Number(limit)}
-    `, [businessId]);
-    const countRow = await pool.query(`SELECT COUNT(*) as total FROM contra_entries WHERE business_id = $1 ${fromDate ? `AND date >= '${String(fromDate)}'` : ""} ${toDate ? `AND date <= '${String(toDate)}'` : ""}`, [businessId]);
-    res.json({ data: rows.rows.map((r: any) => ({ ...r, amount: Number(r.amount) })), total: Number(countRow.rows[0].total) });
+    const conditions: any[] = [eq(contraEntriesTable.businessId, businessId)];
+    if (fromDate) conditions.push(gte(contraEntriesTable.date, String(fromDate)));
+    if (toDate) conditions.push(lte(contraEntriesTable.date, String(toDate)));
+
+    // Use sqlite-compatible query — alias tables for from/to join
+    const fromAccountsTable = { ...cashBankAccountsTable } as typeof cashBankAccountsTable;
+    const toAccountsTable = { ...cashBankAccountsTable } as typeof cashBankAccountsTable;
+
+    // Fetch raw contra entries with businessId filter
+    const entries = await db.select().from(contraEntriesTable)
+      .where(and(...conditions))
+      .orderBy(desc(contraEntriesTable.date), desc(contraEntriesTable.id))
+      .limit(Number(limit))
+      .offset((Number(page) - 1) * Number(limit));
+
+    // Fetch all needed account names in one query
+    const accountIds = [...new Set(entries.flatMap(e => [e.fromAccountId, e.toAccountId]).filter(Boolean))] as number[];
+    let accountMap: Record<number, string> = {};
+    if (accountIds.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      const accs = await db.select({ id: cashBankAccountsTable.id, name: cashBankAccountsTable.name })
+        .from(cashBankAccountsTable).where(inArray(cashBankAccountsTable.id, accountIds));
+      for (const a of accs) accountMap[a.id] = a.name;
+    }
+
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` })
+      .from(contraEntriesTable).where(and(...conditions));
+
+    res.json({
+      data: entries.map(e => ({
+        ...e,
+        amount: Number(e.amount),
+        fromAccountName: accountMap[e.fromAccountId] || "",
+        toAccountName: accountMap[e.toAccountId] || "",
+      })),
+      total: Number(total),
+    });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
@@ -323,8 +374,6 @@ router.delete("/contra/:id", async (req, res) => {
 });
 
 // ─── CASH BOOK / BANK STATEMENT ───────────────────────────────────────────
-// Returns all transactions for a specific account (cash or bank)
-// In: receipts/payments with accountId, expenses paid from account, contra entries
 router.get("/statement", async (req, res) => {
   try {
     await ensureTables();
@@ -336,67 +385,99 @@ router.get("/statement", async (req, res) => {
     const dateFrom = fromDate ? String(fromDate) : "1900-01-01";
     const dateTo = toDate ? String(toDate) : "2999-12-31";
 
-    // Fetch account
-    const accRows = await pool.query(`SELECT * FROM cash_bank_accounts WHERE id = $1 AND business_id = $2`, [accId, businessId]);
-    if (!accRows.rows.length) { res.status(404).json({ error: "Account not found" }); return; }
-    const account = accRows.rows[0];
+    const [account] = await db.select().from(cashBankAccountsTable)
+      .where(and(eq(cashBankAccountsTable.id, accId), eq(cashBankAccountsTable.businessId, businessId)));
+    if (!account) { res.status(404).json({ error: "Account not found" }); return; }
 
+    const openingBalance = Number(account.openingBalance);
+    const isCashAccount = account.type === "cash";
     const entries: any[] = [];
 
-    // Opening balance
-    const openingBalance = Number(account.opening_balance);
+    // Receipts/Payments linked to this account
+    const pmtConditions: any[] = [
+      eq(paymentsTable.businessId, businessId),
+      gte(paymentsTable.date, dateFrom),
+      lte(paymentsTable.date, dateTo),
+    ];
+    const allPayments = await db.select({
+      id: paymentsTable.id,
+      date: paymentsTable.date,
+      type: paymentsTable.type,
+      paymentNumber: paymentsTable.paymentNumber,
+      amount: paymentsTable.amount,
+      accountId: paymentsTable.accountId,
+      paymentMode: paymentsTable.paymentMode,
+      partyName: partiesTable.name,
+    }).from(paymentsTable)
+      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
+      .where(and(...pmtConditions));
 
-    // Receipts linked to this account
-    // For cash accounts: also include payments where payment_mode='cash' and account_id is null (legacy/unlinked)
-    const isCashAccount = account.type === "cash";
-    const receipts = await pool.query(`
-      SELECT p.*, pa.name as party_name FROM payments p
-      LEFT JOIN parties pa ON p.party_id = pa.id
-      WHERE p.business_id = $1
-        AND p.date BETWEEN $3 AND $4
-        AND (p.account_id = $2 ${isCashAccount ? "OR (p.account_id IS NULL AND p.payment_mode = 'cash')" : ""})
-    `, [businessId, accId, dateFrom, dateTo]);
-    for (const r of receipts.rows) {
-      if (r.type === "receipt") {
-        entries.push({ date: r.date, type: "receipt", number: r.payment_number, narration: `Receipt - ${r.party_name || ""}`, debit: Number(r.amount), credit: 0 });
+    for (const p of allPayments) {
+      const linked = p.accountId === accId || (isCashAccount && p.accountId === null && p.paymentMode === "cash");
+      if (!linked) continue;
+      if (p.type === "receipt") {
+        entries.push({ date: p.date, type: "receipt", number: p.paymentNumber, narration: `Receipt - ${p.partyName || ""}`, debit: Number(p.amount), credit: 0 });
       } else {
-        entries.push({ date: r.date, type: "payment", number: r.payment_number, narration: `Payment - ${r.party_name || ""}`, debit: 0, credit: Number(r.amount) });
+        entries.push({ date: p.date, type: "payment", number: p.paymentNumber, narration: `Payment - ${p.partyName || ""}`, debit: 0, credit: Number(p.amount) });
       }
     }
 
     // Expenses from this account
-    const expenses = await pool.query(`
-      SELECT ev.*, eh.name as head_name FROM expense_vouchers ev
-      LEFT JOIN expense_heads eh ON ev.expense_head_id = eh.id
-      WHERE ev.business_id = $1 AND ev.account_id = $2 AND ev.date BETWEEN $3 AND $4
-    `, [businessId, accId, dateFrom, dateTo]);
-    for (const e of expenses.rows) {
-      entries.push({ date: e.date, type: "expense", number: e.expense_number, narration: `Expense - ${e.head_name || ""}`, debit: 0, credit: Number(e.amount) });
+    const expRows = await db.select({
+      date: expenseVouchersTable.date,
+      expenseNumber: expenseVouchersTable.expenseNumber,
+      amount: expenseVouchersTable.amount,
+      headName: expenseHeadsTable.name,
+    }).from(expenseVouchersTable)
+      .leftJoin(expenseHeadsTable, eq(expenseVouchersTable.expenseHeadId, expenseHeadsTable.id))
+      .where(and(
+        eq(expenseVouchersTable.businessId, businessId),
+        eq(expenseVouchersTable.accountId, accId),
+        gte(expenseVouchersTable.date, dateFrom),
+        lte(expenseVouchersTable.date, dateTo),
+      ));
+    for (const e of expRows) {
+      entries.push({ date: e.date, type: "expense", number: e.expenseNumber, narration: `Expense - ${e.headName || ""}`, debit: 0, credit: Number(e.amount) });
     }
 
-    // Contra entries — from this account (outflow), to this account (inflow)
-    const contraFrom = await pool.query(`
-      SELECT ce.*, ta.name as other_account FROM contra_entries ce
-      LEFT JOIN cash_bank_accounts ta ON ce.to_account_id = ta.id
-      WHERE ce.business_id = $1 AND ce.from_account_id = $2 AND ce.date BETWEEN $3 AND $4
-    `, [businessId, accId, dateFrom, dateTo]);
-    for (const c of contraFrom.rows) {
-      entries.push({ date: c.date, type: "contra", number: c.contra_number, narration: `Contra - Transferred to ${c.other_account}`, debit: 0, credit: Number(c.amount) });
+    // Contra: outflow from this account
+    const contraOutRows = await db.select({
+      date: contraEntriesTable.date,
+      contraNumber: contraEntriesTable.contraNumber,
+      amount: contraEntriesTable.amount,
+      otherAccount: cashBankAccountsTable.name,
+    }).from(contraEntriesTable)
+      .leftJoin(cashBankAccountsTable, eq(contraEntriesTable.toAccountId, cashBankAccountsTable.id))
+      .where(and(
+        eq(contraEntriesTable.businessId, businessId),
+        eq(contraEntriesTable.fromAccountId, accId),
+        gte(contraEntriesTable.date, dateFrom),
+        lte(contraEntriesTable.date, dateTo),
+      ));
+    for (const c of contraOutRows) {
+      entries.push({ date: c.date, type: "contra", number: c.contraNumber, narration: `Contra - Transferred to ${c.otherAccount || ""}`, debit: 0, credit: Number(c.amount) });
     }
 
-    const contraTo = await pool.query(`
-      SELECT ce.*, fa.name as other_account FROM contra_entries ce
-      LEFT JOIN cash_bank_accounts fa ON ce.from_account_id = fa.id
-      WHERE ce.business_id = $1 AND ce.to_account_id = $2 AND ce.date BETWEEN $3 AND $4
-    `, [businessId, accId, dateFrom, dateTo]);
-    for (const c of contraTo.rows) {
-      entries.push({ date: c.date, type: "contra", number: c.contra_number, narration: `Contra - Received from ${c.other_account}`, debit: Number(c.amount), credit: 0 });
+    // Contra: inflow to this account
+    const contraInRows = await db.select({
+      date: contraEntriesTable.date,
+      contraNumber: contraEntriesTable.contraNumber,
+      amount: contraEntriesTable.amount,
+      otherAccount: cashBankAccountsTable.name,
+    }).from(contraEntriesTable)
+      .leftJoin(cashBankAccountsTable, eq(contraEntriesTable.fromAccountId, cashBankAccountsTable.id))
+      .where(and(
+        eq(contraEntriesTable.businessId, businessId),
+        eq(contraEntriesTable.toAccountId, accId),
+        gte(contraEntriesTable.date, dateFrom),
+        lte(contraEntriesTable.date, dateTo),
+      ));
+    for (const c of contraInRows) {
+      entries.push({ date: c.date, type: "contra", number: c.contraNumber, narration: `Contra - Received from ${c.otherAccount || ""}`, debit: Number(c.amount), credit: 0 });
     }
 
-    // Sort by date
-    entries.sort((a, b) => a.date.localeCompare(b.date) || 0);
+    entries.sort((a, b) => a.date.localeCompare(b.date));
 
-    // Running balance
     let balance = openingBalance;
     const withBalance = entries.map(e => {
       balance += e.debit - e.credit;
@@ -405,7 +486,6 @@ router.get("/statement", async (req, res) => {
 
     const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
     const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
-    const closingBalance = openingBalance + totalDebit - totalCredit;
 
     res.json({
       account: { ...account, openingBalance },
@@ -413,7 +493,7 @@ router.get("/statement", async (req, res) => {
       entries: withBalance,
       totalDebit,
       totalCredit,
-      closingBalance,
+      closingBalance: openingBalance + totalDebit - totalCredit,
     });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
@@ -423,26 +503,35 @@ router.get("/balances", async (req, res) => {
   try {
     await ensureTables();
     const businessId = req.user!.businessId!;
-    const accounts = await pool.query(`SELECT * FROM cash_bank_accounts WHERE business_id = $1 AND is_active = true ORDER BY type, name`, [businessId]);
+    const accounts = await db.select().from(cashBankAccountsTable)
+      .where(and(eq(cashBankAccountsTable.businessId, businessId), eq(cashBankAccountsTable.isActive, true)))
+      .orderBy(asc(cashBankAccountsTable.name));
 
-    const result = await Promise.all(accounts.rows.map(async (acc: any) => {
+    const result = await Promise.all(accounts.map(async (acc) => {
       const accId = acc.id;
-      const openingBalance = Number(acc.opening_balance);
+      const openingBalance = Number(acc.openingBalance);
 
-      const receiptSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE business_id=$1 AND account_id=$2 AND type='receipt'`, [businessId, accId]);
-      const paymentSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE business_id=$1 AND account_id=$2 AND type='payment'`, [businessId, accId]);
-      const expenseSum = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM expense_vouchers WHERE business_id=$1 AND account_id=$2`, [businessId, accId]);
-      const contraOut = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM contra_entries WHERE business_id=$1 AND from_account_id=$2`, [businessId, accId]);
-      const contraIn = await pool.query(`SELECT COALESCE(SUM(amount),0) as s FROM contra_entries WHERE business_id=$1 AND to_account_id=$2`, [businessId, accId]);
+      const [receiptRow] = await db.select({ s: sql<number>`coalesce(sum(${paymentsTable.amount}), 0)` })
+        .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.accountId, accId), eq(paymentsTable.type, "receipt")));
+      const [paymentRow] = await db.select({ s: sql<number>`coalesce(sum(${paymentsTable.amount}), 0)` })
+        .from(paymentsTable).where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.accountId, accId), eq(paymentsTable.type, "payment")));
+      const [expenseRow] = await db.select({ s: sql<number>`coalesce(sum(${expenseVouchersTable.amount}), 0)` })
+        .from(expenseVouchersTable).where(and(eq(expenseVouchersTable.businessId, businessId), eq(expenseVouchersTable.accountId, accId)));
+      const [contraOutRow] = await db.select({ s: sql<number>`coalesce(sum(${contraEntriesTable.amount}), 0)` })
+        .from(contraEntriesTable).where(and(eq(contraEntriesTable.businessId, businessId), eq(contraEntriesTable.fromAccountId, accId)));
+      const [contraInRow] = await db.select({ s: sql<number>`coalesce(sum(${contraEntriesTable.amount}), 0)` })
+        .from(contraEntriesTable).where(and(eq(contraEntriesTable.businessId, businessId), eq(contraEntriesTable.toAccountId, accId)));
 
       const balance = openingBalance
-        + Number(receiptSum.rows[0].s)
-        - Number(paymentSum.rows[0].s)
-        - Number(expenseSum.rows[0].s)
-        - Number(contraOut.rows[0].s)
-        + Number(contraIn.rows[0].s);
+        + Number(receiptRow.s) - Number(paymentRow.s)
+        - Number(expenseRow.s)
+        - Number(contraOutRow.s) + Number(contraInRow.s);
 
-      return { id: acc.id, name: acc.name, type: acc.type, bankName: acc.bank_name, accountNumber: acc.account_number, openingBalance, balance };
+      return {
+        id: acc.id, name: acc.name, type: acc.type,
+        bankName: acc.bankName, accountNumber: acc.accountNumber,
+        openingBalance, balance,
+      };
     }));
 
     res.json(result);
