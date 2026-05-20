@@ -4,10 +4,9 @@ import { eq, sql } from "drizzle-orm";
 import { requireBusiness, signToken } from "../middlewares/auth";
 
 const router = Router();
-router.use(requireBusiness);
 
 // ─── Cloud: Redeem voucher directly against PostgreSQL ───────────────────────
-router.post("/redeem-voucher", async (req, res) => {
+router.post("/redeem-voucher", requireBusiness, async (req, res) => {
   try {
     const { code } = req.body;
     if (!code) {
@@ -90,7 +89,7 @@ router.post("/redeem-voucher", async (req, res) => {
 });
 
 // ─── Offline EXE: validate voucher via cloud, update local SQLite ────────────
-router.post("/redeem-voucher-offline", async (req, res) => {
+router.post("/redeem-voucher-offline", requireBusiness, async (req, res) => {
   try {
     const { code, hardwareFingerprint } = req.body;
     if (!code) {
