@@ -245,12 +245,16 @@ router.use("/auth/webauthn", webauthnRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 
+// Businesses router — BEFORE licenseVouchersRouter and requireActivePlan.
+// POST /businesses/register is public (no auth). Other routes inside use per-route requireBusiness.
+// Mounting here guarantees /register is NEVER blocked by any downstream auth middleware.
+router.use("/businesses", businessesRouter);
+
 // License vouchers — BEFORE requireActivePlan so businesses with no plan can activate
 router.use(licenseVouchersRouter);
 
-// All business routes — plan expiry enforced on every call
+// All other routes — plan expiry enforced on every call
 router.use(requireActivePlan);
-router.use("/businesses", businessesRouter);
 router.use("/users", usersRouter);
 router.use("/parties", partiesRouter);
 router.use("/items", itemsRouter);
