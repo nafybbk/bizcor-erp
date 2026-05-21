@@ -541,6 +541,23 @@ async function runPgMigrations() {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS support_messages_session_idx ON support_messages(session_id)
     `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        from_user_id INTEGER NOT NULL,
+        from_user_name TEXT NOT NULL,
+        message TEXT,
+        file_data TEXT,
+        file_name TEXT,
+        file_mime_type TEXT,
+        file_size INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)
+    `);
     logger.info("PG migrations applied");
   } catch (err) {
     logger.error({ err }, "PG migration failed (non-fatal)");

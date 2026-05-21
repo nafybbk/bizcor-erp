@@ -18,6 +18,7 @@ import LocationModal from "@/components/LocationModal";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import { WindowManagerProvider } from "@/components/WindowManager";
 import ReferralBanner from "@/components/ReferralBanner";
+import InternalChat from "@/components/InternalChat";
 import TrialBanner from "@/components/TrialBanner";
 
 interface NavItem {
@@ -755,6 +756,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </div>
     {!isSuperAdmin() && <FloatingActionButton />}
     {!isSuperAdmin() && <ReferralBanner />}
+    {!isSuperAdmin() && <InternalChat />}
     </WindowManagerProvider>
   );
 }

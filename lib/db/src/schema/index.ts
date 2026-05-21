@@ -5,3 +5,4 @@ export * from "./vouchers";
 export * from "./payments";
 export * from "./cashBank";
 export * from "./supportMessages";
+export * from "./chat";

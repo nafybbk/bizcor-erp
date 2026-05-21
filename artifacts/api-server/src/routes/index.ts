@@ -19,6 +19,7 @@ import webauthnRouter from "./webauthn";
 import cashBankRouter from "./cashBank";
 import importDataRouter from "./importData";
 import supportChatRouter from "./supportChat";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -270,5 +271,6 @@ router.use("/accounting", accountingRouter);
 router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/cash-bank", cashBankRouter);
+router.use(chatRouter);
 
 export default router;
