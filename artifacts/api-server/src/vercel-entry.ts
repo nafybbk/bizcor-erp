@@ -13,8 +13,9 @@ async function q(text: string) {
     } else {
       await db.execute(sql.raw(text));
     }
-  } catch {
-    // ignore — already applied or irrelevant
+  } catch (err) {
+    // log so we can see in Vercel function logs
+    console.error("[migration] failed:", text.slice(0, 60), "|", err instanceof Error ? err.message : err);
   }
 }
 
