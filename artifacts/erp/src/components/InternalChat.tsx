@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, X, Send, Loader2, Paperclip, Download, Trash2, File } from "lucide-react";
+import { MessageSquare, X, Send, Loader2, Paperclip, Download, Trash2, File, GripHorizontal } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -86,9 +86,12 @@ function FilePreview({ msg }: { msg: ChatMsg }) {
   );
 }
 
-export default function InternalChat() {
+export default function InternalChat({ open, onToggle, onUnreadChange }: {
+  open: boolean;
+  onToggle: () => void;
+  onUnreadChange?: (n: number) => void;
+}) {
   const { user, isSuperAdmin } = useAuth();
-  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -97,6 +100,8 @@ export default function InternalChat() {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [chatSize, setChatSize] = useState({ w: 340, h: 480 });
+  const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
   const lastIdRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -108,6 +113,31 @@ export default function InternalChat() {
       setIsDesktop(d?.mode === "desktop");
     }).catch(() => {});
   }, []);
+
+  // Notify parent of unread count changes
+  useEffect(() => { onUnreadChange?.(unread); }, [unread]);
+
+  // Resize drag handler
+  const onResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeDragRef.current = { startX: e.clientX, startY: e.clientY, startW: chatSize.w, startH: chatSize.h };
+    const onMove = (me: MouseEvent) => {
+      if (!resizeDragRef.current) return;
+      const dw = me.clientX - resizeDragRef.current.startX;
+      const dh = me.clientY - resizeDragRef.current.startY;
+      setChatSize({
+        w: Math.max(260, Math.min(700, resizeDragRef.current.startW + dw)),
+        h: Math.max(280, Math.min(window.innerHeight - 80, resizeDragRef.current.startH + dh)),
+      });
+    };
+    const onUp = () => {
+      resizeDragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   if (isSuperAdmin()) return null;
 
@@ -222,28 +252,11 @@ export default function InternalChat() {
 
   return (
     <>
-      {/* Left-side pull tab */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="fixed left-0 z-40 flex flex-col items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl transition-all active:scale-95 print:hidden"
-        style={{ top: "50%", transform: "translateY(-50%)", width: 28, height: 80, borderRadius: "0 10px 10px 0" }}
-        aria-label="Staff Chat"
-        title="Staff Chat"
-      >
-        <MessageSquare className="w-4 h-4 flex-shrink-0" />
-        <span className="text-[9px] font-bold tracking-wide leading-none" style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}>CHAT</span>
-        {unread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center shadow">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </button>
-
-      {/* Chat Panel — slides in from left */}
+      {/* Chat Panel — opens below topbar on the right */}
       {open && (
         <div
-          className="fixed z-40 flex flex-col bg-slate-900 shadow-2xl border border-slate-700 overflow-hidden print:hidden"
-          style={{ left: 28, top: "50%", transform: "translateY(-50%)", width: "min(340px, calc(100vw - 36px))", height: 500, borderRadius: "0 16px 16px 0" }}
+          className="fixed z-50 flex flex-col bg-slate-900 shadow-2xl border border-slate-700 rounded-2xl overflow-hidden print:hidden select-none"
+          style={{ top: 52, right: 8, width: chatSize.w, height: chatSize.h, maxWidth: "calc(100vw - 16px)", maxHeight: "calc(100vh - 60px)" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0">
@@ -252,7 +265,7 @@ export default function InternalChat() {
               <span className="text-white font-semibold text-sm">Staff Chat</span>
               <span className="text-slate-400 text-xs">— sirf aapki team</span>
             </div>
-            <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white transition-colors">
+            <button onClick={onToggle} className="text-slate-400 hover:text-white transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -370,6 +383,15 @@ export default function InternalChat() {
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </form>
+          </div>
+
+          {/* Resize handle — bottom-right drag corner */}
+          <div
+            onMouseDown={onResizeMouseDown}
+            className="absolute bottom-0 right-0 w-6 h-6 flex items-end justify-end pb-1 pr-1 cursor-se-resize text-slate-500 hover:text-slate-300 z-10"
+            title="Drag to resize"
+          >
+            <GripHorizontal className="w-3.5 h-3.5 rotate-45" />
           </div>
         </div>
       )}

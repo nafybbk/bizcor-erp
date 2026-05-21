@@ -153,6 +153,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [isOnline, setIsOnline] = useState(true);
   const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
@@ -245,8 +247,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       try {
         const h = await api.get<{ status: string; mode?: string }>("/healthz");
         if (h.mode) setAppMode(h.mode as "desktop" | "cloud");
-        // Desktop = local server always running; stale forceOffline makes no sense → auto-clear
-        if (h.mode === "desktop" && forceOffline) {
+        // Auto-clear forceOffline when API responds — makes no sense on cloud, and stale on desktop
+        if (forceOffline) {
           localStorage.removeItem("erp_force_offline");
           setForceOffline(false);
         }
@@ -665,22 +667,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <img src={bizLogo} alt="Logo" className="h-7 w-auto object-contain" />
           )}
 
-          {/* Server mode marquee strip */}
+          {/* Server mode marquee + Staff Chat button */}
           {appMode && (() => {
             const isDesktop = appMode === "desktop";
             const msgs = isDesktop
-              ? ["🖥 BizCor LAN Server", "⚡ Fast Local Network", "🔒 Data Stays on Your PC", "📦 Offline Ready", "🖥 BizCor LAN Server", "⚡ Fast Local Network", "🔒 Data Stays on Your PC", "📦 Offline Ready"]
-              : ["☁ BizCor Cloud", "🌐 Sync Across Devices", "🔐 Secure & Encrypted", "📊 Always Up to Date", "☁ BizCor Cloud", "🌐 Sync Across Devices", "🔐 Secure & Encrypted", "📊 Always Up to Date"];
-            const text = msgs.join("   •   ");
+              ? ["🖥 LAN Server", "⚡ Fast", "🔒 Local", "📦 Offline", "🖥 LAN Server", "⚡ Fast", "🔒 Local", "📦 Offline"]
+              : ["☁ Cloud", "🌐 Sync", "🔐 Secure", "📊 Live", "☁ Cloud", "🌐 Sync", "🔐 Secure", "📊 Live"];
+            const text = msgs.join("  •  ");
             return (
-              <div className={`relative flex items-center overflow-hidden rounded-lg h-7 w-56 sm:w-80 flex-shrink-0 ${isDesktop ? "bg-indigo-600" : "bg-emerald-600"}`}>
-                <style>{`@keyframes biz-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
-                <span
-                  className="absolute whitespace-nowrap text-white text-[11px] font-semibold tracking-wide px-2"
-                  style={{ animation: "biz-marquee 18s linear infinite" }}
-                >
-                  {text}
-                </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className={`relative flex items-center overflow-hidden rounded-md h-5 w-28 sm:w-40 ${isDesktop ? "bg-indigo-600" : "bg-emerald-600"}`}>
+                  <style>{`@keyframes biz-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+                  <span
+                    className="absolute whitespace-nowrap text-white text-[10px] font-semibold tracking-wide px-2"
+                    style={{ animation: "biz-marquee 14s linear infinite" }}
+                  >
+                    {text}
+                  </span>
+                </div>
+                {!isSuperAdmin() && (
+                  <button
+                    onClick={() => setChatOpen(o => !o)}
+                    className={`relative flex items-center justify-center w-6 h-6 rounded-md text-white transition-all flex-shrink-0 ${chatOpen ? "bg-slate-600" : "bg-emerald-600 hover:bg-emerald-700"}`}
+                    title="Staff Chat"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    {chatUnread > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">
+                        {chatUnread > 9 ? "9+" : chatUnread}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
             );
           })()}
@@ -756,7 +774,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </div>
     {!isSuperAdmin() && <FloatingActionButton />}
     {!isSuperAdmin() && <ReferralBanner />}
-    {!isSuperAdmin() && <InternalChat />}
+    {!isSuperAdmin() && <InternalChat open={chatOpen} onToggle={() => setChatOpen(o => !o)} onUnreadChange={setChatUnread} />}
     </WindowManagerProvider>
   );
 }
