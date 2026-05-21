@@ -7,7 +7,7 @@ const BASE = import.meta.env.VITE_API_URL
 // Tech admin token is stored in sessionStorage (tab-isolated) so it does not
 // overwrite the business user token stored in localStorage when both panels
 // are open in different tabs of the same browser.
-function getToken(): string | null {
+export function getToken(): string | null {
   return sessionStorage.getItem("erp_token") || localStorage.getItem("erp_token");
 }
 

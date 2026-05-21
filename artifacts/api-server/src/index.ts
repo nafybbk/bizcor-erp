@@ -548,7 +548,7 @@ async function runPgMigrations() {
         from_user_id INTEGER NOT NULL,
         from_user_name TEXT NOT NULL,
         message TEXT,
-        file_data TEXT,
+        file_path TEXT,
         file_name TEXT,
         file_mime_type TEXT,
         file_size INTEGER,
@@ -557,6 +557,20 @@ async function runPgMigrations() {
     `);
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)
+    `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='chat_messages' AND column_name='file_data') THEN
+          ALTER TABLE chat_messages DROP COLUMN file_data;
+        END IF;
+      END $$
+    `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='chat_messages' AND column_name='file_path') THEN
+          ALTER TABLE chat_messages ADD COLUMN file_path TEXT;
+        END IF;
+      END $$
     `);
     logger.info("PG migrations applied");
   } catch (err) {

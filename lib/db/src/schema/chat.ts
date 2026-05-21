@@ -8,7 +8,7 @@ export const chatMessagesTable = pgTable("chat_messages", {
   fromUserId: integer("from_user_id").notNull().references(() => usersTable.id),
   fromUserName: text("from_user_name").notNull(),
   message: text("message"),
-  fileData: text("file_data"),
+  filePath: text("file_path"),
   fileName: text("file_name"),
   fileMimeType: text("file_mime_type"),
   fileSize: integer("file_size"),
