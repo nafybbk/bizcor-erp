@@ -23,7 +23,8 @@ router.post("/support-chat/messages", async (req, res) => {
     res.json({ success: true, id: row?.id });
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
+    const cause = (err as any)?.cause;
+    res.status(500).json({ error: "Server error", detail: cause?.message || (err instanceof Error ? err.message : String(err)), code: cause?.code });
   }
 });
 
