@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Download, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2, FolderOpen, FolderX } from "lucide-react";
-import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupported } from "@/lib/localDataFolder";
+import { Loader2, Save, Wifi, WifiOff, Database, X, Ticket, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { getLang, t } from "@/lib/lang";
 
@@ -36,61 +35,6 @@ const TYPE_INFO: Record<string, string> = {
   hardware: "Invoice will include: Brand, Model No fields",
 };
 
-function OfflineDataFolderSection() {
-  const [folderName, setFolderName] = useState<string | null>(getDataFolderName());
-  const [picking, setPicking] = useState(false);
-
-  const handlePick = async () => {
-    setPicking(true);
-    try {
-      const result = await pickDataFolder();
-      if (result) setFolderName(result.name);
-    } finally { setPicking(false); }
-  };
-
-  const handleClear = async () => {
-    await clearDataFolder();
-    setFolderName(null);
-  };
-
-  const lang = getLang();
-  if (!isFileSystemSupported()) {
-    return (
-      <div className="py-2 text-xs text-gray-400">
-        <FolderOpen className="w-3.5 h-3.5 inline mr-1" />
-        {t("offlineDraftsChromeOnly", lang)}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center justify-between py-2 border-t border-gray-50 mt-1">
-      <div>
-        <div className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-          <FolderOpen className="w-4 h-4 text-blue-500" /> {t("offlineDataFolder", lang)}
-        </div>
-        <div className="text-xs text-gray-500 mt-0.5">
-          {folderName
-            ? <span className="text-blue-600 font-medium">📁 {folderName}</span>
-            : t("offlineDraftsFolderDesc", lang)}
-        </div>
-      </div>
-      <div className="flex gap-2">
-        {folderName && (
-          <button type="button" onClick={handleClear}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
-            <FolderX className="w-3.5 h-3.5" /> {t("removeFolderBtn", lang)}
-          </button>
-        )}
-        <button type="button" onClick={handlePick} disabled={picking}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium disabled:opacity-60 transition-colors">
-          {picking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-          {folderName ? t("changeFolderBtn", lang) : t("chooseFolder", lang)}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function BusinessSettings() {
   const statesList = useStates();
@@ -100,10 +44,6 @@ export default function BusinessSettings() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  const [backupLoading, setBackupLoading] = useState(false);
-  const [restoreLoading, setRestoreLoading] = useState(false);
-  const [restoreResult, setRestoreResult] = useState<{ success: boolean; message: string } | null>(null);
-  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [repairLoading, setRepairLoading] = useState(false);
   const [repairResult, setRepairResult] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -161,51 +101,6 @@ export default function BusinessSettings() {
     } finally { setRepairLoading(false); }
   };
 
-  const downloadBackup = async () => {
-    setBackupLoading(true);
-    try {
-      const token = localStorage.getItem("erp_token");
-      const res = await fetch(`${import.meta.env.BASE_URL}api/businesses/backup`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `bizcor-backup-${form.businessCode || "business"}-${new Date().toISOString().split("T")[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally { setBackupLoading(false); }
-  };
-
-  const restoreBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setRestoreLoading(true);
-    setRestoreResult(null);
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data.parties && !data.items && !data.vouchers) {
-        setRestoreResult({ success: false, message: "Galat file format — BizCor backup JSON chahiye" });
-        return;
-      }
-      const res = await api.post<any>("/businesses/restore", {
-        parties: data.parties || [],
-        items: data.items || [],
-        vouchers: data.vouchers || [],
-        voucherItems: data.voucherItems || [],
-        payments: data.payments || [],
-        paymentAllocations: data.paymentAllocations || [],
-      });
-      setRestoreResult({ success: true, message: res.message });
-    } catch (err: any) {
-      setRestoreResult({ success: false, message: err.message || "Restore fail ho gaya" });
-    } finally {
-      setRestoreLoading(false);
-      if (restoreInputRef.current) restoreInputRef.current.value = "";
-    }
-  };
 
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
@@ -216,11 +111,6 @@ export default function BusinessSettings() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Business Settings</h1>
         <div className="flex gap-3">
-          <button type="button" onClick={downloadBackup} disabled={backupLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-            {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Backup
-          </button>
           <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saving ? "Saving..." : "Save Changes"}
@@ -525,7 +415,7 @@ export default function BusinessSettings() {
       {/* Connection */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2">
-          <Database className="w-4 h-4" /> Connection & Backup
+          <Database className="w-4 h-4" /> Connection
         </h3>
         <div className="flex items-center justify-between py-2 border-b border-gray-50">
           <div>
@@ -537,36 +427,6 @@ export default function BusinessSettings() {
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${isOnline ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
             {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
             {isOnline ? "Online" : "Offline"}
-          </div>
-        </div>
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <div className="text-sm font-medium text-gray-700">Poora Data Backup (JSON)</div>
-            <div className="text-xs text-gray-500 mt-0.5">Parties, Items, Invoices, Payments sab</div>
-          </div>
-          <button type="button" onClick={downloadBackup} disabled={backupLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-            {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Backup
-          </button>
-        </div>
-        <div className="flex items-center justify-between py-2 border-t border-gray-100">
-          <div>
-            <div className="text-sm font-medium text-gray-700">Data Restore (JSON Backup)</div>
-            <div className="text-xs text-gray-500 mt-0.5">Backup file se data import karo (existing records skip honge)</div>
-            {restoreResult && (
-              <div className={`text-xs mt-1 font-medium ${restoreResult.success ? "text-green-600" : "text-red-600"}`}>
-                {restoreResult.success ? "✅ " : "❌ "}{restoreResult.message}
-              </div>
-            )}
-          </div>
-          <div>
-            <input ref={restoreInputRef} type="file" accept=".json" className="hidden" onChange={restoreBackup} />
-            <button type="button" onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-              {restoreLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              Restore
-            </button>
           </div>
         </div>
         <div className="flex items-center justify-between py-2 border-t border-gray-100">
@@ -583,8 +443,6 @@ export default function BusinessSettings() {
         </div>
 
         {/* Offline Data Folder */}
-        <OfflineDataFolderSection />
-
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
           <input className={inputCls + " bg-gray-50 text-gray-500 font-mono tracking-widest"} value={form.businessCode || ""} readOnly /></div>
       </div>
