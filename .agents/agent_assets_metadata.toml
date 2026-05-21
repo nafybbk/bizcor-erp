@@ -36,6 +36,24 @@ uri = "file://attached_assets/bizcor_logo_v6.png"
 type = "image"
 title = "bizcor logo v6 saffron B growth"
 
+[[generated]]
+id = "sYhv61-Sss1oDI4cC2wd2"
+uri = "file://artifacts/bizcor-conference/public/hero-cloud-lan.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "MMMVYHOjwyx13umfdEapp"
+uri = "file://artifacts/bizcor-conference/public/gst-invoice.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "AtLSXOvzWNf-8gc7FqXjN"
+uri = "file://artifacts/bizcor-conference/public/data-backup.png"
+type = "image"
+title = "generated_image"
+
 [[outputs]]
 id = "zAHhzwifTSPwZP4yZAY2J"
 uri = "file://DEPLOY.md"
