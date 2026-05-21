@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, X, Send, Loader2, Paperclip, Download, Trash2, ChevronDown, File } from "lucide-react";
+import { MessageSquare, X, Send, Loader2, Paperclip, Download, Trash2, File } from "lucide-react";
 import { getToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -215,32 +215,28 @@ export default function InternalChat() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Left-side pull tab */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="fixed bottom-5 right-5 z-40 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-xl transition-all hover:scale-105 active:scale-95"
-        style={{ width: 52, height: 52 }}
+        className="fixed left-0 z-40 flex flex-col items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl transition-all active:scale-95 print:hidden"
+        style={{ top: "50%", transform: "translateY(-50%)", width: 28, height: 80, borderRadius: "0 10px 10px 0" }}
         aria-label="Staff Chat"
         title="Staff Chat"
       >
-        {open
-          ? <ChevronDown className="w-5 h-5" />
-          : <>
-              <MessageSquare className="w-5 h-5" />
-              {unread > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              )}
-            </>
-        }
+        <MessageSquare className="w-4 h-4 flex-shrink-0" />
+        <span className="text-[9px] font-bold tracking-wide leading-none" style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)" }}>CHAT</span>
+        {unread > 0 && (
+          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center shadow">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
       </button>
 
-      {/* Chat Drawer */}
+      {/* Chat Panel — slides in from left */}
       {open && (
         <div
-          className="fixed bottom-20 right-5 z-40 flex flex-col bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden"
-          style={{ width: 360, height: 500 }}
+          className="fixed z-40 flex flex-col bg-slate-900 shadow-2xl border border-slate-700 overflow-hidden print:hidden"
+          style={{ left: 28, top: "50%", transform: "translateY(-50%)", width: "min(340px, calc(100vw - 36px))", height: 500, borderRadius: "0 16px 16px 0" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0">
