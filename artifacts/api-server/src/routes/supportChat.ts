@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { pool } from "@workspace/db";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
+
+// helper — raw pg query, works whether pool is pg.Pool or null
+async function pgQuery(text: string, params: unknown[] = []) {
+  if (!pool) throw new Error("No database pool available");
+  return (pool as any).query(text, params);
+}
 
 // ─── PUBLIC: Send a message (no auth) ────────────────────────────────────────
 
@@ -14,17 +19,16 @@ router.post("/support-chat/messages", async (req, res) => {
       res.status(400).json({ error: "sessionId aur message required hain" });
       return;
     }
-    const result = await db.execute(sql`
-      INSERT INTO support_messages (session_id, sender_type, name, phone, email, message, status)
-      VALUES (${sessionId.trim()}, 'user', ${name?.trim() || null}, ${phone?.trim() || null}, ${email?.trim() || null}, ${message.trim()}, 'new')
-      RETURNING id, session_id, sender_type, name, phone, email, message, status, created_at
-    `);
-    const row = (result as any).rows?.[0] ?? result[0];
-    res.json({ success: true, id: row?.id });
+    const result = await pgQuery(
+      `INSERT INTO support_messages (session_id, sender_type, name, phone, email, message, status)
+       VALUES ($1, 'user', $2, $3, $4, $5, 'new')
+       RETURNING id`,
+      [sessionId.trim(), name?.trim() || null, phone?.trim() || null, email?.trim() || null, message.trim()]
+    );
+    res.json({ success: true, id: result.rows[0]?.id });
   } catch (err) {
     req.log.error(err);
-    const cause = (err as any)?.cause;
-    res.status(500).json({ error: "Server error", detail: cause?.message || (err instanceof Error ? err.message : String(err)), code: cause?.code });
+    res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
   }
 });
 
@@ -33,15 +37,15 @@ router.post("/support-chat/messages", async (req, res) => {
 router.get("/support-chat/messages/:sessionId", async (req, res) => {
   try {
     const sessionId = String(req.params.sessionId);
-    if (!sessionId) { res.status(400).json({ error: "sessionId required" }); return; }
-    const result = await db.execute(sql`
-      SELECT id, session_id as "sessionId", sender_type as "senderType", name, phone, email, message, status, created_at as "createdAt"
-      FROM support_messages
-      WHERE session_id = ${sessionId}
-      ORDER BY created_at ASC
-    `);
-    const rows = (result as any).rows ?? result;
-    res.json(rows);
+    const result = await pgQuery(
+      `SELECT id, session_id as "sessionId", sender_type as "senderType",
+              name, phone, email, message, status, created_at as "createdAt"
+       FROM support_messages
+       WHERE session_id = $1
+       ORDER BY created_at ASC`,
+      [sessionId]
+    );
+    res.json(result.rows);
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
@@ -52,51 +56,28 @@ router.get("/support-chat/messages/:sessionId", async (req, res) => {
 
 router.get("/super-admin/support-messages", requireSuperAdmin, async (req, res) => {
   try {
-    const result = await db.execute(sql`
-      SELECT id, session_id as "sessionId", sender_type as "senderType", name, phone, email, message, status, created_at as "createdAt"
-      FROM support_messages
-      ORDER BY created_at DESC
-    `);
-    const all = (result as any).rows ?? result;
-
+    const result = await pgQuery(
+      `SELECT id, session_id as "sessionId", sender_type as "senderType",
+              name, phone, email, message, status, created_at as "createdAt"
+       FROM support_messages ORDER BY created_at DESC`
+    );
+    const all = result.rows;
     const sessionsMap = new Map<string, {
-      sessionId: string;
-      name: string | null;
-      phone: string | null;
-      email: string | null;
-      latestMessage: string;
-      status: string;
-      createdAt: string;
-      replyCount: number;
-      messages: typeof all;
+      sessionId: string; name: string | null; phone: string | null; email: string | null;
+      latestMessage: string; status: string; createdAt: string;
+      replyCount: number; messages: typeof all;
     }>();
-
     for (const row of all) {
       if (!sessionsMap.has(row.sessionId)) {
-        sessionsMap.set(row.sessionId, {
-          sessionId: row.sessionId,
-          name: null, phone: null, email: null,
-          latestMessage: row.message,
-          status: row.status,
-          createdAt: row.createdAt,
-          replyCount: 0,
-          messages: [],
-        });
+        sessionsMap.set(row.sessionId, { sessionId: row.sessionId, name: null, phone: null, email: null,
+          latestMessage: row.message, status: row.status, createdAt: row.createdAt, replyCount: 0, messages: [] });
       }
-      const session = sessionsMap.get(row.sessionId)!;
-      session.messages.push(row);
-      if (row.senderType === "user" && !session.name) {
-        session.name = row.name;
-        session.phone = row.phone;
-        session.email = row.email;
-      }
-      if (row.senderType === "admin") session.replyCount++;
+      const s = sessionsMap.get(row.sessionId)!;
+      s.messages.push(row);
+      if (row.senderType === "user" && !s.name) { s.name = row.name; s.phone = row.phone; s.email = row.email; }
+      if (row.senderType === "admin") s.replyCount++;
     }
-
-    const sessions = Array.from(sessionsMap.values())
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    res.json(sessions);
+    res.json(Array.from(sessionsMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
@@ -110,20 +91,13 @@ router.post("/super-admin/support-messages/:sessionId/reply", requireSuperAdmin,
     const sessionId = String(req.params.sessionId);
     const { message } = req.body || {};
     if (!message?.trim()) { res.status(400).json({ error: "message required" }); return; }
-
-    const result = await db.execute(sql`
-      INSERT INTO support_messages (session_id, sender_type, message, status)
-      VALUES (${sessionId}, 'admin', ${message.trim()}, 'replied')
-      RETURNING id
-    `);
-    const row = (result as any).rows?.[0] ?? result[0];
-
-    await db.execute(sql`
-      UPDATE support_messages SET status = 'replied'
-      WHERE session_id = ${sessionId}
-    `);
-
-    res.json({ success: true, id: row?.id });
+    const result = await pgQuery(
+      `INSERT INTO support_messages (session_id, sender_type, message, status)
+       VALUES ($1, 'admin', $2, 'replied') RETURNING id`,
+      [sessionId, message.trim()]
+    );
+    await pgQuery(`UPDATE support_messages SET status='replied' WHERE session_id=$1`, [sessionId]);
+    res.json({ success: true, id: result.rows[0]?.id });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
@@ -135,10 +109,7 @@ router.post("/super-admin/support-messages/:sessionId/reply", requireSuperAdmin,
 router.patch("/super-admin/support-messages/:sessionId/read", requireSuperAdmin, async (req, res) => {
   try {
     const sessionId = String(req.params.sessionId);
-    await db.execute(sql`
-      UPDATE support_messages SET status = 'read'
-      WHERE session_id = ${sessionId}
-    `);
+    await pgQuery(`UPDATE support_messages SET status='read' WHERE session_id=$1`, [sessionId]);
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);
