@@ -191,3 +191,9 @@ id = "f3YdCzyt-JNJvsuXW7I_K"
 uri = "file://attached_assets/marketing/whatsapp-static-backup.png"
 type = "image"
 title = "WhatsApp Image 4 — Backup & Security"
+
+[[outputs]]
+id = "PQopEDD5dDDrtGVfSQ1A-"
+uri = "file://.local/outputs/BizCor-Marketing-Package.zip"
+type = "unspecified"
+title = "BizCor Marketing Package (PDF + 4 WhatsApp Images)"

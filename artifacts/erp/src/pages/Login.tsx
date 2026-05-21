@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { api } from "@/lib/api";
 import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
+import SupportChatWidget from "@/components/SupportChatWidget";
 
 const SAVED_CODE_KEY = "erp_last_business_code";
 const SAVED_CREDS_KEY = "erp_remembered_creds";
@@ -29,6 +30,8 @@ export default function Login() {
   const [pinRequired, setPinRequired] = useState(false);
   const [singlePin, setSinglePin] = useState("");
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [supportPhone, setSupportPhone] = useState("");
 
   const [fEmail, setFEmail] = useState("");
   const [fCode, setFCode] = useState("");
@@ -69,6 +72,8 @@ export default function Login() {
         setAppName(s.softwareName);
         localStorage.setItem("erp_app_name", s.softwareName);
       }
+      if (s.supportEmail) setSupportEmail(s.supportEmail);
+      if (s.supportPhone) setSupportPhone(s.supportPhone);
     }).catch(() => {});
   }, []);
 
@@ -505,6 +510,7 @@ export default function Login() {
           </a>
         </div>
       </div>
+      <SupportChatWidget supportEmail={supportEmail} supportPhone={supportPhone} />
     </div>
   );
 }

@@ -511,6 +511,36 @@ async function runPgMigrations() {
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_status') THEN
+          CREATE TYPE support_message_status AS ENUM ('new', 'read', 'replied');
+        END IF;
+      END $$
+    `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_sender') THEN
+          CREATE TYPE support_message_sender AS ENUM ('user', 'admin');
+        END IF;
+      END $$
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        sender_type support_message_sender NOT NULL DEFAULT 'user',
+        name TEXT,
+        phone TEXT,
+        email TEXT,
+        message TEXT NOT NULL,
+        status support_message_status NOT NULL DEFAULT 'new',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS support_messages_session_idx ON support_messages(session_id)
+    `);
     logger.info("PG migrations applied");
   } catch (err) {
     logger.error({ err }, "PG migration failed (non-fatal)");

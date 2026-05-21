@@ -72,6 +72,7 @@ import AdminBuyers from "@/pages/admin/AdminBuyers";
 import AdminActivity from "@/pages/admin/AdminActivity";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminImport from "@/pages/admin/AdminImport";
+import AdminSupportMessages from "@/pages/admin/AdminSupportMessages";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -355,6 +356,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/import">
         <ProtectedRoute><AdminImport /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/support-messages">
+        <ProtectedRoute><AdminSupportMessages /></ProtectedRoute>
       </Route>
 
       <Route>

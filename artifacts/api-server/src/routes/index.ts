@@ -18,6 +18,7 @@ import licenseVouchersRouter from "./licenseVouchers";
 import webauthnRouter from "./webauthn";
 import cashBankRouter from "./cashBank";
 import importDataRouter from "./importData";
+import supportChatRouter from "./supportChat";
 
 const router: IRouter = Router();
 
@@ -55,9 +56,11 @@ router.get("/public-settings", async (_req, res) => {
       footerText: settings.footerText || "Powered by BizERP",
       printFooterText: settings.printFooterText || "",
       printFooterLogo: settings.printFooterLogo || "",
+      supportEmail: settings.supportEmail || "",
+      supportPhone: settings.supportPhone || "",
     });
   } catch {
-    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" });
+    res.json({ softwareName: "BizERP", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "", supportEmail: "", supportPhone: "" });
   }
 });
 
@@ -242,6 +245,7 @@ router.post("/heartbeat", async (req, res) => {
 
 router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
+router.use(supportChatRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 
