@@ -9,9 +9,12 @@ import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
 
-// ── Upload directory ──────────────────────────────────────────────────────────
+// File uploads only in LAN/desktop mode — cloud storage is precious
+const IS_DESKTOP = !!process.env.SQLITE_PATH;
+
+// ── Upload directory (desktop/LAN only) ──────────────────────────────────────
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "chat");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+if (IS_DESKTOP && !fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -23,7 +26,6 @@ const storage = multer.diskStorage({
   },
 });
 
-// No size limit — LAN is fast enough for any file size
 const upload = multer({ storage });
 
 router.use(requireBusiness);
@@ -95,8 +97,14 @@ router.post("/chat/messages", async (req, res) => {
   }
 });
 
-// POST /chat/messages/file — upload any file (no size limit)
-router.post("/chat/messages/file", upload.single("file"), async (req, res) => {
+// POST /chat/messages/file — upload any file (LAN/desktop only)
+router.post("/chat/messages/file", (req, res, next) => {
+  if (!IS_DESKTOP) {
+    res.status(403).json({ error: "File upload sirf LAN server mein supported hai. Cloud mein sirf text messages bhejo." });
+    return;
+  }
+  next();
+}, upload.single("file"), async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const userId = req.user!.id;
