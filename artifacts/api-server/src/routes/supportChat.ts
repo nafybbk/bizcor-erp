@@ -44,6 +44,33 @@ async function pgQuery(text: string, params: unknown[] = []) {
   return p.query(text, params);
 }
 
+// ─── DIAGNOSTIC: check pool + table status (public, temp) ───────────────────
+
+router.get("/support-chat/diag", async (_req, res) => {
+  const p = pool as any;
+  const info: Record<string, unknown> = {
+    poolNull: !p,
+    tableReady,
+    tableInitError,
+  };
+  if (p) {
+    try {
+      const r = await p.query(`SELECT COUNT(*) as n FROM information_schema.tables WHERE table_schema='public' AND table_name='support_messages'`);
+      info.tableExistsInDB = r.rows[0]?.n !== "0";
+    } catch (e) { info.tableCheckError = (e as Error).message; }
+    try {
+      await p.query(`CREATE TABLE IF NOT EXISTS support_messages_diag_test (id SERIAL PRIMARY KEY, ts TIMESTAMP DEFAULT NOW())`);
+      await p.query(`DROP TABLE IF EXISTS support_messages_diag_test`);
+      info.canCreateTable = true;
+    } catch (e) { info.canCreateTable = false; info.createError = (e as Error).message; }
+    try {
+      const r2 = await p.query(`SELECT current_database() as db`);
+      info.currentDb = r2.rows[0]?.db;
+    } catch (e) { info.dbNameError = (e as Error).message; }
+  }
+  res.json(info);
+});
+
 // ─── PUBLIC: Send a message (no auth) ────────────────────────────────────────
 
 router.post("/support-chat/messages", async (req, res) => {
