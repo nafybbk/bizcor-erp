@@ -80481,8 +80481,10 @@ function signToken(payload, planExpiresAt, isTrial) {
   return import_jsonwebtoken.default.sign(enriched, JWT_SECRET, { expiresIn: expiresInSeconds });
 }
 function requireAuth(req, res, next) {
+  console.log(`[AUTH] requireAuth called: ${req.method} ${req.originalUrl} hasToken=${!!req.headers.authorization}`);
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
+    console.log(`[AUTH] BLOCKED (no/bad token): ${req.method} ${req.originalUrl}`);
     res.status(401).json({ error: "Unauthorized", message: "Missing or invalid token" });
     return;
   }
