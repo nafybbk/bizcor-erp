@@ -76,6 +76,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
     } catch (err: any) {
       console.error("Outstanding bills fetch error:", err?.message || err);
       setOutstanding([]);
+      setError(`Outstanding bills load nahi ho sake: ${err?.message || "Server error"}`);
     }
   };
 
