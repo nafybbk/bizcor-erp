@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BizCor Offline Activation — Demo</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 24px; }
+  h1 { text-align: center; font-size: 1.4rem; color: #38bdf8; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-size: 0.8rem; color: #64748b; margin-bottom: 28px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 900px; margin: 0 auto; }
+  @media(max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+  .card-title { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .badge { padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; }
+  .badge-exe { background: #1d4ed8; color: #bfdbfe; }
+  .badge-tech { background: #7c3aed; color: #ede9fe; }
+
+  label { font-size: 0.72rem; color: #94a3b8; display: block; margin-bottom: 5px; margin-top: 12px; }
+  input { width: 100%; padding: 9px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 0.82rem; font-family: monospace; outline: none; transition: border 0.2s; }
+  input:focus { border-color: #38bdf8; }
+  input[readonly] { color: #94a3b8; cursor: default; }
+
+  button { width: 100%; margin-top: 14px; padding: 10px; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  button:hover { opacity: 0.85; }
+  .btn-blue { background: #2563eb; color: white; }
+  .btn-purple { background: #7c3aed; color: white; }
+  .btn-green { background: #16a34a; color: white; }
+
+  .code-box { margin-top: 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 14px; font-family: monospace; font-size: 1rem; letter-spacing: 0.12em; color: #fbbf24; text-align: center; word-break: break-all; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+
+  .result { margin-top: 14px; border-radius: 8px; padding: 12px 16px; font-size: 0.82rem; font-weight: 600; text-align: center; display: none; }
+  .result.valid { background: #14532d; color: #86efac; border: 1px solid #16a34a; }
+  .result.invalid { background: #450a0a; color: #fca5a5; border: 1px solid #dc2626; }
+
+  .arrow { display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #475569; }
+
+  .info { background: #172033; border: 1px solid #1e3a5f; border-radius: 8px; padding: 10px 14px; font-size: 0.72rem; color: #7dd3fc; margin-top: 10px; line-height: 1.6; }
+  .info strong { color: #38bdf8; }
+
+  .flow { max-width: 900px; margin: 24px auto 0; background: #1e293b; border-radius: 12px; padding: 18px 20px; border: 1px solid #334155; }
+  .flow-title { font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+  .steps { display: flex; gap: 0; align-items: stretch; flex-wrap: wrap; }
+  .step { flex: 1; min-width: 120px; padding: 10px 14px; border-right: 1px solid #334155; font-size: 0.72rem; color: #94a3b8; line-height: 1.5; }
+  .step:last-child { border-right: none; }
+  .step-num { font-size: 1.1rem; font-weight: 800; color: #38bdf8; display: block; margin-bottom: 4px; }
+
+  .seed-display { font-size: 0.7rem; color: #475569; margin-top: 8px; text-align: center; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h1>BizCor — Offline Activation System</h1>
+<p class="subtitle">Challenge-Response Demo — Internet ki zaroorat nahi</p>
+
+<div class="grid">
+
+  <!-- LEFT: EXE SIDE -->
+  <div>
+    <div class="card">
+      <div class="card-title">
+        <span>💻 Desktop EXE</span>
+        <span class="badge badge-exe">User ka PC</span>
+      </div>
+
+      <label>Simulated Machine Fingerprint (auto)</label>
+      <input type="text" id="machineDetail" readonly />
+
+      <button class="btn-blue" onclick="generateMachineCode()">🔑 Machine Code Generate Karo</button>
+
+      <label>Machine Code (yeh user ko dikhega)</label>
+      <div class="code-box" id="machineCodeDisplay">— abhi generate nahi hua —</div>
+
+      <div class="info">
+        Yeh code user <strong>tech support ko bhejta hai</strong> (WhatsApp / email se).<br>
+        Seed andar chhupa hai — user nahi dekh sakta.
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">
+        <span>✅ Activation (EXE)</span>
+        <span class="badge badge-exe">Step 3</span>
+      </div>
+
+      <label>Tech se mila Activation Code daalo</label>
+      <input type="text" id="activationInput" placeholder="XXXX-XXXX-XXXX-XXXX" oninput="this.value=this.value.toUpperCase()" />
+
+      <button class="btn-green" onclick="validateActivation()">🔓 Validate Karo (Offline)</button>
+
+      <div class="result" id="resultBox"></div>
+
+      <div class="seed-display">Seed: <span id="seedDisplay">—</span> &nbsp;|&nbsp; Machine: <span id="machineShort">—</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: TECH PANEL -->
+  <div>
+    <div class="card">
+      <div class="card-title">
+        <span>🛠 Tech Panel</span>
+        <span class="badge badge-tech">Tumhara Dashboard</span>
+      </div>
+
+      <label>User ne bheja Machine Code</label>
+      <input type="text" id="techMachineInput" placeholder="User ka machine code yahan daalo" oninput="this.value=this.value.toUpperCase()" />
+
+      <label>Seed (Tech Panel mein hardcoded — secret)</label>
+      <input type="text" id="techSeedInput" value="BIZCOR-2024-SECRET" />
+
+      <button class="btn-purple" onclick="generateActivationCode()">⚡ Activation Code Generate Karo</button>
+
+      <label>Activation Code (user ko do)</label>
+      <div class="code-box" id="activationCodeDisplay">— machine code daalo pehle —</div>
+
+      <div class="info">
+        Yeh code <strong>sirf usi machine ke liye valid</strong> hoga.<br>
+        Dusri machine pe enter karo → invalid aayega.
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px; border-color: #1e3a5f;">
+      <div class="card-title" style="color:#7dd3fc;">📐 Algorithm (Simple)</div>
+      <div style="font-family:monospace; font-size:0.72rem; color:#94a3b8; line-height:2;">
+        <div><span style="color:#38bdf8;">MachineCode</span> = SHA256( seed + machine_detail )[:16]</div>
+        <div><span style="color:#a78bfa;">ActivationCode</span> = SHA256( seed + machine_code )[:16]</div>
+        <div style="margin-top:8px;"><span style="color:#86efac;">Validation</span> = SHA256( seed + own_machine_code ) === input</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FLOW STEPS -->
+<div class="flow">
+  <div class="flow-title">Poora flow — ek nazar mein</div>
+  <div class="steps">
+    <div class="step"><span class="step-num">1</span>EXE machine code banata hai (seed + hardware)</div>
+    <div class="step"><span class="step-num">2</span>User machine code tech ko bhejta hai</div>
+    <div class="step"><span class="step-num">3</span>Tech panel activation code generate karta hai</div>
+    <div class="step"><span class="step-num">4</span>User activation code EXE mein daalta hai</div>
+    <div class="step"><span class="step-num">5</span>EXE offline verify karta hai — ✅ Activated</div>
+  </div>
+</div>
+
+<script>
+const SEED = "BIZCOR-2024-SECRET";
+
+// Simulate machine fingerprint (in real exe: CPU ID + MAC + disk serial)
+function getSimulatedFingerprint() {
+  const stored = sessionStorage.getItem("sim_fingerprint");
+  if (stored) return stored;
+  const chars = "ABCDEF0123456789";
+  let fp = "CPU:";
+  for (let i = 0; i < 8; i++) fp += chars[Math.floor(Math.random() * chars.length)];
+  fp += "|MAC:";
+  for (let i = 0; i < 12; i++) fp += chars[Math.floor(Math.random() * chars.length)];
+  fp += "|DISK:";
+  for (let i = 0; i < 8; i++) fp += chars[Math.floor(Math.random() * chars.length)];
+  sessionStorage.setItem("sim_fingerprint", fp);
+  return fp;
+}
+
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function formatCode(hex) {
+  const upper = hex.toUpperCase().slice(0, 16);
+  return `${upper.slice(0,4)}-${upper.slice(4,8)}-${upper.slice(8,12)}-${upper.slice(12,16)}`;
+}
+
+let currentMachineCode = "";
+
+async function generateMachineCode() {
+  const fp = getSimulatedFingerprint();
+  document.getElementById("machineDetail").value = fp;
+  const hash = await sha256(SEED + "|" + fp);
+  currentMachineCode = formatCode(hash);
+  document.getElementById("machineCodeDisplay").textContent = currentMachineCode;
+  document.getElementById("seedDisplay").textContent = SEED;
+  document.getElementById("machineShort").textContent = fp.slice(0, 12) + "...";
+  document.getElementById("resultBox").style.display = "none";
+  // Auto-fill tech panel
+  document.getElementById("techMachineInput").value = currentMachineCode;
+}
+
+async function generateActivationCode() {
+  const machineCode = document.getElementById("techMachineInput").value.trim();
+  const seed = document.getElementById("techSeedInput").value.trim();
+  if (!machineCode) { alert("Machine code daalo pehle"); return; }
+  if (!seed) { alert("Seed daalo"); return; }
+  const hash = await sha256(seed + "|" + machineCode);
+  const code = formatCode(hash);
+  document.getElementById("activationCodeDisplay").textContent = code;
+  // Auto-fill activation input
+  document.getElementById("activationInput").value = code;
+}
+
+async function validateActivation() {
+  if (!currentMachineCode) { alert("Pehle EXE side se machine code generate karo"); return; }
+  const entered = document.getElementById("activationInput").value.trim().toUpperCase();
+  const expected = await sha256(SEED + "|" + currentMachineCode);
+  const expectedFormatted = formatCode(expected);
+  const box = document.getElementById("resultBox");
+  box.style.display = "block";
+  if (entered === expectedFormatted) {
+    box.className = "result valid";
+    box.textContent = "✅ ACTIVATED — Valid activation code! Software unlock ho gaya.";
+  } else {
+    box.className = "result invalid";
+    box.textContent = "❌ INVALID — Yeh code is machine ke liye nahi hai.";
+  }
+}
+
+// Init
+document.getElementById("machineDetail").value = getSimulatedFingerprint();
+</script>
+</body>
+</html>
