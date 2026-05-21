@@ -70,31 +70,17 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_on_account BOOLEAN DEFAULT FALSE`);
     await db.execute(sql`CREATE TABLE IF NOT EXISTS cash_bank_accounts (id SERIAL PRIMARY KEY, business_id INTEGER NOT NULL, name TEXT NOT NULL, account_type TEXT NOT NULL DEFAULT 'bank', opening_balance NUMERIC(15,2) DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
     await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER`);
-    // Support chat (public, no auth)
-    await db.execute(sql`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_status') THEN
-          CREATE TYPE support_message_status AS ENUM ('new', 'read', 'replied');
-        END IF;
-      END $$
-    `);
-    await db.execute(sql`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_sender') THEN
-          CREATE TYPE support_message_sender AS ENUM ('user', 'admin');
-        END IF;
-      END $$
-    `);
+    // Support chat table — TEXT columns (no custom enums, max portability)
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS support_messages (
         id SERIAL PRIMARY KEY,
         session_id TEXT NOT NULL,
-        sender_type support_message_sender NOT NULL DEFAULT 'user',
+        sender_type TEXT NOT NULL DEFAULT 'user',
         name TEXT,
         phone TEXT,
         email TEXT,
         message TEXT NOT NULL,
-        status support_message_status NOT NULL DEFAULT 'new',
+        status TEXT NOT NULL DEFAULT 'new',
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
@@ -143,6 +129,7 @@ async function seedSuperAdmin() {
   }
 }
 
-runMigrations().then(() => seedSuperAdmin());
+await runMigrations();
+await seedSuperAdmin();
 
 export default app;
