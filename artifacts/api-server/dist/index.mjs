@@ -102726,7 +102726,7 @@ app_default.listen(port, "0.0.0.0", async (err) => {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
   }
-  logger.info({ port, mode: isOfflineMode ? "offline-sqlite" : "cloud-postgres" }, "Server listening");
+  logger.info({ port, mode: isOfflineMode ? "offline-sqlite" : "cloud-postgres", version: "2.3.4" }, "Server listening");
   if (isOfflineMode) {
     runSqliteInit();
     runSqliteMigrations();
