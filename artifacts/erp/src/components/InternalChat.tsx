@@ -96,11 +96,18 @@ export default function InternalChat() {
   const [unread, setUnread] = useState(0);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
   const lastIdRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/healthz`).then(r => r.json()).then((d: any) => {
+      setIsDesktop(d?.mode === "desktop");
+    }).catch(() => {});
+  }, []);
 
   if (isSuperAdmin()) return null;
 
@@ -329,15 +336,17 @@ export default function InternalChat() {
           {/* Input */}
           <div className="border-t border-slate-700 p-3 bg-slate-800 flex-shrink-0">
             <form onSubmit={sendText} className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="text-slate-400 hover:text-emerald-400 transition-colors flex-shrink-0 pb-1 disabled:opacity-50"
-                title="Koi bhi file attach karo — koi limit nahi"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
+              {isDesktop && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                  className="text-slate-400 hover:text-emerald-400 transition-colors flex-shrink-0 pb-1 disabled:opacity-50"
+                  title="Koi bhi file attach karo — koi limit nahi"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+              )}
               <textarea
                 ref={textareaRef}
                 value={text}
