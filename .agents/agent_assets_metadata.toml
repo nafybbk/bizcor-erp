@@ -227,3 +227,27 @@ id = "mnGc91rC-klBi27DNoCQI"
 uri = "file://attached_assets/generated_videos/bizcor-reel-04-mobile.mp4"
 type = "video"
 title = "Clip 4 — Mobile App (8 sec)"
+
+[[outputs]]
+id = "BIwXnRMKoHb-PoIuDCbC8"
+uri = "file://.local/outputs/bizcor-branded-01-office.mp4"
+type = "video"
+title = "Clip 1 — Office Scene (BizCor branded)"
+
+[[outputs]]
+id = "CgmIpYnY9-SbrLENFP38e"
+uri = "file://.local/outputs/bizcor-branded-02-dashboard.mp4"
+type = "video"
+title = "Clip 2 — Dashboard (BizCor branded)"
+
+[[outputs]]
+id = "kG_LULF3ayeGJuFjDFuzy"
+uri = "file://.local/outputs/bizcor-branded-03-invoice.mp4"
+type = "video"
+title = "Clip 3 — Invoice/Billing (BizCor branded)"
+
+[[outputs]]
+id = "iL8OBEUc0y-KVUmVD_ebZ"
+uri = "file://.local/outputs/bizcor-branded-04-mobile.mp4"
+type = "video"
+title = "Clip 4 — Mobile App (BizCor branded)"
