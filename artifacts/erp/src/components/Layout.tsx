@@ -385,12 +385,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { label: L.states, href: "/masters/states" },
       ],
     },
-    { label: L.myPlan, href: "/settings/subscription", icon: <CreditCard className="w-4 h-4" /> },
-    ...(user?.role === "business_admin" ? [
-      { label: L.users, href: "/settings/users", icon: <Users className="w-4 h-4" /> },
-    ] : []),
-    { label: L.settings, href: "/settings/business", icon: <Settings className="w-4 h-4" />, permKey: "settings" },
-    { label: "Import Data", href: "/settings/import", icon: <DatabaseZap className="w-4 h-4" />, permKey: "settings" },
     ...(hasPerm("sales") ? [{ label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> }] : []),
   ];
 
@@ -485,13 +479,45 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             }}
             className="w-full flex items-center justify-between px-3 py-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors text-[10px] font-semibold tracking-wider uppercase"
           >
-            <span>Status & Settings</span>
+            <span>App Settings</span>
             {bottomCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
 
           {/* Collapsible section */}
           {!bottomCollapsed && (
             <div className="px-3 pb-2 space-y-1">
+              {/* Nav links: My Plan, Users, Settings, Import Data */}
+              <Link href="/settings/subscription">
+                <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/subscription" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                  <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{L.myPlan}</span>
+                </a>
+              </Link>
+              {user?.role === "business_admin" && (
+                <Link href="/settings/users">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/users" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{L.users}</span>
+                  </a>
+                </Link>
+              )}
+              {hasPerm("settings") && (
+                <Link href="/settings/business">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/business" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <Settings className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{L.settings}</span>
+                  </a>
+                </Link>
+              )}
+              {hasPerm("settings") && (
+                <Link href="/settings/import">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/import" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <DatabaseZap className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Import Data</span>
+                  </a>
+                </Link>
+              )}
+              <div className="border-t border-slate-700/60 my-1" />
               {/* Desktop / Cloud mode badge */}
               {appMode && (
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${appMode === "desktop" ? "bg-indigo-900/60 text-indigo-300 border border-indigo-700" : "bg-slate-700/60 text-slate-400"}`}>
