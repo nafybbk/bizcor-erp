@@ -293,6 +293,8 @@ export default function Subscription() {
       if (r.token) localStorage.setItem("erp_token", r.token);
       setActivateMsg({ id: sub.id, msg: r.message || "Plan activate ho gaya!", ok: true });
       load();
+      // Reload so new token (with correct planExpiresAt) takes effect everywhere
+      if (r.token) setTimeout(() => window.location.reload(), 1000);
     } catch (e: any) {
       setActivateMsg({ id: sub.id, msg: e.message || "Error", ok: false });
     } finally { setActivatingId(null); }

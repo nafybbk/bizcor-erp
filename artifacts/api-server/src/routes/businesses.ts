@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { businessesTable, usersTable, unitsTable, taxRatesTable, hsnCodesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
-import { requireAuth, requireBusiness, signToken } from "../middlewares/auth";
+import { requireAuth, requireBusiness, signToken, AuthUser } from "../middlewares/auth";
 const router = Router();
 
 function generateBusinessCode(): string {
@@ -292,10 +292,13 @@ router.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
       isTrial: false,
     }).where(eq(businessesTable.id, bizId));
 
-    // Return fresh token with updated plan info
+    // Return fresh token with updated plan info — correct planExpiresAt + isTrial
     const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, req.user!.id) });
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
-    const token = signToken({ ...user!, business: business! });
+    const token = signToken(
+      { id: user!.id, email: user!.email, name: user!.name, role: user!.role as AuthUser["role"], businessId: bizId },
+      expiresAt,
+      false
+    );
 
     res.json({
       success: true,
