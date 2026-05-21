@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Wifi, WifiOff, Database, X, Ticket, CheckCircle2 } from "lucide-react";
+import { Loader2, Save, Wifi, WifiOff, Database, Upload, X, Ticket, CheckCircle2 } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { getLang, t } from "@/lib/lang";
 
