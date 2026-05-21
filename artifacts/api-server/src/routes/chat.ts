@@ -23,13 +23,12 @@ const storage = multer.diskStorage({
   },
 });
 
-// No size limit — local LAN transfer is fast enough for any file
+// No size limit — LAN is fast enough for any file size
 const upload = multer({ storage });
 
-// ── Auth middleware ───────────────────────────────────────────────────────────
 router.use(requireBusiness);
 
-// ── GET /chat/messages?since=<id>  — poll for new messages ───────────────────
+// GET /chat/messages?since=<id>  — poll for new messages
 router.get("/chat/messages", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -50,7 +49,7 @@ router.get("/chat/messages", async (req, res) => {
   }
 });
 
-// ── GET /chat/messages/recent — last 50 messages (initial load) ───────────────
+// GET /chat/messages/recent — last 50 messages (initial load)
 router.get("/chat/messages/recent", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -67,7 +66,7 @@ router.get("/chat/messages/recent", async (req, res) => {
   }
 });
 
-// ── POST /chat/messages — send text message ───────────────────────────────────
+// POST /chat/messages — send text message
 router.post("/chat/messages", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -96,7 +95,7 @@ router.post("/chat/messages", async (req, res) => {
   }
 });
 
-// ── POST /chat/messages/file — upload a file ──────────────────────────────────
+// POST /chat/messages/file — upload any file (no size limit)
 router.post("/chat/messages/file", upload.single("file"), async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -128,31 +127,23 @@ router.post("/chat/messages/file", upload.single("file"), async (req, res) => {
   }
 });
 
-// ── GET /chat/files/:filename — serve a file (auth guarded) ──────────────────
+// GET /chat/files/:filename — serve file (auth guarded, business-scoped)
 router.get("/chat/files/:filename", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const filename = req.params.filename;
 
-    // Verify this file belongs to this business
     const [msg] = await db.select({ id: chatMessagesTable.id })
       .from(chatMessagesTable)
       .where(and(
         eq(chatMessagesTable.businessId, businessId),
         eq(chatMessagesTable.filePath, filename)
-      ))
-      .limit(1);
+      )).limit(1);
 
-    if (!msg) {
-      res.status(404).json({ error: "File nahi mili ya access nahi hai" });
-      return;
-    }
+    if (!msg) { res.status(404).json({ error: "File nahi mili ya access nahi" }); return; }
 
     const filePath = path.join(UPLOAD_DIR, filename);
-    if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: "File disk pe nahi mili" });
-      return;
-    }
+    if (!fs.existsSync(filePath)) { res.status(404).json({ error: "File disk pe nahi mili" }); return; }
 
     res.sendFile(filePath);
   } catch (err) {
@@ -161,7 +152,7 @@ router.get("/chat/files/:filename", async (req, res) => {
   }
 });
 
-// ── DELETE /chat/messages/:id — delete own message + file ────────────────────
+// DELETE /chat/messages/:id — delete own message + file from disk
 router.delete("/chat/messages/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -173,15 +164,11 @@ router.delete("/chat/messages/:id", async (req, res) => {
       .limit(1);
 
     if (!msg) { res.status(404).json({ error: "Message nahi mila" }); return; }
-    if (msg.fromUserId !== userId) {
-      res.status(403).json({ error: "Sirf apna message delete kar sakte hain" });
-      return;
-    }
+    if (msg.fromUserId !== userId) { res.status(403).json({ error: "Sirf apna message delete kar sakte hain" }); return; }
 
-    // Delete file from disk if exists
     if (msg.filePath) {
-      const filePath = path.join(UPLOAD_DIR, msg.filePath);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      const fp = path.join(UPLOAD_DIR, msg.filePath);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
 
     await db.delete(chatMessagesTable).where(eq(chatMessagesTable.id, msgId));
