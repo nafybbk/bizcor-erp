@@ -542,7 +542,7 @@ app.listen(port, "0.0.0.0", async (err) => {
     process.exit(1);
   }
 
-  logger.info({ port, mode: isOfflineMode ? "offline-sqlite" : "cloud-postgres", version: "2.3.4" }, "Server listening");
+  logger.info({ port, mode: isOfflineMode ? "offline-sqlite" : "cloud-postgres", version: "2.3.5" }, "Server listening");
 
   if (isOfflineMode) {
     // SQLite: create all tables, then run migrations for existing DBs
