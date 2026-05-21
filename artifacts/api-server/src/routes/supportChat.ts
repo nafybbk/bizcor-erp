@@ -20,7 +20,6 @@ async function ensureTables() {
       message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new',
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )`);
-    await p.query(`CREATE INDEX IF NOT EXISTS support_messages_session_idx ON support_messages(session_id)`);
     await p.query(`CREATE TABLE IF NOT EXISTS chat_messages (
       id SERIAL PRIMARY KEY, business_id INTEGER NOT NULL,
       from_user_id INTEGER NOT NULL, from_user_name TEXT NOT NULL,
@@ -28,7 +27,9 @@ async function ensureTables() {
       file_mime_type TEXT, file_size INTEGER,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )`);
-    await p.query(`CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)`);
+    // indexes — separate try/catch so index failure doesn't block table usage
+    try { await p.query(`CREATE INDEX IF NOT EXISTS support_messages_session_idx ON support_messages(session_id)`); } catch {}
+    try { await p.query(`CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)`); } catch {}
     tableReady = true;
   } catch (err) {
     tableInitError = err instanceof Error ? err.message : String(err);
