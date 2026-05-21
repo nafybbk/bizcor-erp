@@ -273,7 +273,7 @@ async function startServer(options, resourcesPath) {
 
   setProgress(100, "Ready!", "");
   setStatus("running");
-  closeLog();
+  // Log stream stays open so runtime errors and request traces are captured
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
