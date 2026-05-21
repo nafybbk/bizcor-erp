@@ -101,18 +101,18 @@ export default function ExpenseList() {
                 <tbody className="divide-y divide-gray-100">
                   {data.map(e => (
                     <tr key={e.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-2.5 text-sm font-medium text-gray-800">{e.expense_number}</td>
+                      <td className="px-4 py-2.5 text-sm font-medium text-gray-800">{e.expenseNumber}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-600">{fmt.date(e.date)}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-800">{e.expense_head_name || <span className="text-gray-400">—</span>}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-600">{e.account_name || <span className="text-gray-400">—</span>}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-600 capitalize">{e.payment_mode}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-800">{e.expenseHeadName || <span className="text-gray-400">—</span>}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-600">{e.accountName || <span className="text-gray-400">—</span>}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-600 capitalize">{e.paymentMode}</td>
                       <td className="px-4 py-2.5 text-sm text-right font-semibold text-red-600">{fmt.currency(e.amount)}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1 justify-end">
                           <Link href={`/cash-bank/expenses/${e.id}/edit`}>
                             <a className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 className="w-3.5 h-3.5" /></a>
                           </Link>
-                          <button onClick={() => del(e.id, e.expense_number)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => del(e.id, e.expenseNumber)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </td>
                     </tr>
