@@ -89805,8 +89805,11 @@ router4.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
       isTrial: false
     }).where(eq(businessesTable3.id, bizId));
     const user = await db.query.usersTable.findFirst({ where: eq(usersTable3.id, req.user.id) });
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable3.id, bizId) });
-    const token = signToken({ ...user, business });
+    const token = signToken(
+      { id: user.id, email: user.email, name: user.name, role: user.role, businessId: bizId },
+      expiresAt,
+      false
+    );
     res.json({
       success: true,
       message: `${plan?.name || "Plan"} activate ho gaya! Validity: ${voucher.validityDays} din`,
@@ -91546,7 +91549,8 @@ router10.post("/", async (req, res) => {
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("[PAYMENT POST ERROR]", err);
+    res.status(500).json({ error: "Internal Server Error", message: err instanceof Error ? err.message : String(err) });
   }
 });
 router10.get("/outstanding", async (req, res) => {
