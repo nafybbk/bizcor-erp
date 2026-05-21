@@ -280,6 +280,19 @@ Architecture: Ek PC = Server (Node.js + PostgreSQL local), baaki PCs = Clients (
 6. Backup schedule — auto raat ko, manual button se bhi
 7. Restore — ek click se backup se wapas
 
+**DB BACKUP & RESTORE — Offline EXE (May 2026 discuss hua):**
+- Poori SQLite DB ka ZIP backup — date-time stamp ke saath (e.g. `bizcor-db-2026-05-21_14-30.zip`)
+- ZIP password = user ka apna PIN — koi aur file nahi khol sakta
+- Auto backup: daily silently jab app chal raha ho, last 7 backups rakho, purane auto-delete
+- Manual backup bhi — kabhi bhi ek click se
+- Email/pendrive pe save karna user ki marzi
+- **Restore LOGIN SE PEHLE hoga** — login screen pe "Restore from Backup" button
+  - ZIP choose karo → PIN daalo → Restore → ab login karo normally
+  - Koi bhi PC pe restore karo — same data wapas
+- Restore pe kya lock rahega: business name + email change nahi hoga (plan renewal pe unlock)
+- Filhaal koi hardware bind nahi — simple restore and work, reach badhao pehle
+- Multiple backups — date/time list se jo chahiye restore karo
+
 **LOCAL DB (Aaj discuss hua):**
 - Server PC pe PostgreSQL locally install hoga
 - Clients sirf browser se connect karenge (koi install nahi)
