@@ -203,3 +203,27 @@ id = "dSoFMR72nKT6gpghFG1jG"
 uri = "file://.local/outputs/BizCor-WhatsApp-Reel.zip"
 type = "unspecified"
 title = "BizCor WhatsApp Reel — Browser Animation"
+
+[[outputs]]
+id = "egJtP53kl_cq58ZF65G6t"
+uri = "file://attached_assets/generated_videos/bizcor-reel-01-office.mp4"
+type = "video"
+title = "Clip 1 — Office Scene (8 sec)"
+
+[[outputs]]
+id = "mr347WxmQJjel6JaWKG-h"
+uri = "file://attached_assets/generated_videos/bizcor-reel-02-dashboard.mp4"
+type = "video"
+title = "Clip 2 — Dashboard (8 sec)"
+
+[[outputs]]
+id = "GlK-VsLPybV3HvO0Mk9HV"
+uri = "file://attached_assets/generated_videos/bizcor-reel-03-invoice.mp4"
+type = "video"
+title = "Clip 3 — Invoice/Billing (8 sec)"
+
+[[outputs]]
+id = "mnGc91rC-klBi27DNoCQI"
+uri = "file://attached_assets/generated_videos/bizcor-reel-04-mobile.mp4"
+type = "video"
+title = "Clip 4 — Mobile App (8 sec)"
