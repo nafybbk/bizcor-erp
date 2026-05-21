@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/bizcor-conference/"
+title = "BizCor ERP — Conference Presentation"
+version = "1.0.0"
+id = "artifacts/bizcor-conference"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/bizcor-conference/" ]
+localPort = 19807
+
+[services.development]
+run = "pnpm --filter @workspace/bizcor-conference run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bizcor-conference", "run", "build" ]
+publicDir = "artifacts/bizcor-conference/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19807"
+BASE_PATH = "/bizcor-conference/"
