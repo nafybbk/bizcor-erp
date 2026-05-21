@@ -3,7 +3,10 @@ import { api } from "@/lib/api";
 import {
   Upload, FileSpreadsheet, ShoppingCart, Package, Users,
   CheckCircle2, AlertTriangle, Loader2, Info, Download, Shield,
+  FolderOpen, FolderX, Database, RefreshCw,
 } from "lucide-react";
+import { pickDataFolder, clearDataFolder, getDataFolderName, isFileSystemSupported } from "@/lib/localDataFolder";
+import { getLang, t } from "@/lib/lang";
 
 const ERP_PRESETS: Record<string, { label: string; desc: string }> = {
   smarterp: {
@@ -47,6 +50,19 @@ function ResultRow({ label, created, skipped, errors }: { label: string; created
 type Step = "idle" | "backing-up" | "backed-up" | "importing" | "done";
 
 export default function ImportData() {
+  const lang = getLang();
+
+  // ── Backup / Restore state ─────────────────────────────
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{ success: boolean; message: string } | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Data Folder state ──────────────────────────────────
+  const [folderName, setFolderName] = useState<string | null>(getDataFolderName());
+  const [folderPicking, setFolderPicking] = useState(false);
+
+  // ── SmartERP Import state ──────────────────────────────
   const [erpType, setErpType] = useState("smarterp");
   const [file, setFile] = useState<File | null>(null);
   const [sheets, setSheets] = useState<Record<string, any[]>>({});
@@ -57,6 +73,52 @@ export default function ImportData() {
   const [backupFilename, setBackupFilename] = useState("");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+
+  // ── Backup / Restore functions ─────────────────────────
+  const downloadBackup = async () => {
+    setBackupLoading(true);
+    try {
+      const token = localStorage.getItem("erp_token");
+      const res = await fetch(`${import.meta.env.BASE_URL}api/businesses/backup`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const fname = match?.[1] || `bizcor-backup-${new Date().toISOString().split("T")[0]}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = fname; a.click();
+      URL.revokeObjectURL(url);
+    } finally { setBackupLoading(false); }
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setRestoreLoading(true);
+    setRestoreResult(null);
+    try {
+      const text = await f.text();
+      const data = JSON.parse(text);
+      if (!data.parties && !data.items && !data.vouchers) {
+        setRestoreResult({ success: false, message: "Galat file — BizCor backup JSON chahiye" });
+        return;
+      }
+      const res = await api.post<any>("/businesses/restore", {
+        units: data.units || [], taxRates: data.taxRates || [], hsnCodes: data.hsnCodes || [],
+        parties: data.parties || [], items: data.items || [],
+        vouchers: data.vouchers || [], voucherItems: data.voucherItems || [],
+        payments: data.payments || [], paymentAllocations: data.paymentAllocations || [],
+      });
+      setRestoreResult({ success: true, message: res.message || "Restore ho gaya!" });
+    } catch (err: any) {
+      setRestoreResult({ success: false, message: err.message || "Restore fail ho gaya" });
+    } finally {
+      setRestoreLoading(false);
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+    }
+  };
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -131,8 +193,98 @@ export default function ImportData() {
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-800">Data Import</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Purane ERP ka data BizCor mein import karein — import se pehle auto-backup hoga</p>
+        <h1 className="text-xl font-bold text-gray-800">Data & Backup</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Backup, restore aur data management — sab ek jagah</p>
+      </div>
+
+      {/* ── Backup ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              <Download className="w-4 h-4 text-green-600" /> Backup Download
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">Parties, Items, Invoices, Payments — sab ek JSON file mein</div>
+          </div>
+          <button onClick={downloadBackup} disabled={backupLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors">
+            {backupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Backup
+          </button>
+        </div>
+      </div>
+
+      {/* ── Restore ────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 min-w-0 pr-4">
+            <div className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-blue-600" /> Restore from Backup
+            </div>
+            <div className="text-xs text-gray-500 mt-0.5">BizCor backup JSON se data restore karo — existing records skip honge</div>
+            {restoreResult && (
+              <div className={`text-xs mt-2 font-medium px-2 py-1 rounded ${restoreResult.success ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                {restoreResult.success ? "✅ " : "❌ "}{restoreResult.message}
+              </div>
+            )}
+          </div>
+          <div>
+            <input ref={restoreInputRef} type="file" accept=".json" className="hidden" onChange={handleRestore} />
+            <button onClick={() => restoreInputRef.current?.click()} disabled={restoreLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60 transition-colors">
+              {restoreLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Restore
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Data Location Folder ───────────────────────────────── */}
+      {isFileSystemSupported() ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0 pr-4">
+              <div className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-indigo-600" /> {t("offlineDataFolder", lang)}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {folderName
+                  ? <span className="text-blue-600 font-medium">📁 {folderName}</span>
+                  : t("offlineDraftsFolderDesc", lang)}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {folderName && (
+                <button onClick={async () => { await clearDataFolder(); setFolderName(null); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors">
+                  <FolderX className="w-3.5 h-3.5" /> {t("removeFolderBtn", lang)}
+                </button>
+              )}
+              <button onClick={async () => { setFolderPicking(true); try { const r = await pickDataFolder(); if (r) setFolderName(r.name); } finally { setFolderPicking(false); } }}
+                disabled={folderPicking}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium disabled:opacity-60 transition-colors">
+                {folderPicking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
+                {folderName ? t("changeFolderBtn", lang) : t("chooseFolder", lang)}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-gray-400" /> {t("offlineDataFolder", lang)}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">{t("offlineDraftsChromeOnly", lang)}</div>
+        </div>
+      )}
+
+      {/* ── Divider ────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 py-1">
+        <div className="flex-1 border-t border-gray-200" />
+        <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
+          <Database className="w-3.5 h-3.5" /> Import from Other ERP
+        </div>
+        <div className="flex-1 border-t border-gray-200" />
       </div>
 
       {/* ERP Type */}
