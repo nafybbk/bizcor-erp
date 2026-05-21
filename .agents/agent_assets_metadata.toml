@@ -197,3 +197,9 @@ id = "PQopEDD5dDDrtGVfSQ1A-"
 uri = "file://.local/outputs/BizCor-Marketing-Package.zip"
 type = "unspecified"
 title = "BizCor Marketing Package (PDF + 4 WhatsApp Images)"
+
+[[outputs]]
+id = "dSoFMR72nKT6gpghFG1jG"
+uri = "file://.local/outputs/BizCor-WhatsApp-Reel.zip"
+type = "unspecified"
+title = "BizCor WhatsApp Reel — Browser Animation"
