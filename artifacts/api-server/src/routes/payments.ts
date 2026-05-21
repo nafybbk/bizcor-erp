@@ -68,7 +68,8 @@ router.post("/", async (req, res) => {
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
   } catch (err) {
     req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("[PAYMENT POST ERROR]", err);
+    res.status(500).json({ error: "Internal Server Error", message: err instanceof Error ? err.message : String(err) });
   }
 });
 
