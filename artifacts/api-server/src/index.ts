@@ -371,6 +371,21 @@ function runSqliteInit() {
       notes TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER NOT NULL,
+      from_user_id INTEGER NOT NULL,
+      from_user_name TEXT NOT NULL,
+      message TEXT,
+      file_path TEXT,
+      file_name TEXT,
+      file_mime_type TEXT,
+      file_size INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id);
   `);
 
   logger.info("SQLite schema initialized — all tables ready");
