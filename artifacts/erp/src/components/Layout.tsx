@@ -513,7 +513,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link href="/settings/import">
                   <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/import" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
                     <DatabaseZap className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>Import Data</span>
+                    <span>Data & Backup</span>
                   </a>
                 </Link>
               )}
@@ -576,24 +576,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="text-slate-600 text-[10px]">✎</span>
               </button>
 
-              {/* Data Folder */}
-              {isFileSystemSupported() && (
-                <button
-                  onClick={async () => {
-                    const result = await pickDataFolder();
-                    if (result) setDataFolderName(result.name);
-                  }}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                    dataFolderName ? "text-blue-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-700 hover:text-slate-300"
-                  }`}
-                >
-                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="truncate flex-1 text-left">
-                    {dataFolderName ? dataFolderName : L.dataFolder}
-                  </span>
-                  <span className="text-slate-600 text-[10px]">✎</span>
-                </button>
-              )}
 
               {/* Language Toggle */}
               <button
