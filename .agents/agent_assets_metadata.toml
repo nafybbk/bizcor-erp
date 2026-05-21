@@ -54,6 +54,42 @@ uri = "file://artifacts/bizcor-conference/public/data-backup.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "joP7C3aKX--U6zRKNU9E2"
+uri = "file://attached_assets/marketing/whatsapp-static-bizcor.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "dp8qsyABC_rKS_ouYBkn7"
+uri = "file://attached_assets/marketing/whatsapp-static-cloud-lan.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "AGoZdDjGoPUwz0f8NBCu0"
+uri = "file://attached_assets/marketing/whatsapp-static-gst.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "pHd85wkrQ7zGmA2jOpdpZ"
+uri = "file://attached_assets/marketing/whatsapp-static-backup.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "dcDqpG9lCHA0EbjjYy_Uo"
+uri = "file://artifacts/bizcor-reels/public/bg-texture-1.png"
+type = "image"
+title = "Navy abstract bg with orange particles"
+
+[[generated]]
+id = "10Wbw_70V_jN2auITRyUW"
+uri = "file://artifacts/bizcor-reels/public/bg-texture-2.png"
+type = "image"
+title = "Navy bg with faint orange light trails"
+
 [[outputs]]
 id = "zAHhzwifTSPwZP4yZAY2J"
 uri = "file://DEPLOY.md"
@@ -119,3 +155,39 @@ id = "EeAHgCKN5XbsZP15TEp61"
 uri = "file://tools/smart-erp-import/SETUP-GUIDE.txt"
 type = "text"
 title = "Smart ERP Import Tool — Setup Guide"
+
+[[outputs]]
+id = "AfkAYtkD7-Wg8PwVTuz6o"
+uri = "file://.local/outputs/BizCor-ERP-Conference-2026.pdf"
+type = "pdf"
+title = "BizCor ERP — Conference 2026 (PDF, 12 slides)"
+
+[[outputs]]
+id = "h9bXaTKf_YBtkUlTU1K2C"
+uri = "file://artifacts/bizcor-reels/public/audio/bg_music.mp3"
+type = "audio"
+title = "BizCor ERP background music"
+
+[[outputs]]
+id = "kPA9r59NQ4wikM2i_3Lki"
+uri = "file://attached_assets/marketing/whatsapp-static-bizcor.png"
+type = "image"
+title = "WhatsApp Image 1 — BizCor ERP Main"
+
+[[outputs]]
+id = "M99g5V5k540SoJhKt49Yn"
+uri = "file://attached_assets/marketing/whatsapp-static-cloud-lan.png"
+type = "image"
+title = "WhatsApp Image 2 — Cloud vs LAN"
+
+[[outputs]]
+id = "i5iz4d-4HhmLLyGW8bVLD"
+uri = "file://attached_assets/marketing/whatsapp-static-gst.png"
+type = "image"
+title = "WhatsApp Image 3 — GST Ready"
+
+[[outputs]]
+id = "f3YdCzyt-JNJvsuXW7I_K"
+uri = "file://attached_assets/marketing/whatsapp-static-backup.png"
+type = "image"
+title = "WhatsApp Image 4 — Backup & Security"

@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/bizcor-reels/"
+title = "BizCor WhatsApp Reels"
+version = "1.0.0"
+id = "artifacts/bizcor-reels"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/bizcor-reels/" ]
+localPort = 22551
+
+[services.development]
+run = "pnpm --filter @workspace/bizcor-reels run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bizcor-reels", "run", "build" ]
+publicDir = "artifacts/bizcor-reels/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22551"
+BASE_PATH = "/bizcor-reels/"
