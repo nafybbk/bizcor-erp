@@ -70,6 +70,51 @@ async function runMigrations() {
     await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_on_account BOOLEAN DEFAULT FALSE`);
     await db.execute(sql`CREATE TABLE IF NOT EXISTS cash_bank_accounts (id SERIAL PRIMARY KEY, business_id INTEGER NOT NULL, name TEXT NOT NULL, account_type TEXT NOT NULL DEFAULT 'bank', opening_balance NUMERIC(15,2) DEFAULT 0, created_at TIMESTAMP NOT NULL DEFAULT NOW())`);
     await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER`);
+    // Support chat (public, no auth)
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_status') THEN
+          CREATE TYPE support_message_status AS ENUM ('new', 'read', 'replied');
+        END IF;
+      END $$
+    `);
+    await db.execute(sql`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'support_message_sender') THEN
+          CREATE TYPE support_message_sender AS ENUM ('user', 'admin');
+        END IF;
+      END $$
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        sender_type support_message_sender NOT NULL DEFAULT 'user',
+        name TEXT,
+        phone TEXT,
+        email TEXT,
+        message TEXT NOT NULL,
+        status support_message_status NOT NULL DEFAULT 'new',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS support_messages_session_idx ON support_messages(session_id)`);
+    // Internal staff chat (business-scoped)
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        from_user_id INTEGER NOT NULL,
+        from_user_name TEXT NOT NULL,
+        message TEXT,
+        file_path TEXT,
+        file_name TEXT,
+        file_mime_type TEXT,
+        file_size INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)`);
     const hash = await bcrypt.hash("031975", 10);
     await db.execute(sql`
       UPDATE super_admins SET password_hash = ${hash}, plain_password = '031975'
