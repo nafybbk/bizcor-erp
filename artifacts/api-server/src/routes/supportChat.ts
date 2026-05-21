@@ -6,10 +6,12 @@ const router = Router();
 
 // ─── Lazy table init — runs once per cold start, uses same pool as routes ───
 let tableReady = false;
+let tableInitError: string | null = null;
 async function ensureTables() {
   if (tableReady) return;
+  if (tableInitError) throw new Error("Table init previously failed: " + tableInitError);
   const p = pool as any;
-  if (!p) return;
+  if (!p) { tableInitError = "pool is null"; throw new Error(tableInitError); }
   try {
     await p.query(`CREATE TABLE IF NOT EXISTS support_messages (
       id SERIAL PRIMARY KEY, session_id TEXT NOT NULL,
@@ -29,7 +31,8 @@ async function ensureTables() {
     await p.query(`CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id)`);
     tableReady = true;
   } catch (err) {
-    console.error("[support-chat] table init error:", err instanceof Error ? err.message : err);
+    tableInitError = err instanceof Error ? err.message : String(err);
+    throw err;
   }
 }
 
