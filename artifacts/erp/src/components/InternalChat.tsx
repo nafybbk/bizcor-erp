@@ -91,7 +91,8 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   onToggle: () => void;
   onUnreadChange?: (n: number) => void;
 }) {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, logout } = useAuth();
+  const [sendError, setSendError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -165,7 +166,12 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
         if (!open) setUnread(u => u + rows.length);
         else scrollToBottom();
       }
-    } catch { /* ignore */ }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized")) {
+        handle401();
+      }
+    }
   }, [open, scrollToBottom]);
 
   useEffect(() => {
@@ -183,10 +189,17 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
     }
   }, [open]);
 
+  const handle401 = () => {
+    setSendError("Session expire ho gayi — dobara login karein");
+    if (pollRef.current) clearInterval(pollRef.current);
+    setTimeout(() => { logout(); }, 2000);
+  };
+
   const sendText = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!text.trim() || sending) return;
     setSending(true);
+    setSendError(null);
     try {
       const row = await chatFetch<ChatMsg>("/chat/messages", {
         method: "POST",
@@ -197,8 +210,15 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
       lastIdRef.current = row.id;
       setText("");
       scrollToBottom();
-    } catch { /* ignore */ }
-    finally { setSending(false); }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("401") || msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("session")) {
+        handle401();
+      } else {
+        setSendError("Message nahi gaya — dobara try karein");
+        setTimeout(() => setSendError(null), 4000);
+      }
+    } finally { setSending(false); }
   };
 
   const sendFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,6 +403,12 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </form>
+          {/* Send error banner */}
+          {sendError && (
+            <div className="px-3 py-2 bg-red-900/80 text-red-200 text-xs flex items-center gap-2 flex-shrink-0">
+              <span>⚠️ {sendError}</span>
+            </div>
+          )}
           </div>
 
           {/* Resize handle — bottom-right drag corner */}
