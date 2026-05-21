@@ -104,7 +104,7 @@ router.get("/super-admin/support-messages", requireSuperAdmin, async (req, res) 
 
 router.post("/super-admin/support-messages/:sessionId/reply", requireSuperAdmin, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const sessionId = String(req.params.sessionId);
     const { message } = req.body || {};
     if (!message?.trim()) { res.status(400).json({ error: "message required" }); return; }
 
@@ -130,7 +130,7 @@ router.post("/super-admin/support-messages/:sessionId/reply", requireSuperAdmin,
 
 router.patch("/super-admin/support-messages/:sessionId/read", requireSuperAdmin, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const sessionId = String(req.params.sessionId);
     await db.update(supportMessagesTable)
       .set({ status: "read" })
       .where(eq(supportMessagesTable.sessionId, sessionId));

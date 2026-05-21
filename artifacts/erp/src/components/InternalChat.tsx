@@ -190,9 +190,8 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   }, [open]);
 
   const handle401 = () => {
-    setSendError("Session expire ho gayi — dobara login karein");
+    setSendError("Session expire ho gayi — Sign Out karke dobara login karein");
     if (pollRef.current) clearInterval(pollRef.current);
-    setTimeout(() => { logout(); }, 2000);
   };
 
   const sendText = async (e?: React.FormEvent) => {
