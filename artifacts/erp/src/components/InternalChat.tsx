@@ -29,6 +29,26 @@ async function chatFetch<T>(path: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Fetch file with auth header → download as blob (fixes .json extension bug)
+async function downloadFile(filePath: string, fileName: string) {
+  try {
+    const token = getToken();
+    const res = await fetch(`${BASE}/chat/files/${encodeURIComponent(filePath)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch { /* silent */ }
+}
+
 function formatTime(d: string) {
   return new Date(d).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
@@ -46,43 +66,55 @@ function humanSize(bytes: number | null) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-function fileUrl(filePath: string) {
-  const token = getToken();
-  return `${BASE}/chat/files/${encodeURIComponent(filePath)}?t=${token}`;
-}
-
 function FilePreview({ msg }: { msg: ChatMsg }) {
+  const [downloading, setDownloading] = useState(false);
+
   if (!msg.filePath) return null;
-  const url = fileUrl(msg.filePath);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    await downloadFile(msg.filePath!, msg.fileName ?? "file");
+    setDownloading(false);
+  };
 
   if (isImage(msg.fileMimeType)) {
     return (
-      <a href={url} download={msg.fileName ?? "image"} target="_blank" rel="noopener noreferrer">
+      <div className="mt-1">
         <img
-          src={url}
+          src={`${BASE}/chat/files/${encodeURIComponent(msg.filePath)}`}
           alt={msg.fileName ?? "image"}
-          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/20 mt-1 cursor-pointer hover:opacity-90 transition-opacity"
+          className="max-w-[200px] max-h-[200px] rounded-lg object-cover border border-white/20 cursor-pointer hover:opacity-90 transition-opacity"
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          onClick={handleDownload}
         />
-      </a>
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-1 text-[10px] opacity-60 hover:opacity-100 mt-0.5 transition-opacity"
+        >
+          {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+          {downloading ? "Downloading..." : "Download"}
+        </button>
+      </div>
     );
   }
 
   return (
-    <a
-      href={url}
-      download={msg.fileName ?? "file"}
-      className="flex items-center gap-2 mt-1 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors max-w-[220px]"
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className="flex items-center gap-2 mt-1 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors max-w-[220px] w-full text-left disabled:opacity-60"
     >
-      <File className="w-5 h-5 flex-shrink-0 opacity-80" />
+      {downloading ? <Loader2 className="w-5 h-5 flex-shrink-0 opacity-80 animate-spin" /> : <File className="w-5 h-5 flex-shrink-0 opacity-80" />}
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{msg.fileName ?? "file"}</div>
         <div className="text-[10px] opacity-60 flex items-center gap-1">
           {humanSize(msg.fileSize)}
-          <Download className="w-3 h-3" />
+          {downloading ? "Downloading..." : <><Download className="w-3 h-3" /> Download</>}
         </div>
       </div>
-    </a>
+    </button>
   );
 }
 
@@ -91,7 +123,7 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   onToggle: () => void;
   onUnreadChange?: (n: number) => void;
 }) {
-  const { user, isSuperAdmin, logout } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [sendError, setSendError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [text, setText] = useState("");
@@ -102,37 +134,68 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [chatSize, setChatSize] = useState({ w: 340, h: 480 });
+
+  // Draggable position — null = use default right-corner position
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
   const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+  const moveDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   const lastIdRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Compute initial position once
   useEffect(() => {
-    fetch(`${BASE}/healthz`).then(r => r.json()).then((d: any) => {
-      setIsDesktop(d?.mode === "desktop");
+    setPos({ x: window.innerWidth - chatSize.w - 8, y: 52 });
+  }, []);
+
+  useEffect(() => {
+    fetch(`${BASE}/healthz`).then(r => r.json()).then((d: unknown) => {
+      setIsDesktop((d as { mode?: string })?.mode === "desktop");
     }).catch(() => {});
   }, []);
 
-  // Notify parent of unread count changes
   useEffect(() => { onUnreadChange?.(unread); }, [unread]);
 
-  // Resize drag handler
+  // ── Resize (bottom-right corner) ─────────────────────────────────────────────
   const onResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     resizeDragRef.current = { startX: e.clientX, startY: e.clientY, startW: chatSize.w, startH: chatSize.h };
     const onMove = (me: MouseEvent) => {
       if (!resizeDragRef.current) return;
-      const dw = me.clientX - resizeDragRef.current.startX;
-      const dh = me.clientY - resizeDragRef.current.startY;
       setChatSize({
-        w: Math.max(260, Math.min(700, resizeDragRef.current.startW + dw)),
-        h: Math.max(280, Math.min(window.innerHeight - 80, resizeDragRef.current.startH + dh)),
+        w: Math.max(260, Math.min(700, resizeDragRef.current.startW + me.clientX - resizeDragRef.current.startX)),
+        h: Math.max(280, Math.min(window.innerHeight - 80, resizeDragRef.current.startH + me.clientY - resizeDragRef.current.startY)),
       });
     };
     const onUp = () => {
       resizeDragRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
+  // ── Drag to move (header) ─────────────────────────────────────────────────────
+  const onHeaderMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const startPosX = pos?.x ?? (window.innerWidth - chatSize.w - 8);
+    const startPosY = pos?.y ?? 52;
+    moveDragRef.current = { startX: e.clientX, startY: e.clientY, startPosX, startPosY };
+    const onMove = (me: MouseEvent) => {
+      if (!moveDragRef.current) return;
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - chatSize.w, moveDragRef.current.startPosX + me.clientX - moveDragRef.current.startX)),
+        y: Math.max(0, Math.min(window.innerHeight - 100, moveDragRef.current.startPosY + me.clientY - moveDragRef.current.startY)),
+      });
+    };
+    const onUp = () => {
+      moveDragRef.current = null;
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
@@ -223,21 +286,17 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   const sendFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setSending(true);
     setUploadProgress(`Uploading ${file.name} (${humanSize(file.size)})...`);
-
     try {
       const token = getToken();
       const formData = new FormData();
       formData.append("file", file);
-
       const res = await fetch(`${BASE}/chat/messages/file`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
       if (!res.ok) throw new Error(await res.text());
       const row: ChatMsg = await res.json();
       setMessages(prev => [...prev, row]);
@@ -258,7 +317,6 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
     } catch { /* ignore */ }
   };
 
-  // Group by date
   const grouped: { date: string; msgs: ChatMsg[] }[] = [];
   for (const msg of messages) {
     const d = formatDate(msg.createdAt);
@@ -269,22 +327,30 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
     }
   }
 
+  const panelLeft = pos?.x ?? (typeof window !== "undefined" ? window.innerWidth - chatSize.w - 8 : 8);
+  const panelTop = pos?.y ?? 52;
+
   return (
     <>
-      {/* Chat Panel — opens below topbar on the right */}
       {open && (
         <div
-          className="fixed z-50 flex flex-col bg-slate-900 shadow-2xl border border-slate-700 rounded-2xl overflow-hidden print:hidden select-none"
-          style={{ top: 52, right: 8, width: chatSize.w, height: chatSize.h, maxWidth: "calc(100vw - 16px)", maxHeight: "calc(100vh - 60px)" }}
+          className="fixed z-50 flex flex-col bg-slate-900 shadow-2xl border border-slate-700 rounded-2xl overflow-hidden print:hidden"
+          style={{ top: panelTop, left: panelLeft, width: chatSize.w, height: chatSize.h, maxWidth: "calc(100vw - 16px)", maxHeight: "calc(100vh - 16px)" }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+          {/* Header — drag to move */}
+          <div
+            className="flex items-center justify-between px-4 py-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 cursor-grab active:cursor-grabbing select-none"
+            onMouseDown={onHeaderMouseDown}
+          >
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               <span className="text-white font-semibold text-sm">Staff Chat</span>
               <span className="text-slate-400 text-xs">— sirf aapki team</span>
             </div>
-            <button onClick={onToggle} className="text-slate-400 hover:text-white transition-colors">
+            <button
+              onClick={onToggle}
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -402,15 +468,14 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </form>
-          {/* Send error banner */}
-          {sendError && (
-            <div className="px-3 py-2 bg-red-900/80 text-red-200 text-xs flex items-center gap-2 flex-shrink-0">
-              <span>⚠️ {sendError}</span>
-            </div>
-          )}
+            {sendError && (
+              <div className="px-3 py-2 mt-1 bg-red-900/80 text-red-200 text-xs flex items-center gap-2 rounded-lg">
+                <span>⚠️ {sendError}</span>
+              </div>
+            )}
           </div>
 
-          {/* Resize handle — bottom-right drag corner */}
+          {/* Resize handle — bottom-right corner */}
           <div
             onMouseDown={onResizeMouseDown}
             className="absolute bottom-0 right-0 w-6 h-6 flex items-end justify-end pb-1 pr-1 cursor-se-resize text-slate-500 hover:text-slate-300 z-10"
@@ -421,7 +486,6 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
         </div>
       )}
 
-      {/* Hidden file input — no accept filter, no size limit */}
       <input
         ref={fileInputRef}
         type="file"
