@@ -160,6 +160,34 @@ router.get("/chat/files/:filename", async (req, res) => {
   }
 });
 
+// DELETE /chat/messages/all — admin only, clear entire chat for business
+router.delete("/chat/messages/all", async (req, res) => {
+  try {
+    if (req.user!.role !== "business_admin") {
+      res.status(403).json({ error: "Sirf admin clear kar sakta hai" });
+      return;
+    }
+    const businessId = req.user!.businessId!;
+
+    const msgs = await db.select({ filePath: chatMessagesTable.filePath })
+      .from(chatMessagesTable)
+      .where(eq(chatMessagesTable.businessId, businessId));
+
+    for (const m of msgs) {
+      if (m.filePath) {
+        const fp = path.join(UPLOAD_DIR, m.filePath);
+        if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      }
+    }
+
+    await db.delete(chatMessagesTable).where(eq(chatMessagesTable.businessId, businessId));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // DELETE /chat/messages/:id — delete own message + file from disk
 router.delete("/chat/messages/:id", async (req, res) => {
   try {
