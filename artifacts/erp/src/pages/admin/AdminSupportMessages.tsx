@@ -216,9 +216,9 @@ function ChatDetail({ session, onBack, onReply }: {
         <div className="flex-shrink-0">{statusBadge(session.status)}</div>
       </div>
 
-      {/* Messages */}
+      {/* Messages — oldest first, newest at bottom */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {session.messages.map(msg => (
+        {[...session.messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(msg => (
           <div key={msg.id} className={`flex ${msg.senderType === "user" ? "justify-start" : "justify-end"}`}>
             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
               msg.senderType === "user"
