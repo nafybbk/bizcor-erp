@@ -1,5 +1,9 @@
 # BizERP — Indian Business ERP SaaS
 
+## User Preferences
+
+- **EXE Release Rule**: Har kaam ke baad jo EXE mein jaana chahiye — bina puche automatically `artifacts/desktop/package.json` version bump karo, GitHub push karo, aur naya `vX.X.X` tag create karo. Tag se GitHub Actions auto-trigger hota hai. Ye step kabhi skip nahi karna.
+
 ## Overview
 
 Full-featured multi-tenant ERP SaaS for Indian businesses. Built as a pnpm monorepo with Express backend and React+Vite frontend.
