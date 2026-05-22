@@ -2,24 +2,27 @@ import { Router } from "express";
 import { pool } from "@workspace/db";
 import { requireSuperAdmin } from "../middlewares/auth";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+import { Readable } from "stream";
 
 const router = Router();
 
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "support-chat");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const stamp = Date.now();
-    const rand = Math.random().toString(36).slice(2, 8);
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${stamp}_${rand}_${safe}`);
-  },
+// ─── Cloudinary config ────────────────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
 });
-const upload = multer({ storage });
+
+const CLOUDINARY_FOLDER = "support-chat";
+const MAX_STORAGE_BYTES = 500 * 1024 * 1024; // 500 MB cap
+
+// multer — memory storage (no disk)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB per file
+});
 
 // ─── Lazy table init ──────────────────────────────────────────────────────────
 let tableReady = false;
@@ -38,14 +41,13 @@ async function ensureTables() {
       file_path TEXT, file_name TEXT, file_mime_type TEXT, file_size INTEGER,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )`);
-    // Add file columns to existing tables that may not have them
     for (const col of [
       `ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS file_path TEXT`,
       `ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS file_name TEXT`,
       `ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS file_mime_type TEXT`,
       `ALTER TABLE support_messages ADD COLUMN IF NOT EXISTS file_size INTEGER`,
     ]) {
-      try { await p.query(col); } catch { /* column may already exist */ }
+      try { await p.query(col); } catch { /* already exists */ }
     }
     await p.query(`CREATE TABLE IF NOT EXISTS chat_messages (
       id SERIAL PRIMARY KEY, business_id INTEGER NOT NULL,
@@ -69,24 +71,94 @@ async function pgQuery(text: string, params: unknown[] = []) {
   return p.query(text, params);
 }
 
+// ─── Upload buffer to Cloudinary ──────────────────────────────────────────────
+async function uploadToCloudinary(
+  buffer: Buffer,
+  originalName: string,
+  mimeType: string
+): Promise<{ publicId: string; secureUrl: string; bytes: number }> {
+  return new Promise((resolve, reject) => {
+    const isRaw = !mimeType.startsWith("image/") && !mimeType.startsWith("video/");
+    const resourceType: "image" | "video" | "raw" = mimeType.startsWith("image/")
+      ? "image" : mimeType.startsWith("video/") ? "video" : "raw";
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: CLOUDINARY_FOLDER,
+        resource_type: resourceType,
+        public_id: `${Date.now()}_${originalName.replace(/[^a-zA-Z0-9._-]/g, "_")}`,
+        use_filename: true,
+        unique_filename: true,
+        ...(isRaw ? { format: undefined } : {}),
+      },
+      (err, result) => {
+        if (err || !result) return reject(err || new Error("Cloudinary upload failed"));
+        resolve({ publicId: result.public_id, secureUrl: result.secure_url, bytes: result.bytes });
+      }
+    );
+    Readable.from(buffer).pipe(stream);
+  });
+}
+
+// ─── FIFO cleanup: delete oldest files when > 500 MB ─────────────────────────
+async function fifoCleanup() {
+  try {
+    // Get total size from DB
+    const r = await pgQuery(
+      `SELECT id, file_path, file_size FROM support_messages
+       WHERE file_path IS NOT NULL ORDER BY created_at ASC`
+    );
+    const rows: { id: number; file_path: string; file_size: number }[] = r.rows;
+    const totalBytes = rows.reduce((s: number, row: { file_size: number }) => s + (row.file_size || 0), 0);
+    if (totalBytes <= MAX_STORAGE_BYTES) return;
+
+    let freed = 0;
+    const toDelete = totalBytes - MAX_STORAGE_BYTES;
+    for (const row of rows) {
+      if (freed >= toDelete) break;
+      // Delete from Cloudinary
+      try {
+        const mimeR = await pgQuery(
+          `SELECT file_mime_type FROM support_messages WHERE id=$1`, [row.id]
+        );
+        const mime: string = mimeR.rows[0]?.file_mime_type || "";
+        const resourceType: "image" | "video" | "raw" = mime.startsWith("image/")
+          ? "image" : mime.startsWith("video/") ? "video" : "raw";
+        await cloudinary.uploader.destroy(row.file_path, { resource_type: resourceType });
+      } catch { /* ignore cloudinary errors */ }
+      // Nullify file columns in DB (keep message row)
+      await pgQuery(
+        `UPDATE support_messages SET file_path=NULL, file_name=NULL, file_mime_type=NULL, file_size=NULL WHERE id=$1`,
+        [row.id]
+      );
+      freed += row.file_size || 0;
+    }
+  } catch { /* non-critical */ }
+}
+
 // ─── DIAGNOSTIC ───────────────────────────────────────────────────────────────
 router.get("/support-chat/diag", async (_req, res) => {
   const p = pool as any;
-  const info: Record<string, unknown> = { poolNull: !p, tableReady, tableInitError };
+  const info: Record<string, unknown> = {
+    poolNull: !p, tableReady, tableInitError,
+    cloudinaryConfigured: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY),
+  };
   if (p) {
     try {
       const r = await p.query(`SELECT COUNT(*) as n FROM information_schema.tables WHERE table_schema='public' AND table_name='support_messages'`);
       info.tableExistsInDB = r.rows[0]?.n !== "0";
     } catch (e) { info.tableCheckError = (e as Error).message; }
     try {
-      await p.query(`CREATE TABLE IF NOT EXISTS support_messages_diag_test (id SERIAL PRIMARY KEY, ts TIMESTAMP DEFAULT NOW())`);
-      await p.query(`DROP TABLE IF EXISTS support_messages_diag_test`);
-      info.canCreateTable = true;
-    } catch (e) { info.canCreateTable = false; info.createError = (e as Error).message; }
-    try {
       const r2 = await p.query(`SELECT current_database() as db`);
       info.currentDb = r2.rows[0]?.db;
     } catch (e) { info.dbNameError = (e as Error).message; }
+    try {
+      const r3 = await pgQuery(
+        `SELECT COALESCE(SUM(file_size),0) as total FROM support_messages WHERE file_path IS NOT NULL`
+      );
+      info.storageBytesUsed = Number(r3.rows[0]?.total || 0);
+      info.storageCapBytes = MAX_STORAGE_BYTES;
+    } catch { /* ignore */ }
   }
   res.json(info);
 });
@@ -112,7 +184,7 @@ router.post("/support-chat/messages", async (req, res) => {
   }
 });
 
-// ─── PUBLIC: Upload file message ──────────────────────────────────────────────
+// ─── PUBLIC: Upload file message → Cloudinary ────────────────────────────────
 router.post("/support-chat/messages/file", upload.single("file"), async (req, res) => {
   await ensureTables();
   try {
@@ -122,16 +194,32 @@ router.post("/support-chat/messages/file", upload.single("file"), async (req, re
       res.status(400).json({ error: "sessionId aur file zaroori hain" });
       return;
     }
+
+    // Upload to Cloudinary
+    const { publicId, secureUrl, bytes } = await uploadToCloudinary(
+      file.buffer, file.originalname, file.mimetype
+    );
+
+    // Store public_id as file_path, secure_url as file_name (for display/download)
     const result = await pgQuery(
-      `INSERT INTO support_messages (session_id, sender_type, name, phone, email, message, status, file_path, file_name, file_mime_type, file_size)
+      `INSERT INTO support_messages
+         (session_id, sender_type, name, phone, email, message, status,
+          file_path, file_name, file_mime_type, file_size)
        VALUES ($1, 'user', $2, $3, $4, $5, 'new', $6, $7, $8, $9) RETURNING id`,
       [
         sessionId.trim(),
         name?.trim() || null, phone?.trim() || null, email?.trim() || null,
         file.originalname,
-        file.filename, file.originalname, file.mimetype, file.size,
+        publicId,        // file_path = Cloudinary public_id (for delete/FIFO)
+        secureUrl,       // file_name = Cloudinary secure URL (for serving)
+        file.mimetype,
+        bytes,
       ]
     );
+
+    // Run FIFO cleanup async (non-blocking)
+    fifoCleanup().catch(() => {});
+
     res.json({ success: true, id: result.rows[0]?.id });
   } catch (err) {
     req.log.error(err);
@@ -160,36 +248,11 @@ router.get("/support-chat/messages/:sessionId", async (req, res) => {
   }
 });
 
-// ─── PUBLIC: Serve file (validated by sessionId) ──────────────────────────────
-router.get("/support-chat/files/:filename", async (req, res) => {
-  await ensureTables();
-  try {
-    const filename = req.params.filename;
-    const sessionId = Array.isArray(req.query.session) ? req.query.session[0] : req.query.session as string;
-    if (!sessionId) { res.status(400).json({ error: "session required" }); return; }
-
-    const result = await pgQuery(
-      `SELECT id FROM support_messages WHERE file_path=$1 AND session_id=$2 LIMIT 1`,
-      [filename, sessionId]
-    );
-    if (!result.rows.length) { res.status(404).json({ error: "File nahi mili" }); return; }
-
-    const filePath = path.join(UPLOAD_DIR, filename);
-    if (!fs.existsSync(filePath)) { res.status(404).json({ error: "File disk pe nahi mili" }); return; }
-    res.sendFile(filePath);
-  } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
-
-// ─── SUPER ADMIN: Download/view support file ──────────────────────────────────
-router.get("/super-admin/support-files/:filename", requireSuperAdmin, async (req, res) => {
-  const filename = String(req.params.filename);
-  const filePath = path.join(UPLOAD_DIR, filename);
-  if (!fs.existsSync(filePath)) { res.status(404).json({ error: "File nahi mili" }); return; }
-  res.sendFile(filePath);
-});
+// ─── NOTE: File serving ───────────────────────────────────────────────────────
+// Files are now served directly from Cloudinary CDN.
+// file_name column stores the Cloudinary secure_url.
+// Frontend uses file_name (secureUrl) directly — no proxy route needed.
+// Super admin can also use the same URL.
 
 // ─── SUPER ADMIN: List all sessions ──────────────────────────────────────────
 router.get("/super-admin/support-messages", requireSuperAdmin, async (req, res) => {
@@ -230,6 +293,28 @@ router.get("/super-admin/support-messages", requireSuperAdmin, async (req, res) 
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error", detail: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ─── SUPER ADMIN: Storage stats ──────────────────────────────────────────────
+router.get("/super-admin/support-storage", requireSuperAdmin, async (req, res) => {
+  try {
+    const r = await pgQuery(
+      `SELECT COALESCE(SUM(file_size),0) as total_bytes,
+              COUNT(*) FILTER (WHERE file_path IS NOT NULL) as file_count
+       FROM support_messages`
+    );
+    const totalBytes = Number(r.rows[0]?.total_bytes || 0);
+    res.json({
+      usedBytes: totalBytes,
+      usedMB: (totalBytes / 1024 / 1024).toFixed(1),
+      capBytes: MAX_STORAGE_BYTES,
+      capMB: 500,
+      percentUsed: ((totalBytes / MAX_STORAGE_BYTES) * 100).toFixed(1),
+      fileCount: Number(r.rows[0]?.file_count || 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
 });
 
