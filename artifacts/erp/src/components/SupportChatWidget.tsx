@@ -61,12 +61,17 @@ type Message = {
 
 type Meta = { name: string; phone: string; email: string };
 
-function FilePreview({ msg, sessionId }: { msg: Message; sessionId: string }) {
+function FilePreview({ msg }: { msg: Message; sessionId: string }) {
   const [downloading, setDownloading] = useState(false);
   const [imgError, setImgError] = useState(false);
   if (!msg.filePath) return null;
 
-  const fileUrl = `/api/support-chat/files/${encodeURIComponent(msg.filePath)}?session=${encodeURIComponent(sessionId)}`;
+  // fileName now stores the Cloudinary secure_url directly
+  const fileUrl = msg.fileName && msg.fileName.startsWith("http") ? msg.fileName : null;
+  if (!fileUrl) return null;
+
+  // For display: extract original name from filePath (public_id)
+  const displayName = msg.filePath.split("/").pop()?.replace(/^\d+_/, "") ?? "file";
 
   const handleDownload = async () => {
     if (downloading) return;
@@ -77,7 +82,7 @@ function FilePreview({ msg, sessionId }: { msg: Message; sessionId: string }) {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = msg.fileName ?? "file";
+      a.href = url; a.download = displayName;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch { /* silent */ }
@@ -99,7 +104,7 @@ function FilePreview({ msg, sessionId }: { msg: Message; sessionId: string }) {
         <button onClick={handleDownload} disabled={downloading}
           className={`flex items-center gap-1 text-[10px] mt-0.5 opacity-60 hover:opacity-100 ${isMe ? "text-blue-100" : "text-gray-500"}`}>
           {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-          {msg.fileName}
+          {displayName}
         </button>
       </div>
     );
@@ -114,7 +119,7 @@ function FilePreview({ msg, sessionId }: { msg: Message; sessionId: string }) {
         {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileIcon mime={msg.fileMimeType} />}
       </span>
       <div className="min-w-0">
-        <div className="truncate text-xs font-medium">{msg.fileName}</div>
+        <div className="truncate text-xs font-medium">{displayName}</div>
         <div className="text-[10px] opacity-60">{humanSize(msg.fileSize)} · {downloading ? "Saving..." : "Download"}</div>
       </div>
     </button>
