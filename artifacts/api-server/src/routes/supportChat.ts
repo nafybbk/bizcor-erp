@@ -16,12 +16,13 @@ cloudinary.config({
 });
 
 const CLOUDINARY_FOLDER = "support-chat";
-const MAX_STORAGE_BYTES = 500 * 1024 * 1024; // 500 MB cap
+const MAX_STORAGE_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB FIFO cap (Cloudinary free = 25 GB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB per file (Cloudinary free limit)
 
 // multer — memory storage (no disk)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB per file
+  limits: { fileSize: MAX_FILE_SIZE },
 });
 
 // ─── Lazy table init ──────────────────────────────────────────────────────────
