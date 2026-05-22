@@ -5,10 +5,20 @@ import { api } from "@/lib/api";
 const SESSION_KEY = "erp_support_chat_session";
 const META_KEY = "erp_support_chat_meta";
 
+function generateId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
 function getSessionId(): string {
   let id = localStorage.getItem(SESSION_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = generateId();
     localStorage.setItem(SESSION_KEY, id);
   }
   return id;
