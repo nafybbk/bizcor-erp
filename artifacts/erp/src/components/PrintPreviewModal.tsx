@@ -47,28 +47,35 @@ function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
   const clone = el.cloneNode(true) as HTMLElement;
   clone.id = "preview-root";
 
-  // ── 1. Font size — set on root, inherits everywhere ──────────────────────
-  clone.style.fontSize = `${cfg.fontSize}px`;
-
-  // ── 2. Header / table-header colour ──────────────────────────────────────
+  // ── 1. Header background colour ONLY — no forced font/line changes ────────
   const bg  = headerBg(cfg.headerLevel);
   const txt = headerText(cfg.headerLevel);
-  clone.querySelectorAll<HTMLElement>(".bg-gray-900").forEach(el => {
-    el.style.backgroundColor = bg;
-    el.style.color = txt;
-    el.style.setProperty("-webkit-print-color-adjust", "exact");
-    el.style.setProperty("print-color-adjust", "exact");
-    el.querySelectorAll<HTMLElement>("*").forEach(child => {
-      child.style.color = txt;
+  clone.querySelectorAll<HTMLElement>(".bg-gray-900").forEach(hdr => {
+    // Use setProperty with "important" so it wins over any collected CSS
+    hdr.style.setProperty("background-color", bg, "important");
+    hdr.style.setProperty("color", txt, "important");
+    hdr.style.setProperty("-webkit-print-color-adjust", "exact");
+    hdr.style.setProperty("print-color-adjust", "exact");
+    // Only direct text children — not coloured sub-elements
+    hdr.querySelectorAll<HTMLElement>("th,td,span,div,p").forEach(child => {
+      // Only override if child has no explicit non-white/black color class
+      const cls = child.className || "";
+      const hasColor = /text-(blue|red|green|orange|amber|indigo|purple|pink|yellow)/.test(cls);
+      if (!hasColor) child.style.setProperty("color", txt, "important");
     });
   });
 
-  // ── 3. Collect page CSS (for borders, layout etc.) ───────────────────────
+  // ── 2. Collect page CSS — skip @media print rules (they interfere) ────────
   let css = "";
   try {
     for (const sheet of Array.from(document.styleSheets)) {
       try {
-        for (const rule of Array.from(sheet.cssRules || [])) css += rule.cssText + "\n";
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          // Skip @media print — our srcdoc has its own print rules
+          if (rule.type === CSSRule.MEDIA_RULE &&
+              (rule as CSSMediaRule).conditionText?.includes("print")) continue;
+          css += rule.cssText + "\n";
+        }
       } catch { /* cross-origin */ }
     }
   } catch {}
@@ -78,7 +85,8 @@ function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
 <meta charset="utf-8"/>
 <style>
 *{box-sizing:border-box;}
-html{margin:0;padding:0;background:#6b7280;}
+/* font-size on html so Tailwind rem classes (text-xs/sm/base…) scale correctly */
+html{margin:0;padding:0;background:#6b7280;font-size:${cfg.fontSize}px;}
 body{
   margin:0;background:#6b7280;
   padding:20px 12px 40px;
@@ -95,7 +103,7 @@ body{
 .print-only{display:block!important;}
 .screen-only{display:none!important;}
 @media print{
-  html,body{background:white!important;padding:0!important;margin:0!important;}
+  html,body{background:white!important;padding:0!important;margin:0!important;font-size:${cfg.fontSize}px!important;}
   #preview-root{
     transform:none!important;width:100%!important;
     box-shadow:none!important;border-radius:0!important;margin:0!important;
