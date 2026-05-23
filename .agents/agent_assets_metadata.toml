@@ -251,3 +251,9 @@ id = "iL8OBEUc0y-KVUmVD_ebZ"
 uri = "file://.local/outputs/bizcor-branded-04-mobile.mp4"
 type = "video"
 title = "Clip 4 — Mobile App (BizCor branded)"
+
+[[outputs]]
+id = "Vx4ehjYahhux7VcodID82"
+uri = "file://BizCor-ERP-Features.pdf"
+type = "pdf"
+title = "BizCor ERP — Complete Feature Reference (PDF)"
