@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, Printer, ZoomIn, ZoomOut, MessageCircle, Settings, ChevronDown } from "lucide-react";
+import { X, Printer, ZoomIn, ZoomOut, MessageCircle, SlidersHorizontal } from "lucide-react";
 
-// ── Print settings (stored in localStorage) ──────────────────────────────────
+// ── Settings ──────────────────────────────────────────────────────────────────
 interface PrintCfg {
-  headerStyle: "dark" | "grey" | "light";
-  fontSize: "small" | "medium" | "large";
+  fontSize: number;     // 10–20 (px)
+  headerLevel: number;  // 0 (kala/dark) → 100 (halka/light)
 }
-const CFG_KEY = "bizcor_print_cfg";
-const DEFAULT_CFG: PrintCfg = { headerStyle: "grey", fontSize: "medium" };
+const CFG_KEY = "bizcor_print_cfg2";
+const DEFAULT_CFG: PrintCfg = { fontSize: 13, headerLevel: 40 };
 
 function loadCfg(): PrintCfg {
   try { return { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CFG_KEY) || "{}") }; }
@@ -17,28 +17,19 @@ function saveCfg(c: PrintCfg) {
   try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch {}
 }
 
-// ── Header colour map ─────────────────────────────────────────────────────────
-const HEADER_BG: Record<PrintCfg["headerStyle"], string> = {
-  dark:  "#111827",   // original black
-  grey:  "#4b5563",   // medium grey  (still white text)
-  light: "#d1d5db",   // light grey   (dark text)
-};
-const HEADER_TEXT: Record<PrintCfg["headerStyle"], string> = {
-  dark:  "#ffffff",
-  grey:  "#ffffff",
-  light: "#111827",
-};
+// ── Colour helpers ────────────────────────────────────────────────────────────
+function headerBg(level: number): string {
+  const r = Math.round(17  + (level / 100) * 192);
+  const g = Math.round(24  + (level / 100) * 189);
+  const b = Math.round(39  + (level / 100) * 180);
+  return `rgb(${r},${g},${b})`;
+}
+function headerText(level: number): string {
+  return level >= 62 ? "#111827" : "#ffffff";
+}
 
-// ── Font size map ─────────────────────────────────────────────────────────────
-const FONT_SIZE: Record<PrintCfg["fontSize"], string> = {
-  small:  "11.5px",
-  medium: "13px",
-  large:  "15px",
-};
-
-// ── A4 const ──────────────────────────────────────────────────────────────────
+// ── A4 ────────────────────────────────────────────────────────────────────────
 const A4_PX = 794;
-
 function calcDefaultZoom(): number {
   const w = typeof window !== "undefined" ? window.innerWidth : 1280;
   if (w < 480) return Math.max(0.28, parseFloat(((w - 24) / A4_PX).toFixed(2)));
@@ -47,8 +38,32 @@ function calcDefaultZoom(): number {
   return 0.9;
 }
 
-// ── Collect all page CSS ──────────────────────────────────────────────────────
-function collectCSS(): string {
+// ── Build srcdoc using DOM cloning — 100% reliable ───────────────────────────
+function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
+  const el = document.getElementById(printableId);
+  if (!el) return "<body><p style='color:#999;padding:2rem'>Preview unavailable</p></body>";
+
+  // Deep clone so we can mutate without affecting the page
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.id = "preview-root";
+
+  // ── 1. Font size — set on root, inherits everywhere ──────────────────────
+  clone.style.fontSize = `${cfg.fontSize}px`;
+
+  // ── 2. Header / table-header colour ──────────────────────────────────────
+  const bg  = headerBg(cfg.headerLevel);
+  const txt = headerText(cfg.headerLevel);
+  clone.querySelectorAll<HTMLElement>(".bg-gray-900").forEach(el => {
+    el.style.backgroundColor = bg;
+    el.style.color = txt;
+    el.style.setProperty("-webkit-print-color-adjust", "exact");
+    el.style.setProperty("print-color-adjust", "exact");
+    el.querySelectorAll<HTMLElement>("*").forEach(child => {
+      child.style.color = txt;
+    });
+  });
+
+  // ── 3. Collect page CSS (for borders, layout etc.) ───────────────────────
   let css = "";
   try {
     for (const sheet of Array.from(document.styleSheets)) {
@@ -57,62 +72,7 @@ function collectCSS(): string {
       } catch { /* cross-origin */ }
     }
   } catch {}
-  return css;
-}
 
-// ── Build override CSS from settings ─────────────────────────────────────────
-function buildOverrideCSS(cfg: PrintCfg): string {
-  const fs   = FONT_SIZE[cfg.fontSize];
-  const hBg  = HEADER_BG[cfg.headerStyle];
-  const hTxt = HEADER_TEXT[cfg.headerStyle];
-
-  // Target the three bg-gray-900 elements in VoucherView:
-  //   1. Table header <tr>
-  //   2. Document title badge ("TAX INVOICE")
-  //   3. Bottom "THANK YOU" strip
-  const hRule = `
-    #preview-root .bg-gray-900 {
-      background-color: ${hBg} !important;
-      color: ${hTxt} !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    #preview-root .bg-gray-900 * { color: ${hTxt} !important; }
-  `;
-
-  const fsRule = `
-    #preview-root,
-    #preview-root table,
-    #preview-root td,
-    #preview-root th,
-    #preview-root div,
-    #preview-root span,
-    #preview-root p { font-size: ${fs} !important; }
-    /* keep very-small helper labels a little smaller */
-    #preview-root .text-xs { font-size: calc(${fs} - 1.5px) !important; }
-  `;
-
-  const printRule = `
-    @media print {
-      #preview-root .bg-gray-900 {
-        background-color: ${hBg} !important;
-        color: ${hTxt} !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      #preview-root .bg-gray-900 * { color: ${hTxt} !important; }
-    }
-  `;
-
-  return `${hRule}\n${fsRule}\n${printRule}`;
-}
-
-// ── Build full iframe srcdoc ──────────────────────────────────────────────────
-function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
-  const el = document.getElementById(printableId);
-  if (!el) return "<body><p style='color:#999;padding:2rem'>Preview unavailable</p></body>";
-  const html = el.outerHTML.replace(/\bid="printable"\b/, 'id="preview-root"');
-  const css = collectCSS();
   const scaledWidthMm = Math.round(210 * zoom);
   return `<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
@@ -141,12 +101,9 @@ body{
     box-shadow:none!important;border-radius:0!important;margin:0!important;
   }
 }
-/* Page stylesheets */
 ${css}
-/* User print settings override (applied LAST — highest priority) */
-${buildOverrideCSS(cfg)}
 </style>
-</head><body>${html}</body></html>`;
+</head><body>${clone.outerHTML}</body></html>`;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -166,23 +123,23 @@ export default function PrintPreviewModal({
   initialZoom,
   shareText,
 }: Props) {
-  const iframeRef    = useRef<HTMLIFrameElement>(null);
-  const [zoom, setZoom] = useState(() => initialZoom ?? calcDefaultZoom());
-  const [srcdoc, setSrcdoc] = useState("");
-  const [cfg, setCfgState]  = useState<PrintCfg>(loadCfg);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [zoom, setZoom]         = useState(() => initialZoom ?? calcDefaultZoom());
+  const [srcdoc, setSrcdoc]     = useState("");
+  const [cfg, setCfg]           = useState<PrintCfg>(loadCfg);
   const [showSettings, setShowSettings] = useState(false);
 
-  // helper: update one key
-  const updateCfg = <K extends keyof PrintCfg>(key: K, val: PrintCfg[K]) => {
-    const next = { ...cfg, [key]: val };
-    setCfgState(next);
-    saveCfg(next);
-  };
-
-  // rebuild iframe whenever zoom or cfg changes
+  // Rebuild iframe whenever zoom or cfg changes
   useEffect(() => {
     setSrcdoc(buildSrcdoc(printableId, zoom, cfg));
-  }, [printableId, zoom, cfg]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printableId, zoom, cfg.fontSize, cfg.headerLevel]);
+
+  const updateCfg = (patch: Partial<PrintCfg>) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    saveCfg(next);
+  };
 
   const iframeWidth = `max(100%, calc(${Math.round(210 * zoom)}mm + 24px))`;
 
@@ -219,45 +176,13 @@ export default function PrintPreviewModal({
   const zoomIn  = () => setZoom(z => parseFloat(Math.min(3, z + 0.1).toFixed(1)));
   const zoomOut = () => setZoom(z => parseFloat(Math.max(0.2, z - 0.1).toFixed(1)));
 
-  // ── Header style button helper ─────────────────────────────────────────────
-  const HeaderBtn = ({ value, label, preview }: { value: PrintCfg["headerStyle"]; label: string; preview: string }) => (
-    <button
-      onClick={() => updateCfg("headerStyle", value)}
-      className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg border-2 text-xs font-medium transition-all ${
-        cfg.headerStyle === value
-          ? "border-blue-500 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-      }`}
-    >
-      <div
-        className="w-16 h-5 rounded text-white flex items-center justify-center text-[9px] font-bold"
-        style={{ background: HEADER_BG[value], color: HEADER_TEXT[value] }}
-      >
-        {preview}
-      </div>
-      {label}
-    </button>
-  );
-
-  // ── Font size button helper ────────────────────────────────────────────────
-  const FontBtn = ({ value, label, textSize }: { value: PrintCfg["fontSize"]; label: string; textSize: string }) => (
-    <button
-      onClick={() => updateCfg("fontSize", value)}
-      className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border-2 text-xs font-medium transition-all ${
-        cfg.fontSize === value
-          ? "border-blue-500 bg-blue-50 text-blue-700"
-          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-      }`}
-    >
-      <span style={{ fontSize: textSize, lineHeight: 1 }}>A</span>
-      {label}
-    </button>
-  );
+  // ── Preview of header colour for the slider thumb ─────────────────────────
+  const previewBg = headerBg(cfg.headerLevel);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col no-print bg-gray-600" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
+    <div className="fixed inset-0 z-[9999] flex flex-col no-print" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
 
-      {/* ── Top bar ─────────────────────────────────────────────────────────── */}
+      {/* ── Top bar ── */}
       <div className="flex items-center justify-between px-3 sm:px-5 h-12 bg-gray-950 text-white flex-shrink-0 gap-2">
 
         {/* Left: title */}
@@ -268,50 +193,31 @@ export default function PrintPreviewModal({
 
         {/* Centre: zoom */}
         <div className="flex items-center gap-1 bg-gray-800 rounded-lg px-1 py-0.5 flex-shrink-0">
-          <button onClick={zoomOut} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom out (-)">
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoom(calcDefaultZoom())}
-            className="px-2 py-0.5 text-xs text-gray-200 hover:bg-gray-700 rounded font-mono min-w-[52px] text-center"
-            title="Tap to reset zoom"
-          >
+          <button onClick={zoomOut} className="p-1.5 hover:bg-gray-700 rounded text-gray-300" title="Zoom out"><ZoomOut className="w-4 h-4" /></button>
+          <button onClick={() => setZoom(calcDefaultZoom())} className="px-2 py-0.5 text-xs text-gray-200 hover:bg-gray-700 rounded font-mono min-w-[52px] text-center" title="Reset zoom">
             {Math.round(zoom * 100)}%
           </button>
-          <button onClick={zoomIn} className="p-1.5 hover:bg-gray-700 rounded text-gray-300 active:bg-gray-600" title="Zoom in (+)">
-            <ZoomIn className="w-4 h-4" />
-          </button>
+          <button onClick={zoomIn} className="p-1.5 hover:bg-gray-700 rounded text-gray-300" title="Zoom in"><ZoomIn className="w-4 h-4" /></button>
         </div>
 
         {/* Right: actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Settings toggle */}
           <button
             onClick={() => setShowSettings(s => !s)}
-            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              showSettings
-                ? "bg-blue-600 text-white"
-                : "bg-gray-700 hover:bg-gray-600 text-gray-200"
-            }`}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${showSettings ? "bg-blue-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-200"}`}
             title="Print settings"
           >
-            <Settings className="w-4 h-4" />
-            <ChevronDown className={`w-3 h-3 transition-transform ${showSettings ? "rotate-180" : ""}`} />
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs">Settings</span>
           </button>
 
           {shareText && (
-            <button
-              onClick={handleWhatsApp}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors"
-            >
+            <button onClick={handleWhatsApp} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-semibold">
               <MessageCircle className="w-4 h-4" />
               <span className="hidden sm:inline">WhatsApp</span>
             </button>
           )}
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
-          >
+          <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold">
             <Printer className="w-4 h-4" />
             <span className="hidden sm:inline">Print</span>
           </button>
@@ -321,43 +227,54 @@ export default function PrintPreviewModal({
         </div>
       </div>
 
-      {/* ── Settings panel (slides in below toolbar) ─────────────────────── */}
+      {/* ── Settings panel — sliders ── */}
       {showSettings && (
-        <div className="bg-gray-900 border-b border-gray-700 px-5 py-3 flex-shrink-0">
-          <div className="flex flex-wrap gap-6 items-start">
+        <div className="bg-gray-900 border-b border-gray-700 px-5 py-4 flex-shrink-0">
+          <div className="flex flex-wrap gap-8 items-center">
 
-            {/* Header colour */}
-            <div>
-              <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">
-                Header / Table Color
-              </div>
-              <div className="flex gap-2">
-                <HeaderBtn value="dark"  label="Kala"      preview="INVOICE" />
-                <HeaderBtn value="grey"  label="Grey"      preview="INVOICE" />
-                <HeaderBtn value="light" label="Halka"     preview="INVOICE" />
+            {/* Font size slider */}
+            <div className="flex items-center gap-3 min-w-[220px]">
+              <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider w-20 flex-shrink-0">Font Size</span>
+              <span className="text-gray-500 text-xs">A</span>
+              <input
+                type="range" min={10} max={20} step={0.5}
+                value={cfg.fontSize}
+                onChange={e => updateCfg({ fontSize: Number(e.target.value) })}
+                className="flex-1 accent-blue-500 cursor-pointer"
+              />
+              <span className="text-white text-sm font-bold">A</span>
+              <span className="text-gray-300 text-xs font-mono w-8">{cfg.fontSize}px</span>
+            </div>
+
+            {/* Header colour slider */}
+            <div className="flex items-center gap-3 min-w-[220px]">
+              <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider w-20 flex-shrink-0">Header</span>
+              {/* dark swatch */}
+              <div className="w-5 h-5 rounded flex-shrink-0" style={{ background: headerBg(0) }} title="Kala" />
+              <input
+                type="range" min={0} max={100} step={1}
+                value={cfg.headerLevel}
+                onChange={e => updateCfg({ headerLevel: Number(e.target.value) })}
+                className="flex-1 cursor-pointer"
+                style={{ accentColor: previewBg }}
+              />
+              {/* light swatch */}
+              <div className="w-5 h-5 rounded border border-gray-600 flex-shrink-0" style={{ background: headerBg(100) }} title="Halka" />
+              {/* live preview badge */}
+              <div
+                className="px-2 py-0.5 rounded text-xs font-bold flex-shrink-0 w-16 text-center"
+                style={{ background: previewBg, color: headerText(cfg.headerLevel) }}
+              >
+                HEADER
               </div>
             </div>
 
-            {/* Font size */}
-            <div>
-              <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">
-                Font Size
-              </div>
-              <div className="flex gap-2">
-                <FontBtn value="small"  label="Chhota"  textSize="11px" />
-                <FontBtn value="medium" label="Medium"  textSize="14px" />
-                <FontBtn value="large"  label="Bada"    textSize="17px" />
-              </div>
-            </div>
-
-            <div className="text-xs text-gray-500 self-end pb-1">
-              Settings automatically saved for all future prints.
-            </div>
+            <div className="text-gray-600 text-xs self-center">Settings apne aap save hoti hain</div>
           </div>
         </div>
       )}
 
-      {/* ── Preview iframe ───────────────────────────────────────────────── */}
+      {/* ── Preview iframe ── */}
       <div className="flex-1 overflow-auto bg-gray-600">
         {srcdoc ? (
           <iframe
