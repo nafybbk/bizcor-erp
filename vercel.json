@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @workspace/erp run build",
+  "buildCommand": "pnpm install --no-frozen-lockfile && pnpm --filter @workspace/erp run build",
   "outputDirectory": "artifacts/erp/dist/public",
   "functions": {
     "artifacts/api-server/api/index.js": {
