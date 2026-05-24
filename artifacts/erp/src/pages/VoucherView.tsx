@@ -205,30 +205,30 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
       {/* Toolbar */}
       <div className="max-w-4xl space-y-4">
-        <div className="flex items-center justify-between no-print">
-          <button onClick={() => navigate(listHref)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-            <ArrowLeft className="w-4 h-4" /> Back
+        <div className="flex items-center justify-between gap-2 no-print">
+          <button onClick={() => navigate(listHref)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 flex-shrink-0">
+            <ArrowLeft className="w-4 h-4" /> <span>Back</span>
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 flex-wrap justify-end">
             {canDelete && (
               <button onClick={handleDelete}
-                className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
-                <Trash2 className="w-4 h-4" /> Delete
+                className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
+                <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Delete</span>
               </button>
             )}
             {canEdit && (
               <button onClick={handleEdit}
-                className="flex items-center gap-2 px-4 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
-                <Pencil className="w-4 h-4" /> Edit
+                className="flex items-center gap-1.5 px-3 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
+                <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Edit</span>
               </button>
             )}
             <button onClick={handleWhatsApp}
-              className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
-              <Share2 className="w-4 h-4" /> WhatsApp
+              className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
+              <Share2 className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
             </button>
             <button onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
-              <FileDown className="w-4 h-4" /> PDF / Print
+              className="flex items-center gap-1.5 px-3 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
+              <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
             </button>
           </div>
         </div>
