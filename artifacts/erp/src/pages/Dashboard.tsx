@@ -295,14 +295,14 @@ function getRecentPages(): RecentItem[] {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function StatCard({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: React.ReactNode; color: string }) {
+function StatCard({ label, value, sub, icon, bg }: { label: string; value: string; sub?: string; icon: React.ReactNode; bg: string; color?: string }) {
   return (
-    <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 p-3 flex items-start gap-2.5">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>{icon}</div>
+    <div className={`${bg} rounded-xl p-3.5 flex items-start gap-2.5`}>
+      <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">{icon}</div>
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] text-gray-500 leading-tight">{label}</div>
-        <div className="text-sm font-bold text-gray-900 mt-0.5 leading-snug break-words">{value}</div>
-        {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
+        <div className="text-[11px] text-white/80 leading-tight">{label}</div>
+        <div className="text-sm font-bold text-white mt-0.5 leading-snug break-words">{value}</div>
+        {sub && <div className="text-[10px] text-white/70 mt-0.5">{sub}</div>}
       </div>
     </div>
   );
@@ -455,12 +455,6 @@ export default function Dashboard() {
     loadData(!c);
   }, [period]);
 
-  const quickActions = [
-    { label: "New Invoice", icon: <FilePlus className="w-5 h-5" />, href: "/sales/invoices", color: "bg-blue-600 hover:bg-blue-700" },
-    { label: "New Receipt", icon: <Receipt className="w-5 h-5" />, href: "/payments", color: "bg-emerald-600 hover:bg-emerald-700" },
-    { label: "New Party",   icon: <Users className="w-5 h-5" />,   href: "/parties",  color: "bg-purple-600 hover:bg-purple-700" },
-    { label: "New Item",    icon: <Package className="w-5 h-5" />,  href: "/items",    color: "bg-amber-600 hover:bg-amber-700" },
-  ];
 
   return (
     <div className="-m-4 md:-m-6 min-h-full relative" style={getBgStyle(bgCfg)}>
@@ -511,17 +505,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── INSTANT: Quick Actions ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {quickActions.map(a => (
-          <a key={a.href} href={a.href}
-            className={`${a.color} text-white rounded-xl px-4 py-3 flex items-center gap-2.5 transition-colors`}>
-            {a.icon}
-            <span className="text-sm font-medium">{a.label}</span>
-          </a>
-        ))}
-      </div>
-
       {/* ── INSTANT: Recently Opened ── */}
       {recentPages.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
@@ -557,29 +540,17 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Total Sales"     value={fmt.currency(summary.totalSales)}     sub={`${summary.salesCount} invoices`}   icon={<TrendingUp  className="w-4 h-4 text-blue-600" />}    color="bg-blue-50" />
-            <StatCard label="Total Purchases" value={fmt.currency(summary.totalPurchases)} sub={`${summary.purchaseCount} bills`}   icon={<ShoppingCart className="w-4 h-4 text-purple-600" />} color="bg-purple-50" />
-            <StatCard label="Receivables"     value={fmt.currency(summary.totalReceivables)} sub="Outstanding"                      icon={<CreditCard   className="w-4 h-4 text-emerald-600" />} color="bg-emerald-50" />
-            <StatCard label="Payables"        value={fmt.currency(summary.totalPayables)}  sub="Outstanding"                       icon={<CreditCard   className="w-4 h-4 text-red-600" />}     color="bg-red-50" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard label="Total Sales"     value={fmt.currency(summary.totalSales)}     sub={`${summary.salesCount} invoices`}   icon={<TrendingUp   className="w-4 h-4 text-white" />} bg="bg-blue-600" />
+            <StatCard label="Total Purchases" value={fmt.currency(summary.totalPurchases)} sub={`${summary.purchaseCount} bills`}   icon={<ShoppingCart className="w-4 h-4 text-white" />} bg="bg-purple-600" />
+            <StatCard label="Receivables"     value={fmt.currency(summary.totalReceivables)} sub="Outstanding"                      icon={<CreditCard   className="w-4 h-4 text-white" />} bg="bg-emerald-600" />
+            <StatCard label="Payables"        value={fmt.currency(summary.totalPayables)}  sub="Outstanding"                       icon={<CreditCard   className="w-4 h-4 text-white" />} bg="bg-red-500" />
           </div>
 
-          <div className={`grid gap-4 ${summary.lowStockItems > 0 ? "grid-cols-2" : "grid-cols-1 max-w-xs"}`}>
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <FileBarChart2 className="w-4 h-4 text-orange-500" />
-                <span className="text-xs font-medium text-gray-600">GST Payable (This Month)</span>
-              </div>
-              <div className="text-xl font-bold text-gray-900">{fmt.currency(summary.gstPayable)}</div>
-            </div>
+          <div className={`grid gap-3 ${summary.lowStockItems > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+            <StatCard label="GST Payable (This Month)" value={fmt.currency(summary.gstPayable)} icon={<FileBarChart2 className="w-4 h-4 text-white" />} bg="bg-orange-500" />
             {summary.lowStockItems > 0 && (
-              <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-medium text-amber-700">Low Stock Alert</span>
-                </div>
-                <div className="text-xl font-bold text-amber-900">{summary.lowStockItems} items</div>
-              </div>
+              <StatCard label="Low Stock Alert" value={`${summary.lowStockItems} items`} icon={<AlertTriangle className="w-4 h-4 text-white" />} bg="bg-amber-500" />
             )}
           </div>
 
