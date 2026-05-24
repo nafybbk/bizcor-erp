@@ -9,9 +9,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } fro
 
 // ─── Background Customizer ────────────────────────────────────────────────────
 
-interface BgConfig { color: string; pattern: string; patternOpacity: number; }
+type BgMode = "color" | "image";
+interface BgConfig { color: string; pattern: string; patternOpacity: number; mode: BgMode; image?: string; imageOpacity: number; }
 const BG_KEY = "bizcor_dash_bg";
-const DEFAULT_BG: BgConfig = { color: "#f8fafc", pattern: "none", patternOpacity: 0.4 };
+const DEFAULT_BG: BgConfig = { color: "#f8fafc", pattern: "none", patternOpacity: 0.4, mode: "color", imageOpacity: 0.15 };
 
 const PRESET_COLORS = [
   { label: "Default", value: "#f8fafc" },
@@ -55,6 +56,9 @@ function patternColor(base: string): string {
 }
 
 function getBgStyle(cfg: BgConfig): React.CSSProperties {
+  if (cfg.mode === "image" && cfg.image) {
+    return { backgroundColor: cfg.color };
+  }
   const pc = patternColor(cfg.color);
   const pat = PATTERNS.find(p => p.value === cfg.pattern) || PATTERNS[0];
   const bgImage = cfg.pattern === "none" ? "none" : pat.preview(pc, cfg.patternOpacity);
@@ -78,6 +82,8 @@ function saveBgConfig(cfg: BgConfig) {
 
 function BgPicker({ cfg, onChange, onClose }: { cfg: BgConfig; onChange: (c: BgConfig) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [imgErr, setImgErr] = useState("");
+  const activeMode = cfg.mode ?? "color";
 
   useEffect(() => {
     const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
@@ -87,75 +93,162 @@ function BgPicker({ cfg, onChange, onClose }: { cfg: BgConfig; onChange: (c: BgC
 
   const set = (patch: Partial<BgConfig>) => { const next = { ...cfg, ...patch }; onChange(next); saveBgConfig(next); };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setImgErr("Image 2MB se chhota hona chahiye"); return; }
+    setImgErr("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      try {
+        set({ image: dataUrl, mode: "image" });
+      } catch {
+        setImgErr("Image save nahi ho saka (storage full)");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
-    <div ref={ref} className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 w-72">
-      <div className="flex items-center justify-between mb-3">
+    <div ref={ref} className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 w-80 overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <span className="text-sm font-semibold text-gray-800">Dashboard Background</span>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
       </div>
 
-      {/* Color Swatches */}
-      <div className="mb-3">
-        <div className="text-xs font-medium text-gray-500 mb-2">Background Color</div>
-        <div className="flex flex-wrap gap-2">
-          {PRESET_COLORS.map(c => (
-            <button key={c.value} title={c.label} onClick={() => set({ color: c.value })}
-              className={`w-7 h-7 rounded-lg border-2 transition-transform hover:scale-110 ${cfg.color === c.value ? "border-blue-500 scale-110" : "border-gray-200"}`}
-              style={{ backgroundColor: c.value }} />
-          ))}
-          {/* Custom color */}
-          <label className="w-7 h-7 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-400" title="Custom color">
-            <span className="text-gray-400 text-xs">+</span>
-            <input type="color" value={cfg.color} onChange={e => set({ color: e.target.value })} className="sr-only" />
-          </label>
-        </div>
+      {/* Mode tabs */}
+      <div className="flex border-b border-gray-100">
+        <button onClick={() => set({ mode: "color" })}
+          className={`flex-1 text-xs py-2 font-medium transition-colors ${activeMode === "color" ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 hover:text-gray-700"}`}>
+          Color & Pattern
+        </button>
+        <button onClick={() => set({ mode: "image" })}
+          className={`flex-1 text-xs py-2 font-medium transition-colors ${activeMode === "image" ? "text-blue-600 border-b-2 border-blue-600 bg-blue-50/50" : "text-gray-500 hover:text-gray-700"}`}>
+          Image
+        </button>
       </div>
 
-      {/* Patterns */}
-      <div className="mb-3">
-        <div className="text-xs font-medium text-gray-500 mb-2">Pattern</div>
-        <div className="grid grid-cols-4 gap-1.5">
-          {PATTERNS.map(p => {
-            const pc = patternColor(cfg.color);
-            const previewStyle: React.CSSProperties = {
-              backgroundColor: cfg.color,
-              backgroundImage: p.value === "none" ? "none" : p.preview(pc, 0.35),
-              backgroundSize: p.value === "dots" || p.value === "grid" ? "10px 10px" : p.value === "zigzag" ? "8px 8px" : "",
-            };
-            return (
-              <button key={p.value} onClick={() => set({ pattern: p.value })}
-                className={`h-10 rounded-lg border-2 transition-all ${cfg.pattern === p.value ? "border-blue-500" : "border-gray-200 hover:border-gray-300"}`}
-                style={previewStyle} title={p.label}>
-                <span className="sr-only">{p.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="flex justify-between mt-1">
-          {PATTERNS.map(p => (
-            <span key={p.value} className={`text-[9px] text-center flex-1 ${cfg.pattern === p.value ? "text-blue-600 font-semibold" : "text-gray-400"}`}>{p.label}</span>
-          ))}
-        </div>
-      </div>
+      <div className="p-4 space-y-3">
 
-      {/* Opacity slider — only when pattern is selected */}
-      {cfg.pattern !== "none" && (
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium text-gray-500">Pattern Intensity</span>
-            <span className="text-xs text-gray-400">{Math.round(cfg.patternOpacity * 100)}%</span>
+        {activeMode === "color" && (<>
+          {/* Color Swatches */}
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-2">Background Color</div>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map(c => (
+                <button key={c.value} title={c.label} onClick={() => set({ color: c.value })}
+                  className={`w-7 h-7 rounded-lg border-2 transition-transform hover:scale-110 ${cfg.color === c.value ? "border-blue-500 scale-110 shadow-md" : "border-gray-200"}`}
+                  style={{ backgroundColor: c.value }} />
+              ))}
+              <label className="w-7 h-7 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-400" title="Custom color">
+                <span className="text-gray-400 text-xs font-bold">+</span>
+                <input type="color" value={cfg.color} onChange={e => set({ color: e.target.value })} className="sr-only" />
+              </label>
+            </div>
           </div>
-          <input type="range" min={5} max={80} value={Math.round(cfg.patternOpacity * 100)}
-            onChange={e => set({ patternOpacity: Number(e.target.value) / 100 })}
-            className="w-full accent-blue-500" />
-        </div>
-      )}
 
-      {/* Reset */}
-      <button onClick={() => { onChange(DEFAULT_BG); saveBgConfig(DEFAULT_BG); }}
-        className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-        <RotateCcw className="w-3 h-3" /> Reset to Default
-      </button>
+          {/* Patterns */}
+          <div>
+            <div className="text-xs font-medium text-gray-500 mb-2">Pattern</div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {PATTERNS.map(p => {
+                const pc = patternColor(cfg.color);
+                const previewStyle: React.CSSProperties = {
+                  backgroundColor: cfg.color,
+                  backgroundImage: p.value === "none" ? "none" : p.preview(pc, 0.35),
+                  backgroundSize: p.value === "dots" || p.value === "grid" ? "10px 10px" : p.value === "zigzag" ? "8px 8px" : "",
+                };
+                return (
+                  <button key={p.value} onClick={() => set({ pattern: p.value })}
+                    className={`h-10 rounded-lg border-2 transition-all ${cfg.pattern === p.value ? "border-blue-500 shadow-sm" : "border-gray-200 hover:border-gray-300"}`}
+                    style={previewStyle} title={p.label}>
+                    <span className="sr-only">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 mt-1">
+              {PATTERNS.map(p => (
+                <span key={p.value} className={`text-[9px] text-center ${cfg.pattern === p.value ? "text-blue-600 font-semibold" : "text-gray-400"}`}>{p.label}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* Pattern intensity */}
+          {cfg.pattern !== "none" && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium text-gray-500">Pattern Intensity</span>
+                <span className="text-xs text-gray-400">{Math.round(cfg.patternOpacity * 100)}%</span>
+              </div>
+              <input type="range" min={5} max={80} value={Math.round(cfg.patternOpacity * 100)}
+                onChange={e => set({ patternOpacity: Number(e.target.value) / 100 })}
+                className="w-full accent-blue-500" />
+            </div>
+          )}
+        </>)}
+
+        {activeMode === "image" && (<>
+          {/* Image upload */}
+          {cfg.image ? (
+            <div className="space-y-3">
+              {/* Preview */}
+              <div className="relative rounded-xl overflow-hidden border border-gray-200 h-32">
+                <img src={cfg.image} alt="Background" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <span className="text-white text-xs font-medium bg-black/40 px-2 py-1 rounded-lg">Preview</span>
+                </div>
+                <button onClick={() => set({ image: undefined, mode: "color" })}
+                  className="absolute top-2 right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Change image */}
+              <label className="flex items-center justify-center gap-2 w-full text-xs text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg py-2 cursor-pointer transition-colors">
+                <Palette className="w-3.5 h-3.5" />
+                Change Image
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="sr-only" />
+              </label>
+
+              {/* Opacity / dim overlay */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-500">Image Dimness (overlay)</span>
+                  <span className="text-xs text-gray-400">{Math.round(cfg.imageOpacity * 100)}%</span>
+                </div>
+                <input type="range" min={0} max={85} value={Math.round(cfg.imageOpacity * 100)}
+                  onChange={e => set({ imageOpacity: Number(e.target.value) / 100 })}
+                  className="w-full accent-blue-500" />
+                <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
+                  <span>Full image</span><span>More dim</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 hover:border-blue-400 rounded-xl py-8 cursor-pointer transition-colors group">
+              <div className="w-10 h-10 rounded-full bg-gray-100 group-hover:bg-blue-50 flex items-center justify-center transition-colors">
+                <Palette className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-medium text-gray-600 group-hover:text-blue-600">Image select karo</div>
+                <div className="text-xs text-gray-400 mt-0.5">JPG, PNG, WebP · max 2MB</div>
+              </div>
+              <input type="file" accept="image/*" onChange={handleImageUpload} className="sr-only" />
+            </label>
+          )}
+
+          {imgErr && <div className="text-xs text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{imgErr}</div>}
+        </>)}
+
+        {/* Reset */}
+        <button onClick={() => { onChange(DEFAULT_BG); saveBgConfig(DEFAULT_BG); }}
+          className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <RotateCcw className="w-3 h-3" /> Reset to Default
+        </button>
+      </div>
     </div>
   );
 }
@@ -204,12 +297,12 @@ function getRecentPages(): RecentItem[] {
 
 function StatCard({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: React.ReactNode; color: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-3">
+    <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 p-3 flex items-start gap-2.5 overflow-hidden">
       <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>{icon}</div>
-      <div className="min-w-0">
-        <div className="text-xs text-gray-500">{label}</div>
-        <div className="text-lg font-bold text-gray-900 mt-0.5">{value}</div>
-        {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="text-xs text-gray-500 truncate">{label}</div>
+        <div className="text-base font-bold text-gray-900 mt-0.5 truncate leading-tight">{value}</div>
+        {sub && <div className="text-xs text-gray-400 mt-0.5 truncate">{sub}</div>}
       </div>
     </div>
   );
@@ -370,8 +463,13 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="-m-4 md:-m-6 p-4 md:p-6 min-h-full" style={getBgStyle(bgCfg)}>
-    <div className="space-y-5 max-w-6xl">
+    <div className="-m-4 md:-m-6 min-h-full relative overflow-hidden" style={getBgStyle(bgCfg)}>
+      {/* Image background layer with dimness overlay */}
+      {bgCfg.mode === "image" && bgCfg.image && (<>
+        <div className="absolute inset-0 z-0" style={{ backgroundImage: `url(${bgCfg.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />
+        <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(0,0,0,${bgCfg.imageOpacity ?? 0.15})` }} />
+      </>)}
+    <div className="relative z-10 p-4 md:p-6 space-y-5 max-w-6xl">
 
       {/* ── INSTANT: Greeting + Business Info ── */}
       <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between gap-4">
