@@ -237,22 +237,24 @@ export default function VoucherView({ voucherType, listHref }: Props) {
         <div id="printable" className="bg-white rounded-xl border border-gray-200 overflow-hidden text-gray-900" style={{ fontFamily: "'Segoe UI', Arial, sans-serif" }}>
 
           {/* ---- TOP HEADER: Logo + Firm Name + Address ---- */}
-          <div className="border-b-2 border-gray-800 px-7 py-5">
-            <div className="flex items-start justify-between gap-4">
+          <div className="border-b-2 border-gray-800 px-4 sm:px-7 py-4 sm:py-5">
+            {/* Mobile: stacked; Desktop: side by side */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+
               {/* Left: Logo + Firm Info */}
-              <div className="flex items-start gap-4 flex-1">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
                 {biz.logo && (
-                  <img src={biz.logo} alt="Logo" className="w-20 h-20 object-contain flex-shrink-0" />
+                  <img src={biz.logo} alt="Logo" className="w-14 h-14 sm:w-20 sm:h-20 object-contain flex-shrink-0" />
                 )}
-                <div>
-                  <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">{biz.name || "Your Business Name"}</h1>
-                  {bizAddress && <div className="text-sm text-gray-600 mt-1 max-w-xs">{bizAddress}</div>}
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5 text-xs text-gray-500">
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-extrabold text-gray-900 leading-tight">{biz.name || "Your Business Name"}</h1>
+                  {bizAddress && <div className="text-xs sm:text-sm text-gray-600 mt-1">{bizAddress}</div>}
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-500">
                     {biz.phone && <span>📞 {biz.phone}</span>}
                     {biz.email && <span>✉ {biz.email}</span>}
                   </div>
                   {biz.gstin && (
-                    <div className="mt-1.5 text-xs font-semibold text-gray-700">
+                    <div className="mt-1 text-xs font-semibold text-gray-700">
                       GSTIN: <span className="font-mono tracking-wider">{biz.gstin}</span>
                     </div>
                   )}
@@ -260,19 +262,21 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 </div>
               </div>
 
-              {/* Right: Document Title + Number */}
-              <div className="text-right flex-shrink-0">
-                <div className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded text-sm font-bold tracking-widest mb-2">
-                  {docTitle}
-                </div>
+              {/* Right: Document Title + Number — right-aligned on all screens */}
+              <div className="flex flex-row sm:flex-col items-start sm:items-end justify-between sm:justify-start gap-2 sm:gap-0 flex-shrink-0">
                 <div>
-                  {/* Screen: full number e.g. SI-1-00001 */}
-                  <div className="screen-only text-xl font-bold text-gray-900">{voucher.voucherNumber}</div>
-                  {/* Print: formatted per business settings */}
-                  <div className="print-only text-xl font-bold text-gray-900">{formatPrintNumber(voucher.voucherNumber, biz)}</div>
-                  <div className="text-sm text-gray-500 mt-0.5">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
+                  <div className="inline-block bg-gray-900 text-white px-3 py-1 rounded text-xs sm:text-sm font-bold tracking-widest mb-1.5">
+                    {docTitle}
+                  </div>
+                  {/* Screen: full number */}
+                  <div className="screen-only text-base sm:text-xl font-bold text-gray-900 sm:text-right">{voucher.voucherNumber}</div>
+                  {/* Print: formatted */}
+                  <div className="print-only text-base sm:text-xl font-bold text-gray-900 sm:text-right">{formatPrintNumber(voucher.voucherNumber, biz)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs sm:text-sm text-gray-500">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
                   {voucher.placeOfSupply && (
-                    <div className="text-xs text-gray-500 mt-0.5">Place of Supply: {voucher.placeOfSupply}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Place: <span className="text-gray-700">{voucher.placeOfSupply}</span></div>
                   )}
                   {voucher.linkedVoucherNumber && (
                     <div className="mt-1.5 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs text-left">
@@ -282,13 +286,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                       <span className="font-mono font-bold text-amber-900 ml-1">{voucher.linkedVoucherNumber}</span>
                     </div>
                   )}
-                  <div className="mt-2">
+                  <div className="mt-1.5">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[voucher.status]}`}>
                       {STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}
                     </span>
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
 
