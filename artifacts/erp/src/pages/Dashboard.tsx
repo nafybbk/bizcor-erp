@@ -143,18 +143,28 @@ function readCache(period: string) {
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
-function writeCache(period: string, summary: Summary, trend: any[]) {
-  try { localStorage.setItem(`bizcor_dash_${period}`, JSON.stringify({ summary, trend, at: Date.now() })); } catch { /* ignore */ }
+function writeCache(period: string, summary: Summary, trend: any[], latestDocs: any[], topCustomers: any[]) {
+  try { localStorage.setItem(`bizcor_dash_${period}`, JSON.stringify({ summary, trend, latestDocs, topCustomers, at: Date.now() })); } catch { /* ignore */ }
 }
+
+const VOUCHER_TYPE_LABEL: Record<string, string> = {
+  sales_invoice: "SI", credit_note: "CN", purchase_bill: "PB", debit_note: "DN",
+};
+const VOUCHER_TYPE_COLOR: Record<string, string> = {
+  sales_invoice: "text-blue-700 bg-blue-50", credit_note: "text-orange-700 bg-orange-50",
+  purchase_bill: "text-purple-700 bg-purple-50", debit_note: "text-red-700 bg-red-50",
+};
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("this_month");
 
   // Load cache instantly — no API wait
   const cached = readCache(period);
-  const [summary, setSummary] = useState<Summary | null>(cached?.summary ?? null);
-  const [trend, setTrend]     = useState<any[]>(cached?.trend ?? []);
-  const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
+  const [summary, setSummary]         = useState<Summary | null>(cached?.summary ?? null);
+  const [trend, setTrend]             = useState<any[]>(cached?.trend ?? []);
+  const [latestDocs, setLatestDocs]   = useState<any[]>(cached?.latestDocs ?? []);
+  const [topCustomers, setTopCustomers] = useState<any[]>(cached?.topCustomers ?? []);
+  const [bizInfo, setBizInfo]         = useState<BusinessInfo | null>(null);
   const [statsLoading, setStatsLoading] = useState(!cached);
   const [refreshing, setRefreshing]     = useState(false);
   const [loadError, setLoadError]       = useState<string | null>(null);
@@ -171,9 +181,15 @@ export default function Dashboard() {
       api.get<Summary>(`/dashboard/summary?period=${period}`).catch((e) => { setLoadError(e?.message || "Server error"); return null; }),
       api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
-    ]).then(([s, t, b]) => {
-      if (s) { setSummary(s); writeCache(period, s, t?.data ?? []); }
+      api.get<any>("/sales/invoices?limit=5").catch(() => ({ data: [] })),
+      api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5").catch(() => ({ data: [] })),
+    ]).then(([s, t, b, docs, tops]) => {
+      const docsArr  = docs?.data  ?? [];
+      const topsArr  = tops?.data  ?? [];
+      if (s) { setSummary(s); writeCache(period, s, t?.data ?? [], docsArr, topsArr); }
       setTrend(t?.data ?? []);
+      setLatestDocs(docsArr);
+      setTopCustomers(topsArr);
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
     }).catch(console.error).finally(() => { setStatsLoading(false); setRefreshing(false); });
   };
@@ -182,6 +198,8 @@ export default function Dashboard() {
     const c = readCache(period);
     setSummary(c?.summary ?? null);
     setTrend(c?.trend ?? []);
+    setLatestDocs(c?.latestDocs ?? []);
+    setTopCustomers(c?.topCustomers ?? []);
     loadData(!c);
   }, [period]);
 
@@ -295,6 +313,58 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          {/* ── Latest Docs + Top Customers ── */}
+          {(latestDocs.length > 0 || topCustomers.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+              {/* Latest Invoices */}
+              {latestDocs.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">Latest Invoices</span>
+                    <a href="/sales/invoices" className="text-xs text-blue-600 hover:underline">View all</a>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {latestDocs.map((d: any, i: number) => (
+                      <a key={i} href={`/vouchers/${d.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${VOUCHER_TYPE_COLOR[d.voucherType] || "bg-gray-100 text-gray-600"}`}>
+                          {VOUCHER_TYPE_LABEL[d.voucherType] || "DOC"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 truncate">{d.voucherNumber}</div>
+                          <div className="text-xs text-gray-400 truncate">{d.partyName || "—"}</div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-900 flex-shrink-0">{fmt.currency(d.grandTotal)}</div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Top Customers */}
+              {topCustomers.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <span className="text-sm font-semibold text-gray-700">Top Customers</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {topCustomers.map((p: any, i: number) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs flex items-center justify-center font-bold flex-shrink-0">{i + 1}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 truncate">{p.partyName || "Unknown"}</div>
+                          <div className="text-xs text-gray-400">{p.invoiceCount} invoices</div>
+                        </div>
+                        <div className="text-sm font-semibold text-gray-900 flex-shrink-0">{fmt.currency(p.totalAmount)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {trend.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-5">
