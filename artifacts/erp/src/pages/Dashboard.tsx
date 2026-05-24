@@ -154,6 +154,10 @@ const VOUCHER_TYPE_COLOR: Record<string, string> = {
   sales_invoice: "text-blue-700 bg-blue-50", credit_note: "text-orange-700 bg-orange-50",
   purchase_bill: "text-purple-700 bg-purple-50", debit_note: "text-red-700 bg-red-50",
 };
+const VOUCHER_TYPE_HREF: Record<string, string> = {
+  sales_invoice: "/sales/invoices", credit_note: "/sales/credit-notes",
+  purchase_bill: "/purchases/bills", debit_note: "/purchases/debit-notes",
+};
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("this_month");
@@ -327,7 +331,7 @@ export default function Dashboard() {
                   </div>
                   <div className="divide-y divide-gray-50">
                     {latestDocs.map((d: any, i: number) => (
-                      <a key={i} href={`/vouchers/${d.id}`}
+                      <a key={i} href={`${VOUCHER_TYPE_HREF[d.voucherType] || "/sales/invoices"}/${d.id}`}
                         className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${VOUCHER_TYPE_COLOR[d.voucherType] || "bg-gray-100 text-gray-600"}`}>
                           {VOUCHER_TYPE_LABEL[d.voucherType] || "DOC"}
