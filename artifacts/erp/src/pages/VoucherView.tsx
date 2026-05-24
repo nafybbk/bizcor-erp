@@ -119,6 +119,14 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const docTitle = DOC_TITLES[voucherType] || "INVOICE";
   const biz = business || {};
 
+  // ── helpers ──────────────────────────────────────────────────────────────
+  const hasDiscount = (voucher.items || []).some((i: any) => Number(i.discount) > 0);
+  const fmtQty = (q: number) => {
+    const n = Number(q || 0);
+    if (Number.isInteger(n)) return n.toString();
+    return parseFloat(n.toFixed(3)).toString();
+  };
+
   // Build full address
   const bizAddress = [biz.address, biz.city, biz.state, biz.pincode].filter(Boolean).join(", ");
 
@@ -153,40 +161,45 @@ export default function VoucherView({ voucherType, listHref }: Props) {
         .print-only { display: none; }
 
           /* ── LASER PRINTER: Force black & white ── */
-          /* All text → black */
+          /* All colored text → black */
           #printable [class*="text-blue"],
           #printable [class*="text-red"],
           #printable [class*="text-green"],
           #printable [class*="text-orange"],
           #printable [class*="text-amber"],
           #printable [class*="text-indigo"],
-          #printable [class*="text-purple"] { color: #000 !important; }
+          #printable [class*="text-purple"],
+          #printable [class*="text-pink"] { color: #000 !important; }
 
-          /* All colored backgrounds → white */
+          /* All colored/tinted backgrounds → white */
           #printable [class*="bg-blue"],
           #printable [class*="bg-orange"],
           #printable [class*="bg-amber"],
           #printable [class*="bg-red"],
           #printable [class*="bg-green"],
           #printable [class*="bg-indigo"],
+          #printable [class*="bg-purple"],
           #printable [class*="bg-gray-50"],
-          #printable [class*="bg-gray-100"] { background-color: #fff !important; }
+          #printable [class*="bg-gray-100"] { background-color: #fff !important; border: none !important; }
 
           /* All colored borders → light gray */
           #printable [class*="border-blue"],
           #printable [class*="border-orange"],
           #printable [class*="border-red"],
           #printable [class*="border-green"],
-          #printable [class*="border-amber"] { border-color: #aaa !important; }
+          #printable [class*="border-amber"] { border-color: #bbb !important; }
 
           /* Keep dark header & footer strip solid black */
-          #printable .bg-gray-900 { background-color: #000 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          #printable .bg-gray-900 { background-color: #1a1a1a !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
           #printable .bg-gray-900 * { color: #fff !important; }
 
+          /* Alternating row color → white in print */
+          #printable .bg-gray-50 { background-color: #f8f8f8 !important; }
+
           /* Keep strong structural borders black */
-          #printable .border-gray-800 { border-color: #000 !important; }
-          #printable .border-t-2.border-gray-800,
-          #printable .border-b-2.border-gray-800 { border-color: #000 !important; }
+          #printable .border-gray-800,
+          #printable .border-t-2,
+          #printable .border-b-2 { border-color: #000 !important; }
         }
       `}</style>
 
@@ -313,24 +326,17 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-900 text-white text-xs">
-                  <th className="px-2 py-2.5 text-center w-7">#</th>
-                  <th className="px-2 py-2.5 text-left">Item / Description</th>
-                  <th className="px-2 py-2.5 text-center w-16">HSN</th>
-                  <th className="px-2 py-2.5 text-center w-12">Unit</th>
-                  <th className="px-2 py-2.5 text-right w-14">Qty</th>
-                  <th className="px-2 py-2.5 text-right w-20">Rate<br/><span className="font-normal opacity-75">(Before GST)</span></th>
-                  <th className="px-2 py-2.5 text-right w-16">Disc<br/><span className="font-normal opacity-75">%/₹</span></th>
-                  <th className="px-2 py-2.5 text-right w-20">Rate<br/><span className="font-normal opacity-75">(After GST)</span></th>
-                  <th className="px-2 py-2.5 text-right w-20">Taxable</th>
-                  {isInterState ? (
-                    <th className="px-2 py-2.5 text-right w-18">IGST</th>
-                  ) : (
-                    <>
-                      <th className="px-2 py-2.5 text-right w-18">SGST</th>
-                      <th className="px-2 py-2.5 text-right w-18">CGST</th>
-                    </>
-                  )}
-                  <th className="px-2 py-2.5 text-right w-20">Total</th>
+                  <th className="px-2 py-2 text-center w-7">#</th>
+                  <th className="px-2 py-2 text-left">Item / Description</th>
+                  <th className="px-2 py-2 text-center w-14">HSN</th>
+                  <th className="px-2 py-2 text-center w-10">Unit</th>
+                  <th className="px-2 py-2 text-right w-14">Qty</th>
+                  <th className="px-2 py-2 text-right w-18">Rate</th>
+                  {hasDiscount && <th className="px-2 py-2 text-right w-14">Disc<br/><span className="font-normal opacity-75">%/₹</span></th>}
+                  <th className="px-2 py-2 text-right w-18">Rate<br/><span className="font-normal opacity-75 text-gray-300">+GST</span></th>
+                  <th className="px-2 py-2 text-right w-20">Taxable</th>
+                  <th className="px-2 py-2 text-right w-20">GST</th>
+                  <th className="px-2 py-2 text-right w-20">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,8 +347,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="px-2 py-2 text-center text-gray-500 text-xs">{idx + 1}</td>
                     <td className="px-2 py-2">
-                      <div className="font-semibold text-gray-900">{item.itemName}</div>
-                      {item.description && <div className="text-xs text-gray-400 mt-0.5">{item.description}</div>}
+                      <div className="font-semibold text-gray-900 text-sm">{item.itemName}</div>
+                      {item.description && <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>}
                       {item.customFields && Object.keys(item.customFields).length > 0 && (
                         <div className="flex flex-wrap gap-x-3 gap-y-0 mt-1">
                           {Object.entries(item.customFields).filter(([, v]) => v).map(([k, v]) => (
@@ -355,30 +361,19 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     </td>
                     <td className="px-2 py-2 text-center text-xs text-gray-500 font-mono">{item.hsnCode || "-"}</td>
                     <td className="px-2 py-2 text-center text-gray-500 text-xs">{item.unit}</td>
-                    <td className="px-2 py-2 text-right">{fmt.number(item.quantity, 3)}</td>
+                    <td className="px-2 py-2 text-right">{fmtQty(item.quantity)}</td>
                     <td className="px-2 py-2 text-right">{fmt.number(item.rate)}</td>
-                    <td className="px-2 py-2 text-right text-red-500 text-xs">
-                      {item.discount > 0 ? `${fmt.number(item.discount)}${item.discountType === "percent" ? "%" : "₹"}` : "-"}
-                    </td>
+                    {hasDiscount && (
+                      <td className="px-2 py-2 text-right text-red-500 text-xs">
+                        {item.discount > 0 ? `${fmt.number(item.discount)}${item.discountType === "percent" ? "%" : "₹"}` : "-"}
+                      </td>
+                    )}
                     <td className="px-2 py-2 text-right text-gray-700">{fmt.number(rateAfterGst)}</td>
                     <td className="px-2 py-2 text-right">{fmt.number(item.taxableAmount)}</td>
-                    {isInterState ? (
-                      <td className="px-2 py-2 text-right text-orange-600">
-                        <div className="text-xs text-gray-400">{item.taxRate}%</div>
-                        {fmt.number(item.igst)}
-                      </td>
-                    ) : (
-                      <>
-                        <td className="px-2 py-2 text-right text-blue-600">
-                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
-                          {fmt.number(item.sgst)}
-                        </td>
-                        <td className="px-2 py-2 text-right text-blue-600">
-                          <div className="text-xs text-gray-400">{item.taxRate / 2}%</div>
-                          {fmt.number(item.cgst)}
-                        </td>
-                      </>
-                    )}
+                    <td className="px-2 py-2 text-right text-blue-600">
+                      <div className="text-xs text-gray-400">{item.taxRate}%</div>
+                      {fmt.number(isInterState ? item.igst : (Number(item.sgst || 0) + Number(item.cgst || 0)))}
+                    </td>
                     <td className="px-2 py-2 text-right font-bold">{fmt.number(item.total)}</td>
                   </tr>
                   );
@@ -542,6 +537,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           {/* ---- BOTTOM STRIP ---- */}
           <div className="bg-gray-900 text-white text-center py-2 text-xs tracking-widest font-medium">
             THANK YOU FOR YOUR BUSINESS
+          </div>
+
+          {/* ---- BIZCOR BRANDING ---- */}
+          <div className="bg-gray-50 border-t border-gray-100 px-7 py-1.5 flex items-center justify-between">
+            <span className="text-gray-300 text-xs">Invoiced in <span className="font-semibold text-gray-400">BizCor ERP</span></span>
+            <span className="text-gray-300 text-xs">Powered by <span className="font-semibold text-gray-400">NAEWTGROUP.COM</span></span>
           </div>
         </div>
       </div>
