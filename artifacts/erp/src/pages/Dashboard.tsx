@@ -157,13 +157,11 @@ export default function Dashboard() {
       api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
       api.get<{ data: any[] }>("/dashboard/top-parties?type=customer&limit=5").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
-      api.get<any[]>("/bin").catch(() => []),
-    ]).then(([s, t, p, b, bin]) => {
+    ]).then(([s, t, p, b]) => {
       setSummary(s);
       setTrend(t?.data ?? []);
       setTopParties(p?.data ?? []);
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
-      setBinCount(Array.isArray(bin) ? bin.length : 0);
     }).catch(console.error).finally(() => setLoading(false));
   };
 
