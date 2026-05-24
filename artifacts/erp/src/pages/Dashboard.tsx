@@ -297,12 +297,12 @@ function getRecentPages(): RecentItem[] {
 
 function StatCard({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: React.ReactNode; color: string }) {
   return (
-    <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 p-3 flex items-start gap-2.5 overflow-hidden">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>{icon}</div>
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="text-xs text-gray-500 truncate">{label}</div>
-        <div className="text-base font-bold text-gray-900 mt-0.5 truncate leading-tight">{value}</div>
-        {sub && <div className="text-xs text-gray-400 mt-0.5 truncate">{sub}</div>}
+    <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 p-3 flex items-start gap-2.5">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${color}`}>{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] text-gray-500 leading-tight">{label}</div>
+        <div className="text-sm font-bold text-gray-900 mt-0.5 leading-snug break-words">{value}</div>
+        {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
       </div>
     </div>
   );
@@ -463,7 +463,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="-m-4 md:-m-6 min-h-full relative overflow-hidden" style={getBgStyle(bgCfg)}>
+    <div className="-m-4 md:-m-6 min-h-full relative" style={getBgStyle(bgCfg)}>
       {/* Image background layer with dimness overlay */}
       {bgCfg.mode === "image" && bgCfg.image && (<>
         <div className="absolute inset-0 z-0" style={{ backgroundImage: `url(${bgCfg.image})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat" }} />
