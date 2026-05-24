@@ -126,6 +126,7 @@ jobs:
 
       - name: Upload EXE as artifact (1 day — download backup)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: BizCor-ERP-Windows-${{ github.ref_name }}
           path: |
