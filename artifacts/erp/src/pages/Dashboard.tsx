@@ -1,11 +1,164 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import {
   TrendingUp, ShoppingCart, CreditCard, FileBarChart2,
   AlertTriangle, Clock, XCircle, FilePlus, Receipt,
-  Users, Package, ChevronRight, RefreshCw,
+  Users, Package, ChevronRight, RefreshCw, Palette, X, RotateCcw,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
+
+// ─── Background Customizer ────────────────────────────────────────────────────
+
+interface BgConfig { color: string; pattern: string; patternOpacity: number; }
+const BG_KEY = "bizcor_dash_bg";
+const DEFAULT_BG: BgConfig = { color: "#f8fafc", pattern: "none", patternOpacity: 0.4 };
+
+const PRESET_COLORS = [
+  { label: "Default", value: "#f8fafc" },
+  { label: "White",   value: "#ffffff" },
+  { label: "Blue",    value: "#eff6ff" },
+  { label: "Green",   value: "#f0fdf4" },
+  { label: "Purple",  value: "#faf5ff" },
+  { label: "Amber",   value: "#fffbeb" },
+  { label: "Pink",    value: "#fdf2f8" },
+  { label: "Teal",    value: "#f0fdfa" },
+  { label: "Slate",   value: "#f1f5f9" },
+  { label: "Dark",    value: "#1e293b" },
+  { label: "Navy",    value: "#0f172a" },
+  { label: "Forest",  value: "#052e16" },
+];
+
+const PATTERNS: { label: string; value: string; preview: (c: string, o: number) => string }[] = [
+  { label: "None",      value: "none",      preview: () => "none" },
+  { label: "Dots",      value: "dots",      preview: (c, o) => `radial-gradient(circle, ${hexAlpha(c, o)} 1.5px, transparent 1.5px)` },
+  { label: "Grid",      value: "grid",      preview: (c, o) => `linear-gradient(${hexAlpha(c, o)} 1px, transparent 1px), linear-gradient(90deg, ${hexAlpha(c, o)} 1px, transparent 1px)` },
+  { label: "Diagonal",  value: "diagonal",  preview: (c, o) => `repeating-linear-gradient(45deg, ${hexAlpha(c, o)}, ${hexAlpha(c, o)} 1px, transparent 1px, transparent 10px)` },
+  { label: "Cross",     value: "cross",     preview: (c, o) => `repeating-linear-gradient(0deg, ${hexAlpha(c, o)}, ${hexAlpha(c, o)} 1px, transparent 1px, transparent 14px), repeating-linear-gradient(90deg, ${hexAlpha(c, o)}, ${hexAlpha(c, o)} 1px, transparent 1px, transparent 14px)` },
+  { label: "Waves",     value: "waves",     preview: (c, o) => `repeating-linear-gradient(-45deg, transparent, transparent 5px, ${hexAlpha(c, o)} 5px, ${hexAlpha(c, o)} 6px)` },
+  { label: "Zigzag",    value: "zigzag",    preview: (c, o) => `linear-gradient(135deg, ${hexAlpha(c, o)} 25%, transparent 25%), linear-gradient(225deg, ${hexAlpha(c, o)} 25%, transparent 25%), linear-gradient(315deg, ${hexAlpha(c, o)} 25%, transparent 25%), linear-gradient(45deg, ${hexAlpha(c, o)} 25%, transparent 25%)` },
+];
+
+function hexAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function patternColor(base: string): string {
+  // Contrast color for pattern lines
+  const r = parseInt(base.slice(1, 3), 16);
+  const g = parseInt(base.slice(3, 5), 16);
+  const b = parseInt(base.slice(5, 7), 16);
+  const lum = (r * 299 + g * 587 + b * 114) / 1000;
+  return lum > 128 ? "#000000" : "#ffffff";
+}
+
+function getBgStyle(cfg: BgConfig): React.CSSProperties {
+  const pc = patternColor(cfg.color);
+  const pat = PATTERNS.find(p => p.value === cfg.pattern) || PATTERNS[0];
+  const bgImage = cfg.pattern === "none" ? "none" : pat.preview(pc, cfg.patternOpacity);
+  const bgSize = cfg.pattern === "dots" ? "20px 20px"
+    : cfg.pattern === "grid" ? "20px 20px"
+    : cfg.pattern === "zigzag" ? "16px 16px"
+    : "";
+  return {
+    backgroundColor: cfg.color,
+    backgroundImage: bgImage,
+    backgroundSize: bgSize || undefined,
+  };
+}
+
+function readBgConfig(): BgConfig {
+  try { const r = localStorage.getItem(BG_KEY); return r ? { ...DEFAULT_BG, ...JSON.parse(r) } : DEFAULT_BG; } catch { return DEFAULT_BG; }
+}
+function saveBgConfig(cfg: BgConfig) {
+  try { localStorage.setItem(BG_KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
+}
+
+function BgPicker({ cfg, onChange, onClose }: { cfg: BgConfig; onChange: (c: BgConfig) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const set = (patch: Partial<BgConfig>) => { const next = { ...cfg, ...patch }; onChange(next); saveBgConfig(next); };
+
+  return (
+    <div ref={ref} className="absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 w-72">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-semibold text-gray-800">Dashboard Background</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+      </div>
+
+      {/* Color Swatches */}
+      <div className="mb-3">
+        <div className="text-xs font-medium text-gray-500 mb-2">Background Color</div>
+        <div className="flex flex-wrap gap-2">
+          {PRESET_COLORS.map(c => (
+            <button key={c.value} title={c.label} onClick={() => set({ color: c.value })}
+              className={`w-7 h-7 rounded-lg border-2 transition-transform hover:scale-110 ${cfg.color === c.value ? "border-blue-500 scale-110" : "border-gray-200"}`}
+              style={{ backgroundColor: c.value }} />
+          ))}
+          {/* Custom color */}
+          <label className="w-7 h-7 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-400" title="Custom color">
+            <span className="text-gray-400 text-xs">+</span>
+            <input type="color" value={cfg.color} onChange={e => set({ color: e.target.value })} className="sr-only" />
+          </label>
+        </div>
+      </div>
+
+      {/* Patterns */}
+      <div className="mb-3">
+        <div className="text-xs font-medium text-gray-500 mb-2">Pattern</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {PATTERNS.map(p => {
+            const pc = patternColor(cfg.color);
+            const previewStyle: React.CSSProperties = {
+              backgroundColor: cfg.color,
+              backgroundImage: p.value === "none" ? "none" : p.preview(pc, 0.35),
+              backgroundSize: p.value === "dots" || p.value === "grid" ? "10px 10px" : p.value === "zigzag" ? "8px 8px" : "",
+            };
+            return (
+              <button key={p.value} onClick={() => set({ pattern: p.value })}
+                className={`h-10 rounded-lg border-2 transition-all ${cfg.pattern === p.value ? "border-blue-500" : "border-gray-200 hover:border-gray-300"}`}
+                style={previewStyle} title={p.label}>
+                <span className="sr-only">{p.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-between mt-1">
+          {PATTERNS.map(p => (
+            <span key={p.value} className={`text-[9px] text-center flex-1 ${cfg.pattern === p.value ? "text-blue-600 font-semibold" : "text-gray-400"}`}>{p.label}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Opacity slider — only when pattern is selected */}
+      {cfg.pattern !== "none" && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-gray-500">Pattern Intensity</span>
+            <span className="text-xs text-gray-400">{Math.round(cfg.patternOpacity * 100)}%</span>
+          </div>
+          <input type="range" min={5} max={80} value={Math.round(cfg.patternOpacity * 100)}
+            onChange={e => set({ patternOpacity: Number(e.target.value) / 100 })}
+            className="w-full accent-blue-500" />
+        </div>
+      )}
+
+      {/* Reset */}
+      <button onClick={() => { onChange(DEFAULT_BG); saveBgConfig(DEFAULT_BG); }}
+        className="w-full flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+        <RotateCcw className="w-3 h-3" /> Reset to Default
+      </button>
+    </div>
+  );
+}
 
 interface Summary {
   totalSales: number; totalPurchases: number; totalReceivables: number; totalPayables: number;
@@ -161,6 +314,8 @@ const VOUCHER_TYPE_HREF: Record<string, string> = {
 
 export default function Dashboard() {
   const [period, setPeriod] = useState("this_month");
+  const [bgCfg, setBgCfg] = useState<BgConfig>(readBgConfig);
+  const [showBgPicker, setShowBgPicker] = useState(false);
 
   // Load cache instantly — no API wait
   const cached = readCache(period);
@@ -215,10 +370,11 @@ export default function Dashboard() {
   ];
 
   return (
+    <div className="-m-4 md:-m-6 p-4 md:p-6 min-h-full" style={getBgStyle(bgCfg)}>
     <div className="space-y-5 max-w-6xl">
 
       {/* ── INSTANT: Greeting + Business Info ── */}
-      <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between gap-4">
+      <div className="bg-white/90 backdrop-blur-sm rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between gap-4">
         <div>
           <div className="text-lg font-bold text-gray-900">
             {greeting()}{user.name ? `, ${user.name}` : ""}
@@ -243,6 +399,17 @@ export default function Dashboard() {
             <option value="last_month">Last Month</option>
             <option value="this_year">This Year</option>
           </select>
+          {/* Background Customizer trigger */}
+          <div className="relative">
+            <button onClick={() => setShowBgPicker(o => !o)}
+              title="Customize background"
+              className={`p-1.5 rounded-lg border transition-colors ${showBgPicker ? "bg-blue-50 border-blue-300 text-blue-600" : "border-gray-200 text-gray-400 hover:text-gray-600 hover:bg-gray-50"}`}>
+              <Palette className="w-4 h-4" />
+            </button>
+            {showBgPicker && (
+              <BgPicker cfg={bgCfg} onChange={setBgCfg} onClose={() => setShowBgPicker(false)} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -387,6 +554,7 @@ export default function Dashboard() {
           )}
         </>
       )}
+    </div>
     </div>
   );
 }
