@@ -137,34 +137,53 @@ function TrialBanner({ biz }: { biz: BusinessInfo }) {
 
 const isDesktopApp = () => !!(window as any).bizcorDesktop;
 
+function readCache(period: string) {
+  try {
+    const raw = localStorage.getItem(`bizcor_dash_${period}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function writeCache(period: string, summary: Summary, trend: any[]) {
+  try { localStorage.setItem(`bizcor_dash_${period}`, JSON.stringify({ summary, trend, at: Date.now() })); } catch { /* ignore */ }
+}
+
 export default function Dashboard() {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [trend, setTrend] = useState<any[]>([]);
-  const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [period, setPeriod] = useState("this_month");
+
+  // Load cache instantly — no API wait
+  const cached = readCache(period);
+  const [summary, setSummary] = useState<Summary | null>(cached?.summary ?? null);
+  const [trend, setTrend]     = useState<any[]>(cached?.trend ?? []);
+  const [bizInfo, setBizInfo] = useState<BusinessInfo | null>(null);
+  const [statsLoading, setStatsLoading] = useState(!cached);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [loadError, setLoadError]       = useState<string | null>(null);
 
   // Instant data — no API needed
   const user = (() => { try { return JSON.parse(localStorage.getItem("erp_user") || "{}"); } catch { return {}; } })();
   const biz  = (() => { try { return JSON.parse(localStorage.getItem("erp_business") || "{}"); } catch { return {}; } })();
   const recentPages = getRecentPages();
 
-  const loadData = () => {
-    setStatsLoading(true);
+  const loadData = (showSkeleton = false) => {
+    if (showSkeleton) setStatsLoading(true); else setRefreshing(true);
     setLoadError(null);
     Promise.all([
       api.get<Summary>(`/dashboard/summary?period=${period}`).catch((e) => { setLoadError(e?.message || "Server error"); return null; }),
       api.get<{ data: any[] }>("/dashboard/sales-trend").catch(() => ({ data: [] })),
       api.get<any>("/businesses/current").catch(() => null),
     ]).then(([s, t, b]) => {
-      setSummary(s);
+      if (s) { setSummary(s); writeCache(period, s, t?.data ?? []); }
       setTrend(t?.data ?? []);
       if (b) setBizInfo({ isTrial: b.isTrial, planExpiresAt: b.planExpiresAt, planStartDate: b.planStartDate, status: b.status, planId: b.planId });
-    }).catch(console.error).finally(() => setStatsLoading(false));
+    }).catch(console.error).finally(() => { setStatsLoading(false); setRefreshing(false); });
   };
 
-  useEffect(() => { loadData(); }, [period]);
+  useEffect(() => {
+    const c = readCache(period);
+    setSummary(c?.summary ?? null);
+    setTrend(c?.trend ?? []);
+    loadData(!c);
+  }, [period]);
 
   const quickActions = [
     { label: "New Invoice", icon: <FilePlus className="w-5 h-5" />, href: "/sales/invoices", color: "bg-blue-600 hover:bg-blue-700" },
@@ -190,16 +209,19 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        <select
-          value={period}
-          onChange={e => setPeriod(e.target.value)}
-          className="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0"
-        >
-          <option value="today">Today</option>
-          <option value="this_month">This Month</option>
-          <option value="last_month">Last Month</option>
-          <option value="this_year">This Year</option>
-        </select>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {refreshing && <RefreshCw className="w-3.5 h-3.5 text-gray-400 animate-spin" />}
+          <select
+            value={period}
+            onChange={e => setPeriod(e.target.value)}
+            className="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="today">Today</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="this_year">This Year</option>
+          </select>
+        </div>
       </div>
 
       {/* ── INSTANT: Quick Actions ── */}
@@ -242,7 +264,7 @@ export default function Dashboard() {
           <AlertTriangle className="w-7 h-7 text-amber-500" />
           <p className="text-sm text-gray-600">Stats load nahi ho sake</p>
           {isDesktopApp() && loadError && <p className="text-xs text-red-500 font-mono bg-red-50 px-2 py-1 rounded">{loadError}</p>}
-          <button onClick={loadData} className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button onClick={() => loadData(true)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             <RefreshCw className="w-3 h-3" /> Dobara Try Karo
           </button>
         </div>
