@@ -48,6 +48,9 @@ if (sqlitePath) {
   pool = new pg.Pool({
     connectionString: connectionString!,
     ssl: useSSL ? { rejectUnauthorized: false } : false,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
   });
   db = drizzle(pool, { schema: pgSchema });
   _schema = pgSchema;

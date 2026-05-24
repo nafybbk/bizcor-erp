@@ -75,7 +75,7 @@ import AdminImport from "@/pages/admin/AdminImport";
 import AdminSupportMessages from "@/pages/admin/AdminSupportMessages";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
+  defaultOptions: { queries: { retry: 1, staleTime: 5 * 60 * 1000 } },
 });
 
 class ErrorBoundary extends React.Component<
