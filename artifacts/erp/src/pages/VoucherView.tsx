@@ -332,7 +332,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   <th className="px-2 py-2 text-center w-10">Unit</th>
                   <th className="px-2 py-2 text-right w-14">Qty</th>
                   <th className="px-2 py-2 text-right w-18">Rate</th>
-                  {hasDiscount && <th className="px-2 py-2 text-right w-14">Disc<br/><span className="font-normal opacity-75">%/₹</span></th>}
+                  {hasDiscount && <th className="px-2 py-2 text-right w-14">Disc</th>}
                   <th className="px-2 py-2 text-right w-18">Rate<br/><span className="font-normal opacity-75 text-gray-300">+GST</span></th>
                   <th className="px-2 py-2 text-right w-20">Taxable</th>
                   <th className="px-2 py-2 text-right w-20">GST</th>
@@ -365,7 +365,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <td className="px-2 py-2 text-right">{fmt.number(item.rate)}</td>
                     {hasDiscount && (
                       <td className="px-2 py-2 text-right text-red-500 text-xs">
-                        {item.discount > 0 ? `${fmt.number(item.discount)}${item.discountType === "percent" ? "%" : "₹"}` : "-"}
+                        {item.discount > 0 ? `${fmtQty(item.discount)}${item.discountType === "percent" ? "%" : ""}` : "-"}
                       </td>
                     )}
                     <td className="px-2 py-2 text-right text-gray-700">{fmt.number(rateAfterGst)}</td>
@@ -540,9 +540,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           </div>
 
           {/* ---- BIZCOR BRANDING ---- */}
-          <div className="bg-gray-50 border-t border-gray-100 px-7 py-1.5 flex items-center justify-between">
-            <span className="text-gray-300 text-xs">Invoiced in <span className="font-semibold text-gray-400">BizCor ERP</span></span>
-            <span className="text-gray-300 text-xs">Powered by <span className="font-semibold text-gray-400">NAEWTGROUP.COM</span></span>
+          <div className="bg-gray-50 border-t border-gray-100 px-7 py-1.5 flex items-center justify-center gap-2">
+            <span className="text-gray-400 text-xs font-semibold tracking-wide">BizCor ERP</span>
+            <span className="text-gray-300 text-xs">–</span>
+            <span className="text-gray-400 text-xs">info@naewtgroup.com</span>
           </div>
         </div>
       </div>
