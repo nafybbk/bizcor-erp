@@ -85,17 +85,19 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const remainingToAllocate = Math.max(0, paymentAmount - totalAllocated);
   const overAllocated = totalAllocated > paymentAmount + 0.001;
 
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
   const toggleAllocation = (voucherId: number, balanceDue: number) => {
     setAllocations(prev => {
       const exists = prev.find(a => a.voucherId === voucherId);
       if (exists) return prev.filter(a => a.voucherId !== voucherId);
-      const currentTotal = prev.reduce((s, a) => s + Number(a.allocatedAmount), 0);
-      const remaining = Math.max(0, paymentAmount - currentTotal);
-      const allocAmt = Math.min(balanceDue, remaining);
+      const currentTotal = r2(prev.reduce((s, a) => s + Number(a.allocatedAmount), 0));
+      const remaining = r2(Math.max(0, paymentAmount - currentTotal));
+      const allocAmt = r2(Math.min(balanceDue, remaining));
       const newAllocs = [...prev, { voucherId, allocatedAmount: allocAmt }];
       if (paymentAmount === 0) {
         amountDrivenByAlloc.current = true;
-        setForm(f => ({ ...f, amount: String(newAllocs.reduce((s, a) => s + a.allocatedAmount, 0) + balanceDue - allocAmt + allocAmt) }));
+        setForm(f => ({ ...f, amount: String(r2(newAllocs.reduce((s, a) => s + a.allocatedAmount, 0))) }));
       }
       return newAllocs;
     });
@@ -104,7 +106,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const updateAllocAmount = (voucherId: number, amount: number) => {
     const bill = outstanding.find(b => b.voucherId === voucherId);
     const maxForBill = bill ? bill.balanceDue : amount;
-    const capped = Math.min(amount, maxForBill);
+    const capped = r2(Math.min(amount, maxForBill));
     setAllocations(prev => prev.map(a => a.voucherId === voucherId ? { ...a, allocatedAmount: capped } : a));
   };
 
@@ -114,9 +116,9 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
     const newAllocs: Array<{ voucherId: number; allocatedAmount: number }> = [];
     for (const bill of outstanding) {
       if (remaining <= 0.001) break;
-      const amt = Math.min(bill.balanceDue, remaining);
+      const amt = r2(Math.min(bill.balanceDue, remaining));
       newAllocs.push({ voucherId: bill.voucherId, allocatedAmount: amt });
-      remaining -= amt;
+      remaining = r2(remaining - amt);
     }
     setAllocations(newAllocs);
   };
@@ -282,7 +284,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
                     <div className="flex flex-col items-end gap-1">
                       <input type="number" min="0" step="0.01" max={bill.balanceDue}
                         className={`w-28 text-right border rounded px-2 py-1 text-sm focus:outline-none ${Number(alloc.allocatedAmount) > bill.balanceDue ? "border-red-400 bg-red-50" : "border-blue-300"}`}
-                        value={alloc.allocatedAmount}
+                        value={r2(Number(alloc.allocatedAmount))}
                         onFocus={e => e.target.select()}
                         onChange={e => updateAllocAmount(bill.voucherId, Number(e.target.value))} />
                       {Number(alloc.allocatedAmount) > bill.balanceDue && (
