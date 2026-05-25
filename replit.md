@@ -443,6 +443,42 @@ Business Admin Panel:
 
 ---
 
+## BIN RECALL / REUSE SYSTEM — Design (May 2026, Discuss Only)
+
+**Concept: Series kabhi nahi tutegi, deleted docs ka apna identity hoga**
+
+### Flow:
+- Active docs: SI-001, SI-002, SI-003
+- SI-003 delete → Bin mein jaaye as **SiD-001** (bin ka apna counter), reference mein SI-003 store
+- Active series continue: SI-003 (naya), SI-004...
+
+### Bin se Faisla (same Restore button, two options show):
+- **SiD-001 use karo** → Bin se permanent restore → original SI-003 wapas active → series theek
+- **SI-00005 use karo** → Current doc (SI-005) ka bin mein SiD-002 ban jaaye (ref: SI-005), woh reuse ho
+
+### Numbering Rule:
+- Jab tak doc BIN mein hai → uss number ka reuse NAHI hoga (soft delete = DB mein rehta hai, MAX mein count hoga)
+- Sirf Hard Delete ke baad reuse possible — aur wo bhi SIRF manual numbering mode mein
+- Auto numbering mein kabhi reuse nahi, hamesha next number
+
+### Bin Numbering Series:
+- SiD-XXXX (Sales Invoice Deleted)
+- CnD-XXXX (Credit Note Deleted)
+- PbD-XXXX (Purchase Bill Deleted)
+- DnD-XXXX (Debit Note Deleted)
+- RecD-XXXX (Receipt Deleted)
+- PayD-XXXX (Payment Deleted)
+
+### Recall = New Doc:
+- Same data (party, items, amount) copy hota hai
+- New series number milta hai (next in sequence)
+- Reference mein original number stored
+- Allocations manual re-entry (reverse ho chuki thi delete pe)
+
+**Status: Design only — implement baad mein**
+
+---
+
 ## WORKKAR × BIZCOR INTEGRATION (May 2026)
 
 ### Kya hai WorkKar?
