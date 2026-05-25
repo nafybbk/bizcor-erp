@@ -447,6 +447,8 @@ function runSqliteMigrations() {
     "ALTER TABLE parties ADD COLUMN pincode TEXT",
     // payments — account_id for Cash & Bank linking
     "ALTER TABLE payments ADD COLUMN account_id INTEGER",
+    // payments — soft delete (bin)
+    "ALTER TABLE payments ADD COLUMN deleted_at TEXT",
     // businesses — active_voucher_id for exact license tracking
     "ALTER TABLE businesses ADD COLUMN active_voucher_id INTEGER",
   ];
@@ -488,6 +490,7 @@ async function runPgMigrations() {
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS bank_ifsc TEXT`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS bank_branch TEXT`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS transport_name TEXT`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_prefix BOOLEAN DEFAULT TRUE`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_series BOOLEAN DEFAULT TRUE`);
