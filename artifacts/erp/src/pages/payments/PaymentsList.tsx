@@ -30,8 +30,12 @@ export default function PaymentsList({ type }: Props) {
 
   const del = async (id: number) => {
     if (!confirm("Delete payment?")) return;
-    await api.delete(`/payments/${id}`);
-    load();
+    try {
+      await api.delete(`/payments/${id}`);
+      load();
+    } catch (err: any) {
+      alert(err?.message || "Delete nahi ho saka. Dobara try karein.");
+    }
   };
 
   const filtered = payments.filter(p => !search || p.partyName?.toLowerCase().includes(search.toLowerCase()) || p.paymentNumber?.toLowerCase().includes(search.toLowerCase()));
