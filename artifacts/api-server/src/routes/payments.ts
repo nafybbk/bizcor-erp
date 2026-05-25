@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte, isNull, asc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, isNotNull, asc, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -11,7 +11,7 @@ router.get("/", async (req, res) => {
   try {
     const { type, partyId, fromDate, toDate, page = "1", limit = "20" } = req.query;
     const businessId = req.user!.businessId!;
-    const conditions: any[] = [eq(paymentsTable.businessId, businessId)];
+    const conditions: any[] = [eq(paymentsTable.businessId, businessId), isNull(paymentsTable.deletedAt)];
     if (type) conditions.push(eq(paymentsTable.type, type as "receipt" | "payment"));
     if (partyId) conditions.push(eq(paymentsTable.partyId, Number(partyId)));
     if (fromDate) conditions.push(gte(paymentsTable.date, String(fromDate)));
@@ -89,7 +89,7 @@ router.get("/outstanding", async (req, res) => {
     ));
     // Use FIFO to correctly compute per-bill balance (independent of payment_allocations)
     const allPayments = await db.select().from(paymentsTable).where(
-      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, Number(partyId)))
+      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, Number(partyId)), isNull(paymentsTable.deletedAt))
     ).orderBy(asc(paymentsTable.date));
     const totalReceived = allPayments.reduce((s, p) => s + Number(p.amount), 0);
     const sortedVouchers = [...vouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
@@ -187,30 +187,88 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
+// ─── helper: reverse allocations for a payment ───────────────────────────────
+async function reverseAllocations(paymentId: number, excludeInSum = true) {
+  const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+  for (const alloc of oldAllocs) {
+    const cond = excludeInSum
+      ? and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`)
+      : eq(paymentAllocationsTable.voucherId, alloc.voucherId);
+    const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
+      .from(paymentAllocationsTable).where(cond);
+    const totalPaid = Number(remaining[0]?.paid || 0);
+    const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+    if (voucher) {
+      const grandTotal = Number(voucher.grandTotal);
+      const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
+      await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
+    }
+  }
+  await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
+}
+
+// Soft delete → moves to bin (allocations reversed so voucher statuses are correct)
 router.delete("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const paymentId = Number(req.params.id);
-
-    // Reverse allocations: recalculate paid amount on each affected voucher
-    const oldAllocs = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
-    for (const alloc of oldAllocs) {
-      const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
-        .from(paymentAllocationsTable)
-        .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
-      const totalPaid = Number(remaining[0]?.paid || 0);
-      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
-      if (voucher) {
-        const grandTotal = Number(voucher.grandTotal);
-        const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
-        await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
-      }
-    }
-
-    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, paymentId));
-    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
+    await reverseAllocations(paymentId);
+    await db.update(paymentsTable)
+      .set({ deletedAt: sql`${new Date().toISOString()}` as unknown as Date })
+      .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── BIN routes for payments ──────────────────────────────────────────────────
+router.get("/bin", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const rows = await db.select({
+      id: paymentsTable.id,
+      paymentNumber: paymentsTable.paymentNumber,
+      type: paymentsTable.type,
+      date: paymentsTable.date,
+      partyName: partiesTable.name,
+      amount: paymentsTable.amount,
+      paymentMode: paymentsTable.paymentMode,
+      deletedAt: paymentsTable.deletedAt,
+    }).from(paymentsTable)
+      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
+      .where(and(eq(paymentsTable.businessId, businessId), isNotNull(paymentsTable.deletedAt)))
+      .orderBy(desc(paymentsTable.deletedAt));
+    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) })));
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/bin/:id/restore", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    await db.update(paymentsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
+    res.json({ success: true, id });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/bin/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, id));
+    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err: any) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
