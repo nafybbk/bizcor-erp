@@ -441,6 +441,78 @@ Business Admin Panel:
 
 ---
 
+---
+
+## WORKKAR × BIZCOR INTEGRATION (May 2026)
+
+### Kya hai WorkKar?
+- Fabric industry ke liye Job Work Management PWA
+- Seth slips banata hai, Karigars deliver karte hain, payments track hoti hain
+- Live URL: `https://work.naewtgroup.com`
+- API URL: `https://workkar-one.vercel.app`
+- Tech: React + Vite frontend, Express API, PostgreSQL (Supabase)
+
+### SSO — Status: ✅ READY (WorkKar side done)
+- SSO Endpoint: `GET https://work.naewtgroup.com/sso?token=<HMAC_TOKEN>`
+- Token format: `base64url(payload).HMAC-SHA256`
+- Payload fields: `{ mobile, name, exp }` — exp = 5 minutes from now (ms)
+- Shared Secret: stored as env var `WORKKAR_SSO_SECRET` (value: `bizcor_workkar_secret_2026`)
+- Test result from WorkKar side: SSO OK! user=Super Admin role=super_admin ✅
+
+### Token Generate Karna (Bizcor backend mein):
+```javascript
+const crypto = require('crypto');
+const BIZCOR_SSO_SECRET = process.env.WORKKAR_SSO_SECRET;
+
+function generateSSOToken(userMobile, userName) {
+  const payload = {
+    mobile: userMobile,
+    name: userName,
+    exp: Date.now() + (5 * 60 * 1000)
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', BIZCOR_SSO_SECRET).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${sig}`;
+}
+// Usage: const url = `https://work.naewtgroup.com/sso?token=${generateSSOToken(mobile, name)}`;
+```
+
+### Button Logic (3 states):
+- WorkKar not installed → "WorkKar Install Karo" (outline) → open work.naewtgroup.com
+- WorkKar installed → "WorkKar Kholo" (primary) → SSO token generate → PWA open
+- Plan mein nahi → disabled + tooltip "Plan upgrade karo"
+
+### LAN Mode Handling:
+- Server offline bhi ho → SSO token generate ho sakta hai (sirf HMAC math)
+- Client browser ka internet hona chahiye WorkKar khulne ke liye
+- `navigator.onLine` false → toast "WorkKar ke liye internet chahiye"
+
+### Data Policy:
+- Bizcor ka data WorkKar ko nahi jaata
+- WorkKar ka data Bizcor ko nahi aata
+- Dono completely alag databases
+- Sirf SSO se user login hota hai — koi data sync nahi
+
+### PWA Install Detection:
+```javascript
+async function isWorkKarInstalled() {
+  if ('getInstalledRelatedApps' in navigator) {
+    const apps = await navigator.getInstalledRelatedApps();
+    return apps.some(app => app.url?.includes('work.naewtgroup.com'));
+  }
+  return localStorage.getItem('workkar_pwa_installed') === 'true';
+}
+```
+
+### Abhi Bacha Kya (WorkKar side):
+- Offline queue ko slip-create/update calls se integrate karna
+- Bizcor ke Node.js agent ko bizcor_integration_brief.txt ke hisab se banana
+
+### Env Vars Needed:
+- `WORKKAR_SSO_SECRET` = `bizcor_workkar_secret_2026` (already set)
+
+---
+
 ## Demo Credentials
 
 Test business: code `7MJ18V`, email `raj@demo.com`, password `demo1234`
