@@ -190,11 +190,17 @@ function showServerError() {
 
 // ─── Tray ─────────────────────────────────────────────────────────────────────
 
+// Fallback 16x16 blue square PNG (embedded — always works even if tray.png missing)
+const FALLBACK_TRAY_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAH0lEQVR4nGP4TyJgIFODVPELgmhUw6gGYjQQD0jWAACD/yCfzn819gAAAABJRU5ErkJggg==";
+
 function buildTray() {
   const iconPath = path.join(__dirname, "../assets/tray.png");
   let icon = nativeImage.createFromPath(iconPath);
-  if (icon.isEmpty()) icon = nativeImage.createEmpty();
-  else icon = icon.resize({ width: 16, height: 16 });
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL(FALLBACK_TRAY_ICON);
+  } else {
+    icon = icon.resize({ width: 16, height: 16 });
+  }
 
   tray = new Tray(icon);
   tray.setToolTip("BizCor ERP");
