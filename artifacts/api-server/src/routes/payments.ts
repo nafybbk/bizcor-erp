@@ -274,7 +274,7 @@ router.delete("/:id", async (req, res) => {
     const paymentId = Number(req.params.id);
     await reverseAllocations(paymentId);
     await db.update(paymentsTable)
-      .set({ deletedAt: sql`${new Date().toISOString()}` as unknown as Date })
+      .set({ deletedAt: new Date() })
       .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err) {
