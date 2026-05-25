@@ -37,8 +37,17 @@ router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const { type, date, partyId, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations, accountId } = req.body;
-    const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(paymentsTable).where(eq(paymentsTable.businessId, businessId));
-    const paymentNumber = `${type === "receipt" ? "REC" : "PAY"}-${String(Number(cnt) + 1).padStart(4, "0")}`;
+    const prefix = type === "receipt" ? "REC" : "PAY";
+    const allNums = await db.select({ num: paymentsTable.paymentNumber })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.type, type as "receipt" | "payment")));
+    let maxSerial = 0;
+    for (const { num } of allNums) {
+      if (!num) continue;
+      const m = num.match(/(\d+)$/);
+      if (m) maxSerial = Math.max(maxSerial, parseInt(m[1], 10));
+    }
+    const paymentNumber = `${prefix}-${String(maxSerial + 1).padStart(4, "0")}`;
     const [payment] = await db.insert(paymentsTable).values({
       businessId, paymentNumber, type, date, partyId: Number(partyId),
       amount: String(amount), paymentMode, referenceNumber, notes,
