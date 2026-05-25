@@ -21,6 +21,7 @@ export const paymentsTable = pgTable("payments", {
   isOnAccount: boolean("is_on_account").notNull().default(false),
   accountId: integer("account_id").references(() => cashBankAccountsTable.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const paymentAllocationsTable = pgTable("payment_allocations", {
