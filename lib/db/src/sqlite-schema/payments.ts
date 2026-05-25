@@ -17,6 +17,7 @@ export const paymentsTable = sqliteTable("payments", {
   isOnAccount: integer("is_on_account", { mode: "boolean" }).notNull().default(false),
   accountId: integer("account_id"),
   createdAt: text("created_at").notNull().default(NOW),
+  deletedAt: text("deleted_at"),
 });
 
 export const paymentAllocationsTable = sqliteTable("payment_allocations", {
