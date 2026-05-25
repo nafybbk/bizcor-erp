@@ -118,6 +118,57 @@ router.get("/outstanding", async (req, res) => {
   }
 });
 
+// ─── BIN routes for payments ── (must be BEFORE /:id to avoid route conflict) ─
+router.get("/bin", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const rows = await db.select({
+      id: paymentsTable.id,
+      paymentNumber: paymentsTable.paymentNumber,
+      type: paymentsTable.type,
+      date: paymentsTable.date,
+      partyName: partiesTable.name,
+      amount: paymentsTable.amount,
+      paymentMode: paymentsTable.paymentMode,
+      deletedAt: paymentsTable.deletedAt,
+    }).from(paymentsTable)
+      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
+      .where(and(eq(paymentsTable.businessId, businessId), isNotNull(paymentsTable.deletedAt)))
+      .orderBy(desc(paymentsTable.deletedAt));
+    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) })));
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/bin/:id/restore", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    await db.update(paymentsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
+    res.json({ success: true, id });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/bin/:id", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const id = Number(req.params.id);
+    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, id));
+    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
+    res.json({ success: true });
+  } catch (err: any) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -227,57 +278,6 @@ router.delete("/:id", async (req, res) => {
       .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-// ─── BIN routes for payments ──────────────────────────────────────────────────
-router.get("/bin", async (req, res) => {
-  try {
-    const businessId = req.user!.businessId!;
-    const rows = await db.select({
-      id: paymentsTable.id,
-      paymentNumber: paymentsTable.paymentNumber,
-      type: paymentsTable.type,
-      date: paymentsTable.date,
-      partyName: partiesTable.name,
-      amount: paymentsTable.amount,
-      paymentMode: paymentsTable.paymentMode,
-      deletedAt: paymentsTable.deletedAt,
-    }).from(paymentsTable)
-      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
-      .where(and(eq(paymentsTable.businessId, businessId), isNotNull(paymentsTable.deletedAt)))
-      .orderBy(desc(paymentsTable.deletedAt));
-    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) })));
-  } catch (err: any) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-router.post("/bin/:id/restore", async (req, res) => {
-  try {
-    const businessId = req.user!.businessId!;
-    const id = Number(req.params.id);
-    await db.update(paymentsTable)
-      .set({ deletedAt: null })
-      .where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
-    res.json({ success: true, id });
-  } catch (err: any) {
-    req.log.error(err);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
-router.delete("/bin/:id", async (req, res) => {
-  try {
-    const businessId = req.user!.businessId!;
-    const id = Number(req.params.id);
-    await db.delete(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, id));
-    await db.delete(paymentsTable).where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
-    res.json({ success: true });
-  } catch (err: any) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
