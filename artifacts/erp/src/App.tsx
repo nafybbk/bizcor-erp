@@ -29,6 +29,7 @@ import PaymentEdit from "@/pages/payments/PaymentEdit";
 import Outstanding from "@/pages/payments/Outstanding";
 
 import Inventory from "@/pages/Inventory";
+import ItemLedger from "@/pages/ItemLedger";
 
 import PartyLedger from "@/pages/accounting/PartyLedger";
 import TrialBalance from "@/pages/accounting/TrialBalance";
@@ -228,6 +229,9 @@ function AppRoutes() {
       {/* Inventory */}
       <Route path="/inventory">
         <ProtectedRoute><Inventory /></ProtectedRoute>
+      </Route>
+      <Route path="/inventory/:id">
+        {() => <ProtectedRoute><ItemLedger /></ProtectedRoute>}
       </Route>
 
       {/* Accounting */}
