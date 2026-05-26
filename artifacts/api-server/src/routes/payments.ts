@@ -59,7 +59,7 @@ router.post("/", async (req, res) => {
       let remainingPayment = paymentAmt;
       for (const alloc of allocations) {
         if (remainingPayment <= 0.001) break;
-        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        const [voucher] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, alloc.voucherId));
         if (!voucher) continue;
         const grandTotal = Number(voucher.grandTotal);
         const alreadyPaid = Number(voucher.paidAmount || 0);
@@ -172,14 +172,14 @@ router.delete("/bin/:id", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const payment = await db.query.paymentsTable.findFirst({ where: and(eq(paymentsTable.id, Number(req.params.id)), eq(paymentsTable.businessId, businessId)) });
+    const [payment] = await db.select().from(paymentsTable).where(and(eq(paymentsTable.id, Number(req.params.id)), eq(paymentsTable.businessId, businessId)));
     if (!payment) { res.status(404).json({ error: "Not Found" }); return; }
     const allocations = await db.select().from(paymentAllocationsTable).where(eq(paymentAllocationsTable.paymentId, payment.id));
     const allocWithVouchers = await Promise.all(allocations.map(async a => {
-      const v = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, a.voucherId) });
+      const [v] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, a.voucherId));
       return { voucherId: a.voucherId, voucherNumber: v?.voucherNumber, voucherDate: v?.date, voucherAmount: Number(v?.grandTotal), allocatedAmount: Number(a.allocatedAmount) };
     }));
-    const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, payment.partyId) });
+    const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, payment.partyId));
     res.json({ ...payment, amount: Number(payment.amount), partyName: party?.name, allocations: allocWithVouchers });
   } catch (err) {
     req.log.error(err);
@@ -193,9 +193,7 @@ router.patch("/:id", async (req, res) => {
     const paymentId = Number(req.params.id);
     const { date, amount, paymentMode, referenceNumber, notes, isOnAccount, allocations, accountId } = req.body;
 
-    const existing = await db.query.paymentsTable.findFirst({
-      where: and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)),
-    });
+    const [existing] = await db.select().from(paymentsTable).where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     if (!existing) { res.status(404).json({ error: "Not Found" }); return; }
 
     // Reverse old allocations — recalc each affected voucher
@@ -205,7 +203,7 @@ router.patch("/:id", async (req, res) => {
         .from(paymentAllocationsTable)
         .where(and(eq(paymentAllocationsTable.voucherId, alloc.voucherId), sql`${paymentAllocationsTable.paymentId} != ${paymentId}`));
       const totalPaid = Number(remaining[0]?.paid || 0);
-      const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+      const [voucher] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, alloc.voucherId));
       if (voucher) {
         const grandTotal = Number(voucher.grandTotal);
         const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
@@ -222,7 +220,7 @@ router.patch("/:id", async (req, res) => {
       let remainingPayment = paymentAmt;
       for (const alloc of allocations) {
         if (remainingPayment <= 0.001) break;
-        const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+        const [voucher] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, alloc.voucherId));
         if (!voucher) continue;
         const grandTotal = Number(voucher.grandTotal);
         const alreadyPaid = Number(voucher.paidAmount || 0);
@@ -239,7 +237,7 @@ router.patch("/:id", async (req, res) => {
       }
     }
 
-    const updated = await db.query.paymentsTable.findFirst({ where: eq(paymentsTable.id, paymentId) });
+    const [updated] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, paymentId));
     res.json({ ...updated, amount: Number(updated!.amount) });
   } catch (err) {
     req.log.error(err);
@@ -257,7 +255,7 @@ async function reverseAllocations(paymentId: number, excludeInSum = true) {
     const remaining = await db.select({ paid: sql<number>`coalesce(sum(${paymentAllocationsTable.allocatedAmount}), 0)` })
       .from(paymentAllocationsTable).where(cond);
     const totalPaid = Number(remaining[0]?.paid || 0);
-    const voucher = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, alloc.voucherId) });
+    const [voucher] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, alloc.voucherId));
     if (voucher) {
       const grandTotal = Number(voucher.grandTotal);
       const newStatus = totalPaid >= grandTotal ? "paid" : totalPaid > 0 ? "partial" : "posted";
@@ -274,7 +272,7 @@ router.delete("/:id", async (req, res) => {
     const paymentId = Number(req.params.id);
     await reverseAllocations(paymentId);
     await db.update(paymentsTable)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date().toISOString() })
       .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
     res.json({ success: true });
   } catch (err) {
