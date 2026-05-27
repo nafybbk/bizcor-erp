@@ -1,6 +1,6 @@
 {
   "name": "bizcor-erp",
-  "version": "2.3.41",
+  "version": "2.3.42",
   "description": "BizCor ERP - LAN Server for Indian Businesses",
   "main": "electron/main.js",
   "scripts": {
@@ -41,7 +41,14 @@
       }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.ico",
       "requestedExecutionLevel": "requireAdministrator"
     },
