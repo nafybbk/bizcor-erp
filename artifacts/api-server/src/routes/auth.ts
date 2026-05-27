@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, sqlite } from "@workspace/db";
 import { superAdminsTable, businessesTable, usersTable, loginLogsTable, plansTable } from "@workspace/db";
 import { eq, and, inArray, count, sql } from "drizzle-orm";
-import { signToken, requireAuth } from "../middlewares/auth";
+import { signToken, requireAuth, TRIAL_DAYS } from "../middlewares/auth";
 
 const router = Router();
 
@@ -142,9 +142,18 @@ router.post("/login", async (req, res) => {
       }
 
       // planExpiresAt can be Date (PG) or ISO string (SQLite) — normalize to Date before signToken
-      const planExpiry = business.planExpiresAt
-        ? (business.planExpiresAt instanceof Date ? business.planExpiresAt : new Date(business.planExpiresAt as unknown as string))
-        : null;
+      // Trial businesses: expiry = createdAt + TRIAL_DAYS (30 days)
+      let planExpiry: Date | null = null;
+      if (business.isTrial) {
+        const createdAt = business.createdAt instanceof Date
+          ? business.createdAt
+          : new Date(business.createdAt as unknown as string);
+        planExpiry = new Date(createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      } else if (business.planExpiresAt) {
+        planExpiry = business.planExpiresAt instanceof Date
+          ? business.planExpiresAt
+          : new Date(business.planExpiresAt as unknown as string);
+      }
       const token = signToken(
         { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, businessId: fullUser.businessId, sessionToken: effectiveSessionToken },
         planExpiry,

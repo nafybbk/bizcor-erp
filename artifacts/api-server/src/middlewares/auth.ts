@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
 
+export const TRIAL_DAYS = 30;
+export const GRACE_DAYS = 30;
+
 export interface AuthUser {
   id: number;
   email: string;
@@ -27,18 +30,14 @@ declare global {
 
 export function signToken(payload: AuthUser, planExpiresAt?: Date | null, isTrial?: boolean): string {
   const enriched: AuthUser = { ...payload };
-
-  // Default: 7 days in seconds
   let expiresInSeconds = 7 * 24 * 60 * 60;
 
-  if (planExpiresAt && !isTrial) {
+  if (planExpiresAt) {
     enriched.planExpiresAt = planExpiresAt.toISOString();
     const secondsLeft = Math.floor((planExpiresAt.getTime() - Date.now()) / 1000);
     if (secondsLeft > 0) {
       expiresInSeconds = Math.min(secondsLeft, 7 * 24 * 60 * 60);
     } else {
-      // Plan expired but may be in grace period (up to 60 days) — give 7-day token
-      // Grace enforcement happens in requireActivePlan, not token expiry
       expiresInSeconds = 7 * 24 * 60 * 60;
     }
   }
@@ -60,10 +59,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
     req.user = decoded;
-    // For business users: verify sessionToken against DB (single-session enforcement)
     if (decoded.role !== "super_admin" && decoded.sessionToken) {
-      db.query.usersTable.findFirst({ where: eq(usersTable.id, decoded.id) })
-        .then(dbUser => {
+      db.select().from(usersTable).where(eq(usersTable.id, decoded.id))
+        .then(rows => {
+          const dbUser = rows[0];
           if (!dbUser) {
             res.status(401).json({ error: "SESSION_INVALIDATED", message: "Aapka session band ho gaya hai. Dobara login karein." });
             return;
@@ -74,7 +73,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
           }
           next();
         })
-        .catch(() => next()); // DB error — allow through (fail-open)
+        .catch(() => next());
       return;
     }
     next();
@@ -103,43 +102,59 @@ export function requireBusiness(req: Request, res: Response, next: NextFunction)
   });
 }
 
-export type GraceStatus = "active" | "grace_trial" | "grace_admin" | "grace_readonly" | "expired";
+// ─── Grace System ─────────────────────────────────────────────────────────────
+// Trial  : 30 days full access from registration (planExpiresAt = createdAt + 30d)
+// Grace  : 30 days after plan/trial expires — ONLY server PC + ONLY admin
+// Expired: after 30 grace days — full lock, nothing works
+// ─────────────────────────────────────────────────────────────────────────────
 
-export function getGraceStatus(planExpiresAt: string | Date | null | undefined, isTrial?: boolean): GraceStatus {
-  if (isTrial) return "active";
+export type GraceStatus = "active" | "grace" | "expired";
+
+export function getGraceStatus(planExpiresAt: string | Date | null | undefined): GraceStatus {
   if (!planExpiresAt) return "active";
   const expiry = typeof planExpiresAt === "string" ? new Date(planExpiresAt) : planExpiresAt;
   const now = new Date();
   if (expiry > now) return "active";
   const daysPast = Math.floor((now.getTime() - expiry.getTime()) / (24 * 60 * 60 * 1000));
-  if (daysPast <= 30) return "grace_trial";
-  if (daysPast <= 50) return "grace_admin";
-  if (daysPast <= 60) return "grace_readonly";
+  if (daysPast <= GRACE_DAYS) return "grace";
   return "expired";
+}
+
+function isServerPc(req: Request): boolean {
+  const ip = req.ip || req.socket?.remoteAddress || "";
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1" || ip.endsWith(":127.0.0.1");
 }
 
 export function requireActivePlan(req: Request, res: Response, next: NextFunction): void {
   const user = req.user;
-  if (!user || user.role === "super_admin" || user.isTrial) { next(); return; }
+  if (!user || user.role === "super_admin") { next(); return; }
 
-  const grace = getGraceStatus(user.planExpiresAt, user.isTrial);
+  const grace = getGraceStatus(user.planExpiresAt);
 
   if (grace === "expired") {
-    res.status(402).json({ error: "PLAN_EXPIRED", message: "Aapka plan expire ho gaya hai (60+ din). Nayi license lijiye." });
+    res.status(402).json({
+      error: "PLAN_EXPIRED",
+      message: `Aapka plan expire ho gaya hai (${GRACE_DAYS}+ din). Nayi license lijiye.`,
+    });
     return;
   }
 
-  if (grace === "grace_readonly") {
-    if (req.method !== "GET") {
-      res.status(402).json({ error: "GRACE_READONLY", message: "View-only mode hai. Sirf data dekh sakte hain. Plan activate karo." });
+  if (grace === "grace") {
+    // Grace period — sirf server PC + sirf admin
+    if (!isServerPc(req)) {
+      res.status(402).json({
+        error: "GRACE_SERVER_ONLY",
+        message: "Grace period mein sirf server PC pe kaam kar sakte hain. Plan activate karo.",
+      });
       return;
     }
-    next(); return;
-  }
-
-  if ((grace === "grace_trial" || grace === "grace_admin") && user.role === "staff") {
-    res.status(402).json({ error: "GRACE_ADMIN_ONLY", message: "Grace period mein sirf admin kaam kar sakta hai. Plan activate karein." });
-    return;
+    if (user.role !== "business_admin") {
+      res.status(402).json({
+        error: "GRACE_ADMIN_ONLY",
+        message: "Grace period mein sirf Admin kaam kar sakta hai. Plan activate karo.",
+      });
+      return;
+    }
   }
 
   next();
