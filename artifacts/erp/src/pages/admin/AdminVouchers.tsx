@@ -219,9 +219,28 @@ export default function AdminVouchers() {
         </button>
       </div>
 
+      {/* Mobile: horizontal scrollable plan pills */}
+      <div className="flex gap-2 overflow-x-auto pb-1 md:hidden">
+        {countsLoading ? (
+          <div className="flex items-center gap-2 text-gray-400 text-sm py-2"><Loader2 className="w-4 h-4 animate-spin" />Loading...</div>
+        ) : planFolders.map(folder => {
+          const isSelected = selectedPlanId === folder.id;
+          return (
+            <button key={folder.id} onClick={() => selectPlan(folder.id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                isSelected ? "bg-indigo-600 text-white border-indigo-600" : "bg-white border-gray-200 text-gray-700 hover:border-indigo-300"
+              }`}>
+              <FolderOpen className={`w-3.5 h-3.5 ${isSelected ? "text-indigo-200" : "text-indigo-400"}`} />
+              {folder.name}
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${isSelected ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"}`}>{folder.total}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex gap-4">
-        {/* Left: Plan Folders */}
-        <div className="w-52 shrink-0 space-y-1.5">
+        {/* Left: Plan Folders — desktop only */}
+        <div className="hidden md:block w-52 shrink-0 space-y-1.5">
           {countsLoading ? (
             <div className="flex items-center justify-center h-24"><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /></div>
           ) : planFolders.length === 0 ? (
@@ -241,9 +260,9 @@ export default function AdminVouchers() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 font-semibold text-sm">
                       <FolderOpen className={`w-4 h-4 ${isSelected ? "text-indigo-200" : "text-indigo-400"}`} />
-                      {folder.name}
+                      <span className="truncate">{folder.name}</span>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
                       isSelected ? "bg-white/20 text-white" : "bg-indigo-100 text-indigo-700"
                     }`}>{folder.total}</span>
                   </div>
@@ -269,7 +288,7 @@ export default function AdminVouchers() {
         <div className="flex-1 min-w-0 bg-white rounded-xl border border-gray-200 overflow-hidden">
           {/* Status Sub-tabs */}
           {currentFolder && (
-            <div className="flex border-b border-gray-100 bg-gray-50/50">
+            <div className="flex overflow-x-auto border-b border-gray-100 bg-gray-50/50">
               {(["active", "used", "cancelled"] as const).map(s => {
                 const cnt = currentFolder.byStatus[s] || 0;
                 const meta = STATUS_META[s];
@@ -278,19 +297,16 @@ export default function AdminVouchers() {
                   <button
                     key={s}
                     onClick={() => selectStatus(s)}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                       isActive
                         ? "border-indigo-500 text-indigo-700 bg-white"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-white/60"
                     }`}>
                     {meta.icon}
                     {meta.label}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold border ${
                       isActive ? meta.color : "bg-gray-100 text-gray-500 border-gray-200"
                     }`}>{cnt}</span>
-                    {s === "cancelled" && cnt > 0 && (
-                      <span className="text-xs text-red-400 font-normal">(delete)</span>
-                    )}
                   </button>
                 );
               })}
