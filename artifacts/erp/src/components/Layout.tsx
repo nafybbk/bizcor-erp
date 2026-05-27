@@ -11,7 +11,7 @@ import {
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -518,6 +518,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/import" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
                     <DatabaseZap className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>Data & Backup</span>
+                  </a>
+                </Link>
+              )}
+              {hasPerm("settings") && !!(window as any).bizcorDesktop?.backup && (
+                <Link href="/settings/backup">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/backup" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <HardDrive className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>DB Backup</span>
                   </a>
                 </Link>
               )}
