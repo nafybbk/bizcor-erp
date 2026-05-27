@@ -2,9 +2,76 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, KeyRound, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, KeyRound, ArrowLeft, HardDrive, RefreshCw, Check, AlertTriangle } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
 import SupportChatWidget from "@/components/SupportChatWidget";
+
+// ─── Desktop-only: Restore from Backup (shown on Login screen) ────────────────
+function RestoreFromBackup() {
+  const desktop = (window as any).bizcorDesktop?.backup;
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  async function pick() {
+    const res = await desktop.chooseAndRestore();
+    if (!res.canceled && res.filePath) { setFile(res.filePath); setPin(""); setMsg(null); }
+  }
+
+  async function doRestore() {
+    if (!file || !pin) return;
+    setLoading(true);
+    try {
+      const res = await desktop.restore(file, pin);
+      if (res.success) {
+        setMsg({ type: "ok", text: "Restore complete! Reload ho raha hai..." });
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        setMsg({ type: "err", text: res.error || "Restore nahi hua." });
+      }
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-gray-100">
+      {!open ? (
+        <button onClick={() => setOpen(true)}
+          className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-lg transition-colors">
+          <HardDrive className="w-3.5 h-3.5" /> Backup se Restore karo
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-amber-800 flex items-center gap-1"><HardDrive className="w-3.5 h-3.5" /> Restore from Backup</p>
+            <button onClick={() => { setOpen(false); setFile(null); setPin(""); setMsg(null); }} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+          </div>
+          {msg && (
+            <div className={`text-xs px-2 py-1.5 rounded-lg flex items-center gap-1 ${msg.type === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}>
+              {msg.type === "ok" ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}{msg.text}
+            </div>
+          )}
+          <button onClick={pick} className="w-full py-1.5 border border-dashed border-amber-300 text-xs text-amber-700 rounded-lg hover:bg-amber-50">
+            {file ? `📁 ${file.split(/[\\/]/).pop()}` : "📂 .bizcor file chunein"}
+          </button>
+          {file && (
+            <div className="flex gap-2">
+              <input type="password" inputMode="numeric" maxLength={8} value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Backup PIN" className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              <button onClick={doRestore} disabled={loading || !pin}
+                className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1">
+                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Restore
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-gray-400 text-center">⚠ Restore se purana data replace ho jaayega</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const SAVED_CODE_KEY = "erp_last_business_code";
 const SAVED_CREDS_KEY = "erp_remembered_creds";
@@ -412,6 +479,11 @@ export default function Login() {
                   <a href="/register" className="text-blue-600 hover:underline font-medium">Register here</a>
                 </p>
               </div>
+
+              {/* Desktop-only: Restore from Backup */}
+              {typeof window !== "undefined" && !!(window as any).bizcorDesktop?.backup && (
+                <RestoreFromBackup />
+              )}
             </>
           ) : (
             <>
