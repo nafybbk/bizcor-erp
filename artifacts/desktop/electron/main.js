@@ -9,6 +9,7 @@ const trial = require("./trial");
 const server = require("./server-manager");
 const heartbeat = require("./heartbeat");
 const mdns = require("./mdns");
+const backup = require("./backup-manager");
 
 let tray = null;
 let mainWindow = null;
@@ -360,6 +361,55 @@ ipcMain.handle("skip-cloud-setup", async () => {
   openMainWindow();
 });
 
+// ─── Backup IPC ───────────────────────────────────────────────────────────────
+
+ipcMain.handle("backup:is-pin-set", () => backup.isPinSet());
+ipcMain.handle("backup:set-pin", (_, pin) => { backup.setPin(pin); return true; });
+ipcMain.handle("backup:verify-pin", (_, pin) => backup.verifyPin(pin));
+ipcMain.handle("backup:is-enabled", () => backup.isEnabled());
+ipcMain.handle("backup:set-enabled", (_, val) => { backup.setEnabled(val); return true; });
+ipcMain.handle("backup:list", () => backup.listBackups());
+ipcMain.handle("backup:open-folder", () => {
+  const dir = backup.getBackupDir();
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir);
+  return true;
+});
+
+ipcMain.handle("backup:create", async () => {
+  try {
+    const result = backup.createBackup();
+    return { success: true, ...result };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("backup:choose-and-restore", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: "Backup File Chunein",
+    filters: [{ name: "BizCor Backup", extensions: ["bizcor"] }],
+    properties: ["openFile"],
+  });
+  if (canceled || !filePaths[0]) return { canceled: true };
+  return { canceled: false, filePath: filePaths[0] };
+});
+
+ipcMain.handle("backup:restore", async (_, filePath, pin) => {
+  try {
+    // Stop server, restore DB, restart server
+    await server.stop();
+    backup.restoreFromFile(filePath, pin);
+    await server.start(resourcesPath);
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload();
+    return { success: true };
+  } catch (err) {
+    // Try restarting server even if restore failed
+    try { await server.start(resourcesPath); } catch (_) {}
+    return { success: false, error: err.message };
+  }
+});
+
 // ─── Single Instance Lock ─────────────────────────────────────────────────────
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -407,6 +457,9 @@ if (!gotTheLock) {
         // Start weekly heartbeat 10s after server is ready
         setTimeout(() => startHeartbeat().catch(() => {}), 10000);
         setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
+        // Auto backup: check every hour if today's backup is pending
+        setTimeout(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 30000);
+        setInterval(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 60 * 60 * 1000);
       } else if (status === "error") {
         closeSplash();
         showServerError();
