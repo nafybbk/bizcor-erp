@@ -50,6 +50,7 @@ import BusinessSettings from "@/pages/settings/BusinessSettings";
 import Subscription from "@/pages/settings/Subscription";
 import Users from "@/pages/settings/Users";
 import ImportData from "@/pages/settings/ImportData";
+import BackupSettings from "@/pages/settings/BackupSettings";
 import FirmProfile from "@/pages/FirmProfile";
 import OfflineDrafts from "@/pages/OfflineDrafts";
 import VoucherBin from "@/pages/VoucherBin";
@@ -331,6 +332,9 @@ function AppRoutes() {
       </Route>
       <Route path="/settings/import">
         <ProtectedRoute><ImportData /></ProtectedRoute>
+      </Route>
+      <Route path="/settings/backup">
+        <ProtectedRoute><BackupSettings /></ProtectedRoute>
       </Route>
 
       {/* Super Admin / Tech Support */}
