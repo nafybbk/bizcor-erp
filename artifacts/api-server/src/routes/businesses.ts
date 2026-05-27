@@ -83,9 +83,9 @@ router.post("/register", async (req, res) => {
     // ── REFERRAL REWARD LOGIC ──────────────────────────────────────────────
     // Every 5 referrals → assign "Referral Plan" (max 2 rewards total)
     if (referredBy && referredBy.trim()) {
-      const referrer = await db.query.businessesTable.findFirst({
-        where: eq(businessesTable.referralCode, referredBy.toUpperCase().trim()),
-      });
+      const referrerRows = await db.select().from(businessesTable)
+        .where(eq(businessesTable.referralCode, referredBy.toUpperCase().trim())).limit(1);
+      const referrer = referrerRows[0];
       if (referrer) {
         const newCount = (referrer.referralCount || 0) + 1;
         const rewardCount = (referrer as any).referralRewardCount || 0;
