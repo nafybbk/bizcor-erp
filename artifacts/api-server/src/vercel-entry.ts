@@ -99,6 +99,7 @@ async function runMigrations() {
   await q(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT`);
   await q(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_on_account BOOLEAN DEFAULT FALSE`);
   await q(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER`);
+  await q(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config JSONB`);
 
   // ── SEED super admin password ─────────────────────────────────────────────
   try {

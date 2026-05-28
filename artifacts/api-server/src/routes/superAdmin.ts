@@ -1,12 +1,26 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, sqlite } from "@workspace/db";
 import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable } from "@workspace/db";
 import { eq, count, sql, like, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
 router.use(requireSuperAdmin);
+
+// ─── SQLite migration: add package_config column to plans if missing ──────────
+let plansMigrated = false;
+async function migratePlans() {
+  if (plansMigrated) return;
+  plansMigrated = true;
+  try {
+    if (sqlite) {
+      sqlite.exec(`ALTER TABLE plans ADD COLUMN package_config TEXT`);
+    } else {
+      await db.execute(sql.raw(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config JSONB`));
+    }
+  } catch { /* column already exists — ignore */ }
+}
 
 // ─── App Settings ────────────────────────────────────────────────────────────
 
@@ -250,6 +264,7 @@ router.get("/backup", async (req, res) => {
 // ─── Plans ────────────────────────────────────────────────────────────────────
 
 router.get("/plans", async (req, res) => {
+  await migratePlans();
   try {
     const plans = await db.select().from(plansTable).orderBy(plansTable.sortOrder, plansTable.price);
     const bizCounts = await db.select({ planId: businessesTable.planId, cnt: count() }).from(businessesTable).groupBy(businessesTable.planId);
