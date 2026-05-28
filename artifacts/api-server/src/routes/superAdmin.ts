@@ -211,20 +211,71 @@ router.get("/plans", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// Helper: calculate price/maxUsers/validityDays from packageConfig
+function applyPackageConfig(body: Record<string, unknown>): Record<string, unknown> {
+  const cfg = body.packageConfig as Record<string, unknown> | undefined;
+  if (!cfg) return body;
+  const adminPrice = Number(cfg.adminPrice || 0);
+  const extraUserCount = Number(cfg.extraUserCount || 0);
+  const extraUserPrice = Number(cfg.extraUserPrice || 0);
+  const lanIncluded = Boolean(cfg.lanIncluded);
+  const lanClientCount = Number(cfg.lanClientCount || 0);
+  const lanClientPrice = Number(cfg.lanClientPrice || 0);
+  const chatIncluded = Boolean(cfg.chatIncluded);
+  const chatPrice = Number(cfg.chatPrice || 0);
+  const validityType = cfg.validityType as string || "unlimited";
+  const validityYears = Number(cfg.validityYears || 1);
+
+  const total = adminPrice
+    + extraUserCount * extraUserPrice
+    + (lanIncluded ? lanClientCount * lanClientPrice : 0)
+    + (chatIncluded ? chatPrice : 0);
+
+  const maxUsers = 1 + extraUserCount;
+  const validityDays = validityType === "unlimited" ? 36500 : validityYears * 365;
+
+  const features: string[] = [];
+  features.push(`1 Admin User`);
+  if (extraUserCount > 0) features.push(`${extraUserCount} Extra User${extraUserCount > 1 ? "s" : ""}`);
+  if (lanIncluded) features.push(`LAN Access (${lanClientCount} client${lanClientCount > 1 ? "s" : ""})`);
+  if (chatIncluded) features.push("Chat + File Share");
+  features.push(validityType === "unlimited" ? "Lifetime (Unlimited)" : `${validityYears} Year${validityYears > 1 ? "s" : ""} Validity`);
+  const maintenanceIncluded = Boolean(cfg.maintenanceIncluded);
+  const maintenanceExtra = Boolean(cfg.maintenanceExtra);
+  if (maintenanceIncluded) features.push("Maintenance Included");
+  else if (maintenanceExtra) {
+    const mp = Number(cfg.maintenancePrice || 0);
+    const mc = cfg.maintenanceCycle === "monthly" ? "month" : "year";
+    features.push(`Maintenance ₹${mp}/${mc} (extra)`);
+  }
+
+  return {
+    ...body,
+    price: String(total),
+    maxUsers,
+    validityDays,
+    billingCycle: "yearly",
+    features,
+    packageConfig: JSON.stringify(cfg),
+  };
+}
+
 router.post("/plans", async (req, res) => {
   try {
-    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, sortOrder, maxVouchersPerMonth, maxItems, maxParties } = req.body;
+    const applied = applyPackageConfig(req.body);
+    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, sortOrder, maxVouchersPerMonth, maxItems, maxParties, packageConfig } = applied as any;
     const [plan] = await db.insert(plansTable).values({
       name, description, price: String(price || 0),
-      billingCycle: billingCycle || "monthly",
-      maxUsers: maxUsers || 5,
+      billingCycle: billingCycle || "yearly",
+      maxUsers: maxUsers || 1,
       trialDays: trialDays || 0,
-      validityDays: validityDays || 30,
+      validityDays: validityDays || 36500,
       features: features || [],
       sortOrder: sortOrder || 0,
       maxVouchersPerMonth: maxVouchersPerMonth ? Number(maxVouchersPerMonth) : null,
       maxItems: maxItems ? Number(maxItems) : null,
       maxParties: maxParties ? Number(maxParties) : null,
+      packageConfig: packageConfig || null,
     }).returning();
     res.status(201).json({ ...plan, price: Number(plan.price) });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
@@ -232,7 +283,8 @@ router.post("/plans", async (req, res) => {
 
 router.patch("/plans/:id", async (req, res) => {
   try {
-    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, isActive, sortOrder, maxVouchersPerMonth, maxItems, maxParties } = req.body;
+    const applied = applyPackageConfig(req.body);
+    const { name, description, price, billingCycle, maxUsers, trialDays, validityDays, features, isActive, sortOrder, maxVouchersPerMonth, maxItems, maxParties, packageConfig } = applied as any;
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -247,6 +299,7 @@ router.patch("/plans/:id", async (req, res) => {
     if (maxVouchersPerMonth !== undefined) updateData.maxVouchersPerMonth = maxVouchersPerMonth ? Number(maxVouchersPerMonth) : null;
     if (maxItems !== undefined) updateData.maxItems = maxItems ? Number(maxItems) : null;
     if (maxParties !== undefined) updateData.maxParties = maxParties ? Number(maxParties) : null;
+    if (packageConfig !== undefined) updateData.packageConfig = packageConfig;
     const [updated] = await db.update(plansTable).set(updateData).where(eq(plansTable.id, Number(req.params.id))).returning();
     res.json({ ...updated, price: Number(updated.price) });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
