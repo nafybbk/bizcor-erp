@@ -2,19 +2,49 @@ import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Loader2, X, Building2, CreditCard,
-  Users, Clock, CheckCircle2, IndianRupee, FileText,
+  Users, Clock, CheckCircle2, IndianRupee, FileText, Monitor, MessageSquare,
 } from "lucide-react";
 
 const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
+type BillingUI = "monthly" | "yearly" | "onetime";
+
 const BILLING_LABELS: Record<string, string> = {
   monthly: "Monthly",
   yearly: "Yearly",
+  onetime: "One-time",
 };
 const BILLING_COLORS: Record<string, string> = {
   monthly: "bg-green-100 text-green-700",
   yearly: "bg-blue-100 text-blue-700",
+  onetime: "bg-purple-100 text-purple-700",
 };
+
+// Detect billing display type from plan data
+function getBillingUI(plan: any): BillingUI {
+  if (plan.billingCycle === "monthly") return "monthly";
+  // yearly + validityDays > 400 → onetime
+  if (plan.billingCycle === "yearly" && (plan.validityDays || 0) > 400) return "onetime";
+  return "yearly";
+}
+
+// Parse LAN clients count from features array
+function parseLanClients(feats: string[]): string {
+  const f = feats.find(x => x.startsWith("LAN:"));
+  if (!f) return "0";
+  const m = f.match(/(\d+)/);
+  return m ? m[1] : "0";
+}
+
+// Parse chat from features array
+function parseChatIncluded(feats: string[]): boolean {
+  return feats.some(x => x === "Chat: included");
+}
+
+// Strip managed features from general textarea
+function stripManagedFeatures(feats: string[]): string[] {
+  return feats.filter(f => !f.startsWith("LAN:") && f !== "Chat: included");
+}
 
 export default function AdminPlans() {
   const [plans, setPlans] = useState<any[]>([]);
@@ -25,7 +55,7 @@ export default function AdminPlans() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("0");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("yearly");
+  const [billingCycle, setBillingCycle] = useState<BillingUI>("onetime");
   const [maxUsers, setMaxUsers] = useState("1");
   const [validityDays, setValidityDays] = useState("1825");
   const [trialDays, setTrialDays] = useState("0");
@@ -34,6 +64,8 @@ export default function AdminPlans() {
   const [maxParties, setMaxParties] = useState("");
   const [sortOrder, setSortOrder] = useState("0");
   const [features, setFeatures] = useState("");
+  const [lanClients, setLanClients] = useState("0");
+  const [chatIncluded, setChatIncluded] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -52,10 +84,11 @@ export default function AdminPlans() {
   const openCreate = () => {
     setEditId(null);
     setName(""); setDescription(""); setPrice("0");
-    setBillingCycle("yearly"); setMaxUsers("1");
+    setBillingCycle("onetime"); setMaxUsers("1");
     setValidityDays("1825"); setTrialDays("0");
     setMaxVouchersPerMonth(""); setMaxItems(""); setMaxParties("");
     setSortOrder("0"); setFeatures("");
+    setLanClients("0"); setChatIncluded(false);
     setError(""); setShowModal(true);
   };
 
@@ -63,7 +96,7 @@ export default function AdminPlans() {
     setEditId(p.id);
     setName(p.name); setDescription(p.description || "");
     setPrice(String(p.price || 0));
-    setBillingCycle(p.billingCycle === "monthly" ? "monthly" : "yearly");
+    setBillingCycle(getBillingUI(p));
     setMaxUsers(String(p.maxUsers || 1));
     setValidityDays(String(p.validityDays || 1825));
     setTrialDays(String(p.trialDays || 0));
@@ -71,7 +104,10 @@ export default function AdminPlans() {
     setMaxItems(p.maxItems ? String(p.maxItems) : "");
     setMaxParties(p.maxParties ? String(p.maxParties) : "");
     setSortOrder(String(p.sortOrder || 0));
-    setFeatures((p.features || []).join("\n"));
+    const allFeats: string[] = p.features || [];
+    setLanClients(parseLanClients(allFeats));
+    setChatIncluded(parseChatIncluded(allFeats));
+    setFeatures(stripManagedFeatures(allFeats).join("\n"));
     setError(""); setShowModal(true);
   };
 
@@ -79,11 +115,18 @@ export default function AdminPlans() {
     if (!name.trim()) { setError("Plan ka naam zaroori hai"); return; }
     setSaving(true); setError("");
     try {
+      // Build features list: general features + LAN + Chat
+      const generalFeats = features.split("\n").map(f => f.trim()).filter(Boolean);
+      const lan = parseInt(lanClients) || 0;
+      if (lan > 0) generalFeats.push(`LAN: ${lan} clients`);
+      if (chatIncluded) generalFeats.push("Chat: included");
+
       const payload = {
         name: name.trim(),
         description,
         price: Number(price) || 0,
-        billingCycle,
+        // "onetime" maps to "yearly" in DB (enum only has monthly/yearly)
+        billingCycle: billingCycle === "onetime" ? "yearly" : billingCycle,
         maxUsers: Number(maxUsers) || 1,
         validityDays: Number(validityDays) || 1825,
         trialDays: Number(trialDays) || 0,
@@ -91,7 +134,7 @@ export default function AdminPlans() {
         maxItems: maxItems ? Number(maxItems) : null,
         maxParties: maxParties ? Number(maxParties) : null,
         sortOrder: Number(sortOrder) || 0,
-        features: features.split("\n").map(f => f.trim()).filter(Boolean),
+        features: generalFeats,
       };
       if (editId) await api.patch(`/super-admin/plans/${editId}`, payload);
       else await api.post("/super-admin/plans", payload);
@@ -144,15 +187,19 @@ export default function AdminPlans() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {plans.map(plan => {
-            const bc = plan.billingCycle || "yearly";
+            const bcUI = getBillingUI(plan);
+            const allFeats: string[] = plan.features || [];
+            const lan = parseInt(parseLanClients(allFeats)) || 0;
+            const chat = parseChatIncluded(allFeats);
+            const otherFeats = stripManagedFeatures(allFeats);
             return (
               <div key={plan.id}
                 className={`bg-white rounded-2xl border-2 ${plan.isActive ? "border-indigo-200" : "border-gray-200 opacity-60"} p-5 space-y-4`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${BILLING_COLORS[bc] || "bg-gray-100 text-gray-700"}`}>
-                        {BILLING_LABELS[bc] || bc}
+                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${BILLING_COLORS[bcUI] || "bg-gray-100 text-gray-700"}`}>
+                        {BILLING_LABELS[bcUI] || bcUI}
                       </span>
                       {plan.sortOrder > 0 && <span className="text-[10px] text-gray-400">#{plan.sortOrder}</span>}
                     </div>
@@ -165,11 +212,11 @@ export default function AdminPlans() {
                   </div>
                 </div>
 
-                <div className={`rounded-xl px-4 py-3 ${bc === "monthly" ? "bg-green-50" : "bg-blue-50"}`}>
-                  <div className={`text-xs font-medium mb-0.5 ${bc === "monthly" ? "text-green-600" : "text-blue-600"}`}>
-                    {bc === "monthly" ? "Monthly Price" : "Yearly Price"}
+                <div className={`rounded-xl px-4 py-3 ${bcUI === "monthly" ? "bg-green-50" : bcUI === "onetime" ? "bg-purple-50" : "bg-blue-50"}`}>
+                  <div className={`text-xs font-medium mb-0.5 ${bcUI === "monthly" ? "text-green-600" : bcUI === "onetime" ? "text-purple-600" : "text-blue-600"}`}>
+                    {bcUI === "monthly" ? "Monthly Price" : bcUI === "onetime" ? "One-time Price" : "Yearly Price"}
                   </div>
-                  <div className={`text-2xl font-bold flex items-center gap-1 ${bc === "monthly" ? "text-green-700" : "text-blue-700"}`}>
+                  <div className={`text-2xl font-bold flex items-center gap-1 ${bcUI === "monthly" ? "text-green-700" : bcUI === "onetime" ? "text-purple-700" : "text-blue-700"}`}>
                     <IndianRupee className="w-5 h-5" />{fmt.number(plan.price)}
                   </div>
                 </div>
@@ -179,9 +226,19 @@ export default function AdminPlans() {
                   <div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-blue-400" />
                     {plan.validityDays >= 36000 ? "Lifetime" : plan.validityDays >= 365 ? `${Math.round(plan.validityDays / 365)} year${Math.round(plan.validityDays / 365) > 1 ? "s" : ""}` : `${plan.validityDays} days`}
                   </div>
+                  {lan > 0 && (
+                    <div className="flex items-center gap-2 text-indigo-600">
+                      <Monitor className="w-3.5 h-3.5" /> LAN: {lan} clients
+                    </div>
+                  )}
+                  {chat && (
+                    <div className="flex items-center gap-2 text-teal-600">
+                      <MessageSquare className="w-3.5 h-3.5" /> Chat included
+                    </div>
+                  )}
                   {plan.trialDays > 0 && <div className="flex items-center gap-2 text-orange-500 text-xs">Trial: {plan.trialDays} days</div>}
                   {plan.maxVouchersPerMonth > 0 && <div className="flex items-center gap-2"><FileText className="w-3.5 h-3.5 text-orange-400" /> {plan.maxVouchersPerMonth} invoices/month</div>}
-                  {(plan.features || []).map((f: string, i: number) => (
+                  {otherFeats.map((f: string, i: number) => (
                     <div key={i} className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" />{f}</div>
                   ))}
                 </div>
@@ -237,10 +294,11 @@ export default function AdminPlans() {
                   <input type="number" value={price} onChange={e => setPrice(e.target.value)} min="0" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Billing</label>
-                  <select value={billingCycle} onChange={e => setBillingCycle(e.target.value as any)} className={inputCls}>
-                    <option value="yearly">Yearly</option>
-                    <option value="monthly">Monthly</option>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
+                  <select value={billingCycle} onChange={e => setBillingCycle(e.target.value as BillingUI)} className={inputCls}>
+                    <option value="onetime">One-time (ek dafa)</option>
+                    <option value="yearly">Yearly (saalana)</option>
+                    <option value="monthly">Monthly (maahana)</option>
                   </select>
                 </div>
               </div>
@@ -254,6 +312,27 @@ export default function AdminPlans() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Validity (days)</label>
                   <input type="number" value={validityDays} onChange={e => setValidityDays(e.target.value)} min="1" className={inputCls} />
                   <p className="text-[11px] text-gray-400 mt-0.5">365=1yr · 1825=5yr · 36500=lifetime</p>
+                </div>
+              </div>
+
+              {/* LAN Clients + Chat row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                    <Monitor className="w-3.5 h-3.5 text-indigo-400" /> LAN Clients
+                  </label>
+                  <input type="number" value={lanClients} onChange={e => setLanClients(e.target.value)} min="0" placeholder="0 = disabled" className={inputCls} />
+                  <p className="text-[11px] text-gray-400 mt-0.5">0 = LAN nahi, 2 = 2 clients allowed</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-teal-500" /> Chat
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer mt-2">
+                    <input type="checkbox" checked={chatIncluded} onChange={e => setChatIncluded(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600" />
+                    <span className="text-sm text-gray-700">Chat include karo</span>
+                  </label>
                 </div>
               </div>
 
@@ -285,7 +364,8 @@ export default function AdminPlans() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Features (ek line = ek feature)</label>
-                <textarea value={features} onChange={e => setFeatures(e.target.value)} rows={3} placeholder={"GST Reports\nLAN Support\nMulti User"} className={inputCls} />
+                <textarea value={features} onChange={e => setFeatures(e.target.value)} rows={3} placeholder={"GST Reports\nMulti User\nAll Modules"} className={inputCls} />
+                <p className="text-[11px] text-gray-400 mt-0.5">LAN aur Chat upar se set karo — yahan mat likhna</p>
               </div>
             </div>
 
