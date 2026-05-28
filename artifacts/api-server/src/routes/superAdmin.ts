@@ -64,6 +64,56 @@ router.get("/stats", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── Pending WhatsApp Verification Businesses ─────────────────────────────────
+
+router.get("/pending-businesses", async (req, res) => {
+  try {
+    const rows = await db.select().from(businessesTable)
+      .where(and(eq(businessesTable.status, "inactive"), sql`${businessesTable.pendingToken} IS NOT NULL`))
+      .orderBy(sql`${businessesTable.createdAt} desc`);
+    const data = await Promise.all(rows.map(async b => {
+      const users = await db.select({ name: usersTable.name, email: usersTable.email })
+        .from(usersTable).where(eq(usersTable.businessId, b.id)).limit(1);
+      return { ...b, adminName: users[0]?.name || "", adminEmail: users[0]?.email || "" };
+    }));
+    res.json({ data, total: data.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/pending-count", async (req, res) => {
+  try {
+    const [{ total }] = await db.select({ total: count() }).from(businessesTable)
+      .where(and(eq(businessesTable.status, "inactive"), sql`${businessesTable.pendingToken} IS NOT NULL`));
+    res.json({ count: Number(total) });
+  } catch { res.json({ count: 0 }); }
+});
+
+router.post("/approve-business/:token", async (req, res) => {
+  try {
+    const token = req.params.token.toUpperCase().trim();
+    const rows = await db.select().from(businessesTable).where(eq(businessesTable.pendingToken, token)).limit(1);
+    if (!rows[0]) { res.status(404).json({ error: "Token nahi mila" }); return; }
+    const now = new Date();
+    const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    await db.update(businessesTable).set({
+      status: "trial", isTrial: true,
+      planStartDate: now as unknown as Date,
+      planExpiresAt: trialExpiresAt as unknown as Date,
+      pendingToken: null,
+    }).where(eq(businessesTable.pendingToken, token));
+    res.json({ success: true, message: "Business approved — 30 day trial shuru ho gaya" });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/reject-business/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.delete(usersTable).where(eq(usersTable.businessId, id));
+    await db.delete(businessesTable).where(eq(businessesTable.id, id));
+    res.json({ success: true });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── Businesses ───────────────────────────────────────────────────────────────
 
 router.get("/businesses", async (req, res) => {
