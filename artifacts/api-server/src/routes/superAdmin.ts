@@ -295,9 +295,10 @@ function applyPackageConfig(body: Record<string, unknown>): Record<string, unkno
     validityDays = 365;
     billingCycle = "yearly";
   } else {
-    // onetime
+    // onetime — DB enum only has "monthly"/"yearly", use "yearly" for storage
+    // actual billing type is preserved in packageConfig.billingType
     validityDays = validityType === "unlimited" ? 36500 : validityYears * 365;
-    billingCycle = "onetime";
+    billingCycle = "yearly";
   }
 
   const features: string[] = [];
