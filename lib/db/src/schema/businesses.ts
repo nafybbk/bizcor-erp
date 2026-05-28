@@ -32,6 +32,7 @@ export const plansTable = pgTable("plans", {
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   packageConfig: text("package_config"),
+  pendingToken: text("pending_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -16,6 +16,8 @@ export default function AdminSettings() {
     footerText: "Powered by BizERP",
     printFooterText: "",
     printFooterLogo: "",
+    whatsappVerification: "false",
+    adminWhatsappNumber: "",
   });
   const printLogoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -350,6 +352,43 @@ export default function AdminSettings() {
               {form.printFooterLogo && <img src={form.printFooterLogo} alt="" className="h-6 object-contain" />}
               {form.printFooterText && <span className="text-xs text-gray-600">{form.printFooterText}</span>}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── WhatsApp Verification ── */}
+      <div className="bg-white rounded-xl border border-green-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b border-green-100 pb-2 flex items-center gap-2">
+          <Phone className="w-4 h-4 text-green-600" /> WhatsApp Verification
+        </h3>
+        <p className="text-xs text-gray-500">
+          Jab ON ho — nayi business register karte waqt user ko apne WhatsApp se ek message bhejne ko kaha jayega. Admin approve kare tabhi account activate hoga.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setForm(f => ({ ...f, whatsappVerification: f.whatsappVerification === "true" ? "false" : "true" }))}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.whatsappVerification === "true" ? "bg-green-500" : "bg-gray-300"}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.whatsappVerification === "true" ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+          <span className={`text-sm font-medium ${form.whatsappVerification === "true" ? "text-green-700" : "text-gray-500"}`}>
+            {form.whatsappVerification === "true" ? "ON — Verification zaroori hai" : "OFF — Direct registration (pehle jaisa)"}
+          </span>
+        </div>
+        {form.whatsappVerification === "true" && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Admin WhatsApp Number</label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500 bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg">+91</span>
+              <input
+                className={inputCls}
+                value={form.adminWhatsappNumber}
+                onChange={e => setForm(f => ({ ...f, adminWhatsappNumber: e.target.value.replace(/\D/g, "").slice(0, 12) }))}
+                placeholder="919876543210 (with country code)"
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">User is number pe WhatsApp karenga. Full number with country code (e.g. 919876543210)</p>
           </div>
         )}
       </div>

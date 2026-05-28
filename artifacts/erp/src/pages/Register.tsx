@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Building2, Loader2, Gift } from "lucide-react";
+import { Building2, Loader2, Gift, MessageCircle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Arunachal Pradesh", code: "12" },
@@ -21,13 +21,25 @@ const INDIAN_STATES = [
   { name: "Lakshadweep", code: "31" }, { name: "Puducherry", code: "34" },
 ];
 
+type PendingData = {
+  pendingToken: string;
+  businessName: string;
+  businessCode: string;
+  adminWhatsappNumber: string;
+};
+
 export default function Register() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successData, setSuccessData] = useState<{ businessCode: string; businessName: string } | null>(null);
+  const [pendingData, setPendingData] = useState<PendingData | null>(null);
+  const [waSent, setWaSent] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [pollMsg, setPollMsg] = useState("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Clear any stale session from previous login so register always starts fresh
   useEffect(() => {
     localStorage.removeItem("erp_token");
     localStorage.removeItem("erp_user");
@@ -35,7 +47,14 @@ export default function Register() {
     sessionStorage.removeItem("erp_token");
     sessionStorage.removeItem("erp_user");
   }, []);
-  const [successData, setSuccessData] = useState<{ businessCode: string; businessName: string } | null>(null);
+
+  // Auto-poll every 10s once WhatsApp sent
+  useEffect(() => {
+    if (!waSent || !pendingData) return;
+    pollRef.current = setInterval(() => checkStatus(true), 10000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [waSent, pendingData]);
+
   const [form, setForm] = useState({
     businessName: "", gstin: "", pan: "", address: "", city: "", state: "", stateCode: "",
     pincode: "", phone: "", businessType: "retail",
@@ -50,10 +69,19 @@ export default function Register() {
     setLoading(true);
     try {
       const res: any = await api.post("/businesses/register", form);
-      localStorage.setItem("erp_token", res.token);
-      localStorage.setItem("erp_user", JSON.stringify(res.user));
-      localStorage.setItem("erp_business", JSON.stringify(res.business));
-      setSuccessData({ businessCode: res.business.businessCode, businessName: res.business.name });
+      if (res.pending) {
+        setPendingData({
+          pendingToken: res.pendingToken,
+          businessName: res.businessName,
+          businessCode: res.businessCode,
+          adminWhatsappNumber: res.adminWhatsappNumber,
+        });
+      } else {
+        localStorage.setItem("erp_token", res.token);
+        localStorage.setItem("erp_user", JSON.stringify(res.user));
+        localStorage.setItem("erp_business", JSON.stringify(res.business));
+        setSuccessData({ businessCode: res.business.businessCode, businessName: res.business.name });
+      }
     } catch (err: any) {
       setError(err.message || err.detail || "Registration failed. Please try again.");
     } finally {
@@ -61,6 +89,108 @@ export default function Register() {
     }
   };
 
+  const checkStatus = async (silent = false) => {
+    if (!pendingData) return;
+    if (!silent) setChecking(true);
+    setPollMsg("");
+    try {
+      const res: any = await api.get(`/businesses/verify-status/${pendingData.pendingToken}`);
+      if (res.approved) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        localStorage.setItem("erp_token", res.token);
+        localStorage.setItem("erp_user", JSON.stringify(res.user));
+        localStorage.setItem("erp_business", JSON.stringify(res.business));
+        setSuccessData({ businessCode: res.business.businessCode, businessName: res.business.name });
+      } else {
+        if (!silent) setPollMsg("Abhi tak approved nahi hua. Thoda wait karein...");
+      }
+    } catch {
+      if (!silent) setPollMsg("Check karne mein dikkat aayi. Dobara try karein.");
+    } finally {
+      if (!silent) setChecking(false);
+    }
+  };
+
+  const openWhatsApp = () => {
+    if (!pendingData) return;
+    const msg = encodeURIComponent(
+      `BizCor Verify: ${pendingData.pendingToken}\nBusiness: ${pendingData.businessName}\nCode: ${pendingData.businessCode}`
+    );
+    const waNum = pendingData.adminWhatsappNumber || "919999999999";
+    window.open(`https://wa.me/${waNum}?text=${msg}`, "_blank");
+    setWaSent(true);
+  };
+
+  // ── WhatsApp Verification Screen ───────────────────────────────────────────
+  if (pendingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-7 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4 shadow-lg">
+              <MessageCircle className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900 mb-1">WhatsApp se Verify Karein</h1>
+            <p className="text-gray-500 text-sm mb-5">{pendingData.businessName}</p>
+
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5 text-left space-y-2">
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">Yeh message bhejein:</p>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 font-mono text-sm text-green-900 select-all">
+                BizCor Verify: {pendingData.pendingToken}<br />
+                Business: {pendingData.businessName}<br />
+                Code: {pendingData.businessCode}
+              </div>
+            </div>
+
+            {!waSent ? (
+              <button
+                onClick={openWhatsApp}
+                className="w-full py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl transition-colors shadow flex items-center justify-center gap-2 text-base"
+              >
+                <MessageCircle className="w-5 h-5" />
+                WhatsApp pe Verify Karo
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-green-600 text-sm font-medium py-2 bg-green-50 rounded-lg border border-green-200">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Message bhej diya — Admin se approval ka wait karein
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 justify-center">
+                  <Clock className="w-3.5 h-3.5" />
+                  Auto check ho raha hai har 10 seconds mein...
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={openWhatsApp}
+                    className="flex-1 py-2.5 border border-green-300 text-green-700 text-sm font-medium rounded-lg hover:bg-green-50 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Dobara Open Karo
+                  </button>
+                  <button
+                    onClick={() => checkStatus(false)}
+                    disabled={checking}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  >
+                    {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    {checking ? "Check ho raha..." : "Status Check Karo"}
+                  </button>
+                </div>
+                {pollMsg && <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">{pollMsg}</p>}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400 mt-5">
+              Ek baar admin approve kare toh aapka account automatically active ho jayega.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Success Screen ─────────────────────────────────────────────────────────
   if (successData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex items-center justify-center p-4">
@@ -68,7 +198,7 @@ export default function Register() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4 shadow-lg">
             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Business Registered Successfully!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Business Approved!</h1>
           <p className="text-gray-500 text-sm mb-6">{successData.businessName}</p>
 
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 mb-4">
@@ -196,7 +326,7 @@ export default function Register() {
                     placeholder="Enter if someone gave you a code"
                     maxLength={6}
                   />
-                  <p className="text-xs text-green-600 mt-1">The referrer earns a bonus for every 2 referrals (30 days free)</p>
+                  <p className="text-xs text-green-600 mt-1">The referrer earns a bonus for every 5 referrals</p>
                 </div>
                 {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
                 <div className="flex gap-3 mt-4">

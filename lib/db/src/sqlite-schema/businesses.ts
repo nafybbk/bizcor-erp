@@ -31,6 +31,7 @@ export const plansTable = sqliteTable("plans", {
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   packageConfig: text("package_config"),
+  pendingToken: text("pending_token"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 

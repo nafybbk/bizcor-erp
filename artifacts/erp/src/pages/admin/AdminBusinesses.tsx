@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle } from "lucide-react";
+import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle, MessageCircle, Clock } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
 
@@ -49,6 +49,42 @@ export default function AdminBusinesses() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // Pending WhatsApp verifications
+  const [mainTab, setMainTab] = useState<"all" | "pending">("all");
+  const [pendingBusinesses, setPendingBusinesses] = useState<any[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+
+  const loadPending = () => {
+    setPendingLoading(true);
+    api.get<any>("/super-admin/pending-businesses")
+      .then(r => { setPendingBusinesses(r.data || []); setPendingTotal(r.total || 0); })
+      .catch(console.error).finally(() => setPendingLoading(false));
+  };
+
+  useEffect(() => { if (mainTab === "pending") loadPending(); }, [mainTab]);
+
+  const approveBusiness = async (token: string, id: number) => {
+    setApprovingId(id);
+    try {
+      await api.post(`/super-admin/approve-business/${token}`, {});
+      loadPending();
+    } catch (e: any) { alert(e?.message || "Error"); }
+    finally { setApprovingId(null); }
+  };
+
+  const rejectBusiness = async (id: number, name: string) => {
+    if (!confirm(`"${name}" ko reject karein? Yeh business permanently delete ho jayega.`)) return;
+    setRejectingId(id);
+    try {
+      await api.post(`/super-admin/reject-business/${id}`, {});
+      loadPending();
+    } catch (e: any) { alert(e?.message || "Error"); }
+    finally { setRejectingId(null); }
+  };
 
   // Cleanup modal state
   const [cleanupBiz, setCleanupBiz] = useState<any>(null);
@@ -257,13 +293,84 @@ export default function AdminBusinesses() {
   return (
     <div className="max-w-6xl space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">All Businesses <span className="text-gray-400 text-base font-normal">({total})</span></h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Businesses</h1>
+          {/* Main tab switcher */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+            <button onClick={() => setMainTab("all")} className={`px-4 py-1.5 font-medium transition-colors ${mainTab === "all" ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              All ({total})
+            </button>
+            <button onClick={() => setMainTab("pending")} className={`px-4 py-1.5 font-medium transition-colors flex items-center gap-1.5 ${mainTab === "pending" ? "bg-green-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              <MessageCircle className="w-3.5 h-3.5" />
+              Pending WA
+              {pendingTotal > 0 && <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold ${mainTab === "pending" ? "bg-white/20" : "bg-green-500 text-white"}`}>{pendingTotal}</span>}
+            </button>
+          </div>
+        </div>
         <button onClick={downloadAllBackup} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
           <Download className="w-4 h-4" /> Backup All
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* ── Pending WhatsApp Approvals Tab ── */}
+      {mainTab === "pending" && (
+        <div className="bg-white rounded-xl border border-green-200 overflow-hidden">
+          <div className="p-4 border-b border-green-100 bg-green-50 flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-green-600" />
+            <div>
+              <h3 className="font-semibold text-green-800 text-sm">WhatsApp Verification Pending</h3>
+              <p className="text-xs text-green-600 mt-0.5">Yeh businesses ne WhatsApp message bheja hai — verify karke approve ya reject karein</p>
+            </div>
+          </div>
+          {pendingLoading ? (
+            <div className="flex items-center justify-center h-40"><Loader2 className="w-5 h-5 animate-spin text-green-500" /></div>
+          ) : pendingBusinesses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+              <CheckCircle2 className="w-8 h-8 mb-2 text-green-300" />
+              <p className="text-sm">Koi pending request nahi hai</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {pendingBusinesses.map(b => (
+                <div key={b.id} className="p-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900">{b.name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{b.adminName} · {b.adminEmail} · {b.phone}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded text-blue-700 font-bold">{b.businessCode}</span>
+                      <span className="font-mono text-xs bg-green-100 px-2 py-0.5 rounded text-green-700">{b.pendingToken}</span>
+                      <span className="text-xs text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(b.createdAt).toLocaleDateString("en-IN")}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => approveBusiness(b.pendingToken, b.id)}
+                      disabled={approvingId === b.id}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg disabled:opacity-60"
+                    >
+                      {approvingId === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => rejectBusiness(b.id, b.name)}
+                      disabled={rejectingId === b.id}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium rounded-lg disabled:opacity-60"
+                    >
+                      {rejectingId === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {mainTab === "all" && <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -363,7 +470,7 @@ export default function AdminBusinesses() {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Top-up Modal */}
       {topupBiz && (

@@ -26,15 +26,17 @@ interface NavItem {
   href?: string;
   icon?: React.ReactNode;
   children?: NavItem[];
+  badge?: number;
 }
 
-function NavLink({ href, icon, active, children }: { href: string; icon?: React.ReactNode; active: boolean; children: React.ReactNode }) {
+function NavLink({ href, icon, active, badge, children }: { href: string; icon?: React.ReactNode; active: boolean; badge?: number; children: React.ReactNode }) {
   return (
     <Link href={href}>
       <a className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
         active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}>
         {icon}
-        <span className="truncate">{children}</span>
+        <span className="truncate flex-1">{children}</span>
+        {badge ? <span className="ml-auto bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{badge}</span> : null}
       </a>
     </Link>
   );
@@ -48,7 +50,7 @@ function NavGroup({ item, location }: { item: NavItem; location: string }) {
 
   if (!item.children) {
     return (
-      <NavLink href={item.href!} icon={item.icon} active={location === item.href}>
+      <NavLink href={item.href!} icon={item.icon} active={location === item.href} badge={item.badge}>
         {item.label}
       </NavLink>
     );
@@ -166,6 +168,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>(getLang());
   const [dataFolderName, setDataFolderName] = useState<string | null>(getDataFolderName());
   const [bottomCollapsed, setBottomCollapsed] = useState(() => !!localStorage.getItem("erp_sidebar_bottom_collapsed"));
+  const [pendingCount, setPendingCount] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
@@ -187,6 +190,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Track offline draft count
   const refreshDraftCount = useCallback(() => {
     setDraftCount(getDraftCount());
+  }, []);
+
+  // Poll pending WhatsApp count (super admin only)
+  useEffect(() => {
+    if (!isSuperAdmin()) return;
+    const check = () => {
+      api.get<any>("/super-admin/pending-count").then(r => setPendingCount(r.count || 0)).catch(() => {});
+    };
+    check();
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
@@ -400,7 +414,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: L.loginActivity, href: "/admin/activity", icon: <BarChart3 className="w-4 h-4" /> },
     { label: L.allUsers, href: "/admin/users", icon: <Users className="w-4 h-4" /> },
     { label: L.buyers, href: "/admin/buyers", icon: <ShoppingBag className="w-4 h-4" /> },
-    { label: L.businesses, href: "/admin/businesses", icon: <Building2 className="w-4 h-4" /> },
+    { label: L.businesses, href: "/admin/businesses", icon: <Building2 className="w-4 h-4" />, badge: pendingCount > 0 ? pendingCount : undefined },
     { label: L.plans, href: "/admin/plans", icon: <CreditCard className="w-4 h-4" /> },
     { label: L.licenseVouchers, href: "/admin/vouchers", icon: <Ticket className="w-4 h-4" /> },
     { label: L.techSupportAccounts, href: "/admin/super-admins", icon: <ShieldCheck className="w-4 h-4" /> },
@@ -633,7 +647,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.47</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.48</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
