@@ -128,15 +128,16 @@ export default function AdminPlans() {
     const existing = parseConfig(p);
     setCfg(existing ? { ...DEFAULT_CFG, ...existing } : {
       ...DEFAULT_CFG,
-      adminPrice: Number(p.price) || 0,
+      // Old plans (no packageConfig) — always open as "onetime" so LAN section is visible
+      billingType: "onetime",
+      adminPrice: 0,
       extraUserCount: Math.max(0, (p.maxUsers || 1) - 1),
-      validityType: p.validityDays >= 36000 ? "unlimited" : "years",
-      validityYears: Math.round((p.validityDays || 1825) / 365),
+      validityType: (p.validityDays || 0) >= 36000 ? "unlimited" : "years",
+      validityYears: Math.max(1, Math.round((p.validityDays || 1825) / 365)),
       maxVouchersPerMonth: p.maxVouchersPerMonth || 0,
       maxItems: p.maxItems || 0,
       maxParties: p.maxParties || 0,
       trialDays: p.trialDays || 0,
-      billingType: p.billingCycle === "monthly" ? "monthly" : p.billingCycle === "onetime" ? "onetime" : "yearly",
     });
     setError(""); setShowModal(true);
   };
