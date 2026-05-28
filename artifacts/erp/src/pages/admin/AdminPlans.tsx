@@ -37,10 +37,11 @@ export default function AdminPlans() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const load = () => {
     setLoading(true);
-    api.get<any>("/super-admin/plans")
+    api.get<any>(`/super-admin/plans?_=${Date.now()}`)
       .then(r => setPlans(r.data))
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -94,8 +95,14 @@ export default function AdminPlans() {
       };
       if (editId) await api.patch(`/super-admin/plans/${editId}`, payload);
       else await api.post("/super-admin/plans", payload);
-      setShowModal(false); load();
-    } catch (err: any) { setError(err.message || "Save nahi hua"); }
+      setShowModal(false);
+      setSuccess(`"${name.trim()}" save ho gaya ✓`);
+      setTimeout(() => setSuccess(""), 4000);
+      load();
+    } catch (err: any) {
+      const msg = err?.message || "Save nahi hua";
+      setError(`Error: ${msg}`);
+    }
     finally { setSaving(false); }
   };
 
@@ -123,6 +130,12 @@ export default function AdminPlans() {
           <Plus className="w-4 h-4" /> Naya Plan
         </button>
       </div>
+
+      {success && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white text-sm font-medium px-5 py-3 rounded-xl shadow-lg">
+          {success}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-48">
