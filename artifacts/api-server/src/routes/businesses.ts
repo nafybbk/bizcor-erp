@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
-import { businessesTable, usersTable, unitsTable, taxRatesTable, hsnCodesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable } from "@workspace/db";
+import { businessesTable, usersTable, unitsTable, taxRatesTable, hsnCodesTable, partiesTable, itemsTable, vouchersTable, voucherItemsTable, paymentsTable, paymentAllocationsTable, plansTable, licenseVouchersTable, appSettingsTable } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { requireAuth, requireBusiness, signToken, AuthUser } from "../middlewares/auth";
 const router = Router();
@@ -15,6 +15,13 @@ function generateReferralCode(): string {
   let code = "";
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
+}
+
+function generatePendingToken(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let t = "VRF-";
+  for (let i = 0; i < 6; i++) t += chars[Math.floor(Math.random() * chars.length)];
+  return t;
 }
 
 router.post("/register", async (req, res) => {
@@ -59,18 +66,26 @@ router.post("/register", async (req, res) => {
     const existingRef = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.referralCode, referralCode)).limit(1);
     if (existingRef.length > 0) referralCode = generateReferralCode();
 
+    // Check if WhatsApp verification is enabled
+    const settingRows = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "whatsappVerification"));
+    const whatsappVerificationOn = settingRows[0]?.value === "true";
+    const pendingToken = whatsappVerificationOn ? generatePendingToken() : null;
+
     const now = new Date();
     const trialExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    // PG needs actual Date objects (timestamp column); SQLite needs ISO strings (text column)
     const isSQLite = !!process.env.SQLITE_PATH;
     const planStartVal = (isSQLite ? now.toISOString() : now) as unknown as Date;
     const planExpiresVal = (isSQLite ? trialExpiresAt.toISOString() : trialExpiresAt) as unknown as Date;
     let [business] = await db.insert(businessesTable).values({
       name: businessName, businessCode, gstin, pan, address, city, state, stateCode, pincode, phone, businessType,
-      planId: planId || null, status: "trial",
-      isTrial: true, planStartDate: planStartVal, planExpiresAt: planExpiresVal,
+      planId: planId || null,
+      status: whatsappVerificationOn ? "inactive" : "trial",
+      isTrial: !whatsappVerificationOn,
+      planStartDate: whatsappVerificationOn ? null : planStartVal,
+      planExpiresAt: whatsappVerificationOn ? null : planExpiresVal,
       referralCode,
       referredBy: referredBy ? referredBy.toUpperCase().trim() : null,
+      pendingToken,
     }).returning();
 
     // Fallback: some SQLite builds may not return from .returning() — fetch by code
@@ -158,6 +173,21 @@ router.post("/register", async (req, res) => {
       { businessId: business.id, name: "GST 28%", rate: "28" },
     ]);
 
+    // If WhatsApp verification ON → return pendingToken, no JWT
+    if (whatsappVerificationOn && pendingToken) {
+      // Get admin WhatsApp number from settings
+      const waRows = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "adminWhatsappNumber"));
+      const adminWaNumber = (waRows[0]?.value || "").replace(/\D/g, "");
+      res.status(201).json({
+        pending: true,
+        pendingToken,
+        businessName: business.name,
+        businessCode: business.businessCode,
+        adminWhatsappNumber: adminWaNumber,
+      });
+      return;
+    }
+
     const token = signToken({ id: user.id, email: user.email, name: user.name, role: "business_admin", businessId: business.id });
     res.status(201).json({
       token,
@@ -168,6 +198,31 @@ router.post("/register", async (req, res) => {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error", detail: err?.message || String(err) });
   }
+});
+
+// Public: check if pending business approved
+router.get("/verify-status/:token", async (req, res) => {
+  try {
+    const token = req.params.token.toUpperCase().trim();
+    const rows = await db.select({
+      id: businessesTable.id, status: businessesTable.status, pendingToken: businessesTable.pendingToken,
+      businessCode: businessesTable.businessCode, name: businessesTable.name,
+    }).from(businessesTable).where(eq(businessesTable.pendingToken, token)).limit(1);
+    if (!rows[0]) { res.status(404).json({ error: "Token nahi mila" }); return; }
+    const biz = rows[0];
+    if (biz.status === "trial" || biz.status === "active") {
+      // Approved — get user token
+      const userRow = await db.select().from(usersTable)
+        .where(and(eq(usersTable.businessId, biz.id), eq(usersTable.role, "business_admin"))).limit(1);
+      const u = userRow[0];
+      if (u) {
+        const jwt = signToken({ id: u.id, email: u.email, name: u.name, role: "business_admin", businessId: biz.id });
+        res.json({ approved: true, token: jwt, user: { id: u.id, email: u.email, name: u.name, role: "business_admin", businessId: biz.id }, business: { id: biz.id, name: biz.name, businessCode: biz.businessCode } });
+        return;
+      }
+    }
+    res.json({ approved: false, status: biz.status });
+  } catch (err: any) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 // Referral status — aapka code, count, reward info
