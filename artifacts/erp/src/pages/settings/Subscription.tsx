@@ -343,10 +343,38 @@ export default function Subscription() {
     </div>
   );
 
-  const currentPlan = plans.find(p => p.id === business?.planId) || null;
   const daysLeft = business?.planExpiresAt
     ? Math.ceil((new Date(business.planExpiresAt).getTime() - Date.now()) / 86400000)
     : null;
+
+  // Find current plan — first check public active plans, then fall back to subscriptions history
+  // (plan may have been deactivated in tech panel but business still has valid planExpiresAt)
+  let currentPlan: any = plans.find(p => p.id === business?.planId) || null;
+  if (!currentPlan && business?.planId && daysLeft !== null && daysLeft > 0) {
+    const matchingSub = subscriptions.find(s => s.planId === business.planId);
+    if (matchingSub) {
+      currentPlan = {
+        id: matchingSub.planId,
+        name: matchingSub.planName,
+        billingCycle: "yearly",
+        price: 0,
+        maxUsers: matchingSub.maxUsers || 1,
+        features: [],
+        _fromHistory: true,
+      };
+    } else {
+      // planId set but no matching subscription — still show as active
+      currentPlan = {
+        id: business.planId,
+        name: "Active Plan",
+        billingCycle: "yearly",
+        price: 0,
+        maxUsers: 1,
+        features: [],
+        _fromHistory: true,
+      };
+    }
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
