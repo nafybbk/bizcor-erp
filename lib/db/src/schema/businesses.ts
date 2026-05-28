@@ -31,6 +31,7 @@ export const plansTable = pgTable("plans", {
   maxParties: integer("max_parties"),
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
+  packageConfig: text("package_config"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
