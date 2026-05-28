@@ -32,7 +32,6 @@ export const plansTable = pgTable("plans", {
   isActive: boolean("is_active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   packageConfig: text("package_config"),
-  pendingToken: text("pending_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -84,6 +83,7 @@ export const businessesTable = pgTable("businesses", {
   printShowPrefix: boolean("print_show_prefix").default(true),
   printShowSeries: boolean("print_show_series").default(true),
   printShowZeros: boolean("print_show_zeros").default(true),
+  pendingToken: text("pending_token"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
