@@ -265,16 +265,18 @@ router.get("/plans", async (req, res) => {
 function applyPackageConfig(body: Record<string, unknown>): Record<string, unknown> {
   const cfg = body.packageConfig as Record<string, unknown> | undefined;
   if (!cfg) return body;
+
+  const billingType = (cfg.billingType as string) || "onetime";
   const adminPrice = Number(cfg.adminPrice || 0);
   const extraUserCount = Number(cfg.extraUserCount || 0);
   const extraUserPrice = Number(cfg.extraUserPrice || 0);
   const lanIncluded = Boolean(cfg.lanIncluded);
-  const lanClientCount = Number(cfg.lanClientCount || 0);
+  const lanClientCount = Number(cfg.lanClientCount || 1);
   const lanClientPrice = Number(cfg.lanClientPrice || 0);
   const chatIncluded = Boolean(cfg.chatIncluded);
   const chatPrice = Number(cfg.chatPrice || 0);
-  const validityType = cfg.validityType as string || "unlimited";
-  const validityYears = Number(cfg.validityYears || 1);
+  const validityType = (cfg.validityType as string) || "unlimited";
+  const validityYears = Number(cfg.validityYears || 5);
 
   const total = adminPrice
     + extraUserCount * extraUserPrice
@@ -282,29 +284,57 @@ function applyPackageConfig(body: Record<string, unknown>): Record<string, unkno
     + (chatIncluded ? chatPrice : 0);
 
   const maxUsers = 1 + extraUserCount;
-  const validityDays = validityType === "unlimited" ? 36500 : validityYears * 365;
+
+  // validityDays: one-time uses years/unlimited, subscription uses billing cycle
+  let validityDays: number;
+  let billingCycle: string;
+  if (billingType === "monthly") {
+    validityDays = 30;
+    billingCycle = "monthly";
+  } else if (billingType === "yearly") {
+    validityDays = 365;
+    billingCycle = "yearly";
+  } else {
+    // onetime
+    validityDays = validityType === "unlimited" ? 36500 : validityYears * 365;
+    billingCycle = "onetime";
+  }
 
   const features: string[] = [];
   features.push(`1 Admin User`);
   if (extraUserCount > 0) features.push(`${extraUserCount} Extra User${extraUserCount > 1 ? "s" : ""}`);
   if (lanIncluded) features.push(`LAN Access (${lanClientCount} client${lanClientCount > 1 ? "s" : ""})`);
   if (chatIncluded) features.push("Chat + File Share");
-  features.push(validityType === "unlimited" ? "Lifetime (Unlimited)" : `${validityYears} Year${validityYears > 1 ? "s" : ""} Validity`);
+  if (billingType === "onetime") {
+    features.push(validityType === "unlimited" ? "Lifetime (Unlimited)" : `${validityYears} Year${validityYears > 1 ? "s" : ""} Validity`);
+  }
   const maintenanceIncluded = Boolean(cfg.maintenanceIncluded);
   const maintenanceExtra = Boolean(cfg.maintenanceExtra);
-  if (maintenanceIncluded) features.push("Maintenance Included");
-  else if (maintenanceExtra) {
-    const mp = Number(cfg.maintenancePrice || 0);
-    const mc = cfg.maintenanceCycle === "monthly" ? "month" : "year";
-    features.push(`Maintenance ₹${mp}/${mc} (extra)`);
+  if (billingType === "onetime") {
+    if (maintenanceIncluded) features.push("Maintenance Included");
+    else if (maintenanceExtra) {
+      const mp = Number(cfg.maintenancePrice || 0);
+      const mc = cfg.maintenanceCycle === "monthly" ? "month" : "year";
+      features.push(`Maintenance ₹${mp}/${mc} (extra)`);
+    }
   }
+
+  // Limits from cfg (for subscription plans)
+  const maxVouchersPerMonth = Number(cfg.maxVouchersPerMonth || 0) || null;
+  const maxItems = Number(cfg.maxItems || 0) || null;
+  const maxParties = Number(cfg.maxParties || 0) || null;
+  const trialDays = Number(cfg.trialDays || 0);
 
   return {
     ...body,
     price: String(total),
     maxUsers,
     validityDays,
-    billingCycle: "yearly",
+    billingCycle,
+    trialDays,
+    maxVouchersPerMonth,
+    maxItems,
+    maxParties,
     features,
     packageConfig: JSON.stringify(cfg),
   };
