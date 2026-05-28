@@ -31,7 +31,6 @@ export const plansTable = sqliteTable("plans", {
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   packageConfig: text("package_config"),
-  pendingToken: text("pending_token"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
@@ -85,6 +84,7 @@ export const businessesTable = sqliteTable("businesses", {
   printShowPrefix: integer("print_show_prefix", { mode: "boolean" }).default(true),
   printShowSeries: integer("print_show_series", { mode: "boolean" }).default(true),
   printShowZeros: integer("print_show_zeros", { mode: "boolean" }).default(true),
+  pendingToken: text("pending_token"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
