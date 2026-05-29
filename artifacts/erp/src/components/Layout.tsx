@@ -185,7 +185,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         else setBizLogo(null);
         localStorage.setItem("erp_biz_profile", JSON.stringify(b));
         const features: string[] = b.planFeatures || [];
-        setChatEnabled(!!b.isTrial || features.includes("Chat: included"));
+        // Chat shown for trial users, any paid-plan user, or if plan explicitly has Chat feature
+        // Hidden only for free users with no plan and not on trial
+        const hasExplicitChatOff = features.some(f => f.startsWith("Chat:")) && !features.includes("Chat: included");
+        setChatEnabled(!!b.isTrial || (!!b.planId && !hasExplicitChatOff) || features.includes("Chat: included"));
       }).catch(() => {});
     }
   }, []);
@@ -650,7 +653,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.57</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.58</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
