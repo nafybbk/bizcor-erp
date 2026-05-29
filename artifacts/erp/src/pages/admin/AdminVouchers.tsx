@@ -213,7 +213,7 @@ export default function AdminVouchers() {
           <Ticket className="w-6 h-6 text-indigo-500" /> License Vouchers
         </h1>
         <button
-          onClick={() => { setShowGenerate(true); setNewCodes([]); setGenForm({ planId: selectedPlanId ? String(selectedPlanId) : "", quantity: 1, validityDays: 30, sellingPrice: "", notes: "" }); }}
+          onClick={() => { setShowGenerate(true); setNewCodes([]); const sp = plans.find(p => p.id === selectedPlanId); setGenForm({ planId: selectedPlanId ? String(selectedPlanId) : "", quantity: 1, validityDays: sp?.validityDays || 30, sellingPrice: "", notes: "" }); }}
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg">
           <Plus className="w-4 h-4" /> Generate Vouchers
         </button>
@@ -560,7 +560,7 @@ export default function AdminVouchers() {
               <div className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Plan <span className="text-red-500">*</span></label>
-                  <select className={inputCls} value={genForm.planId} onChange={e => setGenForm(f => ({ ...f, planId: e.target.value }))}>
+                  <select className={inputCls} value={genForm.planId} onChange={e => { const sel = plans.find(p => p.id === Number(e.target.value)); setGenForm(f => ({ ...f, planId: e.target.value, validityDays: sel?.validityDays || f.validityDays })); }}>
                     <option value="">Plan chunein...</option>
                     {plans.filter(p => p.isActive).map(p => (
                       <option key={p.id} value={p.id}>{p.name} — ₹{Number(p.price).toLocaleString()}/{p.billingCycle === "monthly" ? "month" : "year"}</option>
