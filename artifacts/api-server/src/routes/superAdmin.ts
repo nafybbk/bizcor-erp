@@ -36,7 +36,7 @@ router.get("/settings", async (req, res) => {
 
 router.post("/settings", async (req, res) => {
   try {
-    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo"];
+    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo", "whatsappVerification", "adminWhatsappNumber"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) })
