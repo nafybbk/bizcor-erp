@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 import {
   CreditCard, Check, Users, FileText, Package, Building2,
   Calendar, AlertCircle, Clock, Ticket, Loader2, X, CheckCircle2, Crown, Zap,
-  Gift, Copy, Share2, Trophy, Star, History, RotateCcw,
+  Gift, Copy, Share2, Trophy, Star, History, RotateCcw, Monitor, MessageSquare,
 } from "lucide-react";
 
 const MODULE_LABELS: Record<string, string> = {
@@ -13,8 +13,17 @@ const MODULE_LABELS: Record<string, string> = {
   masters: "Masters (Items/Parties)", settings: "Settings & Users",
 };
 
+const MODULE_KEYS = Object.keys(MODULE_LABELS);
+function parseLan(feats: string[]): number { const f = feats?.find(x => x.startsWith("LAN:")); return f ? (parseInt(f.match(/(\d+)/)?.[1] || "0") || 0) : 0; }
+function hasChat(feats: string[]): boolean { return (feats || []).includes("Chat: included"); }
+
 function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPlan: boolean; onActivate: () => void }) {
   const isPro = plan.price > 0 && plan.maxUsers >= 10;
+  const feats: string[] = plan.features || [];
+  const lan = parseLan(feats);
+  const chat = hasChat(feats);
+  const moduleFeats = feats.filter(f => MODULE_KEYS.includes(f));
+  const hasModules = moduleFeats.length > 0;
   return (
     <div className={`relative rounded-2xl border-2 p-5 space-y-4 transition-all ${
       isCurrentPlan
@@ -79,12 +88,26 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           </div>
         )}
       </div>
-      {plan.features && plan.features.length > 0 && (
+      {(lan > 0 || chat) && (
+        <div className="space-y-1.5 pt-2 border-t border-gray-100">
+          {lan > 0 && (
+            <div className="flex items-center gap-2 text-sm text-indigo-700">
+              <Monitor className="w-3.5 h-3.5 shrink-0" /> LAN: {lan} clients
+            </div>
+          )}
+          {chat && (
+            <div className="flex items-center gap-2 text-sm text-teal-700">
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" /> Chat included
+            </div>
+          )}
+        </div>
+      )}
+      {hasModules && (
         <div className="space-y-1 pt-2 border-t border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Modules</p>
           <div className="grid grid-cols-2 gap-1">
-            {(Object.keys(MODULE_LABELS)).map(mod => {
-              const has = plan.features.includes(mod);
+            {MODULE_KEYS.map(mod => {
+              const has = feats.includes(mod);
               return (
                 <div key={mod} className={`flex items-center gap-1.5 text-xs ${has ? "text-gray-700" : "text-gray-300"}`}>
                   {has ? <Check className="w-3 h-3 text-green-500 shrink-0" /> : <X className="w-3 h-3 text-gray-200 shrink-0" />}
