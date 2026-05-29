@@ -121,6 +121,23 @@ router.post("/login", async (req, res) => {
         }
       }
 
+      // ── LAN CLIENT LIMIT ENFORCEMENT (desktop mode only) ─────────────────
+      // Only enforced for non-localhost IPs in SQLITE/desktop mode
+      if (isDesktopMode && business.planId) {
+        const lanIp = getIp(req);
+        if (lanIp && lanIp !== "127.0.0.1" && lanIp !== "::1") {
+          const { canConnectLan, parseLanLimit } = await import("../lib/lan-tracker");
+          const planForLan = await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1);
+          const lanLimit = parseLanLimit((planForLan[0]?.features as string[]) || []);
+          if (lanLimit > 0 && !canConnectLan(lanIp, lanLimit)) {
+            throw {
+              code: "LAN_LIMIT_EXCEEDED",
+              message: `LAN client limit puri ho gayi. Is plan mein sirf ${lanLimit} clients ek saath connect ho sakte hain.`,
+            };
+          }
+        }
+      }
+
       // ── SAVE SESSION TOKEN ────────────────────────────────────────────────
       const newSessionToken = crypto.randomUUID();
       const ipAddr = getIp(req);

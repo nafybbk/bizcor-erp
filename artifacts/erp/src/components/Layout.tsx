@@ -157,6 +157,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
+  const [chatEnabled, setChatEnabled] = useState(false);
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
@@ -183,6 +184,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         if (b.logo) setBizLogo(b.logo);
         else setBizLogo(null);
         localStorage.setItem("erp_biz_profile", JSON.stringify(b));
+        const features: string[] = b.planFeatures || [];
+        setChatEnabled(!!b.isTrial || features.includes("Chat: included"));
       }).catch(() => {});
     }
   }, []);
@@ -647,7 +650,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.56</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.57</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
@@ -707,7 +710,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {text}
                   </span>
                 </div>
-                {!isSuperAdmin() && (
+                {!isSuperAdmin() && chatEnabled && (
                   <button
                     onClick={() => setChatOpen(o => !o)}
                     className={`relative flex items-center justify-center w-6 h-6 rounded-md text-white transition-all flex-shrink-0 ${chatOpen ? "bg-slate-600" : "bg-emerald-600 hover:bg-emerald-700"}`}
@@ -796,7 +799,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     </div>
     {!isSuperAdmin() && <FloatingActionButton />}
     {!isSuperAdmin() && <ReferralBanner />}
-    {!isSuperAdmin() && <InternalChat open={chatOpen} onToggle={() => setChatOpen(o => !o)} onUnreadChange={setChatUnread} />}
+    {!isSuperAdmin() && chatEnabled && <InternalChat open={chatOpen} onToggle={() => setChatOpen(o => !o)} onUnreadChange={setChatUnread} />}
     </WindowManagerProvider>
   );
 }
