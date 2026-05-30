@@ -88,10 +88,9 @@ export const businessesTable = pgTable("businesses", {
 });
 
 export const appSettingsTable = pgTable("app_settings", {
-  id: serial("id").primaryKey(),
-  key: text("key").notNull().unique(),
+  key: text("key").primaryKey(),
   value: text("value"),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const licenseVouchersTable = pgTable("license_vouchers", {
