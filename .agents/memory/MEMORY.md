@@ -1,0 +1,1 @@
+- [Activation Logs Feature](activation-logs.md) — PC-wise + voucher-wise activation history for cloud & LAN, pending implementation
