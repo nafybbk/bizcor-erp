@@ -56,7 +56,9 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
             {plan.price === 0 ? "Free" : `₹${Number(plan.price).toLocaleString("en-IN")}`}
           </div>
           {plan.price > 0 && (
-            <div className="text-xs text-gray-400">/{plan.billingCycle === "monthly" ? "mahina" : "saal"}</div>
+            <div className="text-xs text-gray-400">
+              /{plan.billingCycle === "monthly" ? "mahina" : (plan.billingCycle === "onetime" || (plan.validityDays && plan.validityDays >= 1000)) ? "ek baar" : "saal"}
+            </div>
           )}
         </div>
       </div>
