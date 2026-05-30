@@ -165,6 +165,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
   const [bizLogo, setBizLogo] = useState<string | null>(null);
   const [draftCount, setDraftCount] = useState(getDraftCount());
   const [showDraftNotice, setShowDraftNotice] = useState(false);
@@ -668,7 +669,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.74</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.3.75</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
@@ -772,7 +773,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               Install App
             </button>
           )}
-          {installed && (
+          {installed && !isStandalone && (
             <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
               ✓ Installed
             </span>
