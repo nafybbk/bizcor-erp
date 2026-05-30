@@ -426,6 +426,7 @@ export default function AdminBusinesses() {
                       <div className="text-xs">
                         {b.planName ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{b.planName}</span> : <span className="text-gray-400">No plan</span>}
                         {b.isTrial && <span className="ml-1 bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full text-xs">Trial</span>}
+                        {b.voucherCode && <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${b.activationType === "desktop" ? "bg-purple-100 text-purple-700" : "bg-cyan-100 text-cyan-700"}`}>{b.activationType === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>}
                         {(b.bonusDaysAdded > 0) && <div className="text-xs text-green-600 mt-0.5">+{b.bonusDaysAdded} bonus days</div>}
                       </div>
                     </td>
