@@ -154,10 +154,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const isMobile = () => window.innerWidth < 768;
   const [sidebarOpen, setSidebarOpen] = useState(() => !isMobile());
   const [isOnline, setIsOnline] = useState(true);
-  const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(null);
+  const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(
+    () => (localStorage.getItem("erp_app_mode") as "desktop" | "cloud" | null) || null
+  );
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  const [chatEnabled, setChatEnabled] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(
+    () => localStorage.getItem("erp_chat_enabled") === "1"
+  );
   const [softwareName, setSoftwareName] = useState("BizERP");
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [installed, setInstalled] = useState(false);
@@ -188,7 +192,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         // Chat shown for trial users, any paid-plan user, or if plan explicitly has Chat feature
         // Hidden only for free users with no plan and not on trial
         const hasExplicitChatOff = features.some(f => f.startsWith("Chat:")) && !features.includes("Chat: included");
-        setChatEnabled(!!b.isTrial || (!!b.planId && !hasExplicitChatOff) || features.includes("Chat: included"));
+        const enabled = !!b.isTrial || (!!b.planId && !hasExplicitChatOff) || features.includes("Chat: included");
+        setChatEnabled(enabled);
+        localStorage.setItem("erp_chat_enabled", enabled ? "1" : "0");
       }).catch(() => {});
     }
   }, []);
@@ -241,6 +247,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const healthzFailCount = useRef(0);
   const [autoSyncing, setAutoSyncing] = useState(false);
   const [autoSyncResult, setAutoSyncResult] = useState<{ synced: number; failed: number } | null>(null);
   const [forceOffline, setForceOffline] = useState(
@@ -266,8 +273,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       const wasOffline = !isOnline;
       try {
         const h = await api.get<{ status: string; mode?: string }>("/healthz");
-        if (h.mode) setAppMode(h.mode as "desktop" | "cloud");
-        // Auto-clear forceOffline when API responds — makes no sense on cloud, and stale on desktop
+        healthzFailCount.current = 0;
+        if (h.mode) {
+          setAppMode(h.mode as "desktop" | "cloud");
+          localStorage.setItem("erp_app_mode", h.mode);
+        }
+        // Auto-clear forceOffline when API responds
         if (forceOffline) {
           localStorage.removeItem("erp_force_offline");
           setForceOffline(false);
@@ -281,7 +292,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             setTimeout(() => setAutoSyncResult(null), 5000);
           } finally { setAutoSyncing(false); }
         }
-      } catch { setIsOnline(false); }
+      } catch {
+        healthzFailCount.current += 1;
+        // Only go offline after 2 consecutive failures — avoids false offline on network blip
+        if (healthzFailCount.current >= 2) setIsOnline(false);
+      }
     };
     checkOnline();
     const interval = setInterval(checkOnline, 30000);
@@ -695,7 +710,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <img src={bizLogo} alt="Logo" className="h-7 w-auto object-contain" />
           )}
 
-          {/* Server mode marquee + Staff Chat button */}
+          {/* Server mode marquee */}
           {appMode && (() => {
             const isDesktop = appMode === "desktop";
             const msgs = isDesktop
@@ -703,33 +718,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               : ["☁ Cloud", "🌐 Sync", "🔐 Secure", "📊 Live", "☁ Cloud", "🌐 Sync", "🔐 Secure", "📊 Live"];
             const text = msgs.join("  •  ");
             return (
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className={`relative flex items-center overflow-hidden rounded-md h-5 w-28 sm:w-40 ${isDesktop ? "bg-indigo-600" : "bg-emerald-600"}`}>
-                  <style>{`@keyframes biz-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
-                  <span
-                    className="absolute whitespace-nowrap text-white text-[10px] font-semibold tracking-wide px-2"
-                    style={{ animation: "biz-marquee 14s linear infinite" }}
-                  >
-                    {text}
-                  </span>
-                </div>
-                {!isSuperAdmin() && chatEnabled && (
-                  <button
-                    onClick={() => setChatOpen(o => !o)}
-                    className={`relative flex items-center justify-center w-6 h-6 rounded-md text-white transition-all flex-shrink-0 ${chatOpen ? "bg-slate-600" : "bg-emerald-600 hover:bg-emerald-700"}`}
-                    title="Staff Chat"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {chatUnread > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">
-                        {chatUnread > 9 ? "9+" : chatUnread}
-                      </span>
-                    )}
-                  </button>
-                )}
+              <div className={`relative flex items-center overflow-hidden rounded-md h-5 w-28 sm:w-40 flex-shrink-0 ${isDesktop ? "bg-indigo-600" : "bg-emerald-600"}`}>
+                <style>{`@keyframes biz-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+                <span
+                  className="absolute whitespace-nowrap text-white text-[10px] font-semibold tracking-wide px-2"
+                  style={{ animation: "biz-marquee 14s linear infinite" }}
+                >
+                  {text}
+                </span>
               </div>
             );
           })()}
+
+          {/* Staff Chat — always visible when enabled, regardless of online/offline state */}
+          {!isSuperAdmin() && chatEnabled && (
+            <button
+              onClick={() => setChatOpen(o => !o)}
+              className={`relative flex items-center justify-center w-6 h-6 rounded-md text-white transition-all flex-shrink-0 ${chatOpen ? "bg-slate-600" : "bg-emerald-600 hover:bg-emerald-700"}`}
+              title="Staff Chat"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              {chatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center">
+                  {chatUnread > 9 ? "9+" : chatUnread}
+                </span>
+              )}
+            </button>
+          )}
 
           <div className="flex-1" />
 
