@@ -166,6 +166,7 @@ async function startServer(options, resourcesPath) {
     SESSION_SECRET: "BizCorDesktop2025!SecretKey#LAN",
     CORS_ORIGIN: "",
     NODE_PATH: nodeModulesInBundle,
+    EXE_VERSION: app.getVersion(),
   };
 
   if (cloudUrl) {
