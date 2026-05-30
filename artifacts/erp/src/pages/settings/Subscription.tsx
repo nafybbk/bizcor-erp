@@ -57,7 +57,7 @@ function PlanCard({ plan, isCurrentPlan, onActivate }: { plan: any; isCurrentPla
           </div>
           {plan.price > 0 && (
             <div className="text-xs text-gray-400">
-              /{plan.billingCycle === "monthly" ? "mahina" : (plan.billingCycle === "onetime" || (plan.validityDays && plan.validityDays >= 1000)) ? "ek baar" : "saal"}
+              /{plan.billingCycle === "monthly" ? "mahina" : (plan.billingCycle === "onetime" || (plan.validityDays && plan.validityDays >= 1000)) ? "OneTime" : "saal"}
             </div>
           )}
         </div>
