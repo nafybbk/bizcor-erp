@@ -113,14 +113,23 @@ router.post("/activate-offline", async (req, res) => {
       hardware: hardwareFingerprint || null,
     });
 
-    await db.update(licenseVouchersTable).set({
-      status: "used",
-      redeemedByBusinessId: biz?.id || null,
-      redeemedAt: now,
-      notes: activationLog,
-    }).where(eq(licenseVouchersTable.id, voucher.id));
-
-    if (biz) {
+    // If business not in cloud DB — create it (LAN-registered business activating for first time)
+    let bizId = biz?.id || null;
+    if (!biz && businessName) {
+      try {
+        const [created] = await db.insert(businessesTable).values({
+          name: businessName,
+          businessCode: businessCode.trim().toUpperCase(),
+          email: businessEmail || null,
+          planId: plan.id,
+          planStartDate: now,
+          planExpiresAt: expiresAt,
+          isTrial: false,
+          status: "active",
+        }).returning({ id: businessesTable.id });
+        bizId = created?.id || null;
+      } catch { /* businessCode may already exist with different case — ignore */ }
+    } else if (biz) {
       await db.update(businessesTable).set({
         planId: plan.id,
         planStartDate: now,
@@ -129,6 +138,13 @@ router.post("/activate-offline", async (req, res) => {
         status: "active",
       }).where(eq(businessesTable.id, biz.id));
     }
+
+    await db.update(licenseVouchersTable).set({
+      status: "used",
+      redeemedByBusinessId: bizId,
+      redeemedAt: now,
+      notes: activationLog,
+    }).where(eq(licenseVouchersTable.id, voucher.id));
 
     res.json({
       success: true,
