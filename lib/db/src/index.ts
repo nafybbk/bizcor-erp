@@ -31,6 +31,20 @@ if (sqlitePath) {
   _sqlite.pragma("journal_mode = WAL");
   _sqlite.pragma("foreign_keys = ON");
 
+  // Auto-migrate missing columns (safe — each in try/catch, SQLite ignores if already exists)
+  const migrations = [
+    "ALTER TABLE businesses ADD COLUMN pending_token TEXT",
+    "ALTER TABLE businesses ADD COLUMN voucher_code TEXT",
+    "ALTER TABLE businesses ADD COLUMN activation_type TEXT DEFAULT 'cloud'",
+    "ALTER TABLE businesses ADD COLUMN referral_code TEXT",
+    "ALTER TABLE businesses ADD COLUMN referred_by TEXT",
+    "ALTER TABLE businesses ADD COLUMN referral_count INTEGER DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN bonus_days_added INTEGER DEFAULT 0",
+  ];
+  for (const stmt of migrations) {
+    try { _sqlite.prepare(stmt).run(); } catch { /* column already exists */ }
+  }
+
   db = drizzle(_sqlite, { schema: sqliteSchema });
   _schema = sqliteSchema;
 } else {
