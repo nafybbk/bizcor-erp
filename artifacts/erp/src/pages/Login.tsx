@@ -249,6 +249,11 @@ export default function Login() {
         <div className="text-center mb-3">
           <BizCorLogo size="sm" animated hideSubtitle />
           <p className="mt-0.5 text-xs text-gray-400">India ka Smart Business ERP</p>
+          {typeof window !== "undefined" && !!(window as any).bizcorDesktop && (
+            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold">
+              🖥 LAN Version
+            </span>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5">
