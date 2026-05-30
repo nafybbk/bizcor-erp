@@ -504,18 +504,32 @@ router.get("/buyers", async (req, res) => {
       businessId: licenseVouchersTable.redeemedByBusinessId,
       code: licenseVouchersTable.code,
       redeemedAt: licenseVouchersTable.redeemedAt,
+      notes: licenseVouchersTable.notes,
     }).from(licenseVouchersTable).where(sql`${licenseVouchersTable.redeemedByBusinessId} IS NOT NULL`);
 
-    let enriched = allBiz.map((b: any) => ({
-      ...b,
-      planName: allPlans.find((p: any) => p.id === b.planId)?.name || "Unknown",
-      planPrice: allPlans.find((p: any) => p.id === b.planId)?.price || null,
-      maxUsers: allPlans.find((p: any) => p.id === b.planId)?.maxUsers || null,
-      userCount: Number(userCounts.find((u: any) => u.businessId === b.id)?.cnt || 0),
-      voucherCode: redeemedVouchers.find((v: any) => v.businessId === b.id)?.code || null,
-      voucherRedeemedAt: redeemedVouchers.find((v: any) => v.businessId === b.id)?.redeemedAt || null,
-      isExpired: b.planExpiresAt ? new Date(b.planExpiresAt) < new Date() : false,
-    }));
+    let enriched = allBiz.map((b: any) => {
+      const voucher = redeemedVouchers.find((v: any) => v.businessId === b.id);
+      let activationType: string | null = null;
+      let exeVersion: string | null = null;
+      if (voucher?.notes) {
+        try {
+          const log = JSON.parse(voucher.notes);
+          if (log.exeVersion) { activationType = "desktop"; exeVersion = log.exeVersion; }
+        } catch { /* ignore */ }
+      }
+      return {
+        ...b,
+        planName: allPlans.find((p: any) => p.id === b.planId)?.name || "Unknown",
+        planPrice: allPlans.find((p: any) => p.id === b.planId)?.price || null,
+        maxUsers: allPlans.find((p: any) => p.id === b.planId)?.maxUsers || null,
+        userCount: Number(userCounts.find((u: any) => u.businessId === b.id)?.cnt || 0),
+        voucherCode: voucher?.code || null,
+        voucherRedeemedAt: voucher?.redeemedAt || null,
+        activationType,
+        exeVersion,
+        isExpired: b.planExpiresAt ? new Date(b.planExpiresAt) < new Date() : false,
+      };
+    });
 
     if (search) {
       const q = search.toLowerCase();
