@@ -26,6 +26,7 @@ type PendingData = {
   businessName: string;
   businessCode: string;
   adminWhatsappNumber: string;
+  approvalUrl: string;
 };
 
 export default function Register() {
@@ -75,6 +76,7 @@ export default function Register() {
           businessName: res.businessName,
           businessCode: res.businessCode,
           adminWhatsappNumber: res.adminWhatsappNumber,
+          approvalUrl: res.approvalUrl || "",
         });
       } else {
         localStorage.setItem("erp_token", res.token);
@@ -114,9 +116,9 @@ export default function Register() {
   const openWhatsApp = () => {
     if (!pendingData) return;
     const msg = encodeURIComponent(
-      `BizCor Verify: ${pendingData.pendingToken}\nBusiness: ${pendingData.businessName}\nCode: ${pendingData.businessCode}`
+      `*BizCor New Registration*\nBusiness: ${pendingData.businessName}\nCode: ${pendingData.businessCode}\n\nApprove karne ke liye link tap karein:\n${pendingData.approvalUrl}`
     );
-    const waNum = pendingData.adminWhatsappNumber || "919999999999";
+    const waNum = (pendingData.adminWhatsappNumber || "919999999999").replace(/\D/g, "");
     window.open(`https://wa.me/${waNum}?text=${msg}`, "_blank");
     setWaSent(true);
   };
