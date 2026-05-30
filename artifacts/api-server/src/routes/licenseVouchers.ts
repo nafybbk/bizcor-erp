@@ -127,6 +127,7 @@ router.post("/redeem-voucher-offline", requireBusiness, async (req, res) => {
           ip: clientIp,
           businessName: biz.name,
           businessEmail: biz.email,
+          exeVersion: process.env.EXE_VERSION || null,
         }),
       });
       cloudData = await cloudRes.json();
