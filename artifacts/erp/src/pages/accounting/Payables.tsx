@@ -59,7 +59,7 @@ export default function Payables() {
           </button>
           <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-center">
             <div className="text-xs text-red-600">Total Payable</div>
-            <div className="text-lg font-bold text-red-700">{fmt.currency(totalOutstanding)}</div>
+            <div className="text-lg font-bold text-red-700">{fmt.currency(Math.abs(totalOutstanding))}</div>
           </div>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function Payables() {
             <tfoot className="bg-gray-50 border-t-2 border-gray-200">
               <tr>
                 <td colSpan={visibleCols.length - 1} className="px-4 py-3 font-bold text-gray-700 text-right">Total Payable</td>
-                {show("balance") && <td className="px-4 py-3 font-bold text-red-700 text-right">{fmt.currency(totalOutstanding)}</td>}
+                {show("balance") && <td className="px-4 py-3 font-bold text-red-700 text-right">{fmt.currency(Math.abs(totalOutstanding))}</td>}
               </tr>
             </tfoot>
           </table>
