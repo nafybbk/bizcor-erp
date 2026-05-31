@@ -223,18 +223,21 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
   const partyMap = new Map<number, any>(allParties.map(p => [p.id, p]));
 
   const data: any[] = [];
-  for (const [partyId, invoiceTotal] of invoiceMap) {
+  // Iterate ALL parties — not just those with invoices.
+  // A party with only opening balance or credit notes must still appear.
+  for (const party of allParties) {
+    const partyId = party.id;
+    const invoiceTotal = invoiceMap.get(partyId) || 0;
     const cn = cnMap.get(partyId) || 0;
     const received = payMap.get(partyId) || 0;
-    const party = partyMap.get(partyId);
-    const openingBal = Number(party?.openingBalance || 0);
-    const openingType = party?.openingBalanceType || "debit";
+    const openingBal = Number(party.openingBalance || 0);
+    const openingType = party.openingBalanceType || "debit";
     const opening = invoiceType === "sales_invoice"
       ? (openingType === "debit" ? openingBal : -openingBal)
       : (openingType === "credit" ? openingBal : -openingBal);
     const balanceDue = opening + invoiceTotal - cn - received;
     if (Math.abs(balanceDue) > 0.001) {
-      data.push({ partyId, partyName: party?.name || "Unknown", totalAmount: invoiceTotal, paidAmount: received, returnAmount: cn, openingBalance: opening, balanceDue, overdue: balanceDue });
+      data.push({ partyId, partyName: party.name || "Unknown", totalAmount: invoiceTotal, paidAmount: received, returnAmount: cn, openingBalance: opening, balanceDue, overdue: balanceDue });
     }
   }
   return data.sort((a, b) => b.balanceDue - a.balanceDue);
