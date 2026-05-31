@@ -218,27 +218,28 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           {/* ===== TALLY STYLE PRINTABLE ===== */}
           <div id="printable" className="bg-white border-2 border-black text-gray-900" style={{ fontFamily: "Arial, sans-serif", fontSize: "12px" }}>
 
-            {/* HEADER */}
-            <div className="border-b-2 border-black text-center py-2 px-4">
-              <div className="flex items-center justify-center gap-3">
-                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "48px", height: "48px", objectFit: "contain" }} />}
+            {/* HEADER: Logo + Firm LEFT | TAX INVOICE RIGHT */}
+            <div className="border-b-2 border-black px-3 py-2 flex items-start justify-between gap-3">
+              {/* Left: Logo + Firm */}
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "52px", height: "52px", objectFit: "contain", flexShrink: 0 }} />}
                 <div>
-                  <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>{biz.name || "Your Business Name"}</div>
-                  {bizAddress && <div style={{ fontSize: "11px" }}>{bizAddress}</div>}
-                  <div style={{ fontSize: "11px" }}>
+                  <div style={{ fontSize: "17px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>{biz.name || "Your Business Name"}</div>
+                  {bizAddress && <div style={{ fontSize: "10px", marginTop: "1px" }}>{bizAddress}</div>}
+                  <div style={{ fontSize: "10px" }}>
                     {biz.phone && <span>Ph: {biz.phone}</span>}
-                    {biz.phone && biz.email && <span> | </span>}
+                    {biz.phone && biz.email && <span>  |  </span>}
                     {biz.email && <span>{biz.email}</span>}
                   </div>
-                  {biz.gstin && <div style={{ fontSize: "11px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
-                  {biz.pan && <div style={{ fontSize: "11px" }}>PAN: {biz.pan}</div>}
+                  {biz.gstin && <div style={{ fontSize: "10px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
+                  {biz.pan && <div style={{ fontSize: "10px" }}>PAN: {biz.pan}</div>}
                 </div>
               </div>
-            </div>
-
-            {/* DOC TITLE */}
-            <div className="border-b-2 border-black text-center py-1" style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px" }}>
-              {docTitle}
+              {/* Right: TAX INVOICE */}
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px", border: "1px solid black", padding: "3px 8px", display: "inline-block" }}>{docTitle}</div>
+                <div style={{ fontSize: "9px", marginTop: "2px" }}>ORIGINAL FOR RECIPIENT</div>
+              </div>
             </div>
 
             {/* PARTY + DOC INFO */}
@@ -256,34 +257,46 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               <div className="px-2 py-1.5">
                 <table style={{ width: "100%", fontSize: "11px" }}>
                   <tbody>
-                    <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Invoice No:</td>
-                      <td>
+                    <tr style={{ borderBottom: "1px solid #ccc" }}>
+                      <td style={{ fontWeight: "bold", paddingRight: "8px", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Invoice No.</td>
+                      <td style={{ padding: "2px 4px" }}>
                         <span className="screen-only">{voucher.voucherNumber}</span>
                         <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
                       </td>
                     </tr>
-                    <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Date:</td>
-                      <td>{fmt.date(voucher.date)}</td>
+                    <tr style={{ borderBottom: "1px solid #ccc" }}>
+                      <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Date</td>
+                      <td style={{ padding: "2px 4px" }}>{fmt.date(voucher.date)}</td>
                     </tr>
+                    {voucher.dueDate && (
+                      <tr style={{ borderBottom: "1px solid #ccc" }}>
+                        <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Due Date</td>
+                        <td style={{ padding: "2px 4px", fontWeight: "bold" }}>{fmt.date(voucher.dueDate)}</td>
+                      </tr>
+                    )}
+                    {voucher.referenceNumber && (
+                      <tr style={{ borderBottom: "1px solid #ccc" }}>
+                        <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Ref. No.</td>
+                        <td style={{ padding: "2px 4px" }}>{voucher.referenceNumber}</td>
+                      </tr>
+                    )}
                     {voucher.placeOfSupply && (
-                      <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Place of Supply:</td>
-                        <td>{voucher.placeOfSupply}</td>
+                      <tr style={{ borderBottom: "1px solid #ccc" }}>
+                        <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Place of Supply</td>
+                        <td style={{ padding: "2px 4px" }}>{voucher.placeOfSupply}</td>
                       </tr>
                     )}
                     {voucher.linkedVoucherNumber && (
-                      <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>
-                          {voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}
+                      <tr style={{ borderBottom: "1px solid #ccc" }}>
+                        <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>
+                          {voucherType === "sales/credit-notes" ? "Against Invoice" : "Against Bill"}
                         </td>
-                        <td style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</td>
+                        <td style={{ padding: "2px 4px", fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</td>
                       </tr>
                     )}
                     <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Status:</td>
-                      <td>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</td>
+                      <td style={{ fontWeight: "bold", padding: "2px 8px 2px 4px", whiteSpace: "nowrap" }}>Status</td>
+                      <td style={{ padding: "2px 4px" }}>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -294,13 +307,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th className={thCls} style={{ width: "24px" }}>S.No</th>
+                  <th className={thCls} style={{ width: "24px", textAlign: "center" }}>S.No</th>
                   <th className={thCls} style={{ textAlign: "left" }}>Particulars</th>
-                  <th className={thCls}>HSN</th>
-                  <th className={thCls}>Unit</th>
+                  <th className={thCls} style={{ textAlign: "center" }}>HSN/SAC</th>
+                  <th className={thCls} style={{ textAlign: "center" }}>Unit</th>
                   <th className={thCls} style={{ textAlign: "right" }}>Qty</th>
                   <th className={thCls} style={{ textAlign: "right" }}>Rate</th>
                   {hasDiscount && <th className={thCls} style={{ textAlign: "right" }}>Disc</th>}
+                  <th className={thCls} style={{ textAlign: "right" }}>Taxable Value</th>
+                  <th className={thCls} style={{ textAlign: "center" }}>GST%</th>
                   {isInterState
                     ? <th className={thCls} style={{ textAlign: "right" }}>IGST</th>
                     : <><th className={thCls} style={{ textAlign: "right" }}>CGST</th><th className={thCls} style={{ textAlign: "right" }}>SGST</th></>
@@ -324,7 +339,6 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           ))}
                         </div>
                       )}
-                      <div style={{ fontSize: "10px" }}>Taxable: {fmt.number(item.taxableAmount)} | GST: {item.taxRate}%</div>
                     </td>
                     <td className={tdCls} style={{ textAlign: "center" }}>{item.hsnCode || "-"}</td>
                     <td className={tdCls} style={{ textAlign: "center" }}>{item.unit}</td>
@@ -335,6 +349,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                         {item.discount > 0 ? `${fmtQty(item.discount)}${item.discountType === "percent" ? "%" : ""}` : "-"}
                       </td>
                     )}
+                    <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.taxableAmount)}</td>
+                    <td className={tdCls} style={{ textAlign: "center" }}>{item.taxRate}%</td>
                     {isInterState
                       ? <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.igst)}</td>
                       : <><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.cgst)}</td><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.sgst)}</td></>
@@ -342,19 +358,36 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                   </tr>
                 ))}
+                {/* Empty rows to fill page — Tally style */}
+                {Array.from({ length: Math.max(0, 8 - (voucher.items || []).length) }).map((_, i) => (
+                  <tr key={`empty-${i}`}>
+                    <td className={tdCls} style={{ textAlign: "center", color: "#ddd" }}>{(voucher.items || []).length + i + 1}</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    {hasDiscount && <td className={tdCls}>&nbsp;</td>}
+                    <td className={tdCls}>&nbsp;</td>
+                    <td className={tdCls}>&nbsp;</td>
+                    {isInterState ? <td className={tdCls}>&nbsp;</td> : <><td className={tdCls}>&nbsp;</td><td className={tdCls}>&nbsp;</td></>}
+                    <td className={tdCls}>&nbsp;</td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td className={tdCls} colSpan={2} style={{ fontWeight: "bold" }}>
+                  <td className={thCls} colSpan={2}>
                     Total Items: {totalItems} | Total Qty: {fmtQty(totalQty)}
                   </td>
-                  <td className={tdCls} colSpan={3} />
-                  {hasDiscount && <td className={tdCls} />}
+                  <td className={thCls} colSpan={hasDiscount ? 4 : 3} />
+                  <td className={thCls} style={{ textAlign: "right" }}>{fmt.number(voucher.taxableAmount)}</td>
+                  <td className={thCls} />
                   {isInterState
-                    ? <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalIgst)}</td>
-                    : <><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalCgst)}</td><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalSgst)}</td></>
+                    ? <td className={thCls} style={{ textAlign: "right" }}>{fmt.number(voucher.totalIgst)}</td>
+                    : <><td className={thCls} style={{ textAlign: "right" }}>{fmt.number(voucher.totalCgst)}</td><td className={thCls} style={{ textAlign: "right" }}>{fmt.number(voucher.totalSgst)}</td></>
                   }
-                  <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.grandTotal)}</td>
+                  <td className={thCls} style={{ textAlign: "right" }}>{fmt.number(voucher.grandTotal)}</td>
                 </tr>
               </tfoot>
             </table>
