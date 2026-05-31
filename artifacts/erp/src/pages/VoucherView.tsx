@@ -259,50 +259,57 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   </div>
                 )}
               </div>
-              <div className="px-2 py-1.5">
-                <table style={{ width: "100%", fontSize: "11px" }}>
+              {/* RIGHT: S.R.TEX style 6-box grid */}
+              <div style={{ padding: "0" }}>
+                <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
                   <tbody>
+                    {/* Row 1: Invoice No | Date */}
                     <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Invoice No:</td>
-                      <td>
-                        <span className="screen-only">{voucher.voucherNumber}</span>
-                        <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", width: "50%", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "10px" }}>Invoice #:</div>
+                        <div style={{ fontWeight: "bold" }}>
+                          <span className="screen-only">{voucher.voucherNumber}</span>
+                          <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
+                        </div>
+                      </td>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", width: "50%", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "10px" }}>Date:</div>
+                        <div style={{ fontWeight: "bold" }}>{fmt.date(voucher.date)}</div>
                       </td>
                     </tr>
+                    {/* Row 2: Place of Supply | Due Date */}
                     <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Date:</td>
-                      <td>{fmt.date(voucher.date)}</td>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "10px" }}>Place of Supply:</div>
+                        <div style={{ fontWeight: "bold" }}>{voucher.placeOfSupply || "—"}</div>
+                      </td>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "10px" }}>Due Date:</div>
+                        <div style={{ fontWeight: "bold" }}>{voucher.dueDate ? fmt.date(voucher.dueDate) : "—"}</div>
+                      </td>
                     </tr>
-                    {voucher.dueDate && (
-                      <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Due Date:</td>
-                        <td style={{ fontWeight: "bold" }}>{fmt.date(voucher.dueDate)}</td>
-                      </tr>
-                    )}
+                    {/* Row 3: Status | Linked Voucher */}
+                    <tr>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: "bold", fontSize: "10px" }}>Status:</div>
+                        <div style={{ fontWeight: "bold" }}>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</div>
+                      </td>
+                      <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
+                        {voucher.linkedVoucherNumber
+                          ? <><div style={{ fontWeight: "bold", fontSize: "10px" }}>{voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}</div><div style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</div></>
+                          : <><div style={{ fontWeight: "bold", fontSize: "10px" }}>&nbsp;</div><div>&nbsp;</div></>
+                        }
+                      </td>
+                    </tr>
+                    {/* Reference — full width, only if set */}
                     {voucher.referenceNumber && (
                       <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Ref No:</td>
-                        <td>{voucher.referenceNumber}</td>
-                      </tr>
-                    )}
-                    {voucher.placeOfSupply && (
-                      <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Place of Supply:</td>
-                        <td>{voucher.placeOfSupply}</td>
-                      </tr>
-                    )}
-                    {voucher.linkedVoucherNumber && (
-                      <tr>
-                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>
-                          {voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}
+                        <td colSpan={2} style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: "bold", fontSize: "10px" }}>Reference:</div>
+                          <div style={{ whiteSpace: "pre-line" }}>{voucher.referenceNumber}</div>
                         </td>
-                        <td style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</td>
                       </tr>
                     )}
-                    <tr>
-                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Status:</td>
-                      <td>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -361,18 +368,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 ))}
                 {Array.from({ length: 8 }).map((_, i) => (
                   <tr key={`empty-${i}`}>
-                    <td className={tdCls} style={{ height: "20px" }}>&nbsp;</td>
-                    <td className={tdCls} />
-                    <td className={tdCls} />
-                    <td className={tdCls} />
-                    <td className={tdCls} />
-                    <td className={tdCls} />
-                    {hasDiscount && <td className={tdCls} />}
-                    {isInterState
-                      ? <td className={tdCls} />
-                      : <><td className={tdCls} /><td className={tdCls} /></>
-                    }
-                    <td className={tdCls} />
+                    <td style={{ height: "20px" }} />
+                    <td /><td /><td /><td /><td />
+                    {hasDiscount && <td />}
+                    {isInterState ? <td /> : <><td /><td /></>}
+                    <td />
                   </tr>
                 ))}
               </tbody>
