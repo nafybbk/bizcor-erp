@@ -85,6 +85,7 @@ export const businessesTable = sqliteTable("businesses", {
   printShowSeries: integer("print_show_series", { mode: "boolean" }).default(true),
   printShowZeros: integer("print_show_zeros", { mode: "boolean" }).default(true),
   pendingToken: text("pending_token"),
+  invoiceTemplate: text("invoice_template").default("classic"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
