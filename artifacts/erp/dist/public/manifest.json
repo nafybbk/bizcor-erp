@@ -1,0 +1,53 @@
+{
+  "name": "BizERP - Indian Business ERP",
+  "short_name": "BizERP",
+  "description": "GST Billing, Accounting & Inventory for Indian Businesses",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#2563eb",
+  "background_color": "#f8fafc",
+  "lang": "en-IN",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "New Invoice",
+      "short_name": "Invoice",
+      "url": "./sales/invoices/new",
+      "description": "Create a new sales invoice"
+    },
+    {
+      "name": "New Bill",
+      "short_name": "Bill",
+      "url": "./purchases/bills/new",
+      "description": "Record a purchase bill"
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "./",
+      "description": "Go to Dashboard"
+    }
+  ]
+}
