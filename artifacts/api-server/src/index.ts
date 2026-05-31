@@ -501,6 +501,8 @@ async function runPgMigrations() {
     await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_reward_count INTEGER NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMP`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS pending_token TEXT`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS invoice_template TEXT DEFAULT 'classic'`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY,
