@@ -218,26 +218,27 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           {/* ===== TALLY STYLE PRINTABLE ===== */}
           <div id="printable" className="bg-white border-2 border-black text-gray-900" style={{ fontFamily: "Arial, sans-serif", fontSize: "12px" }}>
 
-            {/* HEADER: Logo + Firm LEFT | TAX INVOICE RIGHT */}
-            <div className="border-b-2 border-black px-3 py-2 flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "52px", height: "52px", objectFit: "contain", flexShrink: 0 }} />}
+            {/* HEADER */}
+            <div className="border-b-2 border-black text-center py-2 px-4">
+              <div className="flex items-center justify-center gap-3">
+                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "48px", height: "48px", objectFit: "contain" }} />}
                 <div>
-                  <div style={{ fontSize: "17px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>{biz.name || "Your Business Name"}</div>
-                  {bizAddress && <div style={{ fontSize: "10px", marginTop: "1px" }}>{bizAddress}</div>}
-                  <div style={{ fontSize: "10px" }}>
+                  <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>{biz.name || "Your Business Name"}</div>
+                  {bizAddress && <div style={{ fontSize: "11px" }}>{bizAddress}</div>}
+                  <div style={{ fontSize: "11px" }}>
                     {biz.phone && <span>Ph: {biz.phone}</span>}
-                    {biz.phone && biz.email && <span>  |  </span>}
+                    {biz.phone && biz.email && <span> | </span>}
                     {biz.email && <span>{biz.email}</span>}
                   </div>
-                  {biz.gstin && <div style={{ fontSize: "10px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
-                  {biz.pan && <div style={{ fontSize: "10px" }}>PAN: {biz.pan}</div>}
+                  {biz.gstin && <div style={{ fontSize: "11px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
+                  {biz.pan && <div style={{ fontSize: "11px" }}>PAN: {biz.pan}</div>}
                 </div>
               </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px", border: "1px solid black", padding: "3px 8px", display: "inline-block" }}>{docTitle}</div>
-                <div style={{ fontSize: "9px", marginTop: "2px" }}>ORIGINAL FOR RECIPIENT</div>
-              </div>
+            </div>
+
+            {/* DOC TITLE */}
+            <div className="border-b-2 border-black text-center py-1" style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px" }}>
+              {docTitle}
             </div>
 
             {/* PARTY + DOC INFO */}
