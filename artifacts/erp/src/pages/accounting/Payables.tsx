@@ -59,7 +59,7 @@ export default function Payables() {
               {data.map((r, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>
-                  <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(Math.abs(r.balanceDue))}</td>
+                  <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(r.balanceDue)}</td>
                 </tr>
               ))}
             </tbody>
