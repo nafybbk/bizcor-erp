@@ -1,30 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
-import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
-import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
 import { Loader2, Download, Printer } from "lucide-react";
-
-const ALL_COLS: ColDef[] = [
-  { key: "party", label: "Party", required: true },
-  { key: "opening", label: "Opening Bal" },
-  { key: "total", label: "Total Billed" },
-  { key: "paid", label: "Paid" },
-  { key: "returns", label: "Returns (DN)" },
-  { key: "balance", label: "Balance Due", required: true },
-];
-const REPORT_KEY = "payables";
 
 export default function Payables() {
   const [data, setData] = useState<any[]>([]);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [visibleCols, setVisibleCols] = useState<string[]>(() =>
-    getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
-  );
-
-  const handleColChange = (cols: string[]) => { setVisibleCols(cols); saveVisibleCols(REPORT_KEY, cols); };
-  const show = (key: string) => visibleCols.includes(key);
 
   useEffect(() => {
     api.get<any>("/accounting/outstanding-payables")
@@ -34,23 +16,17 @@ export default function Payables() {
 
   const exportCSV = () => {
     const rows = [
-      ...data.map(r => ({
-        "Party": r.partyName,
-        "Total Billed": r.totalAmount,
-        "Paid": r.paidAmount,
-        "Balance Due": r.balanceDue,
-      })),
-      { "Party": "TOTAL", "Total Billed": "", "Paid": "", "Balance Due": totalOutstanding },
+      ...data.map(r => ({ "Party": r.partyName, "Net Payable": r.balanceDue })),
+      { "Party": "TOTAL", "Net Payable": Math.abs(totalOutstanding) },
     ];
     downloadCSV(rows, `Outstanding_Payables_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-2xl space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Outstanding Payables</h1>
         <div className="flex items-center gap-3 print:hidden">
-          <ColumnCustomizer cols={ALL_COLS} visible={visibleCols} onChange={handleColChange} />
           <button onClick={exportCSV} disabled={loading || data.length === 0}
             className="flex items-center gap-2 px-4 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40">
             <Download className="w-4 h-4" /> Excel
@@ -73,31 +49,24 @@ export default function Payables() {
           <div className="text-center py-16 text-gray-400">No outstanding payables</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
               <tr>
-                {show("party") && <th className="text-left px-4 py-3 font-medium">Party</th>}
-                {show("opening") && <th className="text-right px-4 py-3 font-medium">Opening Bal</th>}
-                {show("total") && <th className="text-right px-4 py-3 font-medium">Total Billed</th>}
-                {show("paid") && <th className="text-right px-4 py-3 font-medium">Paid</th>}
-                {show("returns") && <th className="text-right px-4 py-3 font-medium">Returns (DN)</th>}
-                {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance Due</th>}
+                <th className="text-left px-4 py-3 font-medium">Party</th>
+                <th className="text-right px-4 py-3 font-medium">Net Payable</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {data.map((r, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  {show("party") && <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>}
-                  {show("total") && <td className="px-4 py-3 text-right">{fmt.currency(r.totalAmount)}</td>}
-                  {show("paid") && <td className="px-4 py-3 text-right text-green-600">{fmt.currency(r.paidAmount)}</td>}
-                  {show("returns") && <td className="px-4 py-3 text-right text-orange-600">{r.returnAmount > 0 ? fmt.currency(r.returnAmount) : "-"}</td>}
-                  {show("balance") && <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(r.balanceDue)}</td>}
+                  <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>
+                  <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(Math.abs(r.balanceDue))}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+            <tfoot className="bg-gray-50 border-t-2 border-gray-300">
               <tr>
-                <td colSpan={visibleCols.length - 1} className="px-4 py-3 font-bold text-gray-700 text-right">Total Payable</td>
-                {show("balance") && <td className="px-4 py-3 font-bold text-red-700 text-right">{fmt.currency(Math.abs(totalOutstanding))}</td>}
+                <td className="px-4 py-3 font-bold text-gray-800">Total</td>
+                <td className="px-4 py-3 font-bold text-red-700 text-right">{fmt.currency(Math.abs(totalOutstanding))}</td>
               </tr>
             </tfoot>
           </table>
