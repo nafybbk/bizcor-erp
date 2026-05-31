@@ -454,6 +454,8 @@ function runSqliteMigrations() {
     // businesses — pending token + invoice template selector
     "ALTER TABLE businesses ADD COLUMN pending_token TEXT",
     "ALTER TABLE businesses ADD COLUMN invoice_template TEXT DEFAULT 'classic'",
+    "ALTER TABLE vouchers ADD COLUMN reference_number TEXT",
+    "ALTER TABLE vouchers ADD COLUMN due_date TEXT",
   ];
   let applied = 0;
   for (const stmt of migrations) {
@@ -506,6 +508,8 @@ async function runPgMigrations() {
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMP`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS pending_token TEXT`);
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS invoice_template TEXT DEFAULT 'classic'`);
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS reference_number TEXT`);
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS due_date TEXT`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY,

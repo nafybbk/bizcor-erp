@@ -34,6 +34,8 @@ export const vouchersTable = pgTable("vouchers", {
   linkedVoucherId: integer("linked_voucher_id"),
   isInterState: boolean("is_inter_state").default(false),
   placeOfSupply: text("place_of_supply"),
+  referenceNumber: text("reference_number"),
+  dueDate: text("due_date"),
   customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   deletedAt: timestamp("deleted_at"),
