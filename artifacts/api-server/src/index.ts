@@ -451,6 +451,9 @@ function runSqliteMigrations() {
     "ALTER TABLE payments ADD COLUMN deleted_at TEXT",
     // businesses — active_voucher_id for exact license tracking
     "ALTER TABLE businesses ADD COLUMN active_voucher_id INTEGER",
+    // businesses — pending token + invoice template selector
+    "ALTER TABLE businesses ADD COLUMN pending_token TEXT",
+    "ALTER TABLE businesses ADD COLUMN invoice_template TEXT DEFAULT 'classic'",
   ];
   let applied = 0;
   for (const stmt of migrations) {
