@@ -9,6 +9,7 @@ const ALL_COLS: ColDef[] = [
   { key: "party", label: "Party", required: true },
   { key: "total", label: "Total Billed" },
   { key: "paid", label: "Paid" },
+  { key: "returns", label: "Returns (DN)" },
   { key: "balance", label: "Balance Due", required: true },
 ];
 const REPORT_KEY = "payables";
@@ -76,6 +77,7 @@ export default function Payables() {
                 {show("party") && <th className="text-left px-4 py-3 font-medium">Party</th>}
                 {show("total") && <th className="text-right px-4 py-3 font-medium">Total Billed</th>}
                 {show("paid") && <th className="text-right px-4 py-3 font-medium">Paid</th>}
+                {show("returns") && <th className="text-right px-4 py-3 font-medium">Returns (DN)</th>}
                 {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance Due</th>}
               </tr>
             </thead>
@@ -85,6 +87,7 @@ export default function Payables() {
                   {show("party") && <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>}
                   {show("total") && <td className="px-4 py-3 text-right">{fmt.currency(r.totalAmount)}</td>}
                   {show("paid") && <td className="px-4 py-3 text-right text-green-600">{fmt.currency(r.paidAmount)}</td>}
+                  {show("returns") && <td className="px-4 py-3 text-right text-orange-600">{r.returnAmount > 0 ? fmt.currency(r.returnAmount) : "-"}</td>}
                   {show("balance") && <td className="px-4 py-3 text-right font-bold text-red-600">{fmt.currency(r.balanceDue)}</td>}
                 </tr>
               ))}
