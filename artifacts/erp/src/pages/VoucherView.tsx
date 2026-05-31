@@ -265,9 +265,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               {/* Right: Document Title + Number — right-aligned on all screens */}
               <div className="flex flex-row sm:flex-col items-start sm:items-end justify-between sm:justify-start gap-2 sm:gap-0 flex-shrink-0">
                 <div>
-                  <div className="inline-block bg-gray-900 text-white px-3 py-1 rounded text-xs sm:text-sm font-bold tracking-widest mb-1.5">
+                  <div className="inline-block bg-gray-900 text-white px-3 py-1 rounded text-xs sm:text-sm font-bold tracking-widest mb-1">
                     {docTitle}
                   </div>
+                  <div className="text-xs text-gray-500 text-right mb-1">ORIGINAL FOR RECIPIENT</div>
                   {/* Screen: full number */}
                   <div className="screen-only text-base sm:text-xl font-bold text-gray-900 sm:text-right">{voucher.voucherNumber}</div>
                   {/* Print: formatted */}
@@ -386,6 +387,84 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               </tbody>
             </table>
           </div>
+
+          {/* ---- TOTAL QTY ROW ---- */}
+          {(() => {
+            const totalQty = (voucher.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+            const totalItems = (voucher.items || []).length;
+            return (
+              <div className="border-t border-gray-200 px-4 py-2 bg-gray-50 text-xs text-gray-600 flex gap-6">
+                <span>Total Items: <strong>{totalItems}</strong></span>
+                <span>Total Qty: <strong>{fmtQty(totalQty)}</strong></span>
+              </div>
+            );
+          })()}
+
+          {/* ---- HSN SUMMARY TABLE ---- */}
+          {(() => {
+            const hsnMap: Record<string, { taxableValue: number; igst: number; cgst: number; sgst: number; rate: number }> = {};
+            (voucher.items || []).forEach((item: any) => {
+              const hsn = item.hsnCode || "—";
+              if (!hsnMap[hsn]) hsnMap[hsn] = { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, rate: item.taxRate || 0 };
+              hsnMap[hsn].taxableValue += Number(item.taxableAmount || 0);
+              hsnMap[hsn].igst += Number(item.igst || 0);
+              hsnMap[hsn].cgst += Number(item.cgst || 0);
+              hsnMap[hsn].sgst += Number(item.sgst || 0);
+            });
+            const rows = Object.entries(hsnMap);
+            if (rows.length === 0) return null;
+            const totals = rows.reduce((acc, [, v]) => ({
+              taxableValue: acc.taxableValue + v.taxableValue,
+              igst: acc.igst + v.igst,
+              cgst: acc.cgst + v.cgst,
+              sgst: acc.sgst + v.sgst,
+            }), { taxableValue: 0, igst: 0, cgst: 0, sgst: 0 });
+            return (
+              <div className="border-t border-gray-200">
+                <div className="px-4 py-1.5 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-widest">HSN / SAC Summary</div>
+                <table className="w-full text-xs border-t border-gray-200">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-600">
+                      <th className="px-3 py-1.5 text-left font-medium">HSN/SAC</th>
+                      <th className="px-3 py-1.5 text-right font-medium">Taxable Value</th>
+                      <th className="px-3 py-1.5 text-center font-medium">Rate</th>
+                      {isInterState
+                        ? <th className="px-3 py-1.5 text-right font-medium">IGST</th>
+                        : <><th className="px-3 py-1.5 text-right font-medium">CGST</th><th className="px-3 py-1.5 text-right font-medium">SGST</th></>
+                      }
+                      <th className="px-3 py-1.5 text-right font-medium">Total Tax</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rows.map(([hsn, v]) => (
+                      <tr key={hsn}>
+                        <td className="px-3 py-1.5 font-mono">{hsn}</td>
+                        <td className="px-3 py-1.5 text-right">{fmt.number(v.taxableValue)}</td>
+                        <td className="px-3 py-1.5 text-center">{v.rate}%</td>
+                        {isInterState
+                          ? <td className="px-3 py-1.5 text-right">{fmt.number(v.igst)}</td>
+                          : <><td className="px-3 py-1.5 text-right">{fmt.number(v.cgst)}</td><td className="px-3 py-1.5 text-right">{fmt.number(v.sgst)}</td></>
+                        }
+                        <td className="px-3 py-1.5 text-right font-medium">{fmt.number(isInterState ? v.igst : v.cgst + v.sgst)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+                    <tr>
+                      <td className="px-3 py-1.5">TOTAL</td>
+                      <td className="px-3 py-1.5 text-right">{fmt.number(totals.taxableValue)}</td>
+                      <td />
+                      {isInterState
+                        ? <td className="px-3 py-1.5 text-right">{fmt.number(totals.igst)}</td>
+                        : <><td className="px-3 py-1.5 text-right">{fmt.number(totals.cgst)}</td><td className="px-3 py-1.5 text-right">{fmt.number(totals.sgst)}</td></>
+                      }
+                      <td className="px-3 py-1.5 text-right">{fmt.number(isInterState ? totals.igst : totals.cgst + totals.sgst)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })()}
 
           {/* ---- TOTALS + BANK ---- */}
           <div className="border-t-2 border-gray-800 grid grid-cols-2">
