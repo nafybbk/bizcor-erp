@@ -301,6 +301,24 @@ export default function BusinessSettings() {
           ))}
         </div>
 
+        {/* Invoice Template */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+          <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">🖨️ Invoice Print Template</h3>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Template Style</label>
+            <select className={inputCls} value={form.invoiceTemplate || "classic"}
+              onChange={e => setForm((f: any) => ({ ...f, invoiceTemplate: e.target.value }))}>
+              <option value="classic">Classic — Modern (colored header, cards)</option>
+              <option value="tally">Tally Style — Plain tabular (black border, traditional)</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              {(form.invoiceTemplate || "classic") === "tally"
+                ? "Plain bordered layout — like Tally invoice. Best for laser printers."
+                : "Modern colored layout with logo, HSN table, and formatted sections."}
+            </p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           {/* Series Number — highlighted prominently */}
           <div className="col-span-2 bg-amber-50 border border-amber-300 rounded-xl p-4">
