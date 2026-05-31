@@ -130,6 +130,383 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   // Build full address
   const bizAddress = [biz.address, biz.city, biz.state, biz.pincode].filter(Boolean).join(", ");
 
+  const invoiceTemplate = biz.invoiceTemplate || "classic";
+
+  // ── TALLY TEMPLATE ──────────────────────────────────────────────────────
+  if (invoiceTemplate === "tally") {
+    const totalQty = (voucher.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+    const totalItems = (voucher.items || []).length;
+    const hsnMap: Record<string, { taxableValue: number; igst: number; cgst: number; sgst: number; rate: number }> = {};
+    (voucher.items || []).forEach((item: any) => {
+      const hsn = item.hsnCode || "—";
+      if (!hsnMap[hsn]) hsnMap[hsn] = { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, rate: item.taxRate || 0 };
+      hsnMap[hsn].taxableValue += Number(item.taxableAmount || 0);
+      hsnMap[hsn].igst += Number(item.igst || 0);
+      hsnMap[hsn].cgst += Number(item.cgst || 0);
+      hsnMap[hsn].sgst += Number(item.sgst || 0);
+    });
+    const hsnRows = Object.entries(hsnMap);
+    const hsnTotals = hsnRows.reduce((acc, [, v]) => ({
+      taxableValue: acc.taxableValue + v.taxableValue,
+      igst: acc.igst + v.igst, cgst: acc.cgst + v.cgst, sgst: acc.sgst + v.sgst,
+    }), { taxableValue: 0, igst: 0, cgst: 0, sgst: 0 });
+    const invoiceValue = Number(voucher.taxableAmount) + Number(voucher.totalCgst || 0) + Number(voucher.totalSgst || 0) + Number(voucher.totalIgst || 0);
+
+    const tdCls = "border border-black px-1.5 py-0.5 text-xs";
+    const thCls = "border border-black px-1.5 py-0.5 text-xs font-bold bg-gray-100";
+
+    return (
+      <>
+        {showPrintPreview && (
+          <PrintPreviewModal
+            printableId="printable"
+            title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
+            onClose={() => setShowPrintPreview(false)}
+            initialZoom={autoPrint ? 0.6 : undefined}
+            shareText={voucher ? [
+              `*${voucher.voucherNumber}*`, `Party: ${voucher.partyName}`,
+              `Date: ${fmt.date(voucher.date)}`, `Amount: ${fmt.currency(voucher.grandTotal)}`,
+              voucher.balanceDue > 0 ? `Balance Due: ${fmt.currency(voucher.balanceDue)}` : `Status: Paid`,
+              ``, `_Sent via BizCor ERP_`,
+            ].join("\n") : undefined}
+          />
+        )}
+        <style>{`
+          @media print {
+            body * { visibility: hidden !important; }
+            #printable, #printable * { visibility: visible !important; }
+            #printable { position: fixed; inset: 0; padding: 0; background: white; overflow: auto; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .screen-only { display: none !important; }
+            @page { margin: 10mm; size: A4; }
+            #printable table tr { page-break-inside: avoid; }
+          }
+          .print-only { display: none; }
+        `}</style>
+
+        <div className="max-w-4xl space-y-4">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between gap-2 no-print">
+            <button onClick={() => navigate(listHref)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 flex-shrink-0">
+              <ArrowLeft className="w-4 h-4" /> <span>Back</span>
+            </button>
+            <div className="flex gap-1.5 flex-wrap justify-end">
+              {canDelete && (
+                <button onClick={handleDelete}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-sm font-medium">
+                  <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Delete</span>
+                </button>
+              )}
+              {canEdit && (
+                <button onClick={handleEdit}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100 rounded-lg text-sm font-medium">
+                  <Pencil className="w-4 h-4" /> <span className="hidden sm:inline">Edit</span>
+                </button>
+              )}
+              <button onClick={handleWhatsApp}
+                className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
+                <Share2 className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
+              </button>
+              <button onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
+                <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ===== TALLY STYLE PRINTABLE ===== */}
+          <div id="printable" className="bg-white border-2 border-black text-gray-900" style={{ fontFamily: "Arial, sans-serif", fontSize: "12px" }}>
+
+            {/* HEADER */}
+            <div className="border-b-2 border-black text-center py-2 px-4">
+              <div className="flex items-center justify-center gap-3">
+                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "48px", height: "48px", objectFit: "contain" }} />}
+                <div>
+                  <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>{biz.name || "Your Business Name"}</div>
+                  {bizAddress && <div style={{ fontSize: "11px" }}>{bizAddress}</div>}
+                  <div style={{ fontSize: "11px" }}>
+                    {biz.phone && <span>Ph: {biz.phone}</span>}
+                    {biz.phone && biz.email && <span> | </span>}
+                    {biz.email && <span>{biz.email}</span>}
+                  </div>
+                  {biz.gstin && <div style={{ fontSize: "11px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
+                  {biz.pan && <div style={{ fontSize: "11px" }}>PAN: {biz.pan}</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* DOC TITLE */}
+            <div className="border-b-2 border-black text-center py-1" style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px" }}>
+              {docTitle}
+            </div>
+
+            {/* PARTY + DOC INFO */}
+            <div className="border-b border-black grid grid-cols-2">
+              <div className="border-r border-black px-2 py-1.5">
+                <div style={{ fontSize: "11px", fontWeight: "bold" }}>M/s:</div>
+                <div style={{ fontSize: "13px", fontWeight: "bold" }}>{voucher.partyName}</div>
+                {voucher.partyGstin && <div style={{ fontSize: "10px" }}>GSTIN: {voucher.partyGstin}</div>}
+                {voucher.billingAddress && <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.billingAddress}</div>}
+                {isInterState
+                  ? <div style={{ fontSize: "10px", marginTop: "2px" }}>⚡ IGST (Inter-State)</div>
+                  : <div style={{ fontSize: "10px", marginTop: "2px" }}>✓ CGST + SGST (Intra-State)</div>
+                }
+              </div>
+              <div className="px-2 py-1.5">
+                <table style={{ width: "100%", fontSize: "11px" }}>
+                  <tbody>
+                    <tr>
+                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Invoice No:</td>
+                      <td>
+                        <span className="screen-only">{voucher.voucherNumber}</span>
+                        <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Date:</td>
+                      <td>{fmt.date(voucher.date)}</td>
+                    </tr>
+                    {voucher.placeOfSupply && (
+                      <tr>
+                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Place of Supply:</td>
+                        <td>{voucher.placeOfSupply}</td>
+                      </tr>
+                    )}
+                    {voucher.linkedVoucherNumber && (
+                      <tr>
+                        <td style={{ fontWeight: "bold", paddingRight: "8px" }}>
+                          {voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}
+                        </td>
+                        <td style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td style={{ fontWeight: "bold", paddingRight: "8px" }}>Status:</td>
+                      <td>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ITEMS TABLE */}
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th className={thCls} style={{ width: "24px" }}>S.No</th>
+                  <th className={thCls} style={{ textAlign: "left" }}>Particulars</th>
+                  <th className={thCls}>HSN</th>
+                  <th className={thCls}>Unit</th>
+                  <th className={thCls} style={{ textAlign: "right" }}>Qty</th>
+                  <th className={thCls} style={{ textAlign: "right" }}>Rate</th>
+                  {hasDiscount && <th className={thCls} style={{ textAlign: "right" }}>Disc</th>}
+                  {isInterState
+                    ? <th className={thCls} style={{ textAlign: "right" }}>IGST</th>
+                    : <><th className={thCls} style={{ textAlign: "right" }}>CGST</th><th className={thCls} style={{ textAlign: "right" }}>SGST</th></>
+                  }
+                  <th className={thCls} style={{ textAlign: "right" }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(voucher.items || []).map((item: any, idx: number) => (
+                  <tr key={idx}>
+                    <td className={tdCls} style={{ textAlign: "center" }}>{idx + 1}</td>
+                    <td className={tdCls}>
+                      <div style={{ fontWeight: "bold" }}>{item.itemName}</div>
+                      {item.description && <div style={{ fontSize: "10px" }}>{item.description}</div>}
+                      {item.customFields && Object.keys(item.customFields).length > 0 && (
+                        <div style={{ fontSize: "10px" }}>
+                          {Object.entries(item.customFields).filter(([, v]) => v).map(([k, v]) => (
+                            <span key={k} style={{ marginRight: "8px" }}>
+                              {k.replace(/([A-Z])/g, ' $1').trim()}: {String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: "10px" }}>Taxable: {fmt.number(item.taxableAmount)} | GST: {item.taxRate}%</div>
+                    </td>
+                    <td className={tdCls} style={{ textAlign: "center" }}>{item.hsnCode || "-"}</td>
+                    <td className={tdCls} style={{ textAlign: "center" }}>{item.unit}</td>
+                    <td className={tdCls} style={{ textAlign: "right" }}>{fmtQty(item.quantity)}</td>
+                    <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.rate)}</td>
+                    {hasDiscount && (
+                      <td className={tdCls} style={{ textAlign: "right" }}>
+                        {item.discount > 0 ? `${fmtQty(item.discount)}${item.discountType === "percent" ? "%" : ""}` : "-"}
+                      </td>
+                    )}
+                    {isInterState
+                      ? <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.igst)}</td>
+                      : <><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.cgst)}</td><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.sgst)}</td></>
+                    }
+                    <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className={tdCls} colSpan={2} style={{ fontWeight: "bold" }}>
+                    Total Items: {totalItems} | Total Qty: {fmtQty(totalQty)}
+                  </td>
+                  <td className={tdCls} colSpan={3} />
+                  {hasDiscount && <td className={tdCls} />}
+                  {isInterState
+                    ? <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalIgst)}</td>
+                    : <><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalCgst)}</td><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalSgst)}</td></>
+                  }
+                  <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.grandTotal)}</td>
+                </tr>
+              </tfoot>
+            </table>
+
+            {/* HSN SUMMARY */}
+            {hsnRows.length > 0 && (
+              <div className="border-t border-black">
+                <div style={{ fontWeight: "bold", fontSize: "11px", padding: "2px 6px", background: "#f3f4f6" }}>HSN/SAC Summary</div>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th className={thCls} style={{ textAlign: "left" }}>HSN/SAC</th>
+                      <th className={thCls} style={{ textAlign: "right" }}>Taxable Value</th>
+                      <th className={thCls} style={{ textAlign: "center" }}>Rate</th>
+                      {isInterState
+                        ? <th className={thCls} style={{ textAlign: "right" }}>IGST</th>
+                        : <><th className={thCls} style={{ textAlign: "right" }}>CGST</th><th className={thCls} style={{ textAlign: "right" }}>SGST</th></>
+                      }
+                      <th className={thCls} style={{ textAlign: "right" }}>Total Tax</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hsnRows.map(([hsn, v]) => (
+                      <tr key={hsn}>
+                        <td className={tdCls}>{hsn}</td>
+                        <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(v.taxableValue)}</td>
+                        <td className={tdCls} style={{ textAlign: "center" }}>{v.rate}%</td>
+                        {isInterState
+                          ? <td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(v.igst)}</td>
+                          : <><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(v.cgst)}</td><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(v.sgst)}</td></>
+                        }
+                        <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(isInterState ? v.igst : v.cgst + v.sgst)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td className={tdCls} style={{ fontWeight: "bold" }}>TOTAL</td>
+                      <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(hsnTotals.taxableValue)}</td>
+                      <td className={tdCls} />
+                      {isInterState
+                        ? <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(hsnTotals.igst)}</td>
+                        : <><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(hsnTotals.cgst)}</td><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(hsnTotals.sgst)}</td></>
+                      }
+                      <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(isInterState ? hsnTotals.igst : hsnTotals.cgst + hsnTotals.sgst)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            {/* TOTALS + BANK + WORDS */}
+            <div className="border-t-2 border-black grid grid-cols-2">
+              {/* Left: Words + Bank + Notes */}
+              <div className="border-r border-black px-2 py-1.5" style={{ fontSize: "11px" }}>
+                <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Amount in Words:</div>
+                <div style={{ fontStyle: "italic" }}>{toWords(Number(voucher.grandTotal) || 0)}</div>
+
+                {(biz.bankName || biz.bankAccount) && (
+                  <div style={{ marginTop: "6px" }}>
+                    <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Bank Details:</div>
+                    {biz.bankName && <div>Bank: {biz.bankName}</div>}
+                    {biz.bankAccount && <div>A/C No: {biz.bankAccount}</div>}
+                    {biz.bankIfsc && <div>IFSC: {biz.bankIfsc}</div>}
+                    {biz.bankBranch && <div>Branch: {biz.bankBranch}</div>}
+                  </div>
+                )}
+
+                {voucher.notes && (
+                  <div style={{ marginTop: "6px" }}>
+                    <div style={{ fontWeight: "bold" }}>Notes:</div>
+                    <div style={{ whiteSpace: "pre-line" }}>{voucher.notes}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Tax breakdown */}
+              <div className="px-2 py-1.5" style={{ fontSize: "11px" }}>
+                <table style={{ width: "100%", marginLeft: "auto" }}>
+                  <tbody>
+                    {Number(voucher.totalDiscount) > 0 && (
+                      <tr><td>Discount</td><td style={{ textAlign: "right" }}>-{fmt.currency(voucher.totalDiscount)}</td></tr>
+                    )}
+                    <tr><td>Taxable Amount</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.taxableAmount)}</td></tr>
+                    {!isInterState ? (
+                      <>
+                        <tr><td>CGST</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.totalCgst)}</td></tr>
+                        <tr><td>SGST</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.totalSgst)}</td></tr>
+                      </>
+                    ) : (
+                      <tr><td>IGST</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.totalIgst)}</td></tr>
+                    )}
+                    <tr style={{ borderTop: "1px solid black" }}>
+                      <td style={{ fontWeight: "bold" }}>Invoice Value</td>
+                      <td style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.currency(invoiceValue)}</td>
+                    </tr>
+                    {Number(voucher.roundOff) !== 0 && (
+                      <tr><td>Round Off</td><td style={{ textAlign: "right" }}>{Number(voucher.roundOff) > 0 ? "+" : ""}{fmt.currency(voucher.roundOff)}</td></tr>
+                    )}
+                    {Number(voucher.transportCharges) > 0 && (
+                      <tr><td>Transport{voucher.transportName ? ` (${voucher.transportName})` : ""}</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.transportCharges)}</td></tr>
+                    )}
+                    <tr style={{ borderTop: "2px solid black" }}>
+                      <td style={{ fontWeight: "bold", fontSize: "13px" }}>Net Total Payable</td>
+                      <td style={{ textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>{fmt.currency(voucher.grandTotal)}</td>
+                    </tr>
+                    {Number(voucher.paidAmount) > 0 && (
+                      <tr><td>Paid</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.paidAmount)}</td></tr>
+                    )}
+                    {Number(voucher.balanceDue) > 0 && (
+                      <tr style={{ borderTop: "1px solid black" }}>
+                        <td style={{ fontWeight: "bold" }}>Balance Due</td>
+                        <td style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.currency(voucher.balanceDue)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* TERMS + SIGNATURE */}
+            <div className="border-t border-black grid grid-cols-2 px-2 py-1.5" style={{ fontSize: "11px" }}>
+              <div className="border-r border-black pr-2">
+                {(voucher.termsAndConditions || biz.invoiceFooter) && (
+                  <>
+                    <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Terms & Conditions:</div>
+                    <div style={{ whiteSpace: "pre-line", lineHeight: "1.4" }}>{voucher.termsAndConditions || biz.invoiceFooter}</div>
+                  </>
+                )}
+                <div style={{ marginTop: "4px", fontStyle: "italic", fontSize: "10px" }}>
+                  We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+                </div>
+              </div>
+              <div className="text-right pl-2" style={{ paddingTop: "8px" }}>
+                <div style={{ marginTop: "40px", borderTop: "1px solid black", display: "inline-block", minWidth: "140px", textAlign: "center", paddingTop: "3px" }}>
+                  <div style={{ fontWeight: "bold" }}>For {biz.name || ""}</div>
+                  {biz.signatoryName && <div style={{ fontSize: "10px" }}>{biz.signatoryName}</div>}
+                  <div style={{ fontSize: "10px" }}>Authorised Signatory</div>
+                </div>
+              </div>
+            </div>
+
+            {/* BIZCOR FOOTER */}
+            <div className="border-t border-black text-center py-1" style={{ fontSize: "10px", color: "#6b7280" }}>
+              BizCor ERP — info@naewtgroup.com
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {showPrintPreview && (
