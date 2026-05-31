@@ -156,7 +156,25 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
           .screen-only { display: none !important; }
-          @page { margin: 10mm; size: A4; }
+          @page { margin: 8mm; size: A4; }
+
+          /* ── COMPACT PRINT: reduce padding so small invoices fit 1 page ── */
+          #printable .px-7 { padding-left: 14px !important; padding-right: 14px !important; }
+          #printable .px-4 { padding-left: 10px !important; padding-right: 10px !important; }
+          #printable .py-5 { padding-top: 8px !important; padding-bottom: 8px !important; }
+          #printable .py-4 { padding-top: 6px !important; padding-bottom: 6px !important; }
+          #printable .py-3 { padding-top: 4px !important; padding-bottom: 4px !important; }
+          #printable .py-2 { padding-top: 3px !important; padding-bottom: 3px !important; }
+          #printable .space-y-4 > * + * { margin-top: 8px !important; }
+          #printable .space-y-1\.5 > * + * { margin-top: 3px !important; }
+          #printable .mt-12 { margin-top: 20px !important; }
+          #printable .mt-3 { margin-top: 6px !important; }
+          #printable .gap-6 { gap: 12px !important; }
+
+          /* Keep key blocks together, no mid-block page breaks */
+          #printable table { page-break-inside: auto; }
+          #printable tr { page-break-inside: avoid; page-break-after: auto; }
+          #printable .border-t-2 { page-break-inside: avoid; }
         }
         .print-only { display: none; }
 
