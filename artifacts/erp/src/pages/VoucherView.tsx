@@ -218,40 +218,46 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           {/* ===== TALLY STYLE PRINTABLE ===== */}
           <div id="printable" className="bg-white border-2 border-black text-gray-900" style={{ fontFamily: "Arial, sans-serif", fontSize: "12px" }}>
 
-            {/* HEADER */}
-            <div className="border-b-2 border-black text-center py-2 px-4">
-              <div className="flex items-center justify-center gap-3">
-                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "48px", height: "48px", objectFit: "contain" }} />}
+            {/* HEADER: Logo+Firm LEFT | TAX INVOICE RIGHT — S.R.TEX style */}
+            <div className="border-b-2 border-black px-3 py-2 flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2 flex-1 min-w-0">
+                {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "50px", height: "50px", objectFit: "contain", flexShrink: 0 }} />}
                 <div>
-                  <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase" }}>{biz.name || "Your Business Name"}</div>
-                  {bizAddress && <div style={{ fontSize: "11px" }}>{bizAddress}</div>}
-                  <div style={{ fontSize: "11px" }}>
-                    {biz.phone && <span>Ph: {biz.phone}</span>}
-                    {biz.phone && biz.email && <span> | </span>}
-                    {biz.email && <span>{biz.email}</span>}
+                  <div style={{ fontSize: "18px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>{biz.name || "Your Business Name"}</div>
+                  {bizAddress && <div style={{ fontSize: "10px" }}>{bizAddress}</div>}
+                  <div style={{ fontSize: "10px" }}>
+                    {biz.phone && <span>Mobile: {biz.phone}</span>}
+                    {biz.phone && biz.email && <span>  </span>}
+                    {biz.email && <span>Email: {biz.email}</span>}
                   </div>
-                  {biz.gstin && <div style={{ fontSize: "11px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
-                  {biz.pan && <div style={{ fontSize: "11px" }}>PAN: {biz.pan}</div>}
+                  {biz.gstin && <div style={{ fontSize: "10px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
+                  {biz.pan && <div style={{ fontSize: "10px" }}>PAN: {biz.pan}</div>}
                 </div>
               </div>
-            </div>
-
-            {/* DOC TITLE */}
-            <div className="border-b-2 border-black text-center py-1" style={{ fontWeight: "bold", fontSize: "13px", letterSpacing: "2px" }}>
-              {docTitle}
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontWeight: "bold", fontSize: "14px", letterSpacing: "1px" }}>{docTitle}</div>
+                <div style={{ fontSize: "9px" }}>ORIGINAL FOR RECIPIENT</div>
+              </div>
             </div>
 
             {/* PARTY + DOC INFO */}
             <div className="border-b border-black grid grid-cols-2">
               <div className="border-r border-black px-2 py-1.5">
-                <div style={{ fontSize: "11px", fontWeight: "bold" }}>M/s:</div>
+                <div style={{ fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Customer Details:</div>
                 <div style={{ fontSize: "13px", fontWeight: "bold" }}>{voucher.partyName}</div>
                 {voucher.partyGstin && <div style={{ fontSize: "10px" }}>GSTIN: {voucher.partyGstin}</div>}
-                {voucher.billingAddress && <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.billingAddress}</div>}
-                {isInterState
-                  ? <div style={{ fontSize: "10px", marginTop: "2px" }}>⚡ IGST (Inter-State)</div>
-                  : <div style={{ fontSize: "10px", marginTop: "2px" }}>✓ CGST + SGST (Intra-State)</div>
-                }
+                {voucher.billingAddress && (
+                  <div style={{ marginTop: "2px" }}>
+                    <div style={{ fontSize: "9px", fontWeight: "bold" }}>Billing Address:</div>
+                    <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.billingAddress}</div>
+                  </div>
+                )}
+                {voucher.shippingAddress && (
+                  <div style={{ marginTop: "2px" }}>
+                    <div style={{ fontSize: "9px", fontWeight: "bold" }}>Shipping Address:</div>
+                    <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.shippingAddress}</div>
+                  </div>
+                )}
               </div>
               <div className="px-2 py-1.5">
                 <table style={{ width: "100%", fontSize: "11px" }}>
@@ -336,7 +342,6 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           ))}
                         </div>
                       )}
-                      <div style={{ fontSize: "10px" }}>Taxable: {fmt.number(item.taxableAmount)} | GST: {item.taxRate}%</div>
                     </td>
                     <td className={tdCls} style={{ textAlign: "center" }}>{item.hsnCode || "-"}</td>
                     <td className={tdCls} style={{ textAlign: "center" }}>{item.unit}</td>
@@ -352,6 +357,22 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                       : <><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.cgst)}</td><td className={tdCls} style={{ textAlign: "right" }}>{fmt.number(item.sgst)}</td></>
                     }
                     <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
+                  </tr>
+                ))}
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <tr key={`empty-${i}`}>
+                    <td className={tdCls} style={{ height: "20px" }}>&nbsp;</td>
+                    <td className={tdCls} />
+                    <td className={tdCls} />
+                    <td className={tdCls} />
+                    <td className={tdCls} />
+                    <td className={tdCls} />
+                    {hasDiscount && <td className={tdCls} />}
+                    {isInterState
+                      ? <td className={tdCls} />
+                      : <><td className={tdCls} /><td className={tdCls} /></>
+                    }
+                    <td className={tdCls} />
                   </tr>
                 ))}
               </tbody>
