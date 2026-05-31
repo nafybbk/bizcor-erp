@@ -7,6 +7,7 @@ import { Loader2, Download, Printer } from "lucide-react";
 
 const ALL_COLS: ColDef[] = [
   { key: "party", label: "Party", required: true },
+  { key: "opening", label: "Opening Bal" },
   { key: "total", label: "Total Billed" },
   { key: "paid", label: "Paid" },
   { key: "returns", label: "Returns (DN)" },
@@ -75,6 +76,7 @@ export default function Payables() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 {show("party") && <th className="text-left px-4 py-3 font-medium">Party</th>}
+                {show("opening") && <th className="text-right px-4 py-3 font-medium">Opening Bal</th>}
                 {show("total") && <th className="text-right px-4 py-3 font-medium">Total Billed</th>}
                 {show("paid") && <th className="text-right px-4 py-3 font-medium">Paid</th>}
                 {show("returns") && <th className="text-right px-4 py-3 font-medium">Returns (DN)</th>}
