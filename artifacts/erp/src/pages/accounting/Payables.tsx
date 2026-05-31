@@ -61,8 +61,8 @@ export default function Payables() {
                   <td className="px-4 py-3 font-medium text-gray-900">{r.partyName}</td>
                   <td className="px-4 py-3 text-right font-bold">
                     {r.balanceDue < 0
-                      ? <span className="text-green-600">{fmt.currency(Math.abs(r.balanceDue))} <span className="text-xs font-normal text-green-500">(Advance)</span></span>
-                      : <span className="text-red-600">{fmt.currency(r.balanceDue)}</span>
+                      ? <span className="text-red-600">{fmt.currency(Math.abs(r.balanceDue))} <span className="text-xs font-normal">(Advance)</span></span>
+                      : <span className="text-green-600">{fmt.currency(r.balanceDue)}</span>
                     }
                   </td>
                 </tr>
@@ -73,8 +73,8 @@ export default function Payables() {
                 <td className="px-4 py-3 font-bold text-gray-800">Net Total</td>
                 <td className="px-4 py-3 font-bold text-right">
                   {totalOutstanding < 0
-                    ? <span className="text-green-700">{fmt.currency(Math.abs(totalOutstanding))} <span className="text-xs font-normal">(Net Advance)</span></span>
-                    : <span className="text-red-700">{fmt.currency(totalOutstanding)}</span>
+                    ? <span className="text-red-700">{fmt.currency(Math.abs(totalOutstanding))} <span className="text-xs font-normal">(Net Advance)</span></span>
+                    : <span className="text-green-700">{fmt.currency(totalOutstanding)}</span>
                   }
                 </td>
               </tr>
