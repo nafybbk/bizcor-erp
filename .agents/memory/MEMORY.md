@@ -1,1 +1,2 @@
 - [Activation Logs Feature](activation-logs.md) — PC-wise + voucher-wise activation history for cloud & LAN, pending implementation
+- [Maintenance Plan Feature](maintenance-plan.md) — Yearly maintenance fee on top of lifetime plans, with alerts and feature locks, pending implementation
