@@ -257,9 +257,8 @@ router.get("/outstanding-receivables", async (req, res) => {
 router.get("/outstanding-payables", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const all = await computeOutstanding(businessId, "purchase_bill", "payment", "debit_note");
-    // Only show parties where we owe them (balanceDue > 0)
-    const data = all.filter(r => r.balanceDue > 0.001);
+    const data = await computeOutstanding(businessId, "purchase_bill", "payment", "debit_note");
+    // totalOutstanding = net amount we truly owe (advances reduce it)
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
   } catch (err) {
