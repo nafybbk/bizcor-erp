@@ -158,22 +158,64 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           .screen-only { display: none !important; }
           @page { margin: 8mm; size: A4; }
 
-          /* ── COMPACT PRINT: reduce padding so small invoices fit 1 page ── */
-          #printable .px-7 { padding-left: 14px !important; padding-right: 14px !important; }
-          #printable .px-4 { padding-left: 10px !important; padding-right: 10px !important; }
-          #printable .py-5 { padding-top: 8px !important; padding-bottom: 8px !important; }
-          #printable .py-4 { padding-top: 6px !important; padding-bottom: 6px !important; }
-          #printable .py-3 { padding-top: 4px !important; padding-bottom: 4px !important; }
-          #printable .py-2 { padding-top: 3px !important; padding-bottom: 3px !important; }
-          #printable .space-y-4 > * + * { margin-top: 8px !important; }
-          #printable .space-y-1\.5 > * + * { margin-top: 3px !important; }
-          #printable .mt-12 { margin-top: 20px !important; }
-          #printable .mt-3 { margin-top: 6px !important; }
-          #printable .gap-6 { gap: 12px !important; }
+          /* ── COMPACT PRINT: aggressive padding reduction for 1-page fit ── */
 
-          /* Keep key blocks together, no mid-block page breaks */
-          #printable table { page-break-inside: auto; }
+          /* Horizontal padding — outer sections */
+          #printable .px-7,
+          #printable .sm\\:px-7 { padding-left: 12px !important; padding-right: 12px !important; }
+          #printable .px-4 { padding-left: 8px !important; padding-right: 8px !important; }
+          #printable .px-3 { padding-left: 6px !important; padding-right: 6px !important; }
+
+          /* Vertical padding — all sections squeezed */
+          #printable .py-5,
+          #printable .sm\\:py-5 { padding-top: 5px !important; padding-bottom: 5px !important; }
+          #printable .py-4,
+          #printable .sm\\:py-4 { padding-top: 4px !important; padding-bottom: 4px !important; }
+          #printable .py-3 { padding-top: 3px !important; padding-bottom: 3px !important; }
+          #printable .py-2 { padding-top: 2px !important; padding-bottom: 2px !important; }
+          #printable .py-1\\.5 { padding-top: 2px !important; padding-bottom: 2px !important; }
+
+          /* Gap between stacked children */
+          #printable .space-y-4 > * + * { margin-top: 5px !important; }
+          #printable .space-y-3 > * + * { margin-top: 4px !important; }
+          #printable .space-y-1\\.5 > * + * { margin-top: 2px !important; }
+          #printable .space-y-0\\.5 > * + * { margin-top: 1px !important; }
+          #printable .gap-3 { gap: 6px !important; }
+          #printable .gap-6 { gap: 10px !important; }
+
+          /* Margins */
+          #printable .mt-12 { margin-top: 12px !important; }
+          #printable .mt-3  { margin-top: 5px !important; }
+          #printable .mt-2  { margin-top: 3px !important; }
+          #printable .mt-1  { margin-top: 2px !important; }
+          #printable .mb-1  { margin-bottom: 2px !important; }
+          #printable .mb-1\\.5 { margin-bottom: 2px !important; }
+          #printable .mb-2  { margin-bottom: 3px !important; }
+
+          /* Amount-in-words box — reduce blue box padding */
+          #printable .rounded-lg.border.px-4.py-3 { padding: 3px 6px !important; }
+
+          /* Make text slightly smaller in print for more density */
+          #printable { font-size: 11px !important; }
+          #printable .text-sm { font-size: 11px !important; }
+          #printable .text-xs { font-size: 10px !important; }
+          #printable .text-base { font-size: 13px !important; }
+          #printable .text-2xl { font-size: 18px !important; }
+          #printable .text-xl { font-size: 15px !important; }
+          #printable h1 { font-size: 18px !important; }
+          #printable .text-lg { font-size: 13px !important; }
+
+          /* Logo size reduce */
+          #printable .sm\\:w-20 { width: 52px !important; }
+          #printable .sm\\:h-20 { height: 52px !important; }
+
+          /* Table rows — tighter */
+          #printable table td,
+          #printable table th { padding-top: 2px !important; padding-bottom: 2px !important; }
+
+          /* Prevent mid-row page breaks */
           #printable tr { page-break-inside: avoid; page-break-after: auto; }
+          #printable table { page-break-inside: auto; }
           #printable .border-t-2 { page-break-inside: avoid; }
         }
         .print-only { display: none; }
