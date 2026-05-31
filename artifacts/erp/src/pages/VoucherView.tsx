@@ -67,12 +67,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   useEffect(() => {
     Promise.all([
       api.get<any>(`/${voucherType}/${params.id}`),
-      api.get<any>("/businesses/current"),
-      api.get<any>("/public-settings"),
+      api.get<any>("/businesses/current").catch(() => null),
+      api.get<any>("/public-settings").catch(() => ({})),
     ]).then(([v, b, s]) => {
       setVoucher(v);
       setBusiness(b);
-      setPrintFooter({ text: s.printFooterText || "", logo: s.printFooterLogo || "" });
+      setPrintFooter({ text: s?.printFooterText || "", logo: s?.printFooterLogo || "" });
     }).catch(console.error).finally(() => setLoading(false));
   }, [params.id]);
 
