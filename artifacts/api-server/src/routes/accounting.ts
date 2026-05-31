@@ -243,7 +243,9 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
 router.get("/outstanding-receivables", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const data = await computeOutstanding(businessId, "sales_invoice", "receipt", "credit_note");
+    const all = await computeOutstanding(businessId, "sales_invoice", "receipt", "credit_note");
+    // Only show parties where customer owes us (balanceDue > 0)
+    const data = all.filter(r => r.balanceDue > 0.001);
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
   } catch (err) {
@@ -255,7 +257,9 @@ router.get("/outstanding-receivables", async (req, res) => {
 router.get("/outstanding-payables", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const data = await computeOutstanding(businessId, "purchase_bill", "payment", "debit_note");
+    const all = await computeOutstanding(businessId, "purchase_bill", "payment", "debit_note");
+    // Only show parties where we owe them (balanceDue > 0)
+    const data = all.filter(r => r.balanceDue > 0.001);
     const totalOutstanding = data.reduce((s, r) => s + r.balanceDue, 0);
     res.json({ data, totalOutstanding, totalOverdue: totalOutstanding });
   } catch (err) {
