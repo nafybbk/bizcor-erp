@@ -31,6 +31,8 @@ export const vouchersTable = sqliteTable("vouchers", {
   linkedVoucherId: integer("linked_voucher_id"),
   isInterState: integer("is_inter_state", { mode: "boolean" }).default(false),
   placeOfSupply: text("place_of_supply"),
+  referenceNumber: text("reference_number"),
+  dueDate: text("due_date"),
   customFields: text("custom_fields", { mode: "json" }),
   createdAt: text("created_at").notNull().default(NOW),
   deletedAt: text("deleted_at"),

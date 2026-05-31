@@ -411,6 +411,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     useShippingAddress: false,
     shippingAddress: "",
     placeOfSupply: "",
+    referenceNumber: "",
+    dueDate: "",
     transportCharges: 0,
     transportName: "",
     roundOff: 0,
@@ -509,6 +511,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         useShippingAddress: initialData.useShippingAddress || false,
         shippingAddress: initialData.shippingAddress || "",
         placeOfSupply: initialData.placeOfSupply || "",
+        referenceNumber: initialData.referenceNumber || "",
+        dueDate: initialData.dueDate || "",
         transportCharges: Number(initialData.transportCharges || 0),
         transportName: initialData.transportName || "",
         roundOff: Number(initialData.roundOff || 0),
@@ -541,13 +545,23 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   }, [initialData]);
 
   const selectParty = (party: any) => {
-    setForm(f => ({
-      ...f,
-      partyId: String(party.id),
-      partyName: party.name,
-      billingAddress: [party.address, party.city, party.state, party.pincode].filter(Boolean).join(", "),
-      placeOfSupply: party.stateCode || "",
-    }));
+    const creditDays = Number(party.creditDays || 0);
+    setForm(f => {
+      let dueDate = f.dueDate;
+      if (creditDays > 0 && f.date) {
+        const d = new Date(f.date);
+        d.setDate(d.getDate() + creditDays);
+        dueDate = d.toISOString().split("T")[0];
+      }
+      return {
+        ...f,
+        partyId: String(party.id),
+        partyName: party.name,
+        billingAddress: [party.address, party.city, party.state, party.pincode].filter(Boolean).join(", "),
+        placeOfSupply: party.stateCode || "",
+        dueDate,
+      };
+    });
     setPartySearch(party.name);
     setCreditInfo(null);
     // Load saved shipping addresses for this party
@@ -1287,7 +1301,32 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-            <input type="date" className={inputCls} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+            <input type="date" className={inputCls} value={form.date} onChange={e => {
+              const newDate = e.target.value;
+              setForm(f => {
+                let dueDate = f.dueDate;
+                if (f.dueDate) {
+                  const oldD = new Date(f.date);
+                  const dueD = new Date(f.dueDate);
+                  const diff = Math.round((dueD.getTime() - oldD.getTime()) / 86400000);
+                  if (diff >= 0 && newDate) {
+                    const nd = new Date(newDate);
+                    nd.setDate(nd.getDate() + diff);
+                    dueDate = nd.toISOString().split("T")[0];
+                  }
+                }
+                return { ...f, date: newDate, dueDate };
+              });
+            }} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Reference No.</label>
+            <input type="text" className={inputCls} value={form.referenceNumber} onChange={e => setForm(f => ({ ...f, referenceNumber: e.target.value }))} placeholder="PO / Ref number (optional)..." />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+            <input type="date" className={inputCls} value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+            {form.dueDate && <p className="text-xs text-gray-400 mt-0.5">Auto party credit days se — change kar sakte ho</p>}
           </div>
 
           {/* Party */}

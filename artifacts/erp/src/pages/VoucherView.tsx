@@ -699,68 +699,93 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 </div>
               </div>
 
-              {/* Right: Document Title + Number — right-aligned on all screens */}
-              <div className="flex flex-row sm:flex-col items-start sm:items-end justify-between sm:justify-start gap-2 sm:gap-0 flex-shrink-0">
-                <div>
-                  <div className="inline-block bg-gray-900 text-white px-3 py-1 rounded text-xs sm:text-sm font-bold tracking-widest mb-1">
-                    {docTitle}
-                  </div>
-                  <div className="text-xs text-gray-500 text-right mb-1">ORIGINAL FOR RECIPIENT</div>
-                  {/* Screen: full number */}
-                  <div className="screen-only text-base sm:text-xl font-bold text-gray-900 sm:text-right">{voucher.voucherNumber}</div>
-                  {/* Print: formatted */}
-                  <div className="print-only text-base sm:text-xl font-bold text-gray-900 sm:text-right">{formatPrintNumber(voucher.voucherNumber, biz)}</div>
+              {/* Right: Document Title only (invoice details go in Tally boxes below) */}
+              <div className="flex-shrink-0 text-right">
+                <div className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded text-xs sm:text-sm font-bold tracking-widest mb-1">
+                  {docTitle}
                 </div>
-                <div className="text-right">
-                  <div className="text-xs sm:text-sm text-gray-500">Date: <span className="font-medium text-gray-800">{fmt.date(voucher.date)}</span></div>
-                  {voucher.placeOfSupply && (
-                    <div className="text-xs text-gray-500 mt-0.5">Place: <span className="text-gray-700">{voucher.placeOfSupply}</span></div>
-                  )}
-                  {voucher.linkedVoucherNumber && (
-                    <div className="mt-1.5 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs text-left">
-                      <span className="text-amber-600 font-semibold">
-                        {voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}
-                      </span>
-                      <span className="font-mono font-bold text-amber-900 ml-1">{voucher.linkedVoucherNumber}</span>
-                    </div>
-                  )}
-                  <div className="mt-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[voucher.status]}`}>
-                      {STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+                <div className="text-xs text-gray-500">ORIGINAL FOR RECIPIENT</div>
               </div>
 
             </div>
           </div>
 
-          {/* ---- BILLING INFO ---- */}
-          <div className="grid grid-cols-2 border-b border-gray-200">
-            <div className="px-7 py-4 border-r border-gray-200">
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Bill To</div>
-              <div className="font-bold text-gray-900 text-base">{voucher.partyName}</div>
+          {/* ---- BILLING INFO (Tally style) ---- */}
+          <div className="grid grid-cols-2 border-b-2 border-gray-800">
+            {/* Left: Customer / Buyer info */}
+            <div className="px-4 py-3 border-r-2 border-gray-800 text-sm">
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Buyer (Bill To)</div>
+              <div className="font-bold text-gray-900 text-base leading-tight">{voucher.partyName}</div>
               {voucher.partyGstin && (
-                <div className="text-xs font-mono text-gray-500 mt-1">GSTIN: {voucher.partyGstin}</div>
+                <div className="text-xs font-mono text-gray-600 mt-0.5">GSTIN: {voucher.partyGstin}</div>
               )}
               {voucher.billingAddress && (
-                <div className="text-sm text-gray-600 mt-1.5 whitespace-pre-line">{voucher.billingAddress}</div>
+                <div className="text-xs text-gray-600 mt-1 whitespace-pre-line leading-relaxed">{voucher.billingAddress}</div>
               )}
-            </div>
-            <div className="px-7 py-4">
-              {voucher.useShippingAddress && voucher.shippingAddress ? (
-                <>
-                  <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ship To</div>
-                  <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.shippingAddress}</div>
-                </>
-              ) : (
-                <div className="h-full flex flex-col justify-center">
-                  {/* GST type badge */}
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold self-start ${isInterState ? "bg-orange-50 text-orange-700 border border-orange-200" : "bg-blue-50 text-blue-700 border border-blue-200"}`}>
-                    {isInterState ? "⚡ IGST (Inter-State)" : "✓ CGST + SGST (Intra-State)"}
-                  </div>
+              {voucher.useShippingAddress && voucher.shippingAddress && (
+                <div className="mt-2 pt-2 border-t border-gray-200">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-0.5">Dispatch To</div>
+                  <div className="text-xs text-gray-600 whitespace-pre-line">{voucher.shippingAddress}</div>
                 </div>
               )}
+            </div>
+            {/* Right: Tally-style info table */}
+            <div>
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse" }}>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                    <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db", width: "45%" }}>Invoice No.</td>
+                    <td className="px-3 py-1.5 font-bold text-gray-900 font-mono">
+                      <span className="screen-only">{voucher.voucherNumber}</span>
+                      <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                    <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>Date</td>
+                    <td className="px-3 py-1.5 text-gray-900">{fmt.date(voucher.date)}</td>
+                  </tr>
+                  {voucher.dueDate && (
+                    <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                      <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>Due Date</td>
+                      <td className="px-3 py-1.5 text-gray-900 font-medium">{fmt.date(voucher.dueDate)}</td>
+                    </tr>
+                  )}
+                  {voucher.referenceNumber && (
+                    <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                      <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>Ref. No.</td>
+                      <td className="px-3 py-1.5 text-gray-900 font-mono">{voucher.referenceNumber}</td>
+                    </tr>
+                  )}
+                  {voucher.placeOfSupply && (
+                    <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                      <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>Place of Supply</td>
+                      <td className="px-3 py-1.5 text-gray-900">{voucher.placeOfSupply}</td>
+                    </tr>
+                  )}
+                  <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                    <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>GST Type</td>
+                    <td className={`px-3 py-1.5 font-semibold text-xs ${isInterState ? "text-orange-700" : "text-blue-700"}`}>
+                      {isInterState ? "IGST (Inter-State)" : "CGST+SGST (Intra-State)"}
+                    </td>
+                  </tr>
+                  {voucher.linkedVoucherNumber && (
+                    <tr style={{ borderBottom: "1px solid #d1d5db" }}>
+                      <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>
+                        {voucherType === "sales/credit-notes" ? "Against Invoice" : "Against Bill"}
+                      </td>
+                      <td className="px-3 py-1.5 text-amber-700 font-mono font-semibold">{voucher.linkedVoucherNumber}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="px-3 py-1.5 text-gray-600 font-semibold" style={{ borderRight: "1px solid #d1d5db" }}>Status</td>
+                    <td className="px-3 py-1.5">
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${STATUS_COLORS[voucher.status]}`}>
+                        {STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -821,6 +846,22 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   </tr>
                   );
                 })}
+                {/* Empty rows to fill page (Tally style) */}
+                {Array.from({ length: Math.max(0, 10 - (voucher.items || []).length) }).map((_, i) => (
+                  <tr key={`empty-${i}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td className="px-2 py-2 text-center text-xs text-gray-200">{(voucher.items || []).length + i + 1}</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    {hasDiscount && <td className="px-2 py-2">&nbsp;</td>}
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                    <td className="px-2 py-2">&nbsp;</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
