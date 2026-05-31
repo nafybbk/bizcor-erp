@@ -71,6 +71,7 @@ async function runMigrations() {
   await q(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_prefix BOOLEAN DEFAULT TRUE`);
   await q(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_series BOOLEAN DEFAULT TRUE`);
   await q(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS print_show_zeros BOOLEAN DEFAULT TRUE`);
+  await q(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS invoice_template TEXT DEFAULT 'classic'`);
   await q(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS active_voucher_id INTEGER`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS business_id INTEGER`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`);
