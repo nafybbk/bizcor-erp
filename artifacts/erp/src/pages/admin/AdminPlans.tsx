@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Loader2, X, Building2, CreditCard,
-  Users, Clock, CheckCircle2, IndianRupee, FileText, Monitor, MessageSquare,
+  Users, Clock, CheckCircle2, IndianRupee, FileText, Monitor, MessageSquare, LayoutTemplate,
 } from "lucide-react";
 
 const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
@@ -41,9 +41,14 @@ function parseChatIncluded(feats: string[]): boolean {
   return feats.some(x => x === "Chat: included");
 }
 
+// Parse report designer from features array
+function parseReportDesignerIncluded(feats: string[]): boolean {
+  return feats.some(x => x === "Report Designer: included");
+}
+
 // Strip managed features from general textarea
 function stripManagedFeatures(feats: string[]): string[] {
-  return feats.filter(f => !f.startsWith("LAN:") && f !== "Chat: included");
+  return feats.filter(f => !f.startsWith("LAN:") && f !== "Chat: included" && f !== "Report Designer: included");
 }
 
 export default function AdminPlans() {
@@ -66,6 +71,7 @@ export default function AdminPlans() {
   const [features, setFeatures] = useState("");
   const [lanClients, setLanClients] = useState("0");
   const [chatIncluded, setChatIncluded] = useState(false);
+  const [reportDesignerIncluded, setReportDesignerIncluded] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -88,7 +94,7 @@ export default function AdminPlans() {
     setValidityDays("1825"); setTrialDays("0");
     setMaxVouchersPerMonth(""); setMaxItems(""); setMaxParties("");
     setSortOrder("0"); setFeatures("");
-    setLanClients("0"); setChatIncluded(false);
+    setLanClients("0"); setChatIncluded(false); setReportDesignerIncluded(false);
     setError(""); setShowModal(true);
   };
 
@@ -107,6 +113,7 @@ export default function AdminPlans() {
     const allFeats: string[] = p.features || [];
     setLanClients(parseLanClients(allFeats));
     setChatIncluded(parseChatIncluded(allFeats));
+    setReportDesignerIncluded(parseReportDesignerIncluded(allFeats));
     setFeatures(stripManagedFeatures(allFeats).join("\n"));
     setError(""); setShowModal(true);
   };
@@ -120,6 +127,7 @@ export default function AdminPlans() {
       const lan = parseInt(lanClients) || 0;
       if (lan > 0) generalFeats.push(`LAN: ${lan} clients`);
       if (chatIncluded) generalFeats.push("Chat: included");
+      if (reportDesignerIncluded) generalFeats.push("Report Designer: included");
 
       const payload = {
         name: name.trim(),
@@ -191,6 +199,7 @@ export default function AdminPlans() {
             const allFeats: string[] = plan.features || [];
             const lan = parseInt(parseLanClients(allFeats)) || 0;
             const chat = parseChatIncluded(allFeats);
+            const reportDesigner = parseReportDesignerIncluded(allFeats);
             const otherFeats = stripManagedFeatures(allFeats);
             return (
               <div key={plan.id}
@@ -234,6 +243,11 @@ export default function AdminPlans() {
                   {chat && (
                     <div className="flex items-center gap-2 text-teal-600">
                       <MessageSquare className="w-3.5 h-3.5" /> Chat included
+                    </div>
+                  )}
+                  {reportDesigner && (
+                    <div className="flex items-center gap-2 text-purple-600">
+                      <LayoutTemplate className="w-3.5 h-3.5" /> Report Designer included
                     </div>
                   )}
                   {plan.trialDays > 0 && <div className="flex items-center gap-2 text-orange-500 text-xs">Trial: {plan.trialDays} days</div>}
@@ -315,23 +329,35 @@ export default function AdminPlans() {
                 </div>
               </div>
 
-              {/* LAN Clients + Chat row */}
+              {/* LAN Clients */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                  <Monitor className="w-3.5 h-3.5 text-indigo-400" /> LAN Clients
+                </label>
+                <input type="number" value={lanClients} onChange={e => setLanClients(e.target.value)} min="0" placeholder="0 = disabled" className={inputCls} />
+                <p className="text-[11px] text-gray-400 mt-0.5">0 = LAN nahi, 2 = 2 clients allowed</p>
+              </div>
+
+              {/* Chat + Report Designer checkboxes */}
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
-                    <Monitor className="w-3.5 h-3.5 text-indigo-400" /> LAN Clients
-                  </label>
-                  <input type="number" value={lanClients} onChange={e => setLanClients(e.target.value)} min="0" placeholder="0 = disabled" className={inputCls} />
-                  <p className="text-[11px] text-gray-400 mt-0.5">0 = LAN nahi, 2 = 2 clients allowed</p>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5 text-teal-500" /> Chat
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer mt-1">
                     <input type="checkbox" checked={chatIncluded} onChange={e => setChatIncluded(e.target.checked)}
                       className="w-4 h-4 rounded text-indigo-600" />
-                    <span className="text-sm text-gray-700">Chat include karo</span>
+                    <span className="text-sm text-gray-700">Include karo</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                    <LayoutTemplate className="w-3.5 h-3.5 text-purple-500" /> Report Designer
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer mt-1">
+                    <input type="checkbox" checked={reportDesignerIncluded} onChange={e => setReportDesignerIncluded(e.target.checked)}
+                      className="w-4 h-4 rounded text-indigo-600" />
+                    <span className="text-sm text-gray-700">Include karo</span>
                   </label>
                 </div>
               </div>
