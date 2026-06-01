@@ -9,8 +9,10 @@ import type { TemplateElement } from "@/lib/reportEngine/types";
 interface Props {
   mode: 'select' | 'add';
   addingType: TemplateElement['type'] | null;
+  addingFieldKey: string | null;
   onSelectMode: () => void;
   onAddMode: (type: TemplateElement['type']) => void;
+  onAddFieldMode: (fieldKey: string) => void;
 }
 
 const ELEMENT_TYPES: { type: TemplateElement['type']; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -24,7 +26,7 @@ const ELEMENT_TYPES: { type: TemplateElement['type']; label: string; icon: React
   { type: 'qrcode',  label: 'QR Code', icon: <Grid2X2 className="w-4 h-4" />,   desc: 'QR code element' },
 ];
 
-export default function DesignerPalette({ mode, addingType, onSelectMode, onAddMode }: Props) {
+export default function DesignerPalette({ mode, addingType, addingFieldKey, onSelectMode, onAddMode, onAddFieldMode }: Props) {
   const [tab, setTab] = useState<'elements' | 'fields'>('elements');
   const [openCats, setOpenCats] = useState<Set<string>>(new Set(['company', 'invoice']));
 
@@ -105,7 +107,15 @@ export default function DesignerPalette({ mode, addingType, onSelectMode, onAddM
 
         {tab === 'fields' && (
           <div className="p-2 space-y-1">
-            <p className="text-[10px] text-gray-500 px-2 mb-2 uppercase tracking-wide">Click to add as Field</p>
+            <p className="text-[10px] text-gray-500 px-2 mb-1 uppercase tracking-wide">Select → click on band to place</p>
+
+            {/* Active field hint */}
+            {addingFieldKey && mode === 'add' && (
+              <div className="mx-1 mb-1 px-2 py-1.5 bg-blue-700 border border-blue-500 rounded-lg text-[10px] text-blue-100 text-center">
+                ✛ Click on any band to place
+              </div>
+            )}
+
             {FIELD_REGISTRY.map(cat => (
               <div key={cat.key}>
                 <button
@@ -121,18 +131,24 @@ export default function DesignerPalette({ mode, addingType, onSelectMode, onAddM
                 </button>
                 {openCats.has(cat.key) && (
                   <div className="ml-2 mt-0.5 space-y-0.5">
-                    {cat.fields.map(field => (
-                      <button
-                        key={field.key}
-                        onClick={() => onAddMode('field')}
-                        data-field={field.key}
-                        className="w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-left"
-                        title={field.description}
-                      >
-                        <span className="w-2 h-2 rounded-full bg-gray-600 shrink-0" />
-                        <span className="truncate">{field.label}</span>
-                      </button>
-                    ))}
+                    {cat.fields.map(field => {
+                      const isActive = addingFieldKey === field.key && mode === 'add';
+                      return (
+                        <button
+                          key={field.key}
+                          onClick={() => onAddFieldMode(field.key)}
+                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-[11px] transition-colors text-left ${
+                            isActive
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                          }`}
+                          title={field.description}
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-white' : 'bg-gray-600'}`} />
+                          <span className="truncate">{field.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

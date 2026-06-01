@@ -299,7 +299,7 @@ export default function DesignerCanvas({
       style={{ cursor: mode === 'add' ? 'crosshair' : 'default' }}
       onClick={e => { if (e.target === e.currentTarget) onDeselectAll(); }}
     >
-      <div className="flex flex-col items-center py-8">
+      <div className="flex flex-col items-center py-8" style={{ minWidth: paperW + 64 }}>
         {/* Paper */}
         <div
           className="shadow-2xl bg-white relative"
@@ -566,8 +566,8 @@ function ElementChip({ el, zoom, marginLeftPx, isSelected, isMultiSelected, onCl
         />
       ) : (
         <div className="flex items-center gap-0.5 px-1 py-0.5 pointer-events-none h-full overflow-hidden">
-          <span className="text-blue-400 opacity-70 shrink-0">{elementIcon(el.type)}</span>
-          <span className="text-[9px] text-gray-600 truncate leading-tight">{elementLabel(el)}</span>
+          <span className="text-blue-400 opacity-70 shrink-0" style={{ fontSize: Math.max(8, 10 * zoom) }}>{elementIcon(el.type)}</span>
+          <span className="text-gray-600 truncate leading-tight" style={{ fontSize: Math.max(8, 10 * zoom) }}>{elementLabel(el)}</span>
         </div>
       )}
 
