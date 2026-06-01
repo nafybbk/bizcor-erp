@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import {
   ArrowLeft, Save, Eye, ZoomIn, ZoomOut, RotateCcw,
-  FileBarChart2, Loader2,
+  FileBarChart2, Loader2, Grid3X3,
 } from "lucide-react";
 import type { PaperSize, Orientation } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
@@ -13,6 +13,8 @@ interface Props {
   paperSize: PaperSize;
   orientation: Orientation;
   zoom: number;
+  snapToGrid: boolean;
+  gridSize: number;
   isSaving: boolean;
   isDirty: boolean;
   templateId: number | null;
@@ -21,19 +23,30 @@ interface Props {
   onPaperSizeChange: (v: PaperSize) => void;
   onOrientationChange: (v: Orientation) => void;
   onZoomChange: (v: number) => void;
+  onSnapToggle: () => void;
+  onGridSizeChange: (v: number) => void;
   onSave: () => void;
   onUndo: () => void;
   canUndo: boolean;
 }
 
+const GRID_SIZES = [
+  { value: 1,   label: '1 mm' },
+  { value: 2.5, label: '2.5 mm' },
+  { value: 5,   label: '5 mm' },
+];
+
 export default function DesignerToolbar({
   name, reportType, paperSize, orientation, zoom,
+  snapToGrid, gridSize,
   isSaving, isDirty, templateId,
   onNameChange, onReportTypeChange, onPaperSizeChange,
-  onOrientationChange, onZoomChange, onSave, onUndo, canUndo,
+  onOrientationChange, onZoomChange,
+  onSnapToggle, onGridSizeChange,
+  onSave, onUndo, canUndo,
 }: Props) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white border-b border-gray-700 min-h-[48px] flex-shrink-0">
+    <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white border-b border-gray-700 min-h-[48px] flex-shrink-0 flex-wrap">
       {/* Back */}
       <Link href="/report-templates">
         <a className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors shrink-0">
@@ -42,11 +55,9 @@ export default function DesignerToolbar({
       </Link>
 
       <div className="w-px h-5 bg-gray-700 shrink-0" />
-
-      {/* Icon */}
       <FileBarChart2 className="w-4 h-4 text-blue-400 shrink-0" />
 
-      {/* Template name */}
+      {/* Name */}
       <input
         value={name}
         onChange={e => onNameChange(e.target.value)}
@@ -54,9 +65,7 @@ export default function DesignerToolbar({
         className="bg-gray-800 text-white text-sm px-2 py-1 rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none w-44"
       />
 
-      {isDirty && (
-        <span className="text-[10px] text-amber-400 font-medium shrink-0">● Unsaved</span>
-      )}
+      {isDirty && <span className="text-[10px] text-amber-400 font-medium shrink-0">● Unsaved</span>}
 
       <div className="w-px h-5 bg-gray-700 shrink-0" />
 
@@ -82,7 +91,7 @@ export default function DesignerToolbar({
         ))}
       </select>
 
-      {/* Orientation — only for non-thermal */}
+      {/* Orientation */}
       {paperSize !== '80mm' && paperSize !== '58mm' && (
         <div className="flex rounded-md overflow-hidden border border-gray-700">
           <button
@@ -101,6 +110,35 @@ export default function DesignerToolbar({
       )}
 
       <div className="flex-1" />
+
+      {/* Snap to Grid toggle */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={onSnapToggle}
+          title="Snap to Grid"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+            snapToGrid
+              ? 'bg-purple-700 border-purple-600 text-white'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'
+          }`}
+        >
+          <Grid3X3 className="w-3.5 h-3.5" />
+          <span>Snap</span>
+        </button>
+        {snapToGrid && (
+          <select
+            value={gridSize}
+            onChange={e => onGridSizeChange(parseFloat(e.target.value))}
+            className="bg-gray-800 border border-gray-700 text-xs text-gray-300 rounded-md px-1.5 py-1 focus:outline-none focus:border-purple-500"
+          >
+            {GRID_SIZES.map(g => (
+              <option key={g.value} value={g.value}>{g.label}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="w-px h-5 bg-gray-700 shrink-0" />
 
       {/* Zoom */}
       <div className="flex items-center gap-1">
@@ -134,10 +172,7 @@ export default function DesignerToolbar({
       {/* Preview */}
       {templateId && (
         <Link href={`/report-templates/${templateId}/preview`}>
-          <a
-            target="_blank"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-300 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors"
-          >
+          <a target="_blank" className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-300 border border-gray-600 rounded-lg hover:bg-gray-700 transition-colors">
             <Eye className="w-3.5 h-3.5" />
             Preview
           </a>

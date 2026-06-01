@@ -1,41 +1,87 @@
-import { Trash2, Eye, EyeOff, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
-import type { TemplateElement, TextElement, FieldElement, FormulaElement, ImageElement, LineElement, BoxElement, TableElement, QrCodeElement, ElementStyle, TableColumn } from "@/lib/reportEngine/types";
-import { FIELD_REGISTRY } from "@/lib/reportEngine/fieldRegistry";
 import { useState } from "react";
+import { Trash2, ChevronDown, ChevronUp, Plus, X, Zap, Layers } from "lucide-react";
+import type {
+  TemplateElement, TextElement, FieldElement, FormulaElement,
+  ImageElement, LineElement, BoxElement, TableElement, QrCodeElement,
+  ElementStyle, TableColumn,
+} from "@/lib/reportEngine/types";
+import { FIELD_REGISTRY } from "@/lib/reportEngine/fieldRegistry";
+import FormulaEditorModal from "./FormulaEditorModal";
 
-// Flat list of all fields for dropdown
 const ALL_FIELDS = FIELD_REGISTRY.flatMap(c => c.fields);
 
 interface Props {
-  element: TemplateElement | null;
+  elements: TemplateElement[];  // selected elements
   onUpdate: (updated: TemplateElement) => void;
   onDelete: () => void;
 }
 
-export default function DesignerProperties({ element, onUpdate, onDelete }: Props) {
-  if (!element) {
+export default function DesignerProperties({ elements, onUpdate, onDelete }: Props) {
+  if (elements.length === 0) {
     return (
       <div className="w-[240px] shrink-0 bg-gray-800 border-l border-gray-700 flex items-center justify-center">
         <div className="text-center text-gray-500 text-xs px-4">
           <div className="text-2xl mb-2">↖</div>
-          <p>Click an element to edit its properties</p>
+          <p>Element click karo properties dekhne ke liye</p>
+          <p className="mt-2 text-gray-600">Shift+click = multi-select</p>
         </div>
       </div>
     );
   }
 
+  if (elements.length > 1) {
+    return (
+      <div className="w-[240px] shrink-0 bg-gray-800 border-l border-gray-700 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900">
+          <div className="flex items-center gap-2">
+            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-xs font-semibold text-amber-300">{elements.length} Elements</span>
+          </div>
+          <button
+            onClick={onDelete}
+            className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors"
+            title="Delete all selected"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="p-4 space-y-2">
+          {elements.map(el => (
+            <div key={el.id} className="bg-gray-700/60 rounded-lg px-3 py-2 text-xs text-gray-300">
+              <span className="text-amber-400 font-medium">{el.type}</span>
+              {' — '}
+              {el.type === 'text' ? el.content.slice(0, 20) :
+               el.type === 'field' ? el.field :
+               el.type === 'formula' ? el.formula.slice(0, 20) :
+               el.type === 'image' ? el.source :
+               el.type === 'line' ? el.direction :
+               el.type === 'table' ? `${el.columns.length} cols` :
+               el.type}
+            </div>
+          ))}
+          <p className="text-[10px] text-gray-500 pt-1">Drag any selected element to move all together. Delete removes all.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Single element
+  const element = elements[0];
+  return <SingleElementProperties element={element} onUpdate={onUpdate} onDelete={onDelete} />;
+}
+
+// ─── Single element properties ─────────────────────────────────────────────────
+function SingleElementProperties({ element, onUpdate, onDelete }: {
+  element: TemplateElement;
+  onUpdate: (e: TemplateElement) => void;
+  onDelete: () => void;
+}) {
   return (
     <div className="w-[240px] shrink-0 bg-gray-800 border-l border-gray-700 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-900">
-        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
-          {element.type.toUpperCase()}
-        </span>
-        <button
-          onClick={onDelete}
-          className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors"
-          title="Delete element"
-        >
+        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">{element.type}</span>
+        <button onClick={onDelete} className="p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-colors" title="Delete">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -46,7 +92,7 @@ export default function DesignerProperties({ element, onUpdate, onDelete }: Prop
           <div className="grid grid-cols-2 gap-2">
             <NumField label="X (mm)" value={element.x} onChange={v => onUpdate({ ...element, x: v })} />
             <NumField label="Y (mm)" value={element.y} onChange={v => onUpdate({ ...element, y: v })} />
-            <NumField label="W (mm)" value={element.width} onChange={v => onUpdate({ ...element, width: Math.max(1, v) })} />
+            <NumField label="W (mm)" value={element.width}  onChange={v => onUpdate({ ...element, width:  Math.max(1, v) })} />
             <NumField label="H (mm)" value={element.height} onChange={v => onUpdate({ ...element, height: Math.max(1, v) })} />
           </div>
           <TextInputField
@@ -57,17 +103,17 @@ export default function DesignerProperties({ element, onUpdate, onDelete }: Prop
           />
         </Section>
 
-        {/* Type-specific props */}
-        {element.type === 'text' && <TextProps el={element as TextElement} onUpdate={onUpdate} />}
-        {element.type === 'field' && <FieldProps el={element as FieldElement} onUpdate={onUpdate} />}
+        {/* Type-specific */}
+        {element.type === 'text'    && <TextProps    el={element as TextElement}    onUpdate={onUpdate} />}
+        {element.type === 'field'   && <FieldProps   el={element as FieldElement}   onUpdate={onUpdate} />}
         {element.type === 'formula' && <FormulaProps el={element as FormulaElement} onUpdate={onUpdate} />}
-        {element.type === 'image' && <ImageProps el={element as ImageElement} onUpdate={onUpdate} />}
-        {element.type === 'line' && <LineProps el={element as LineElement} onUpdate={onUpdate} />}
-        {element.type === 'box' && <BoxProps el={element as BoxElement} onUpdate={onUpdate} />}
-        {element.type === 'table' && <TableProps el={element as TableElement} onUpdate={onUpdate} />}
-        {element.type === 'qrcode' && <QrProps el={element as QrCodeElement} onUpdate={onUpdate} />}
+        {element.type === 'image'   && <ImageProps   el={element as ImageElement}   onUpdate={onUpdate} />}
+        {element.type === 'line'    && <LineProps    el={element as LineElement}    onUpdate={onUpdate} />}
+        {element.type === 'box'     && <BoxProps     el={element as BoxElement}     onUpdate={onUpdate} />}
+        {element.type === 'table'   && <TableProps   el={element as TableElement}   onUpdate={onUpdate} />}
+        {element.type === 'qrcode'  && <QrProps      el={element as QrCodeElement}  onUpdate={onUpdate} />}
 
-        {/* Common style */}
+        {/* Style */}
         {!['line', 'image', 'qrcode', 'table'].includes(element.type) && (
           <StyleProps style={element.style} onChange={s => onUpdate({ ...element, style: s })} />
         )}
@@ -76,14 +122,14 @@ export default function DesignerProperties({ element, onUpdate, onDelete }: Prop
   );
 }
 
-// ─── Section wrapper ─────────────────────────────────────────────────────────
+// ─── Section ──────────────────────────────────────────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
     <div className="border-b border-gray-700">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-300 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide hover:text-gray-300"
       >
         {title}
         {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
@@ -93,15 +139,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-// ─── Reusable form fields ─────────────────────────────────────────────────────
+// ─── Form primitives ──────────────────────────────────────────────────────────
 function NumField({ label, value, onChange, step = 0.5 }: { label: string; value: number; onChange: (v: number) => void; step?: number }) {
   return (
     <div>
       <label className="block text-[10px] text-gray-500 mb-0.5">{label}</label>
       <input
-        type="number"
-        step={step}
-        value={value}
+        type="number" step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
         className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
       />
@@ -109,40 +153,31 @@ function NumField({ label, value, onChange, step = 0.5 }: { label: string; value
   );
 }
 
-function TextInputField({ label, value, onChange, placeholder, multiline }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean }) {
+function TextInputField({ label, value, onChange, placeholder, multiline }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean;
+}) {
   return (
     <div>
       <label className="block text-[10px] text-gray-500 mb-0.5">{label}</label>
       {multiline ? (
-        <textarea
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none resize-none"
-        />
+        <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3}
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none resize-none" />
       ) : (
-        <input
-          type="text"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-        />
+        <input type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none" />
       )}
     </div>
   );
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+function SelectField({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+}) {
   return (
     <div>
       <label className="block text-[10px] text-gray-500 mb-0.5">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-      >
+      <select value={value} onChange={e => onChange(e.target.value)}
+        className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none">
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -154,35 +189,59 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
     <div>
       <label className="block text-[10px] text-gray-500 mb-0.5">{label}</label>
       <div className="flex gap-1.5 items-center">
-        <input
-          type="color"
-          value={value || '#000000'}
-          onChange={e => onChange(e.target.value)}
-          className="w-7 h-7 rounded cursor-pointer border border-gray-600 bg-gray-700"
-        />
-        <input
-          type="text"
-          value={value || ''}
-          onChange={e => onChange(e.target.value)}
-          placeholder="#000000"
-          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-        />
+        <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)}
+          className="w-7 h-7 rounded cursor-pointer border border-gray-600 bg-gray-700" />
+        <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} placeholder="#000000"
+          className="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none" />
       </div>
     </div>
   );
 }
 
-// ─── Type-specific sections ───────────────────────────────────────────────────
+// ─── Formula button (Crystal Reports style) ───────────────────────────────────
+function FormulaButton({ value, onChange, label }: { value: string; onChange: (v: string) => void; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] bg-yellow-900/40 border border-yellow-700 text-yellow-300 rounded-lg hover:bg-yellow-800/40 transition-colors w-full"
+        title="Open formula editor"
+      >
+        <Zap className="w-3 h-3" />
+        {label || 'fx Formula Editor'}
+        {value ? <span className="ml-auto text-[9px] text-yellow-500 truncate max-w-[80px]">{value.slice(0, 20)}</span> : null}
+      </button>
+      {open && (
+        <FormulaEditorModal
+          initialValue={value}
+          onApply={onChange}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
 
+// ─── Type-specific sections ───────────────────────────────────────────────────
 function TextProps({ el, onUpdate }: { el: TextElement; onUpdate: (e: TemplateElement) => void }) {
   return (
     <Section title="Content">
       <TextInputField
-        label="Text Content"
+        label="Static Text"
         value={el.content}
         onChange={v => onUpdate({ ...el, content: v })}
         multiline
+        placeholder="Text ya {field} dono chalta hai"
       />
+      <FormulaButton
+        value={el.content}
+        onChange={v => onUpdate({ ...el, content: v })}
+        label="fx Open Formula Editor"
+      />
+      <p className="text-[9px] text-gray-500">
+        Tip: <code className="text-yellow-500">{'{'}</code>field_name<code className="text-yellow-500">{'}'}</code> se dynamic value aa jaata hai
+      </p>
     </Section>
   );
 }
@@ -196,7 +255,7 @@ function FieldProps({ el, onUpdate }: { el: FieldElement; onUpdate: (e: Template
         onChange={v => onUpdate({ ...el, field: v })}
         options={ALL_FIELDS.map(f => ({ value: f.key, label: f.label }))}
       />
-      <TextInputField label="Format" value={el.format || ''} onChange={v => onUpdate({ ...el, format: v || undefined })} placeholder="e.g. DD-MM-YYYY / 0.00" />
+      <TextInputField label="Format" value={el.format || ''} onChange={v => onUpdate({ ...el, format: v || undefined })} placeholder="DD-MM-YYYY / 0.00" />
       <TextInputField label="If Empty Show" value={el.nullText || ''} onChange={v => onUpdate({ ...el, nullText: v || undefined })} placeholder="— or N/A" />
     </Section>
   );
@@ -206,11 +265,16 @@ function FormulaProps({ el, onUpdate }: { el: FormulaElement; onUpdate: (e: Temp
   return (
     <Section title="Formula">
       <TextInputField
-        label="Formula"
+        label="Expression"
         value={el.formula}
         onChange={v => onUpdate({ ...el, formula: v })}
         placeholder="{sub_total} + {total_tax}"
         multiline
+      />
+      <FormulaButton
+        value={el.formula}
+        onChange={v => onUpdate({ ...el, formula: v })}
+        label="fx Crystal Reports Editor"
       />
       <TextInputField label="Format" value={el.format || ''} onChange={v => onUpdate({ ...el, format: v || undefined })} placeholder="0.00" />
     </Section>
@@ -224,11 +288,7 @@ function ImageProps({ el, onUpdate }: { el: ImageElement; onUpdate: (e: Template
         label="Source Field"
         value={el.source}
         onChange={v => onUpdate({ ...el, source: v })}
-        options={[
-          { value: 'company_logo', label: 'Company Logo' },
-          { value: 'qr_code', label: 'QR Code' },
-          ...ALL_FIELDS.filter(f => f.type === 'image').map(f => ({ value: f.key, label: f.label })),
-        ]}
+        options={ALL_FIELDS.filter(f => f.type === 'image').map(f => ({ value: f.key, label: f.label }))}
       />
       <SelectField
         label="Object Fit"
@@ -236,8 +296,8 @@ function ImageProps({ el, onUpdate }: { el: ImageElement; onUpdate: (e: Template
         onChange={v => onUpdate({ ...el, objectFit: v as ImageElement['objectFit'] })}
         options={[
           { value: 'contain', label: 'Contain' },
-          { value: 'cover', label: 'Cover' },
-          { value: 'fill', label: 'Fill' },
+          { value: 'cover',   label: 'Cover'   },
+          { value: 'fill',    label: 'Fill'    },
         ]}
       />
     </Section>
@@ -253,7 +313,7 @@ function LineProps({ el, onUpdate }: { el: LineElement; onUpdate: (e: TemplateEl
         onChange={v => onUpdate({ ...el, direction: v as LineElement['direction'] })}
         options={[
           { value: 'horizontal', label: 'Horizontal' },
-          { value: 'vertical', label: 'Vertical' },
+          { value: 'vertical',   label: 'Vertical'   },
         ]}
       />
       <ColorField label="Color" value={el.color || '#000000'} onChange={v => onUpdate({ ...el, color: v })} />
@@ -263,20 +323,11 @@ function LineProps({ el, onUpdate }: { el: LineElement; onUpdate: (e: TemplateEl
 }
 
 function BoxProps({ el, onUpdate }: { el: BoxElement; onUpdate: (e: TemplateElement) => void }) {
-  const style = el.style || {};
+  const s = el.style || {};
   return (
     <Section title="Box Style">
-      <ColorField
-        label="Background"
-        value={style.backgroundColor || ''}
-        onChange={v => onUpdate({ ...el, style: { ...style, backgroundColor: v || undefined } })}
-      />
-      <TextInputField
-        label="Border"
-        value={style.border || ''}
-        onChange={v => onUpdate({ ...el, style: { ...style, border: v || undefined } })}
-        placeholder="1px solid #000"
-      />
+      <ColorField label="Background" value={s.backgroundColor || ''} onChange={v => onUpdate({ ...el, style: { ...s, backgroundColor: v || undefined } })} />
+      <TextInputField label="Border" value={s.border || ''} onChange={v => onUpdate({ ...el, style: { ...s, border: v || undefined } })} placeholder="1px solid #000" />
     </Section>
   );
 }
@@ -286,43 +337,32 @@ function StyleProps({ style, onChange }: { style?: ElementStyle; onChange: (s: E
   return (
     <Section title="Text Style">
       <div className="grid grid-cols-2 gap-2">
-        <NumField label="Font Size (pt)" value={s.fontSize || 10} onChange={v => onChange({ ...s, fontSize: v })} step={0.5} />
-        <NumField label="Line Height" value={s.lineHeight || 1.4} onChange={v => onChange({ ...s, lineHeight: v })} step={0.1} />
+        <NumField label="Font Size (pt)" value={s.fontSize || 10}   onChange={v => onChange({ ...s, fontSize: v })}    step={0.5} />
+        <NumField label="Line Height"    value={s.lineHeight || 1.4} onChange={v => onChange({ ...s, lineHeight: v })} step={0.1} />
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         <button
           onClick={() => onChange({ ...s, fontWeight: s.fontWeight === 'bold' ? 'normal' : 'bold' })}
           className={`py-1.5 text-xs rounded border transition-colors ${s.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white font-bold' : 'border-gray-600 text-gray-300 hover:bg-gray-700'}`}
-        >
-          Bold
-        </button>
+        >Bold</button>
         <button
           onClick={() => onChange({ ...s, fontStyle: s.fontStyle === 'italic' ? 'normal' : 'italic' })}
           className={`py-1.5 text-xs rounded border transition-colors ${s.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white italic' : 'border-gray-600 text-gray-300 hover:bg-gray-700'}`}
-        >
-          Italic
-        </button>
+        >Italic</button>
       </div>
       <div>
         <label className="block text-[10px] text-gray-500 mb-0.5">Align</label>
         <div className="flex rounded overflow-hidden border border-gray-600">
           {(['left', 'center', 'right'] as const).map(a => (
-            <button
-              key={a}
-              onClick={() => onChange({ ...s, textAlign: a })}
-              className={`flex-1 py-1.5 text-xs transition-colors capitalize ${s.textAlign === a ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}
-            >
+            <button key={a} onClick={() => onChange({ ...s, textAlign: a })}
+              className={`flex-1 py-1.5 text-xs transition-colors ${s.textAlign === a ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-700'}`}>
               {a[0].toUpperCase()}
             </button>
           ))}
         </div>
       </div>
       <ColorField label="Text Color" value={s.color || '#000000'} onChange={v => onChange({ ...s, color: v })} />
-      <ColorField
-        label="Background"
-        value={s.backgroundColor || ''}
-        onChange={v => onChange({ ...s, backgroundColor: v || undefined })}
-      />
+      <ColorField label="Background"  value={s.backgroundColor || ''} onChange={v => onChange({ ...s, backgroundColor: v || undefined })} />
     </Section>
   );
 }
@@ -337,6 +377,7 @@ function QrProps({ el, onUpdate }: { el: QrCodeElement; onUpdate: (e: TemplateEl
         placeholder="{invoice_number} or static URL"
         multiline
       />
+      <FormulaButton value={el.content} onChange={v => onUpdate({ ...el, content: v })} />
     </Section>
   );
 }
@@ -345,13 +386,7 @@ function TableProps({ el, onUpdate }: { el: TableElement; onUpdate: (e: Template
   const [expandedCol, setExpandedCol] = useState<string | null>(null);
 
   function addColumn() {
-    const newCol: TableColumn = {
-      id: `col_${Date.now()}`,
-      field: 'item_name',
-      label: 'Column',
-      width: 30,
-      align: 'left',
-    };
+    const newCol: TableColumn = { id: `col_${Date.now()}`, field: 'item_name', label: 'Column', width: 30, align: 'left' };
     onUpdate({ ...el, columns: [...el.columns, newCol] });
   }
 
@@ -373,17 +408,13 @@ function TableProps({ el, onUpdate }: { el: TableElement; onUpdate: (e: Template
           options={[{ value: 'items', label: 'Invoice Items' }]}
         />
         <div className="grid grid-cols-2 gap-2">
-          <NumField label="Row Height (mm)" value={el.rowHeight || 8} onChange={v => onUpdate({ ...el, rowHeight: v })} step={0.5} />
-          <NumField label="Header H (mm)" value={el.headerHeight || 8} onChange={v => onUpdate({ ...el, headerHeight: v })} step={0.5} />
+          <NumField label="Row Height (mm)"    value={el.rowHeight    || 8} onChange={v => onUpdate({ ...el, rowHeight:    v })} step={0.5} />
+          <NumField label="Header Height (mm)" value={el.headerHeight || 8} onChange={v => onUpdate({ ...el, headerHeight: v })} step={0.5} />
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="showHeader"
-            checked={el.showHeader ?? true}
+          <input type="checkbox" id="showHeader" checked={el.showHeader ?? true}
             onChange={e => onUpdate({ ...el, showHeader: e.target.checked })}
-            className="rounded border-gray-600"
-          />
+            className="rounded border-gray-600" />
           <label htmlFor="showHeader" className="text-xs text-gray-300">Show Header Row</label>
         </div>
         <NumField label="Empty Rows" value={el.emptyRows || 0} onChange={v => onUpdate({ ...el, emptyRows: v })} step={1} />
@@ -394,49 +425,32 @@ function TableProps({ el, onUpdate }: { el: TableElement; onUpdate: (e: Template
           {el.columns.map((col, idx) => (
             <div key={col.id} className="bg-gray-700/50 rounded border border-gray-600">
               <div className="flex items-center gap-2 px-2 py-1.5">
-                <button
-                  onClick={() => setExpandedCol(expandedCol === col.id ? null : col.id)}
-                  className="flex-1 text-left text-xs text-gray-300 font-medium truncate"
-                >
+                <button onClick={() => setExpandedCol(expandedCol === col.id ? null : col.id)}
+                  className="flex-1 text-left text-xs text-gray-300 font-medium truncate">
                   {idx + 1}. {col.label || col.field}
                 </button>
-                <button
-                  onClick={() => removeColumn(col.id)}
-                  className="p-0.5 text-red-400 hover:text-red-300"
-                >
+                <button onClick={() => removeColumn(col.id)} className="p-0.5 text-red-400 hover:text-red-300">
                   <X className="w-3 h-3" />
                 </button>
               </div>
               {expandedCol === col.id && (
                 <div className="px-2 pb-2 space-y-1.5 border-t border-gray-600">
-                  <SelectField
-                    label="Field"
-                    value={col.field}
-                    onChange={v => updateColumn(col.id, { field: v })}
-                    options={ALL_FIELDS.filter(f => f.key.includes('_') || true).map(f => ({ value: f.key, label: f.label }))}
-                  />
+                  <SelectField label="Field" value={col.field} onChange={v => updateColumn(col.id, { field: v })}
+                    options={ALL_FIELDS.map(f => ({ value: f.key, label: f.label }))} />
                   <TextInputField label="Header Label" value={col.label} onChange={v => updateColumn(col.id, { label: v })} />
-                  <div className="grid grid-cols-2 gap-2">
-                    <NumField label="Width (mm)" value={col.width} onChange={v => updateColumn(col.id, { width: v })} step={1} />
-                  </div>
-                  <SelectField
-                    label="Align"
-                    value={col.align || 'left'}
-                    onChange={v => updateColumn(col.id, { align: v as TableColumn['align'] })}
+                  <NumField label="Width (mm)" value={col.width} onChange={v => updateColumn(col.id, { width: v })} step={1} />
+                  <SelectField label="Align" value={col.align || 'left'} onChange={v => updateColumn(col.id, { align: v as TableColumn['align'] })}
                     options={[
-                      { value: 'left', label: 'Left' },
+                      { value: 'left',   label: 'Left'   },
                       { value: 'center', label: 'Center' },
-                      { value: 'right', label: 'Right' },
-                    ]}
-                  />
+                      { value: 'right',  label: 'Right'  },
+                    ]} />
                 </div>
               )}
             </div>
           ))}
-          <button
-            onClick={addColumn}
-            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-400 hover:text-blue-300 border border-dashed border-blue-700 rounded hover:bg-blue-900/20 transition-colors"
-          >
+          <button onClick={addColumn}
+            className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-blue-400 hover:text-blue-300 border border-dashed border-blue-700 rounded hover:bg-blue-900/20 transition-colors">
             <Plus className="w-3 h-3" />
             Add Column
           </button>
