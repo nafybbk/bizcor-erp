@@ -399,11 +399,13 @@ router.get("/current", requireBusiness, async (req, res) => {
     const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, req.user!.businessId!) });
     if (!business) { res.status(404).json({ error: "Not Found" }); return; }
     let planFeatures: string[] = [];
+    let planMaxUsers: number | null = null;
     if (business.planId) {
-      const [plan] = await db.select({ features: plansTable.features }).from(plansTable).where(eq(plansTable.id, business.planId)).limit(1);
+      const [plan] = await db.select({ features: plansTable.features, maxUsers: plansTable.maxUsers }).from(plansTable).where(eq(plansTable.id, business.planId)).limit(1);
       planFeatures = (plan?.features as string[]) || [];
+      planMaxUsers = plan?.maxUsers ?? null;
     }
-    res.json({ ...business, planFeatures });
+    res.json({ ...business, planFeatures, planMaxUsers });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
