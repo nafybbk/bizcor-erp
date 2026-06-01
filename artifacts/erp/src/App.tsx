@@ -75,6 +75,8 @@ import AdminActivity from "@/pages/admin/AdminActivity";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminImport from "@/pages/admin/AdminImport";
 import AdminSupportMessages from "@/pages/admin/AdminSupportMessages";
+import ReportTemplatesList from "@/pages/report-templates/ReportTemplatesList";
+import ReportPreview from "@/pages/report-templates/ReportPreview";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5 * 60 * 1000 } },
@@ -367,6 +369,14 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/support-messages">
         <ProtectedRoute><AdminSupportMessages /></ProtectedRoute>
+      </Route>
+
+      {/* Report Templates */}
+      <Route path="/report-templates">
+        <ProtectedRoute><ReportTemplatesList /></ProtectedRoute>
+      </Route>
+      <Route path="/report-templates/:id/preview">
+        {(params) => <ProtectedRoute><ReportPreview /></ProtectedRoute>}
       </Route>
 
       <Route>
