@@ -36,6 +36,9 @@ export const vouchersTable = sqliteTable("vouchers", {
   customFields: text("custom_fields", { mode: "json" }),
   createdAt: text("created_at").notNull().default(NOW),
   deletedAt: text("deleted_at"),
+  templateId: integer("template_id"),
+  templateVersion: integer("template_version"),
+  renderedSnapshot: text("rendered_snapshot", { mode: "json" }),
 });
 
 export const voucherItemsTable = sqliteTable("voucher_items", {
