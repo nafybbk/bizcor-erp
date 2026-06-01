@@ -40,6 +40,13 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN referred_by TEXT",
     "ALTER TABLE businesses ADD COLUMN referral_count INTEGER DEFAULT 0",
     "ALTER TABLE businesses ADD COLUMN bonus_days_added INTEGER DEFAULT 0",
+    // Required by Drizzle schema — must exist before ANY route runs (including login)
+    "ALTER TABLE businesses ADD COLUMN package_config TEXT",
+    "ALTER TABLE businesses ADD COLUMN logo TEXT",
+    "ALTER TABLE businesses ADD COLUMN active_voucher_id INTEGER",
+    "ALTER TABLE businesses ADD COLUMN referral_reward_count INTEGER DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN referral_rewarded_at TEXT",
+    "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
   ];
   for (const stmt of migrations) {
     try { _sqlite.prepare(stmt).run(); } catch { /* column already exists */ }
@@ -105,6 +112,7 @@ export const expenseVouchersTable = s.expenseVouchersTable;
 export const contraEntriesTable = s.contraEntriesTable;
 export const supportMessagesTable = s.supportMessagesTable;
 export const chatMessagesTable = s.chatMessagesTable;
+export const reportTemplatesTable = s.reportTemplatesTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)
 export type * from "./schema";
