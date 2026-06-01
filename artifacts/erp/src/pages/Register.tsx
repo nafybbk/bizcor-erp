@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Building2, Loader2, Gift, MessageCircle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
+import { Building2, Loader2, Gift, MessageCircle, CheckCircle2, Clock, RefreshCw, AlertTriangle } from "lucide-react";
 
 const INDIAN_STATES = [
   { name: "Andhra Pradesh", code: "37" }, { name: "Arunachal Pradesh", code: "12" },
@@ -47,6 +47,10 @@ export default function Register() {
     localStorage.removeItem("erp_business");
     sessionStorage.removeItem("erp_token");
     sessionStorage.removeItem("erp_user");
+    // LAN: fetch all registered businesses for duplicate warning
+    api.get<any>("/auth/public-businesses").then(r => {
+      if (r.businesses?.length > 0) setServerBizs(r.businesses);
+    }).catch(() => {});
   }, []);
 
   // Auto-poll every 10s once WhatsApp sent
@@ -61,8 +65,18 @@ export default function Register() {
     pincode: "", phone: "", businessType: "retail",
     adminName: "", adminEmail: "", adminPassword: "", referredBy: "",
   });
+  const [emailWarn, setEmailWarn] = useState<{ name: string; businessCode: string }[] | null>(null);
+  const [serverBizs, setServerBizs] = useState<{ id: number; name: string; businessCode: string; city?: string; state?: string }[]>([]);
 
   const set = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
+
+  const checkEmailExists = async (email: string) => {
+    if (!email.includes("@")) return;
+    try {
+      const res = await api.get<any>(`/auth/lookup-business?email=${encodeURIComponent(email)}`);
+      setEmailWarn(res.businesses?.length > 0 ? res.businesses : null);
+    } catch { setEmailWarn(null); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,13 +319,65 @@ export default function Register() {
 
             {step === 2 && (
               <div className="space-y-4">
+
+                {/* LAN: show all existing businesses as duplicate warning */}
+                {serverBizs.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      Is server pe pehle se {serverBizs.length} business{serverBizs.length > 1 ? "es" : ""} registered {serverBizs.length > 1 ? "hain" : "hai"}:
+                    </p>
+                    {serverBizs.map((b, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-2.5 py-1.5">
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-gray-800 block truncate">{b.name}</span>
+                          {(b.city || b.state) && <span className="text-[10px] text-gray-400">{[b.city, b.state].filter(Boolean).join(", ")}</span>}
+                        </div>
+                        <span className="text-xs font-mono font-bold text-amber-700 shrink-0 ml-2">{b.businessCode}</span>
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-amber-700">
+                      Agar yeh aapka account hai toh{" "}
+                      <a href="/login" className="font-semibold underline text-blue-700">Login karein</a>
+                      {" "}— dobara register mat karein.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className={labelClass}>Admin Full Name *</label>
                   <input className={inputClass} value={form.adminName} onChange={e => set("adminName", e.target.value)} required placeholder="Your Full Name" />
                 </div>
                 <div>
                   <label className={labelClass}>Admin Email *</label>
-                  <input type="email" className={inputClass} value={form.adminEmail} onChange={e => set("adminEmail", e.target.value)} required placeholder="admin@yourcompany.com" />
+                  <input
+                    type="email"
+                    className={inputClass}
+                    value={form.adminEmail}
+                    onChange={e => { set("adminEmail", e.target.value); setEmailWarn(null); }}
+                    onBlur={e => checkEmailExists(e.target.value)}
+                    required
+                    placeholder="admin@yourcompany.com"
+                  />
+                  {emailWarn && emailWarn.length > 0 && (
+                    <div className="mt-2 bg-amber-50 border border-amber-300 rounded-xl p-3 space-y-2">
+                      <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                        Yeh email pehle se registered hai!
+                      </p>
+                      {emailWarn.map((b, i) => (
+                        <div key={i} className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-2.5 py-1.5">
+                          <span className="text-xs font-medium text-gray-800">{b.name}</span>
+                          <span className="text-xs font-mono font-bold text-amber-700">{b.businessCode}</span>
+                        </div>
+                      ))}
+                      <p className="text-[11px] text-amber-700">
+                        Agar yeh aapka account hai toh{" "}
+                        <a href="/login" className="font-semibold underline text-blue-700">Login karein</a>
+                        {" "}— naya business mat banayen.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>Password *</label>

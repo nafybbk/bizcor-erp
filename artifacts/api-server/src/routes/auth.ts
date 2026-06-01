@@ -28,6 +28,21 @@ async function logLogin(data: {
   } catch { /* non-critical */ }
 }
 
+// Public: list all businesses on this LAN server (only in DESKTOP_MODE — safe for local network)
+router.get("/public-businesses", async (req, res) => {
+  if (process.env.DESKTOP_MODE !== "true") { res.json({ businesses: [] }); return; }
+  try {
+    const businesses = await db.select({
+      id: businessesTable.id,
+      name: businessesTable.name,
+      businessCode: businessesTable.businessCode,
+      city: businessesTable.city,
+      state: businessesTable.state,
+    }).from(businessesTable).where(eq(businessesTable.status, "active"));
+    res.json({ businesses });
+  } catch { res.json({ businesses: [] }); }
+});
+
 router.get("/lookup-business", async (req, res) => {
   try {
     const { email } = req.query;
