@@ -20,6 +20,7 @@ import cashBankRouter from "./cashBank";
 import importDataRouter from "./importData";
 import supportChatRouter from "./supportChat";
 import chatRouter from "./chat";
+import reportTemplatesRouter from "./reportTemplates";
 
 const router: IRouter = Router();
 
@@ -275,5 +276,6 @@ router.use("/gst", gstRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/cash-bank", cashBankRouter);
 router.use(chatRouter);
+router.use(reportTemplatesRouter);
 
 export default router;
