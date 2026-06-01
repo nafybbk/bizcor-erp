@@ -385,6 +385,21 @@ function runSqliteInit() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS report_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      report_type TEXT NOT NULL,
+      paper_size TEXT NOT NULL DEFAULT 'A4',
+      orientation TEXT NOT NULL DEFAULT 'portrait',
+      version INTEGER NOT NULL DEFAULT 1,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      layout_json TEXT,
+      created_by_user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id);
   `);
 
@@ -456,6 +471,10 @@ function runSqliteMigrations() {
     "ALTER TABLE businesses ADD COLUMN invoice_template TEXT DEFAULT 'classic'",
     "ALTER TABLE vouchers ADD COLUMN reference_number TEXT",
     "ALTER TABLE vouchers ADD COLUMN due_date TEXT",
+    // report designer — voucher template snapshot
+    "ALTER TABLE vouchers ADD COLUMN template_id INTEGER",
+    "ALTER TABLE vouchers ADD COLUMN template_version INTEGER",
+    "ALTER TABLE vouchers ADD COLUMN rendered_snapshot TEXT",
   ];
   let applied = 0;
   for (const stmt of migrations) {
@@ -510,6 +529,30 @@ async function runPgMigrations() {
     await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS invoice_template TEXT DEFAULT 'classic'`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS reference_number TEXT`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS due_date TEXT`);
+    // Report designer — voucher template snapshot
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_id INTEGER`);
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_version INTEGER`);
+    await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS rendered_snapshot JSONB`);
+    // Report templates table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS report_templates (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL REFERENCES businesses(id),
+        name TEXT NOT NULL,
+        report_type TEXT NOT NULL,
+        paper_size TEXT NOT NULL DEFAULT 'A4',
+        orientation TEXT NOT NULL DEFAULT 'portrait',
+        version INTEGER NOT NULL DEFAULT 1,
+        is_default BOOLEAN NOT NULL DEFAULT FALSE,
+        layout_json JSONB,
+        created_by_user_id INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS report_templates_business_type_idx ON report_templates(business_id, report_type)
+    `);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS login_logs (
         id SERIAL PRIMARY KEY,

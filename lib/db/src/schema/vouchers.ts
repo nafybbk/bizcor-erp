@@ -39,6 +39,9 @@ export const vouchersTable = pgTable("vouchers", {
   customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   deletedAt: timestamp("deleted_at"),
+  templateId: integer("template_id"),
+  templateVersion: integer("template_version"),
+  renderedSnapshot: jsonb("rendered_snapshot"),
 });
 
 export const voucherItemsTable = pgTable("voucher_items", {
