@@ -64,8 +64,8 @@ router.post("/tech-login", async (req, res) => {
     if (!phone || !password) { res.status(400).json({ error: "Bad Request", message: "Phone/Email aur password required" }); return; }
     const input = phone.trim();
     const isEmail = input.includes("@");
-    let admin = isEmail ? null : await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.phone, input) });
-    if (!admin) admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.email, input.toLowerCase()) });
+    let admin = isEmail ? null : (await db.select().from(superAdminsTable).where(eq(superAdminsTable.phone, input)).limit(1))[0] ?? null;
+    if (!admin) admin = (await db.select().from(superAdminsTable).where(eq(superAdminsTable.email, input.toLowerCase())).limit(1))[0] ?? null;
     if (!admin || !admin.isActive) { res.status(401).json({ error: "Unauthorized", message: "Credentials galat hain ya account inactive hai" }); return; }
     if (!await bcrypt.compare(password, admin.passwordHash)) { res.status(401).json({ error: "Unauthorized", message: "Password galat hai" }); return; }
     const token = signToken({ id: admin.id, email: admin.email, name: admin.name, role: "super_admin" });
@@ -118,7 +118,7 @@ router.post("/login", async (req, res) => {
         let maxAllowed = 2; // default free: admin + 1 staff
 
         if (business.planId) {
-          const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, business.planId) });
+          const plan = (await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1))[0] ?? null;
           if (plan?.maxUsers) maxAllowed = plan.maxUsers;
         } else if (business.isTrial) {
           maxAllowed = 3; // trial: admin + 2 staff
@@ -237,7 +237,7 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode.toUpperCase()) });
+    const business = (await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode.toUpperCase())).limit(1))[0] ?? null;
     if (!business || (business.status !== "active" && business.status !== "trial")) {
       res.status(401).json({ error: "Unauthorized", message: "Business not found or inactive" }); return;
     }
@@ -289,7 +289,7 @@ router.post("/login", async (req, res) => {
       }
     }
 
-    const matchedUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, matched.id) });
+    const matchedUser = (await db.select().from(usersTable).where(eq(usersTable.id, matched.id)).limit(1))[0] ?? null;
     if (!matchedUser) { res.status(401).json({ error: "Unauthorized", message: "User not found" }); return; }
 
     const result = await doLogin(matchedUser, business);
@@ -313,8 +313,8 @@ router.post("/forgot-password/tech", async (req, res) => {
     if (!phone || !newPassword) { res.status(400).json({ error: "Phone aur naya password required hai" }); return; }
     if (newPassword.length < 4) { res.status(400).json({ error: "Password kam se kam 4 characters ka hona chahiye" }); return; }
     const input = phone.trim();
-    let admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.phone, input) });
-    if (!admin) admin = await db.query.superAdminsTable.findFirst({ where: eq(superAdminsTable.email, input.toLowerCase()) });
+    let admin = (await db.select().from(superAdminsTable).where(eq(superAdminsTable.phone, input)).limit(1))[0] ?? null;
+    if (!admin) admin = (await db.select().from(superAdminsTable).where(eq(superAdminsTable.email, input.toLowerCase())).limit(1))[0] ?? null;
     if (!admin) { res.status(404).json({ error: "Is phone/email se koi account nahi mila" }); return; }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(superAdminsTable).set({ passwordHash }).where(eq(superAdminsTable.id, admin.id));
@@ -337,9 +337,9 @@ router.post("/forgot-password/user", async (req, res) => {
     let user: any = null;
     let business: any = null;
     if (businessCode) {
-      business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode.toUpperCase()) });
+      business = (await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode.toUpperCase())).limit(1))[0] ?? null;
       if (!business) { res.status(404).json({ error: "Business Code galat hai" }); return; }
-      user = await db.query.usersTable.findFirst({ where: and(eq(usersTable.businessId, business.id), eq(usersTable.email, email.toLowerCase())) });
+      user = (await db.select().from(usersTable).where(and(eq(usersTable.businessId, business.id), eq(usersTable.email, email.toLowerCase()))).limit(1))[0] ?? null;
     } else {
       const users = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
       if (users.length === 1) user = users[0];
@@ -374,9 +374,9 @@ router.get("/me", requireAuth, async (req, res) => {
   try {
     const user = req.user!;
     if (user.role === "super_admin") { res.json({ id: user.id, email: user.email, name: user.name, role: user.role }); return; }
-    const dbUser = await db.query.usersTable.findFirst({ where: eq(usersTable.id, user.id) });
+    const dbUser = (await db.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1))[0] ?? null;
     if (!dbUser) { res.status(404).json({ error: "Not Found" }); return; }
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, dbUser.businessId) });
+    const business = (await db.select().from(businessesTable).where(eq(businessesTable.id, dbUser.businessId!)).limit(1))[0] ?? null;
     db.update(usersTable).set({ lastSeenAt: new Date().toISOString() as unknown as Date }).where(eq(usersTable.id, user.id)).catch(() => {});
     res.json({ id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, businessId: dbUser.businessId, businessName: business?.name, permissions: dbUser.permissions || [] });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
