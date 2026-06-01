@@ -186,13 +186,17 @@ router.delete("/businesses/:id", async (req, res) => {
 
 router.patch("/businesses/:id", async (req, res) => {
   try {
-    const { status, planId, isTrial, planExpiresAt, planStartDate } = req.body;
+    const { status, planId, isTrial, planExpiresAt, planStartDate, name, gstin, city, state } = req.body;
     const updateData: Record<string, unknown> = {};
     if (status) updateData.status = status;
     if (planId !== undefined) updateData.planId = planId ? Number(planId) : null;
     if (isTrial !== undefined) updateData.isTrial = isTrial;
     if (planExpiresAt !== undefined) updateData.planExpiresAt = planExpiresAt ? new Date(planExpiresAt).toISOString() : null;
     if (planStartDate !== undefined) updateData.planStartDate = planStartDate ? new Date(planStartDate).toISOString() : null;
+    if (name !== undefined && String(name).trim()) updateData.name = String(name).trim();
+    if (gstin !== undefined) updateData.gstin = String(gstin).trim() || null;
+    if (city !== undefined) updateData.city = String(city).trim() || null;
+    if (state !== undefined) updateData.state = String(state).trim() || null;
     const [updated] = await db.update(businessesTable).set(updateData).where(eq(businessesTable.id, Number(req.params.id))).returning();
     res.json(updated);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }

@@ -25,7 +25,7 @@ export default function AdminBusinesses() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const [editBiz, setEditBiz] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ status: "", planId: "", isTrial: false, planExpiresAt: "" });
+  const [editForm, setEditForm] = useState({ name: "", gstin: "", city: "", state: "", status: "", planId: "", isTrial: false, planExpiresAt: "" });
   const [saving, setSaving] = useState(false);
 
   // Top-up modal
@@ -123,6 +123,10 @@ export default function AdminBusinesses() {
   const openEdit = (b: any) => {
     setEditBiz(b);
     setEditForm({
+      name: b.name || "",
+      gstin: b.gstin || "",
+      city: b.city || "",
+      state: b.state || "",
       status: b.status,
       planId: b.planId ? String(b.planId) : "",
       isTrial: b.isTrial || false,
@@ -131,9 +135,14 @@ export default function AdminBusinesses() {
   };
 
   const saveEdit = async () => {
+    if (!editForm.name.trim()) return;
     setSaving(true);
     try {
       await api.patch(`/super-admin/businesses/${editBiz.id}`, {
+        name: editForm.name.trim(),
+        gstin: editForm.gstin.trim() || null,
+        city: editForm.city.trim() || null,
+        state: editForm.state.trim() || null,
         status: editForm.status,
         planId: editForm.planId ? Number(editForm.planId) : null,
         isTrial: editForm.isTrial,
@@ -555,6 +564,27 @@ export default function AdminBusinesses() {
               <button onClick={() => setEditBiz(null)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+                ⚠️ Business naam change karne se GST aur invoices pe asar padega — sirf spelling fix ke liye use karein.
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                <input className={inputCls} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Business ka naam" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <input className={inputCls} value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} placeholder="City" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <input className={inputCls} value={editForm.state} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))} placeholder="State" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label>
+                <input className={inputCls} value={editForm.gstin} onChange={e => setEditForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} placeholder="22AAAAA0000A1Z5" maxLength={15} />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select className={inputCls} value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
