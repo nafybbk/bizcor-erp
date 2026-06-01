@@ -424,7 +424,7 @@ export default function ReportDesigner() {
       const payload = { name, reportType, paperSize, orientation, layoutJson };
 
       if (savedId) {
-        await api.patch<SavedTemplate>(`/report-templates/${savedId}`, payload);
+        await api.put<SavedTemplate>(`/report-templates/${savedId}`, payload);
         toast({ title: 'Saved!', description: `"${name}" update ho gaya` });
       } else {
         const created = await api.post<SavedTemplate>('/report-templates', payload);
