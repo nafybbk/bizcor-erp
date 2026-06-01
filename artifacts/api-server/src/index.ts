@@ -104,6 +104,8 @@ function runSqliteInit() {
       referral_reward_count INTEGER NOT NULL DEFAULT 0,
       referral_rewarded_at TEXT,
       bonus_days_added INTEGER NOT NULL DEFAULT 0,
+      package_config TEXT,
+      active_voucher_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -440,6 +442,8 @@ function runSqliteMigrations() {
     "ALTER TABLE businesses ADD COLUMN bonus_days_added INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
     "ALTER TABLE businesses ADD COLUMN is_trial INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN package_config TEXT",
+    "ALTER TABLE businesses ADD COLUMN active_voucher_id INTEGER",
     // users — new columns
     "ALTER TABLE users ADD COLUMN plain_password TEXT",
     "ALTER TABLE users ADD COLUMN login_pin TEXT",
