@@ -6,6 +6,7 @@ import { formatPrintNumber } from "@/lib/numberFormat";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
+import TemplatePrintModal from "@/components/TemplatePrintModal";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -63,6 +64,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [printFooter, setPrintFooter] = useState<{ text: string; logo: string }>({ text: "", logo: "" });
   const [loading, setLoading] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -79,13 +81,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   // Auto-print when opened with ?print=1 (from list print button)
   useEffect(() => {
     if (autoPrint && !loading && voucher) {
-      const t = setTimeout(() => setShowPrintPreview(true), 400);
+      const t = setTimeout(() => setShowTemplateSelector(true), 400);
       return () => clearTimeout(t);
     }
     return undefined;
   }, [autoPrint, loading, voucher]);
 
-  const handlePrint = () => setShowPrintPreview(true);
+  const handlePrint = () => setShowTemplateSelector(true);
 
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
 
@@ -157,6 +159,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
     return (
       <>
+        {showTemplateSelector && (
+          <TemplatePrintModal
+            voucherType={voucherType}
+            voucher={voucher}
+            business={business}
+            onClose={() => setShowTemplateSelector(false)}
+            onFallback={() => { setShowTemplateSelector(false); setShowPrintPreview(true); }}
+          />
+        )}
         {showPrintPreview && (
           <PrintPreviewModal
             printableId="printable"
@@ -545,6 +556,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
+      {showTemplateSelector && (
+        <TemplatePrintModal
+          voucherType={voucherType}
+          voucher={voucher}
+          business={business}
+          onClose={() => setShowTemplateSelector(false)}
+          onFallback={() => { setShowTemplateSelector(false); setShowPrintPreview(true); }}
+        />
+      )}
       {showPrintPreview && (
         <PrintPreviewModal
           printableId="printable"
