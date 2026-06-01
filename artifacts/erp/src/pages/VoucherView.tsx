@@ -378,16 +378,19 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               </tbody>
               <tfoot>
                 <tr>
-                  <td className={tdCls} colSpan={2} style={{ fontWeight: "bold" }}>
+                  <td colSpan={20} style={{ borderTop: "1px solid #000", padding: 0, height: 0 }} />
+                </tr>
+                <tr>
+                  <td className={tdCls} colSpan={2} style={{ fontWeight: "bold", borderTop: "none" }}>
                     Total Items: {totalItems} | Total Qty: {fmtQty(totalQty)}
                   </td>
-                  <td className={tdCls} colSpan={3} />
-                  {hasDiscount && <td className={tdCls} />}
+                  <td className={tdCls} colSpan={3} style={{ borderTop: "none" }} />
+                  {hasDiscount && <td className={tdCls} style={{ borderTop: "none" }} />}
                   {isInterState
-                    ? <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalIgst)}</td>
-                    : <><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalCgst)}</td><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.totalSgst)}</td></>
+                    ? <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold", borderTop: "none" }}>{fmt.number(voucher.totalIgst)}</td>
+                    : <><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold", borderTop: "none" }}>{fmt.number(voucher.totalCgst)}</td><td className={tdCls} style={{ textAlign: "right", fontWeight: "bold", borderTop: "none" }}>{fmt.number(voucher.totalSgst)}</td></>
                   }
-                  <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(voucher.grandTotal)}</td>
+                  <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold", borderTop: "none" }}>{fmt.number(voucher.grandTotal)}</td>
                 </tr>
               </tfoot>
             </table>
