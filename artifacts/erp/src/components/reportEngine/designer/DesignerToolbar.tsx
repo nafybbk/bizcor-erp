@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import {
   ArrowLeft, Save, Eye, ZoomIn, ZoomOut, RotateCcw,
-  FileBarChart2, Loader2, Grid3X3,
+  FileBarChart2, Loader2, Grid3X3, Maximize2,
 } from "lucide-react";
 import type { PaperSize, Orientation } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
@@ -167,6 +167,15 @@ export default function DesignerToolbar({
         className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
       >
         <RotateCcw className="w-4 h-4" />
+      </button>
+
+      {/* Pop Out */}
+      <button
+        onClick={() => window.open(window.location.href, '_blank', 'width=1600,height=960,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes')}
+        title="Naye window mein kholo (full screen ke liye)"
+        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors shrink-0"
+      >
+        <Maximize2 className="w-4 h-4" />
       </button>
 
       {/* Preview */}
