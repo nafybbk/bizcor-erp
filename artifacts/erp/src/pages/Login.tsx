@@ -100,6 +100,7 @@ export default function Login() {
   const [supportEmail, setSupportEmail] = useState("");
   const [supportPhone, setSupportPhone] = useState("");
   const [emailHintBizs, setEmailHintBizs] = useState<{ id: number; name: string; businessCode: string; city?: string; state?: string }[]>([]);
+  const [serverBizs, setServerBizs] = useState<{ id: number; name: string; businessCode: string; city?: string; state?: string }[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [fEmail, setFEmail] = useState("");
@@ -143,6 +144,10 @@ export default function Login() {
       }
       if (s.supportEmail) setSupportEmail(s.supportEmail);
       if (s.supportPhone) setSupportPhone(s.supportPhone);
+    }).catch(() => {});
+    // LAN: fetch all registered businesses for quick selection
+    api.get<any>("/auth/public-businesses").then(r => {
+      if (r.businesses?.length > 0) setServerBizs(r.businesses);
     }).catch(() => {});
   }, []);
 
@@ -270,6 +275,30 @@ export default function Login() {
                 <h2 className="text-lg font-bold text-gray-900">Business Login</h2>
                 <p className="text-xs text-gray-500 mt-0.5">Sign in to your business account</p>
               </div>
+
+              {/* LAN: show all registered businesses before email typed */}
+              {serverBizs.length > 0 && (
+                <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-indigo-700 flex items-center gap-1 mb-1">
+                    <Building2 className="w-3 h-3" /> Is server pe registered businesses:
+                  </p>
+                  {serverBizs.map(b => (
+                    <button key={b.id} type="button"
+                      onClick={() => setForm(f => ({ ...f, businessCode: b.businessCode }))}
+                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-all ${form.businessCode === b.businessCode ? "bg-indigo-600 text-white shadow" : "bg-white hover:bg-indigo-100 text-gray-800 border border-indigo-100"}`}>
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold block truncate">{b.name}</span>
+                        {(b.city || b.state) && (
+                          <span className={`text-[10px] ${form.businessCode === b.businessCode ? "text-indigo-200" : "text-gray-400"}`}>
+                            {[b.city, b.state].filter(Boolean).join(", ")}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-mono font-bold shrink-0 ml-2 ${form.businessCode === b.businessCode ? "text-white" : "text-indigo-600"}`}>{b.businessCode}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
