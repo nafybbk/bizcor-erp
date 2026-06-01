@@ -90,7 +90,7 @@ router.post("/register", async (req, res) => {
 
     // Fallback: some SQLite builds may not return from .returning() — fetch by code
     if (!business) {
-      const found = await db.query.businessesTable.findFirst({ where: eq(businessesTable.businessCode, businessCode) });
+      const [found] = await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode)).limit(1);
       if (!found) throw new Error("Business create nahi hua. Dobara try karein.");
       business = found;
     }
@@ -109,9 +109,7 @@ router.post("/register", async (req, res) => {
         const milestone = Math.floor(newCount / 5); // 5 = first reward, 10 = second
         if (milestone > rewardCount && rewardCount < 2) {
           // Find "Referral Plan" by name
-          const referralPlan = await db.query.plansTable.findFirst({
-            where: eq(plansTable.name, "Referral Plan"),
-          });
+          const [referralPlan] = await db.select().from(plansTable).where(eq(plansTable.name, "Referral Plan")).limit(1);
           if (referralPlan) {
             const validityMs = (referralPlan.validityDays || 180) * 24 * 60 * 60 * 1000;
             // planExpiresAt can be Date (PG) or ISO string (SQLite) — normalize to Date
@@ -149,9 +147,8 @@ router.post("/register", async (req, res) => {
 
     // Fallback: some SQLite builds don't support RETURNING — fetch by email
     if (!user) {
-      const found = await db.query.usersTable.findFirst({
-        where: and(eq(usersTable.businessId, business.id), eq(usersTable.email, emailLower)),
-      });
+      const [found] = await db.select().from(usersTable)
+        .where(and(eq(usersTable.businessId, business.id), eq(usersTable.email, emailLower))).limit(1);
       if (!found) throw new Error("User create nahi hua. Dobara try karein.");
       user = found as any;
     }
@@ -230,7 +227,7 @@ router.get("/verify-status/:token", async (req, res) => {
 router.get("/my-voucher", requireBusiness, async (req, res) => {
   try {
     const bizId = req.user!.businessId!;
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, bizId)).limit(1);
     if (!business) { res.json({ code: null, redeemedAt: null }); return; }
 
     // Use stored activeVoucherId to find the exact active voucher
@@ -291,7 +288,7 @@ router.get("/my-subscriptions", requireBusiness, async (req, res) => {
 
     // Enrich with plan details
     const plans = await db.select().from(plansTable);
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, bizId) });
+    const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, bizId)).limit(1);
 
     // Use stored activeVoucherId — exact, reliable, no expiry-matching guesswork
     const storedActiveId = (business as any)?.activeVoucherId ?? null;
@@ -348,7 +345,7 @@ router.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
     }).where(eq(businessesTable.id, bizId));
 
     // Return fresh token with updated plan info — correct planExpiresAt + isTrial
-    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, req.user!.id) });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.id)).limit(1);
     const token = signToken(
       { id: user!.id, email: user!.email, name: user!.name, role: user!.role as AuthUser["role"], businessId: bizId },
       expiresAt,
@@ -365,10 +362,7 @@ router.post("/activate-plan/:voucherId", requireBusiness, async (req, res) => {
 
 router.get("/referral-status", requireBusiness, async (req, res) => {
   try {
-    // Drizzle ORM query — works on both SQLite + PostgreSQL
-    const b = await db.query.businessesTable.findFirst({
-      where: eq(businessesTable.id, req.user!.businessId!),
-    });
+    const [b] = await db.select().from(businessesTable).where(eq(businessesTable.id, req.user!.businessId!)).limit(1);
     if (!b) { res.status(404).json({ error: "Not Found" }); return; }
 
     const rewardCount = Number((b as any).referralRewardCount || 0);
@@ -396,7 +390,7 @@ router.get("/referral-status", requireBusiness, async (req, res) => {
 
 router.get("/current", requireBusiness, async (req, res) => {
   try {
-    const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, req.user!.businessId!) });
+    const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, req.user!.businessId!)).limit(1);
     if (!business) { res.status(404).json({ error: "Not Found" }); return; }
     let planFeatures: string[] = [];
     let planMaxUsers: number | null = null;
