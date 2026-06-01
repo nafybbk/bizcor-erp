@@ -191,12 +191,15 @@ router.patch("/businesses/:id", async (req, res) => {
     if (status) updateData.status = status;
     if (planId !== undefined) updateData.planId = planId ? Number(planId) : null;
     if (isTrial !== undefined) updateData.isTrial = isTrial;
-    if (planExpiresAt !== undefined) updateData.planExpiresAt = planExpiresAt ? new Date(planExpiresAt).toISOString() : null;
-    if (planStartDate !== undefined) updateData.planStartDate = planStartDate ? new Date(planStartDate).toISOString() : null;
-    if (name !== undefined && String(name).trim()) updateData.name = String(name).trim();
-    if (gstin !== undefined) updateData.gstin = String(gstin).trim() || null;
-    if (city !== undefined) updateData.city = String(city).trim() || null;
-    if (state !== undefined) updateData.state = String(state).trim() || null;
+    if (planExpiresAt !== undefined) updateData.planExpiresAt = planExpiresAt ? new Date(planExpiresAt) : null;
+    if (planStartDate !== undefined) updateData.planStartDate = planStartDate ? new Date(planStartDate) : null;
+    if (name !== undefined && name !== null && String(name).trim()) updateData.name = String(name).trim();
+    if (gstin !== undefined && gstin !== null) updateData.gstin = String(gstin).trim() || null;
+    else if (gstin === null) updateData.gstin = null;
+    if (city !== undefined && city !== null) updateData.city = String(city).trim() || null;
+    else if (city === null) updateData.city = null;
+    if (state !== undefined && state !== null) updateData.state = String(state).trim() || null;
+    else if (state === null) updateData.state = null;
     const [updated] = await db.update(businessesTable).set(updateData).where(eq(businessesTable.id, Number(req.params.id))).returning();
     res.json(updated);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
