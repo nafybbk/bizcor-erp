@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { buildVoucherContext } from "@/lib/reportEngine/contextBuilder";
 import ReportRenderer from "@/components/reportEngine/ReportRenderer";
 import type { SavedTemplate } from "@/lib/reportEngine/types";
-import { Loader2, Printer, FileDown, Star, Check, ChevronDown, X, LayoutTemplate } from "lucide-react";
+import { Loader2, Printer, FileDown, Star, Check, ChevronDown, X, LayoutTemplate, Wand2 } from "lucide-react";
 
 // ─── voucherType → reportType mapping ────────────────────────────────────────
 const VOUCHER_TO_REPORT: Record<string, string> = {
@@ -24,9 +24,29 @@ interface Props {
   onFallback: () => void; // called if user wants old-style print
 }
 
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  sales_invoice: "Sales Invoice",
+  credit_note: "Credit Note",
+  purchase_bill: "Purchase Bill",
+  debit_note: "Debit Note",
+};
+
+function makeDefaultLayout() {
+  return {
+    bands: {
+      pageHeader:     { height: 0,  elements: [] },
+      documentHeader: { height: 80, elements: [] },
+      detail:         { height: 8,  columns: [], elements: [] },
+      documentFooter: { height: 60, elements: [] },
+      pageFooter:     { height: 10, elements: [] },
+    },
+  };
+}
+
 export default function TemplatePrintModal({ voucherType, voucher, business, onClose, onFallback }: Props) {
   const reportType = VOUCHER_TO_REPORT[voucherType] || "sales_invoice";
   const lsKey = LS_KEY(voucherType);
+  const qc = useQueryClient();
 
   const [selectedId, setSelectedId] = useState<number | null>(() => {
     const saved = localStorage.getItem(lsKey);
@@ -39,6 +59,23 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
   const { data: templates = [], isLoading } = useQuery<SavedTemplate[]>({
     queryKey: ["report-templates", reportType],
     queryFn: () => api.get<SavedTemplate[]>(`/report-templates?report_type=${reportType}`),
+  });
+
+  const createDefault = useMutation({
+    mutationFn: () =>
+      api.post<SavedTemplate>("/report-templates", {
+        name: `Basic ${REPORT_TYPE_LABELS[reportType] ?? "Invoice"}`,
+        reportType,
+        paperSize: "A4",
+        orientation: "portrait",
+        isDefault: true,
+        layoutJson: makeDefaultLayout(),
+      }),
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ["report-templates", reportType] });
+      setSelectedId(created.id);
+      localStorage.setItem(lsKey, String(created.id));
+    },
   });
 
   // Auto-select: saved > default > first
@@ -208,10 +245,22 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
             </div>
           ) : templates.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="text-center py-6">
               <LayoutTemplate className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">Is voucher type ke liye koi template nahi bani</p>
-              <p className="text-xs text-gray-400 mt-1">Report Templates mein jaake pehle template banao</p>
+              <p className="text-sm text-gray-500 font-medium">Koi template nahi mili</p>
+              <p className="text-xs text-gray-400 mt-1 mb-4">Ek basic template auto-banao ya Report Designer se design karo</p>
+              <button
+                onClick={() => createDefault.mutate()}
+                disabled={createDefault.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
+              >
+                {createDefault.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Bana raha hai…</>
+                  : <><Wand2 className="w-4 h-4" /> Basic Template Auto-Banao</>}
+              </button>
+              {createDefault.isError && (
+                <p className="text-xs text-red-500 mt-2">Error — dobara try karo</p>
+              )}
             </div>
           ) : (
             templates.map(t => (
