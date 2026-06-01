@@ -183,8 +183,13 @@ export default function Login() {
         setSinglePin("");
         setError("PIN zaroori hai — neeche enter karo");
       } else if (err.data?.error === "multiple_businesses" || err.message?.includes("multiple businesses")) {
-        setError("Your email is linked to multiple businesses. Please enter your Business Code.");
-        setShowLookup(true);
+        setError("");
+        // Auto-fetch and show business list so user can pick
+        try {
+          const res = await api.get<any>(`/auth/lookup-business?email=${encodeURIComponent(form.email)}`);
+          if (res.businesses?.length > 0) { setBusinesses(res.businesses); setShowLookup(true); }
+          else setError("Is email pe koi business nahi mila. Business Code daalkr try karein.");
+        } catch { setError("Aapki email pe kai businesses hain — Business Code daal ke login karein."); setShowLookup(true); }
       } else {
         setError(err.message || "Invalid email or password");
       }

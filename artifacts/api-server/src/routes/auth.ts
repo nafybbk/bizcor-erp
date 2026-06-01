@@ -207,9 +207,9 @@ router.post("/login", async (req, res) => {
       if (users.length === 1) {
         const u = users[0];
         if (u.passwordHash && await bcrypt.compare(password, u.passwordHash)) {
-          const business = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, u.businessId!) });
+          const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, u.businessId!)).limit(1);
           if (business) {
-            const fullUser = await db.query.usersTable.findFirst({ where: and(eq(usersTable.businessId, u.businessId!), eq(usersTable.email, email.toLowerCase())) });
+            const [fullUser] = await db.select().from(usersTable).where(and(eq(usersTable.businessId, u.businessId!), eq(usersTable.email, email.toLowerCase()))).limit(1);
             const result = await doLogin(fullUser, business);
             if (result) { res.json(result); return; }
           }
