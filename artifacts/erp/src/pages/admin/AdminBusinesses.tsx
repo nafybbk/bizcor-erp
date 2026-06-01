@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle, MessageCircle, Clock } from "lucide-react";
+import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle, MessageCircle, Clock, Info, Monitor, Cloud, Calendar, MapPin, Phone, Mail, Key } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
 
@@ -40,6 +40,10 @@ export default function AdminBusinesses() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [userSaving, setUserSaving] = useState<number | null>(null);
+
+  // Detail modal
+  const [detailBiz, setDetailBiz] = useState<any>(null);
+  const [detailCopied, setDetailCopied] = useState(false);
 
   // Copy referral code
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
@@ -447,6 +451,7 @@ export default function AdminBusinesses() {
                     <td className="px-4 py-3 text-gray-500 text-xs">{fmt.date(b.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setDetailBiz(b)} className="p-1.5 text-indigo-400 hover:bg-indigo-50 rounded-lg" title="Activation Detail"><Info className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openUsers(b)} className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg" title="Manage Users"><Users className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit Business"><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openTopup(b)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Top-up Free Days"><Gift className="w-3.5 h-3.5" /></button>
@@ -873,6 +878,89 @@ export default function AdminBusinesses() {
                 >
                   {deleteLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Deleting…</> : <><XCircle className="w-4 h-4" /> Permanently Delete</>}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activation Detail Modal */}
+      {detailBiz && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setDetailBiz(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-bold text-gray-900">{detailBiz.name}</h3>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">{detailBiz.businessCode}</p>
+              </div>
+              <button onClick={() => setDetailBiz(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4 text-gray-500" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+
+              {/* Plan & Activation */}
+              <div className="bg-blue-50 rounded-xl p-4 space-y-2.5">
+                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Plan & Activation</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 flex items-center gap-1.5"><CreditCard className="w-3.5 h-3.5 text-blue-400" /> Plan</span>
+                  <span className="font-semibold text-gray-900">{detailBiz.planName || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-purple-400" /> Plan Start</span>
+                  <span className="font-medium text-gray-800">{detailBiz.planStartDate ? fmt.date(detailBiz.planStartDate) : "—"}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-orange-400" /> Expiry</span>
+                  <span className={`font-medium ${detailBiz.isExpired ? "text-red-600" : "text-green-700"}`}>
+                    {detailBiz.planExpiresAt ? fmt.date(detailBiz.planExpiresAt) : "—"} {detailBiz.isExpired ? "⚠ Expired" : ""}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 flex items-center gap-1.5">
+                    {detailBiz.activationType === "desktop" ? <Monitor className="w-3.5 h-3.5 text-purple-500" /> : <Cloud className="w-3.5 h-3.5 text-cyan-500" />}
+                    Activation Type
+                  </span>
+                  <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${detailBiz.activationType === "desktop" ? "bg-purple-100 text-purple-700" : detailBiz.activationType ? "bg-cyan-100 text-cyan-700" : "bg-gray-100 text-gray-500"}`}>
+                    {detailBiz.activationType === "desktop" ? "🖥 LAN / Desktop" : detailBiz.activationType ? "☁ Cloud" : "Tech Panel"}
+                  </span>
+                </div>
+                {detailBiz.exeVersion && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">EXE Version</span>
+                    <span className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{detailBiz.exeVersion}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* License Code */}
+              {detailBiz.voucherCode ? (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                  <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2 flex items-center gap-1"><Key className="w-3.5 h-3.5" /> License Code Used</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-2xl font-black font-mono tracking-widest text-indigo-800">{detailBiz.voucherCode}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(detailBiz.voucherCode); setDetailCopied(true); setTimeout(() => setDetailCopied(false), 2000); }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg">
+                      {detailCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {detailCopied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  {detailBiz.voucherRedeemedAt && (
+                    <p className="text-xs text-indigo-400 mt-1.5">Activated: {fmt.date(detailBiz.voucherRedeemedAt)}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-400 flex items-center gap-2">
+                  <Key className="w-4 h-4" /> Koi voucher code use nahi hua (Tech Panel se activate hua)
+                </div>
+              )}
+
+              {/* Contact Info */}
+              <div className="space-y-2 text-sm">
+                {detailBiz.email && <div className="flex items-center gap-2 text-gray-600"><Mail className="w-3.5 h-3.5 text-gray-400" />{detailBiz.email}</div>}
+                {detailBiz.phone && <div className="flex items-center gap-2 text-gray-600"><Phone className="w-3.5 h-3.5 text-gray-400" />{detailBiz.phone}</div>}
+                {(detailBiz.city || detailBiz.state) && (
+                  <div className="flex items-center gap-2 text-gray-600"><MapPin className="w-3.5 h-3.5 text-gray-400" />{[detailBiz.city, detailBiz.state].filter(Boolean).join(", ")}</div>
+                )}
+                <div className="flex items-center gap-2 text-gray-500"><Users className="w-3.5 h-3.5 text-gray-400" />{detailBiz.userCount} users · Registered {fmt.date(detailBiz.createdAt)}</div>
               </div>
             </div>
           </div>
