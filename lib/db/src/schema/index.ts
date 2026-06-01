@@ -6,3 +6,4 @@ export * from "./payments";
 export * from "./cashBank";
 export * from "./supportMessages";
 export * from "./chat";
+export * from "./reportTemplates";
