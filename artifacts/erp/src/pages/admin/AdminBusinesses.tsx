@@ -135,7 +135,7 @@ export default function AdminBusinesses() {
   };
 
   const saveEdit = async () => {
-    if (!editForm.name.trim()) return;
+    if (!editForm.name.trim()) { alert("Business naam required hai"); return; }
     setSaving(true);
     try {
       await api.patch(`/super-admin/businesses/${editBiz.id}`, {
@@ -148,7 +148,11 @@ export default function AdminBusinesses() {
         isTrial: editForm.isTrial,
         planExpiresAt: editForm.planExpiresAt || null,
       });
-      setEditBiz(null); load();
+      setEditBiz(null);
+      load();
+      alert("✅ Changes save ho gaye!");
+    } catch (e: any) {
+      alert("❌ Save failed: " + (e?.message || "Server error"));
     } finally { setSaving(false); }
   };
 
