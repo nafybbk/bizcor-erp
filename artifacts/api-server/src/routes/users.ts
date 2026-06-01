@@ -7,10 +7,15 @@ import { requireBusiness } from "../middlewares/auth";
 
 // Helper: get plan-based user limit for a business
 async function getPlanLimit(businessId: number): Promise<{ maxUsers: number; label: string }> {
-  const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, businessId) });
+  const [biz] = await db.select({
+    id: businessesTable.id,
+    planId: businessesTable.planId,
+    isTrial: businessesTable.isTrial,
+  }).from(businessesTable).where(eq(businessesTable.id, businessId));
   if (!biz) return { maxUsers: 2, label: "Free" };
   if (biz.planId) {
-    const plan = await db.query.plansTable.findFirst({ where: eq(plansTable.id, biz.planId) });
+    const [plan] = await db.select({ maxUsers: plansTable.maxUsers, name: plansTable.name })
+      .from(plansTable).where(eq(plansTable.id, biz.planId));
     return { maxUsers: plan?.maxUsers ?? 2, label: plan?.name ?? "Paid" };
   }
   if (biz.isTrial) return { maxUsers: 3, label: "Trial" };
@@ -31,14 +36,23 @@ async function ensureRightsCols(): Promise<void> {
   const isSQLite = !!process.env.SQLITE_PATH;
 
   if (isSQLite && sqlite) {
-    const cols = [
+    // users table columns
+    const userCols = [
       "can_edit INTEGER NOT NULL DEFAULT 1",
       "can_delete INTEGER NOT NULL DEFAULT 1",
       "login_pin TEXT",
       "plain_password TEXT",
     ];
-    for (const col of cols) {
+    for (const col of userCols) {
       try { sqlite.exec(`ALTER TABLE users ADD COLUMN ${col}`); } catch { /* already exists */ }
+    }
+    // businesses table columns (added in later versions)
+    const bizCols = [
+      "package_config TEXT",
+      "logo TEXT",
+    ];
+    for (const col of bizCols) {
+      try { sqlite.exec(`ALTER TABLE businesses ADD COLUMN ${col}`); } catch { /* already exists */ }
     }
     _rightColsDone = true;
   } else {
@@ -148,9 +162,8 @@ router.post("/", async (req, res) => {
 
     if (!finalEmail || !password) {
       // Fetch admin user of this business
-      const adminUser = await db.query.usersTable.findFirst({
-        where: and(eq(usersTable.businessId, biz), eq(usersTable.role, "business_admin")),
-      });
+      const [adminUser] = await db.select().from(usersTable)
+        .where(and(eq(usersTable.businessId, biz), eq(usersTable.role, "business_admin")));
       if (!finalEmail) finalEmail = adminUser?.email || req.user!.email!;
       if (!password) {
         passwordHash = adminUser?.passwordHash || await bcrypt.hash("changeme", 10);
@@ -197,9 +210,8 @@ router.post("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const user = await db.query.usersTable.findFirst({
-      where: and(eq(usersTable.id, Number(req.params.id)), eq(usersTable.businessId, req.user!.businessId!)),
-    });
+    const [user] = await db.select().from(usersTable)
+      .where(and(eq(usersTable.id, Number(req.params.id)), eq(usersTable.businessId, req.user!.businessId!)));
     if (!user) { res.status(404).json({ error: "Not Found" }); return; }
     const { passwordHash, ...safeUser } = user;
     res.json(safeUser);
