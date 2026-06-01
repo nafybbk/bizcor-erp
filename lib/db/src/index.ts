@@ -105,6 +105,7 @@ export const expenseVouchersTable = s.expenseVouchersTable;
 export const contraEntriesTable = s.contraEntriesTable;
 export const supportMessagesTable = s.supportMessagesTable;
 export const chatMessagesTable = s.chatMessagesTable;
+export const reportTemplatesTable = s.reportTemplatesTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)
 export type * from "./schema";
