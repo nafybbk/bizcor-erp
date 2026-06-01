@@ -148,12 +148,13 @@ export default function ReportTemplatesList() {
               Import
               <input type="file" accept=".json" className="hidden" onChange={handleImport} />
             </label>
-            <Link href="/report-templates/new">
-              <a className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                <Plus className="w-4 h-4" />
-                New Template
-              </a>
-            </Link>
+            <button
+              onClick={() => window.open('/report-templates/new', '_blank', 'width=1600,height=960,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Template
+            </button>
           </div>
         )}
       </div>
@@ -262,11 +263,13 @@ function TemplateCard({ tmpl, isAdmin, onDelete, onDuplicate, onSetDefault, onEx
             </a>
           </Link>
           {isAdmin && (
-            <Link href={`/report-templates/${tmpl.id}/edit`}>
-              <a className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                <Edit2 className="w-4 h-4" />
-              </a>
-            </Link>
+            <button
+              onClick={() => window.open(`/report-templates/${tmpl.id}/edit`, '_blank', 'width=1600,height=960,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes')}
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Edit (naye window mein)"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
           )}
 
           <div className="relative">
@@ -341,12 +344,13 @@ function EmptyState({ isAdmin }: { isAdmin: boolean }) {
         </p>
       </div>
       {isAdmin && (
-        <Link href="/report-templates/new">
-          <a className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-            <Plus className="w-4 h-4" />
-            Pehla Template Banao
-          </a>
-        </Link>
+        <button
+          onClick={() => window.open('/report-templates/new', '_blank', 'width=1600,height=960,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes')}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Pehla Template Banao
+        </button>
       )}
     </div>
   );

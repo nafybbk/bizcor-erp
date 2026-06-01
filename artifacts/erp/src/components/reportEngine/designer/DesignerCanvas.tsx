@@ -208,6 +208,49 @@ export default function DesignerCanvas({
     };
   }, [onMouseMove, onMouseUp]);
 
+  // ─── Keyboard arrow-key move ──────────────────────────────────────────────
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Skip when typing in any input / textarea / select / contenteditable
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) return;
+
+      if (!selectedBandKey || selectedElementIds.length === 0) return;
+
+      const isArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
+      if (!isArrow) return;
+
+      e.preventDefault(); // stop page scroll
+
+      // Shift = big step (5× grid or 10 mm), normal = 1 grid unit or 1 mm
+      const step = e.shiftKey
+        ? (snapToGrid ? gridSize * 5 : 10)
+        : (snapToGrid ? gridSize : 1);
+
+      const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      const dy = e.key === 'ArrowUp'   ? -step : e.key === 'ArrowDown'  ? step : 0;
+
+      const bandElements = bands[selectedBandKey].elements;
+      const updates = selectedElementIds.map(id => {
+        const el = bandElements.find(el => el.id === id);
+        return {
+          id,
+          x: snapMm(Math.max(0, (el?.x ?? 0) + dx), gridSize, snapToGrid),
+          y: snapMm(Math.max(0, (el?.y ?? 0) + dy), gridSize, snapToGrid),
+        };
+      });
+      onMoveElements(selectedBandKey, updates);
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBandKey, selectedElementIds, bands, snapToGrid, gridSize, onMoveElements]);
+
   // ─── Element click (with shift for multi-select) ──────────────────────────
   function handleElementClick(e: React.MouseEvent, bandKey: BandKey, elementId: string) {
     e.stopPropagation();
