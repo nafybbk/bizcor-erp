@@ -383,8 +383,8 @@ export default function Subscription() {
         name: matchingSub.planName,
         billingCycle: "yearly",
         price: 0,
-        maxUsers: matchingSub.maxUsers || 1,
-        features: [],
+        maxUsers: matchingSub.maxUsers || business?.planMaxUsers || 1,
+        features: matchingSub.features || business?.planFeatures || [],
         _fromHistory: true,
       };
     } else {
@@ -394,8 +394,8 @@ export default function Subscription() {
         name: "Active Plan",
         billingCycle: "yearly",
         price: 0,
-        maxUsers: 1,
-        features: [],
+        maxUsers: business?.planMaxUsers || 1,
+        features: business?.planFeatures || [],
         _fromHistory: true,
       };
     }
@@ -466,6 +466,16 @@ export default function Subscription() {
                 {currentPlan.maxItems != null && (
                   <span className="flex items-center gap-1 bg-white rounded-lg px-2.5 py-1 border border-gray-200">
                     <Package className="w-3.5 h-3.5 text-amber-400" /> {currentPlan.maxItems} items
+                  </span>
+                )}
+                {parseLan(currentPlan.features || []) > 0 && (
+                  <span className="flex items-center gap-1 bg-white rounded-lg px-2.5 py-1 border border-gray-200">
+                    <Monitor className="w-3.5 h-3.5 text-green-500" /> LAN: {parseLan(currentPlan.features || [])} clients
+                  </span>
+                )}
+                {hasChat(currentPlan.features || []) && (
+                  <span className="flex items-center gap-1 bg-white rounded-lg px-2.5 py-1 border border-gray-200">
+                    <MessageSquare className="w-3.5 h-3.5 text-purple-400" /> Chat
                   </span>
                 )}
               </div>

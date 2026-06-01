@@ -151,10 +151,24 @@ router.post("/redeem-voucher-offline", requireBusiness, async (req, res) => {
     try {
       const { sqlite } = await import("@workspace/db");
       if (sqlite) {
+        const featuresJson = JSON.stringify(Array.isArray(cloudData.features) ? cloudData.features : []);
         sqlite.prepare(`
           INSERT OR REPLACE INTO plans (id, name, price, billing_cycle, max_users, validity_days, trial_days, features, is_active, sort_order, created_at)
-          VALUES (?, ?, '0', 'yearly', ?, ?, 0, '[]', 1, 0, datetime('now'))
-        `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers ?? 5, cloudData.validityDays ?? 365);
+          VALUES (?, ?, '0', 'yearly', ?, ?, 0, ?, 1, 0, datetime('now'))
+        `).run(cloudData.planId, cloudData.planName, cloudData.maxUsers ?? 5, cloudData.validityDays ?? 365, featuresJson);
+
+        // Store voucher locally so my-voucher and my-subscriptions work in desktop mode
+        const voucherCodeUpper = code.trim().toUpperCase();
+        sqlite.prepare(`
+          INSERT OR REPLACE INTO license_vouchers (code, plan_id, validity_days, status, redeemed_by_business_id, redeemed_at, created_at)
+          VALUES (?, ?, ?, 'used', ?, datetime('now'), datetime('now'))
+        `).run(voucherCodeUpper, cloudData.planId, cloudData.validityDays ?? 365, req.user.businessId);
+
+        // Set activeVoucherId on business for reliable my-voucher lookup
+        const vRow = sqlite.prepare(`SELECT id FROM license_vouchers WHERE code = ?`).get(voucherCodeUpper) as any;
+        if (vRow?.id) {
+          sqlite.prepare(`UPDATE businesses SET active_voucher_id = ? WHERE id = ?`).run(vRow.id, req.user.businessId);
+        }
       }
     } catch { /* SQLite not available in cloud/PG mode */ }
 
