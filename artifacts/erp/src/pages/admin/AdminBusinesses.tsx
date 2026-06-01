@@ -27,6 +27,7 @@ export default function AdminBusinesses() {
   const [editBiz, setEditBiz] = useState<any>(null);
   const [editForm, setEditForm] = useState({ name: "", gstin: "", city: "", state: "", status: "", planId: "", isTrial: false, planExpiresAt: "" });
   const [saving, setSaving] = useState(false);
+  const [editMsg, setEditMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   // Top-up modal
   const [topupBiz, setTopupBiz] = useState<any>(null);
@@ -135,8 +136,9 @@ export default function AdminBusinesses() {
   };
 
   const saveEdit = async () => {
-    if (!editForm.name.trim()) { alert("Business naam required hai"); return; }
+    if (!editForm.name.trim()) { setEditMsg({ type: "err", text: "Business naam required hai" }); return; }
     setSaving(true);
+    setEditMsg(null);
     try {
       await api.patch(`/super-admin/businesses/${editBiz.id}`, {
         name: editForm.name.trim(),
@@ -148,11 +150,11 @@ export default function AdminBusinesses() {
         isTrial: editForm.isTrial,
         planExpiresAt: editForm.planExpiresAt || null,
       });
-      setEditBiz(null);
+      setEditMsg({ type: "ok", text: "✅ Saved! Changes save ho gaye." });
       load();
-      alert("✅ Changes save ho gaye!");
+      setTimeout(() => setEditBiz(null), 1500);
     } catch (e: any) {
-      alert("❌ Save failed: " + (e?.message || "Server error"));
+      setEditMsg({ type: "err", text: "❌ Save failed: " + (e?.message || "Server error") });
     } finally { setSaving(false); }
   };
 
@@ -616,8 +618,13 @@ export default function AdminBusinesses() {
                 <span className="text-sm text-gray-700">On Free Trial</span>
               </label>
             </div>
+            {editMsg && (
+              <div className={`mx-6 mb-2 px-3 py-2 rounded-lg text-sm font-medium ${editMsg.type === "ok" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                {editMsg.text}
+              </div>
+            )}
             <div className="px-6 py-4 border-t flex justify-end gap-3">
-              <button onClick={() => setEditBiz(null)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+              <button onClick={() => { setEditBiz(null); setEditMsg(null); }} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
               <button onClick={saveEdit} disabled={saving} className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save Changes
               </button>
