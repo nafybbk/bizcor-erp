@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { api } from "@/lib/api";
-import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, KeyRound, ArrowLeft, HardDrive, RefreshCw, Check, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, Loader2, Search, ChevronRight, Lock, Globe, ShieldCheck, KeyRound, ArrowLeft, HardDrive, RefreshCw, Check, AlertTriangle, Building2 } from "lucide-react";
 import { BizCorLogo } from "@/components/BizCorLogo";
 import SupportChatWidget from "@/components/SupportChatWidget";
 
@@ -99,6 +99,8 @@ export default function Login() {
   const [appName, setAppName] = useState(localStorage.getItem("erp_app_name") || "BizERP");
   const [supportEmail, setSupportEmail] = useState("");
   const [supportPhone, setSupportPhone] = useState("");
+  const [emailHintBizs, setEmailHintBizs] = useState<{ id: number; name: string; businessCode: string; city?: string; state?: string }[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [fEmail, setFEmail] = useState("");
   const [fCode, setFCode] = useState("");
@@ -277,9 +279,49 @@ export default function Login() {
                     className={inputCls}
                     placeholder="you@example.com"
                     value={form.email}
-                    onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setShowLookup(false); setPinRequired(false); setSinglePin(""); }}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setForm(f => ({ ...f, email: val }));
+                      setShowLookup(false); setPinRequired(false); setSinglePin("");
+                      setEmailHintBizs([]);
+                      if (debounceRef.current) clearTimeout(debounceRef.current);
+                      if (val.includes("@") && val.includes(".")) {
+                        debounceRef.current = setTimeout(async () => {
+                          try {
+                            const res = await api.get<any>(`/auth/lookup-business?email=${encodeURIComponent(val)}`);
+                            const bizs = res.businesses || [];
+                            setEmailHintBizs(bizs);
+                            if (bizs.length === 1 && !form.businessCode) {
+                              setForm(f => ({ ...f, businessCode: bizs[0].businessCode }));
+                            }
+                          } catch { /* silent */ }
+                        }, 700);
+                      }
+                    }}
                     required
                   />
+                  {/* Email hint — existing businesses on this email */}
+                  {emailHintBizs.length > 0 && (
+                    <div className="mt-1.5 rounded-xl border border-blue-200 bg-blue-50 p-2.5 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-blue-700 flex items-center gap-1">
+                        <Building2 className="w-3 h-3" /> Is email pe registered {emailHintBizs.length === 1 ? "business" : `${emailHintBizs.length} businesses`}:
+                      </p>
+                      {emailHintBizs.map(b => (
+                        <button key={b.id} type="button"
+                          onClick={() => setForm(f => ({ ...f, businessCode: b.businessCode }))}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${form.businessCode === b.businessCode ? "bg-blue-600 text-white" : "bg-white hover:bg-blue-100 text-gray-800 border border-blue-100"}`}>
+                          <div>
+                            <span className="text-xs font-semibold block">{b.name}</span>
+                            {(b.city || b.state) && <span className={`text-[10px] ${form.businessCode === b.businessCode ? "text-blue-100" : "text-gray-400"}`}>{[b.city, b.state].filter(Boolean).join(", ")}</span>}
+                          </div>
+                          <span className={`text-xs font-mono font-bold ${form.businessCode === b.businessCode ? "text-white" : "text-blue-600"}`}>{b.businessCode}</span>
+                        </button>
+                      ))}
+                      {emailHintBizs.length === 1 && (
+                        <p className="text-[10px] text-blue-500">Business code auto-fill ho gaya ✓</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
