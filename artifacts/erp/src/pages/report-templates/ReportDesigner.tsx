@@ -158,11 +158,11 @@ function layoutToBands(layout: TemplateLayout): DesignerBandsState {
   };
 }
 
-function defaultElementForType(type: TemplateElement['type'], x: number, y: number, contentW: number): TemplateElement {
+function defaultElementForType(type: TemplateElement['type'], x: number, y: number, contentW: number, fieldKey?: string): TemplateElement {
   const base = { id: uid(), x, y };
   switch (type) {
-    case 'text':    return { ...base, type, content: 'Label',         width: 40,        height: 8,  style: { fontSize: 10 } };
-    case 'field':   return { ...base, type, field: 'company_name',    width: 50,        height: 8,  style: { fontSize: 10 } };
+    case 'text':    return { ...base, type, content: 'Label',                         width: 40, height: 8, style: { fontSize: 10 } };
+    case 'field':   return { ...base, type, field: fieldKey ?? 'company_name',        width: 50, height: 8, style: { fontSize: 10 } };
     case 'formula': return { ...base, type, formula: '{grand_total}', width: 30,        height: 8,  style: { fontSize: 10 } };
     case 'image':   return { ...base, type, source: 'company_logo',   width: 30,        height: 20, objectFit: 'contain' as const };
     case 'line':    return { ...base, type, direction: 'horizontal' as const, width: contentW || 100, height: 1, color: '#000', thickness: 0.3 };
@@ -213,8 +213,9 @@ export default function ReportDesigner() {
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
 
   // Add mode
-  const [mode,        setMode]        = useState<'select' | 'add'>('select');
-  const [addingType,  setAddingType]  = useState<TemplateElement['type'] | null>(null);
+  const [mode,          setMode]          = useState<'select' | 'add'>('select');
+  const [addingType,    setAddingType]    = useState<TemplateElement['type'] | null>(null);
+  const [addingFieldKey, setAddingFieldKey] = useState<string | null>(null);
 
   // UI
   const [zoom,    setZoom]    = useState(0.75);
@@ -363,7 +364,7 @@ export default function ReportDesigner() {
 
   function handlePlaceElement(bandKey: BandKey, x: number, y: number) {
     if (!addingType) return;
-    const newEl = defaultElementForType(addingType, x, y, contentW);
+    const newEl = defaultElementForType(addingType, x, y, contentW, addingType === 'field' ? (addingFieldKey ?? undefined) : undefined);
     updateBands(prev => ({
       ...prev,
       [bandKey]: { ...prev[bandKey], elements: [...prev[bandKey].elements, newEl] },
@@ -372,6 +373,7 @@ export default function ReportDesigner() {
     setSelectedElementIds([newEl.id]);
     setMode('select');
     setAddingType(null);
+    setAddingFieldKey(null);
   }
 
   function handleDeleteSelected() {
@@ -477,8 +479,10 @@ export default function ReportDesigner() {
         <DesignerPalette
           mode={mode}
           addingType={addingType}
-          onSelectMode={() => { setMode('select'); setAddingType(null); }}
-          onAddMode={type => { setMode('add'); setAddingType(type); }}
+          addingFieldKey={addingFieldKey}
+          onSelectMode={() => { setMode('select'); setAddingType(null); setAddingFieldKey(null); }}
+          onAddMode={type => { setMode('add'); setAddingType(type); setAddingFieldKey(null); }}
+          onAddFieldMode={fk => { setMode('add'); setAddingType('field'); setAddingFieldKey(fk); }}
         />
 
         <DesignerCanvas
