@@ -82,11 +82,13 @@ const Ctx = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = sessionStorage.getItem("erp_user") || localStorage.getItem("erp_user");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored || stored === "undefined" || stored === "null") return null;
+    try { return JSON.parse(stored); } catch { return null; }
   });
   const [business, setBusiness] = useState<AuthBusiness | null>(() => {
     const stored = localStorage.getItem("erp_business");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored || stored === "undefined" || stored === "null") return null;
+    try { return JSON.parse(stored); } catch { return null; }
   });
   const [loading, setLoading] = useState(false);
 
