@@ -290,22 +290,25 @@ router.get("/my-subscriptions", requireBusiness, async (req, res) => {
     const plans = await db.select().from(plansTable);
     const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, bizId)).limit(1);
 
-    // Use stored activeVoucherId — exact, reliable, no expiry-matching guesswork
     const storedActiveId = (business as any)?.activeVoucherId ?? null;
     const bizExpiresMs = business?.planExpiresAt ? new Date(business.planExpiresAt).getTime() : null;
     const planStillValid = bizExpiresMs ? bizExpiresMs > now : false;
 
-    const subscriptions = visible.map(v => {
+    let subscriptions = visible.map(v => {
       const plan = plans.find(p => p.id === v.planId);
+      // Fallback: when activeVoucherId not set, mark active by planId match + validity
       const isActive = storedActiveId !== null
         ? v.id === storedActiveId && planStillValid
-        : false;
+        : planStillValid && v.planId === business.planId;
       return {
         id: v.id,
         code: v.code,
         planId: v.planId,
         planName: plan?.name || "Unknown Plan",
         maxUsers: plan?.maxUsers || null,
+        maxVouchersPerMonth: (plan as any)?.maxVouchersPerMonth ?? null,
+        maxItems: (plan as any)?.maxItems ?? null,
+        features: (plan as any)?.features || [],
         validityDays: v.validityDays,
         redeemedAt: v.redeemedAt,
         expiresAt: v.expiresAt,
@@ -313,6 +316,26 @@ router.get("/my-subscriptions", requireBusiness, async (req, res) => {
         isActive: !!isActive,
       };
     }).sort((a, b) => new Date(b.redeemedAt ?? 0).getTime() - new Date(a.redeemedAt ?? 0).getTime());
+
+    // Synthetic entry: plan set from Tech Panel (no voucher linked) but plan is valid
+    if (subscriptions.length === 0 && planStillValid && business.planId) {
+      const plan = plans.find(p => p.id === business.planId);
+      subscriptions = [{
+        id: -1,
+        code: null,
+        planId: business.planId,
+        planName: plan?.name || "Active Plan",
+        maxUsers: plan?.maxUsers || null,
+        maxVouchersPerMonth: (plan as any)?.maxVouchersPerMonth ?? null,
+        maxItems: (plan as any)?.maxItems ?? null,
+        features: (plan as any)?.features || [],
+        validityDays: null,
+        redeemedAt: (business as any).planStartDate || business.createdAt,
+        expiresAt: business.planExpiresAt ? new Date(business.planExpiresAt).toISOString() : null,
+        isExpired: false,
+        isActive: true,
+      } as any];
+    }
 
     res.json({ data: subscriptions });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }

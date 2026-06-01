@@ -428,7 +428,7 @@ export default function Subscription() {
             <div>
               {currentPlan ? (
                 <>
-                  <div className="font-bold text-gray-900 text-lg">{currentPlan.name} Plan</div>
+                  <div className="font-bold text-gray-900 text-lg">{currentPlan.name}</div>
                   <div className="text-sm text-gray-600">
                     {business.isTrial ? "On trial period" : "Paid plan active"}
                     {business.planExpiresAt && (
@@ -482,36 +482,31 @@ export default function Subscription() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* My License Code (show if voucher was activated) */}
-      {myVoucher?.code && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <Ticket className="w-5 h-5 text-blue-500 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-blue-500 font-medium">Mera License Code</p>
-              <p className="text-lg font-black font-mono tracking-widest text-blue-800 truncate">{myVoucher.code}</p>
-              {myVoucher.redeemedAt && (
-                <p className="text-xs text-blue-400 mt-0.5">
-                  Activated: {new Date(myVoucher.redeemedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                </p>
-              )}
+        {/* Voucher code — inside the plan card, below limits */}
+        {myVoucher?.code && (
+          <div className="mt-4 pt-4 border-t border-white/60 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Ticket className="w-4 h-4 text-green-600 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">License Code</p>
+                <p className="text-base font-black font-mono tracking-widest text-gray-900 truncate">{myVoucher.code}</p>
+                {myVoucher.redeemedAt && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Activated: {new Date(myVoucher.redeemedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                )}
+              </div>
             </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(myVoucher.code!).then(() => { setVoucherCopied(true); setTimeout(() => setVoucherCopied(false), 2000); }); }}
+              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded-lg transition-colors">
+              {voucherCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {voucherCopied ? "Copied!" : "Copy"}
+            </button>
           </div>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(myVoucher.code!).then(() => {
-                setVoucherCopied(true);
-                setTimeout(() => setVoucherCopied(false), 2000);
-              });
-            }}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-            {voucherCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {voucherCopied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── My Plans — Subscription History ─────────────────────────────── */}
       <div className="space-y-3">
