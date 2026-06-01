@@ -11,7 +11,7 @@ import {
   FileBarChart2, Settings, Users, ChevronDown, ChevronRight, LogOut,
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
-  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive,
+  UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive, LayoutTemplate,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -27,16 +27,18 @@ interface NavItem {
   icon?: React.ReactNode;
   children?: NavItem[];
   badge?: number;
+  locked?: boolean;
 }
 
-function NavLink({ href, icon, active, badge, children }: { href: string; icon?: React.ReactNode; active: boolean; badge?: number; children: React.ReactNode }) {
+function NavLink({ href, icon, active, badge, locked, children }: { href: string; icon?: React.ReactNode; active: boolean; badge?: number; locked?: boolean; children: React.ReactNode }) {
   return (
     <Link href={href}>
       <a className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
         active ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-700 hover:text-white"}`}>
         {icon}
         <span className="truncate flex-1">{children}</span>
-        {badge ? <span className="ml-auto bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{badge}</span> : null}
+        {locked && <span className="ml-auto text-[10px] text-amber-400" title="Paid plan required">🔒</span>}
+        {!locked && badge ? <span className="ml-auto bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">{badge}</span> : null}
       </a>
     </Link>
   );
@@ -50,7 +52,7 @@ function NavGroup({ item, location }: { item: NavItem; location: string }) {
 
   if (!item.children) {
     return (
-      <NavLink href={item.href!} icon={item.icon} active={location === item.href} badge={item.badge}>
+      <NavLink href={item.href!} icon={item.icon} active={location === item.href} badge={item.badge} locked={item.locked}>
         {item.label}
       </NavLink>
     );
@@ -359,6 +361,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return Array.isArray(user?.permissions) && user.permissions.includes(key);
   };
 
+  // Report Designer — paid plan only (not trial, not free)
+  const hasDesignerAccess = user?.role === "super_admin" ||
+    (!business?.isTrial && !!business?.planExpiresAt && new Date(business.planExpiresAt) > new Date());
+
   const businessNavFull: (NavItem & { permKey?: string })[] = [
     { label: L.dashboard, href: "/", icon: <LayoutDashboard className="w-4 h-4" /> },
     {
@@ -424,6 +430,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         { label: L.states, href: "/masters/states" },
       ],
     },
+    { label: "Report Templates", href: "/report-templates", icon: <LayoutTemplate className="w-4 h-4 text-purple-400" />, locked: !hasDesignerAccess },
     ...(hasPerm("sales") ? [{ label: "Bin (Deleted)", href: "/vouchers/bin", icon: <Trash2 className="w-4 h-4 text-red-400" /> }] : []),
   ];
 
@@ -669,7 +676,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.1</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.2</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}

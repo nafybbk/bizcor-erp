@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import DesignerToolbar from "@/components/reportEngine/designer/DesignerToolbar";
 import DesignerPalette from "@/components/reportEngine/designer/DesignerPalette";
 import DesignerCanvas from "@/components/reportEngine/designer/DesignerCanvas";
@@ -13,7 +14,7 @@ import type {
 } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
 import { getPaperDimensions } from "@/lib/reportEngine/paperSizes";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 // ─── Exported types (used by DesignerCanvas) ──────────────────────────────────
 export type BandKey = 'pageHeader' | 'documentHeader' | 'detail' | 'documentFooter' | 'pageFooter';
@@ -185,8 +186,13 @@ const MAX_UNDO = 15;
 export default function ReportDesigner() {
   const { id } = useParams<{ id?: string }>();
   const [, navigate] = useLocation();
+  const { user, business } = useAuth();
   const qc = useQueryClient();
   const isNew = !id || id === 'new';
+
+  // Plan gate check
+  const hasAccess = user?.role === 'super_admin' ||
+    (!business?.isTrial && !!business?.planExpiresAt && new Date(business.planExpiresAt) > new Date());
 
   // Meta
   const [name,        setName]        = useState('New Template');
@@ -226,8 +232,29 @@ export default function ReportDesigner() {
   const { data: template, isLoading } = useQuery<SavedTemplate>({
     queryKey: ['report-template', id],
     queryFn: () => api.get<SavedTemplate>(`/report-templates/${id}`),
-    enabled: !isNew,
+    enabled: !isNew && hasAccess,
   });
+
+  // ─── Plan Gate — AFTER all hooks ────────────────────────────────────────
+  if (user && !hasAccess) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center space-y-4 p-8">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mx-auto">
+            <Lock className="w-8 h-8 text-amber-500" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800">Paid Plan Required</h2>
+          <p className="text-gray-500 text-sm max-w-xs">Report Designer sirf paid plan users ke liye available hai.</p>
+          <button
+            onClick={() => navigate('/report-templates')}
+            className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Plans Dekho
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (template) {

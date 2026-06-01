@@ -5,15 +5,19 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   FileBarChart2, Plus, Copy, Trash2, Star, Download, Upload,
-  Eye, Edit2, MoreVertical, Package,
+  Eye, Edit2, MoreVertical, Package, Lock, Sparkles,
 } from "lucide-react";
 import type { SavedTemplate } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
 
 export default function ReportTemplatesList() {
-  const { user } = useAuth();
+  const { user, business } = useAuth();
   const qc = useQueryClient();
   const isAdmin = user?.role !== 'staff';
+
+  // Plan gate — paid plan only
+  const hasAccess = user?.role === 'super_admin' ||
+    (!business?.isTrial && !!business?.planExpiresAt && new Date(business.planExpiresAt) > new Date());
 
   const [activeType, setActiveType] = useState<string>('');
   const [importError, setImportError] = useState('');
@@ -82,6 +86,47 @@ export default function ReportTemplatesList() {
 
   const reportTypeLabel = (key: string) =>
     REPORT_TYPES.find(r => r.key === key)?.label || key;
+
+  // ── Plan Gate ──────────────────────────────────────────────────────────────
+  if (!hasAccess) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 mt-16 text-center">
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-lg p-10 space-y-5">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 mx-auto">
+            <Lock className="w-8 h-8 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              Report Designer
+            </h2>
+            <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+              Custom invoice templates, letterhead design, aur Crystal Reports style formula editor —<br />
+              yeh feature <strong>paid plan</strong> mein available hai.
+            </p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-1.5">
+            <div className="flex items-center gap-2">✅ Drag &amp; drop template designer</div>
+            <div className="flex items-center gap-2">✅ Custom invoice / purchase bill layout</div>
+            <div className="flex items-center gap-2">✅ Formula editor (Crystal Reports style)</div>
+            <div className="flex items-center gap-2">✅ Multi-page, bands, headers, footers</div>
+            <div className="flex items-center gap-2">✅ Save, preview, aur print karo</div>
+          </div>
+          {business?.isTrial && (
+            <p className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
+              ⚠️ Trial mein Report Designer available nahi hai. Plan activate karo.
+            </p>
+          )}
+          <Link href="/settings/subscription">
+            <a className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
+              <Sparkles className="w-4 h-4" />
+              Plans Dekho &amp; Upgrade Karo
+            </a>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
