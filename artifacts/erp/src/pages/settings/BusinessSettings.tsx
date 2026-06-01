@@ -153,8 +153,10 @@ export default function BusinessSettings() {
           </div>
 
           <div className="flex-1 space-y-3">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Firm / Business Name *</label>
-              <input className={inputCls} value={form.name || ""} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} required /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1">Firm / Business Name</label>
+              <input className={inputCls + " bg-gray-50 text-gray-600 cursor-not-allowed"} value={form.name || ""} readOnly />
+              <p className="text-xs text-gray-400 mt-1">Business name change karne ke liye Tech Support se contact karein</p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-gray-700 mb-1">GSTIN</label>
                 <input className={inputCls} value={form.gstin || ""} onChange={e => setForm((f: any) => ({ ...f, gstin: e.target.value.toUpperCase() }))} maxLength={15} placeholder="22AAAAA0000A1Z5" /></div>
