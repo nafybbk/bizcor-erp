@@ -383,7 +383,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                   </tr>
                 ))}
-                {Array.from({ length: Math.max(0, 3 - (voucher.items || []).length) }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 14 - (voucher.items || []).length) }).map((_, i) => (
                   <tr key={`empty-${i}`}>
                     <td style={{ height: "20px" }} />
                     <td /><td /><td /><td /><td />
@@ -909,7 +909,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   );
                 })}
                 {/* Empty rows to fill page (Tally style) */}
-                {Array.from({ length: Math.max(0, 3 - (voucher.items || []).length) }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 14 - (voucher.items || []).length) }).map((_, i) => (
                   <tr key={`empty-${i}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td className="px-2 py-2 text-center text-xs text-gray-200">{(voucher.items || []).length + i + 1}</td>
                     <td className="px-2 py-2">&nbsp;</td>
