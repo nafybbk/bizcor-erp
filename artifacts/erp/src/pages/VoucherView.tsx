@@ -6,6 +6,7 @@ import { formatPrintNumber } from "@/lib/numberFormat";
 import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
+import TemplatePrintModal from "@/components/TemplatePrintModal";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -63,6 +64,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [printFooter, setPrintFooter] = useState<{ text: string; logo: string }>({ text: "", logo: "" });
   const [loading, setLoading] = useState(true);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -79,13 +81,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   // Auto-print when opened with ?print=1 (from list print button)
   useEffect(() => {
     if (autoPrint && !loading && voucher) {
-      const t = setTimeout(() => setShowPrintPreview(true), 400);
+      const t = setTimeout(() => setShowTemplateSelector(true), 400);
       return () => clearTimeout(t);
     }
     return undefined;
   }, [autoPrint, loading, voucher]);
 
-  const handlePrint = () => setShowPrintPreview(true);
+  const handlePrint = () => setShowTemplateSelector(true);
 
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
 
@@ -157,6 +159,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
     return (
       <>
+        {showTemplateSelector && (
+          <TemplatePrintModal
+            voucherType={voucherType}
+            voucher={voucher}
+            business={business}
+            onClose={() => setShowTemplateSelector(false)}
+            onFallback={() => { setShowTemplateSelector(false); setShowPrintPreview(true); }}
+          />
+        )}
         {showPrintPreview && (
           <PrintPreviewModal
             printableId="printable"
@@ -366,7 +377,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <td className={tdCls} style={{ textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                   </tr>
                 ))}
-                {Array.from({ length: 8 }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 5 - (voucher.items || []).length) }).map((_, i) => (
                   <tr key={`empty-${i}`}>
                     <td style={{ height: "20px" }} />
                     <td /><td /><td /><td /><td />
@@ -545,6 +556,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
+      {showTemplateSelector && (
+        <TemplatePrintModal
+          voucherType={voucherType}
+          voucher={voucher}
+          business={business}
+          onClose={() => setShowTemplateSelector(false)}
+          onFallback={() => { setShowTemplateSelector(false); setShowPrintPreview(true); }}
+        />
+      )}
       {showPrintPreview && (
         <PrintPreviewModal
           printableId="printable"
@@ -883,7 +903,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   );
                 })}
                 {/* Empty rows to fill page (Tally style) */}
-                {Array.from({ length: Math.max(0, 10 - (voucher.items || []).length) }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 5 - (voucher.items || []).length) }).map((_, i) => (
                   <tr key={`empty-${i}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td className="px-2 py-2 text-center text-xs text-gray-200">{(voucher.items || []).length + i + 1}</td>
                     <td className="px-2 py-2">&nbsp;</td>
