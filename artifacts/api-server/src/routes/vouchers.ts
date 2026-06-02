@@ -72,16 +72,16 @@ async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
 
 async function getVoucherById(req: any, res: any) {
   const businessId = req.user!.businessId!;
-  const voucher = await db.query.vouchersTable.findFirst({
-    where: and(eq(vouchersTable.id, Number(req.params.id)), eq(vouchersTable.businessId, businessId)),
-  });
+  const [voucher] = await db.select().from(vouchersTable)
+    .where(and(eq(vouchersTable.id, Number(req.params.id)), eq(vouchersTable.businessId, businessId)))
+    .limit(1);
   if (!voucher) { res.status(404).json({ error: "Not Found" }); return; }
-  const party = await db.query.partiesTable.findFirst({ where: eq(partiesTable.id, voucher.partyId) });
+  const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, voucher.partyId)).limit(1);
   const items = await db.select().from(voucherItemsTable).where(eq(voucherItemsTable.voucherId, voucher.id));
 
   let linkedVoucherNumber: string | null = null;
   if (voucher.linkedVoucherId) {
-    const linked = await db.query.vouchersTable.findFirst({ where: eq(vouchersTable.id, voucher.linkedVoucherId) });
+    const [linked] = await db.select().from(vouchersTable).where(eq(vouchersTable.id, voucher.linkedVoucherId)).limit(1);
     linkedVoucherNumber = linked?.voucherNumber ?? null;
   }
 

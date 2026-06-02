@@ -13,6 +13,8 @@ declare global {
         list: () => Promise<{ name: string; path: string; sizeKb: number; createdAt: string }[]>;
         create: () => Promise<{ success: boolean; fileName?: string; error?: string }>;
         openFolder: () => Promise<boolean>;
+        getFolder: () => Promise<string>;
+        chooseFolder: () => Promise<{ canceled: boolean; path?: string }>;
         chooseAndRestore: () => Promise<{ canceled: boolean; filePath?: string }>;
         restore: (filePath: string, pin: string) => Promise<{ success: boolean; error?: string }>;
       };
@@ -47,16 +49,24 @@ export default function BackupSettings() {
   // Backup list collapse
   const [showList, setShowList] = useState(false);
 
+  // Backup location
+  const [backupFolder, setBackupFolder] = useState<string>("");
+  const [lastBackedFile, setLastBackedFile] = useState<string | null>(null);
+
   const desktop = window.bizcorDesktop?.backup;
 
   async function loadState() {
     if (!desktop) return;
     setLoading(true);
     try {
-      const [ps, en, bl] = await Promise.all([desktop.isPinSet(), desktop.isEnabled(), desktop.list()]);
+      const [ps, en, bl, folder] = await Promise.all([
+        desktop.isPinSet(), desktop.isEnabled(), desktop.list(),
+        desktop.getFolder().catch(() => ""),
+      ]);
       setPinSet(ps);
       setEnabled(en);
       setBackups(bl);
+      setBackupFolder(folder || "");
     } finally {
       setLoading(false);
     }
@@ -101,6 +111,7 @@ export default function BackupSettings() {
     try {
       const res = await desktop.create();
       if (res.success) {
+        setLastBackedFile(res.fileName || null);
         flash("ok", `Backup bana diya: ${res.fileName}`);
         loadState();
       } else {
@@ -108,6 +119,15 @@ export default function BackupSettings() {
       }
     } finally {
       setBackingUp(false);
+    }
+  }
+
+  async function handleChooseFolder() {
+    if (!desktop) return;
+    const res = await desktop.chooseFolder();
+    if (!res.canceled && res.path) {
+      setBackupFolder(res.path);
+      flash("ok", "Backup location save ho gayi!");
     }
   }
 
@@ -256,6 +276,24 @@ export default function BackupSettings() {
             </div>
           )}
 
+          {/* Backup Location */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">Backup Location</p>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono break-all">{backupFolder || "Default folder"}</p>
+              </div>
+              <button onClick={handleChooseFolder}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-gray-50 shrink-0 ml-3">
+                <FolderOpen className="w-3.5 h-3.5" /> Change
+              </button>
+            </div>
+            <button onClick={() => desktop?.openFolder()}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-lg text-xs font-medium transition-colors">
+              <FolderOpen className="w-3.5 h-3.5" /> Backup Folder Kholo
+            </button>
+          </div>
+
           {/* Backup Now */}
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center justify-between">
@@ -270,6 +308,18 @@ export default function BackupSettings() {
               </button>
             </div>
             {!pinSet && <p className="text-xs text-amber-600 mt-2">⚠ Pehle PIN set karein (Auto backup toggle karo)</p>}
+            {lastBackedFile && (
+              <div className="mt-3 flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-green-800 text-xs">
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span className="font-mono">{lastBackedFile}</span>
+                </div>
+                <button onClick={() => desktop?.openFolder()}
+                  className="flex items-center gap-1 text-xs text-green-700 hover:text-green-900 font-medium shrink-0 ml-2 underline">
+                  <FolderOpen className="w-3 h-3" /> Folder Kholo
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Restore */}
@@ -313,13 +363,6 @@ export default function BackupSettings() {
               </div>
             )}
           </div>
-
-          {/* Open Folder */}
-          <button onClick={() => desktop?.openFolder()}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:underline px-1">
-            <FolderOpen className="w-4 h-4" />
-            Backup Folder Kholo
-          </button>
 
           {/* Backup List */}
           {backups.length > 0 && (

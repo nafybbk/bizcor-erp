@@ -13,9 +13,19 @@ const CONFIG_SECRET = "BizCorBackup2025!SecretKey#Safe";
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
 function getUserData() { return app.getPath("userData"); }
-function getBackupDir() { return path.join(getUserData(), "bizcor-backups"); }
 function getConfigFile() { return path.join(getUserData(), "backup-config.dat"); }
 function getSqliteDbPath() { return path.join(getUserData(), "bizcor-db", "bizcor.db"); }
+
+function getBackupDir() {
+  const cfg = loadConfig();
+  return cfg.customBackupDir || path.join(getUserData(), "bizcor-backups");
+}
+
+function setCustomBackupDir(dirPath) {
+  const cfg = loadConfig();
+  cfg.customBackupDir = dirPath;
+  saveConfig(cfg);
+}
 
 function ensureBackupDir() {
   const dir = getBackupDir();
@@ -286,5 +296,6 @@ module.exports = {
   listBackups,
   restoreFromFile,
   getBackupDir,
+  setCustomBackupDir,
   getSqliteDbPath,
 };
