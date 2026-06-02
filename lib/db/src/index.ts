@@ -75,6 +75,29 @@ if (sqlitePath) {
   });
   db = drizzle(pool, { schema: pgSchema });
   _schema = pgSchema;
+
+  // Auto-migrate missing columns (safe — IF NOT EXISTS, runs on every cold start)
+  const pgMigrations = [
+    "ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_id INTEGER",
+    "ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_version INTEGER",
+    "ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS rendered_snapshot JSONB",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS pending_token TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS voucher_code TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS activation_type TEXT DEFAULT 'cloud'",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_code TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referred_by TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_count INTEGER DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS bonus_days_added INTEGER DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS package_config TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS logo TEXT",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS active_voucher_id INTEGER",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_reward_count INTEGER DEFAULT 0",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMPTZ",
+    "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_start_date TIMESTAMPTZ",
+  ];
+  for (const stmt of pgMigrations) {
+    try { await pool.query(stmt); } catch { /* ignore if already exists */ }
+  }
 }
 
 export { db, pool };
