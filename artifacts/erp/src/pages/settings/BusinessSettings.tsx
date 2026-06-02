@@ -312,10 +312,13 @@ export default function BusinessSettings() {
               onChange={e => setForm((f: any) => ({ ...f, invoiceTemplate: e.target.value }))}>
               <option value="classic">Classic — Modern (colored header, cards)</option>
               <option value="tally">Tally Style — Plain tabular (black border, traditional)</option>
+              <option value="template">Custom Template — Report Designer se banaya hua</option>
             </select>
             <p className="text-xs text-gray-400 mt-1">
               {(form.invoiceTemplate || "classic") === "tally"
                 ? "Plain bordered layout — like Tally invoice. Best for laser printers."
+                : (form.invoiceTemplate || "classic") === "template"
+                ? "Report Designer ka template use hoga. Print pe template chooser dikhega."
                 : "Modern colored layout with logo, HSN table, and formatted sections."}
             </p>
           </div>
