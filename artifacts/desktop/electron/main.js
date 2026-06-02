@@ -369,12 +369,25 @@ ipcMain.handle("backup:verify-pin", (_, pin) => backup.verifyPin(pin));
 ipcMain.handle("backup:is-enabled", () => backup.isEnabled());
 ipcMain.handle("backup:set-enabled", (_, val) => { backup.setEnabled(val); return true; });
 ipcMain.handle("backup:list", () => backup.listBackups());
-ipcMain.handle("backup:open-folder", () => {
+ipcMain.handle("backup:open-folder", async () => {
   const dir = backup.getBackupDir();
   fs.mkdirSync(dir, { recursive: true });
-  shell.openPath(dir);
+  await shell.openPath(dir);
   return true;
 });
+
+ipcMain.handle("backup:choose-folder", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: "Backup Location Chunein",
+    defaultPath: backup.getBackupDir(),
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (canceled || !filePaths[0]) return { canceled: true };
+  backup.setCustomBackupDir(filePaths[0]);
+  return { canceled: false, path: filePaths[0] };
+});
+
+ipcMain.handle("backup:get-folder", () => backup.getBackupDir());
 
 ipcMain.handle("backup:create", async () => {
   try {
@@ -388,6 +401,7 @@ ipcMain.handle("backup:create", async () => {
 ipcMain.handle("backup:choose-and-restore", async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: "Backup File Chunein",
+    defaultPath: backup.getBackupDir(),
     filters: [{ name: "BizCor Backup", extensions: ["bizcor"] }],
     properties: ["openFile"],
   });
