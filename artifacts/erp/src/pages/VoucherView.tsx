@@ -82,8 +82,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   useEffect(() => {
     if (autoPrint && !loading && voucher) {
       const t = setTimeout(() => {
-        if (invoiceTemplate === "template") setShowTemplateSelector(true);
-        else setShowPrintPreview(true);
+        setShowPrintPreview(true);
       }, 400);
       return () => clearTimeout(t);
     }
@@ -91,8 +90,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   }, [autoPrint, loading, voucher]);
 
   const handlePrint = () => {
-    if (invoiceTemplate === "template") setShowTemplateSelector(true);
-    else setShowPrintPreview(true);
+    setShowPrintPreview(true);
   };
 
   const handleEdit = () => navigate(`/${voucherType}/${params.id}/edit`);
@@ -165,7 +163,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
     return (
       <>
-        {showTemplateSelector && (
+        {false && (
           <TemplatePrintModal
             voucherType={voucherType}
             voucher={voucher}
@@ -562,7 +560,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
-      {showTemplateSelector && (
+      {false && (
         <TemplatePrintModal
           voucherType={voucherType}
           voucher={voucher}
