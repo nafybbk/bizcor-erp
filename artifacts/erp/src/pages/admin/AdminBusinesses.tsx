@@ -609,10 +609,7 @@ export default function AdminBusinesses() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Plan Expiry Date</label>
-                <input type="date" className={inputCls} value={editForm.planExpiresAt} onChange={e => setEditForm(f => ({ ...f, planExpiresAt: e.target.value }))} />
-              </div>
+
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={editForm.isTrial} onChange={e => setEditForm(f => ({ ...f, isTrial: e.target.checked }))} className="rounded" />
                 <span className="text-sm text-gray-700">On Free Trial</span>
