@@ -63,10 +63,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [business, setBusiness] = useState<any>(null);
   const [printFooter, setPrintFooter] = useState<{ text: string; logo: string }>({ text: "", logo: "" });
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
 
   useEffect(() => {
+    setFetchError(null);
     Promise.all([
       api.get<any>(`/${voucherType}/${params.id}`),
       api.get<any>("/businesses/current").catch(() => null),
@@ -75,7 +77,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
       setVoucher(v);
       setBusiness(b);
       setPrintFooter({ text: s?.printFooterText || "", logo: s?.printFooterLogo || "" });
-    }).catch(console.error).finally(() => setLoading(false));
+    }).catch((err: any) => {
+      console.error("VoucherView fetch error:", err);
+      setFetchError(`${err?.status ? `[${err.status}] ` : ""}${err?.message || "Unknown error"}`);
+    }).finally(() => setLoading(false));
   }, [params.id]);
 
   // Auto-print when opened with ?print=1 (from list print button)
@@ -119,7 +124,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
-  if (!voucher) return <div className="text-center py-16 text-gray-400">Voucher not found</div>;
+  if (!voucher) return (
+    <div className="text-center py-16 text-gray-400">
+      <div className="text-lg mb-2">Voucher not found</div>
+      {fetchError && <div className="text-xs text-red-400 font-mono mt-1 px-4">{fetchError}</div>}
+    </div>
+  );
 
   const isInterState = voucher.isInterState;
   const docTitle = DOC_TITLES[voucherType] || "INVOICE";
