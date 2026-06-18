@@ -300,12 +300,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               const isFirstPage = pageIdx === 0;
               const isLastPage  = pageIdx === totalPages - 1;
               const startIdx    = pageIdx === 0 ? 0 : ROWS_FIRST + (pageIdx - 1) * ROWS_CONT;
-              const rowsForPage = isFirstPage ? ROWS_FIRST : ROWS_CONT;
-              const emptyCount  = isLastPage ? Math.max(0, rowsForPage - pageItems.length) : 0;
+              // No fixed empty rows — items table uses flex to fill available space
 
               return (
                 <div key={pageIdx} className="invoice-page bg-white border-2 border-black text-gray-900"
-                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px" }}>
+                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px", display: "flex", flexDirection: "column", minHeight: "252mm" }}>
 
                   {/* HEADER */}
                   {isFirstPage ? (
@@ -412,8 +411,9 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     </div>
                   )}
 
-                  {/* ITEMS TABLE — no row borders, only column separators */}
-                  <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
+                  {/* ITEMS TABLE — flex:1 stretches to fill available page space */}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                  <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
                     <thead>
                       <tr>
                         <th style={{ ...thStyle, width: "28px" }}>S.No</th>
@@ -463,13 +463,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           <td style={{ ...tdItem, textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                         </tr>
                       ))}
-                      {Array.from({ length: emptyCount }).map((_, i) => (
-                        <tr key={`e-${i}`} style={{ height: "18px" }}>
-                          {Array.from({ length: colCount }).map((_, ci) => (
-                            <td key={ci} style={{ borderLeft: "1px solid #000" }} />
-                          ))}
-                        </tr>
-                      ))}
+                      {/* Single spacer row fills remaining space naturally */}
+                      <tr style={{ height: "100%" }}>
+                        {Array.from({ length: colCount }).map((_, ci) => (
+                          <td key={ci} style={{ borderLeft: "1px solid #000" }} />
+                        ))}
+                      </tr>
                     </tbody>
                     <tfoot>
                       <tr><td colSpan={20} style={{ borderTop: "1px solid #000", padding: 0, height: 0 }} /></tr>
@@ -490,6 +489,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                       </tr>
                     </tfoot>
                   </table>
+                  </div>
 
                   {/* FOOTER SECTIONS — last page only */}
                   {isLastPage && (
@@ -986,145 +986,23 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   </tr>
                   );
                 })}
-                {/* Empty rows to fill page (Tally style) */}
-                {Array.from({ length: Math.max(0, 20 - (voucher.items || []).length) }).map((_, i) => (
-                  <tr key={`empty-${i}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td className="px-2 py-2 text-center text-xs text-gray-200">{(voucher.items || []).length + i + 1}</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    {hasDiscount && <td className="px-2 py-2">&nbsp;</td>}
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                    <td className="px-2 py-2">&nbsp;</td>
-                  </tr>
-                ))}
+                {/* Single spacer row fills remaining space */}
+                <tr style={{ height: "100%" }}>
+                  <td /><td /><td /><td /><td /><td />
+                </tr>
               </tbody>
             </table>
           </div>
 
-          {/* ---- TOTAL QTY ROW ---- */}
-          {(() => {
-            const totalQty = (voucher.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
-            const totalItems = (voucher.items || []).length;
-            return (
-              <div className="border-t border-gray-200 px-4 py-2 bg-gray-50 text-xs text-gray-600 flex gap-6">
-                <span>Total Items: <strong>{totalItems}</strong></span>
-                <span>Total Qty: <strong>{fmtQty(totalQty)}</strong></span>
-              </div>
-            );
-          })()}
-
-          {/* ---- HSN SUMMARY TABLE ---- */}
-          {(() => {
-            const hsnMap: Record<string, { taxableValue: number; igst: number; cgst: number; sgst: number; rate: number }> = {};
-            (voucher.items || []).forEach((item: any) => {
-              const hsn = item.hsnCode || "—";
-              if (!hsnMap[hsn]) hsnMap[hsn] = { taxableValue: 0, igst: 0, cgst: 0, sgst: 0, rate: item.taxRate || 0 };
-              hsnMap[hsn].taxableValue += Number(item.taxableAmount || 0);
-              hsnMap[hsn].igst += Number(item.igst || 0);
-              hsnMap[hsn].cgst += Number(item.cgst || 0);
-              hsnMap[hsn].sgst += Number(item.sgst || 0);
-            });
-            const rows = Object.entries(hsnMap);
-            if (rows.length === 0) return null;
-            const totals = rows.reduce((acc, [, v]) => ({
-              taxableValue: acc.taxableValue + v.taxableValue,
-              igst: acc.igst + v.igst,
-              cgst: acc.cgst + v.cgst,
-              sgst: acc.sgst + v.sgst,
-            }), { taxableValue: 0, igst: 0, cgst: 0, sgst: 0 });
-            return (
-              <div className="border-t border-gray-200">
-                <div className="px-4 py-1.5 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-widest">HSN / SAC Summary</div>
-                <table className="w-full text-xs border-t border-gray-200">
-                  <thead>
-                    <tr className="bg-gray-100 text-gray-600">
-                      <th className="px-3 py-1.5 text-left font-medium">HSN/SAC</th>
-                      <th className="px-3 py-1.5 text-right font-medium">Taxable Value</th>
-                      <th className="px-3 py-1.5 text-center font-medium">Rate</th>
-                      {isInterState
-                        ? <th className="px-3 py-1.5 text-right font-medium">IGST</th>
-                        : <><th className="px-3 py-1.5 text-right font-medium">CGST</th><th className="px-3 py-1.5 text-right font-medium">SGST</th></>
-                      }
-                      <th className="px-3 py-1.5 text-right font-medium">Total Tax</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {rows.map(([hsn, v]) => (
-                      <tr key={hsn}>
-                        <td className="px-3 py-1.5 font-mono">{hsn}</td>
-                        <td className="px-3 py-1.5 text-right">{fmt.number(v.taxableValue)}</td>
-                        <td className="px-3 py-1.5 text-center">{v.rate}%</td>
-                        {isInterState
-                          ? <td className="px-3 py-1.5 text-right">{fmt.number(v.igst)}</td>
-                          : <><td className="px-3 py-1.5 text-right">{fmt.number(v.cgst)}</td><td className="px-3 py-1.5 text-right">{fmt.number(v.sgst)}</td></>
-                        }
-                        <td className="px-3 py-1.5 text-right font-medium">{fmt.number(isInterState ? v.igst : v.cgst + v.sgst)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-gray-300 bg-gray-50 font-bold">
-                    <tr>
-                      <td className="px-3 py-1.5">TOTAL</td>
-                      <td className="px-3 py-1.5 text-right">{fmt.number(totals.taxableValue)}</td>
-                      <td />
-                      {isInterState
-                        ? <td className="px-3 py-1.5 text-right">{fmt.number(totals.igst)}</td>
-                        : <><td className="px-3 py-1.5 text-right">{fmt.number(totals.cgst)}</td><td className="px-3 py-1.5 text-right">{fmt.number(totals.sgst)}</td></>
-                      }
-                      <td className="px-3 py-1.5 text-right">{fmt.number(isInterState ? totals.igst : totals.cgst + totals.sgst)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            );
-          })()}
-
-          {/* ---- TOTALS + BANK ---- */}
-          <div className="border-t-2 border-gray-800 grid grid-cols-2" style={{ pageBreakInside: "avoid" }}>
-            {/* Left: Bank + Amount in words */}
-            <div className="px-7 py-5 border-r border-gray-200 space-y-4">
-              {/* Amount in words */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Amount in Words</div>
-                <div className="text-sm font-semibold text-blue-900">{toWords(Number(voucher.grandTotal) || 0)}</div>
-              </div>
-
-              {/* Bank Details */}
-              {(biz.bankName || biz.bankAccount) && (
-                <div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Bank Details</div>
-                  <div className="text-sm space-y-0.5">
-                    {biz.bankName && <div><span className="text-gray-500">Bank:</span> <span className="font-medium">{biz.bankName}</span></div>}
-                    {biz.bankAccount && <div><span className="text-gray-500">A/C No:</span> <span className="font-mono font-medium">{biz.bankAccount}</span></div>}
-                    {biz.bankIfsc && <div><span className="text-gray-500">IFSC:</span> <span className="font-mono font-medium">{biz.bankIfsc}</span></div>}
-                    {biz.bankBranch && <div><span className="text-gray-500">Branch:</span> <span className="font-medium">{biz.bankBranch}</span></div>}
-                  </div>
+          {/* ---- TOTALS SUMMARY ---- */}
+          <div className="px-7 py-3 border-t border-gray-100 flex flex-col items-end">
+            <div className="w-full max-w-xs space-y-1">
+              {Number(voucher.totalDiscount) > 0 && (
+                <div className="flex justify-between text-gray-600 text-xs">
+                  <span>Discount</span>
+                  <span className="font-medium text-red-500">-{fmt.currency(voucher.totalDiscount)}</span>
                 </div>
               )}
-
-              {/* Notes */}
-              {voucher.notes && (
-                <div>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Notes</div>
-                  <div className="text-sm text-gray-600 whitespace-pre-line">{voucher.notes}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Right: Tax summary */}
-            <div className="px-7 py-5">
-              <div className="space-y-1.5 text-sm ml-auto max-w-xs">
-                {/* Block 1 — tax breakdown */}
-                {Number(voucher.totalDiscount) > 0 && (
-                  <div className="flex justify-between text-red-500 text-xs">
-                    <span>Discount</span><span>-{fmt.currency(voucher.totalDiscount)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-gray-600">
                   <span>Taxable Amount</span>
                   <span className="font-medium">{fmt.currency(voucher.taxableAmount)}</span>
@@ -1193,7 +1071,6 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <span>Balance Due</span><span>{fmt.currency(voucher.balanceDue)}</span>
                   </div>
                 )}
-              </div>
             </div>
           </div>
 
