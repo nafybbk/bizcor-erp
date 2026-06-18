@@ -1,6 +1,6 @@
 {
   "name": "bizcor-erp",
-  "version": "2.4.28",
+  "version": "2.4.29",
   "description": "BizCor ERP - LAN Server for Indian Businesses",
   "main": "electron/main.js",
   "scripts": {
