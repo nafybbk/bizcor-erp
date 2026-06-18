@@ -66,6 +66,34 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [serverPrinting, setServerPrinting] = useState(false);
+
+  // LAN mode = accessed via IP address (not localhost or domain)
+  const isLanMode = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(window.location.hostname);
+
+  // Map voucherType route to short type code for print job
+  const voucherTypeCode: Record<string, string> = {
+    "sales/invoices": "SI", "sales/credit-notes": "CN",
+    "purchases/bills": "PB", "purchases/debit-notes": "DN",
+  };
+
+  const handleServerPrint = async () => {
+    const token = localStorage.getItem("erp_token") || sessionStorage.getItem("erp_token") || "";
+    if (!token) { alert("Login session not found. Please re-login."); return; }
+    setServerPrinting(true);
+    try {
+      await api.post("/print-server", {
+        voucherId: params.id,
+        voucherType: voucherTypeCode[voucherType] || "SI",
+        token,
+      });
+      alert("✅ Print request bhej diya server ke printer pe!");
+    } catch (err: any) {
+      alert(`Print error: ${err?.message || "Failed"}`);
+    } finally {
+      setServerPrinting(false);
+    }
+  };
 
   useEffect(() => {
     setFetchError(null);
@@ -237,6 +265,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 className="flex items-center gap-1.5 px-3 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
                 <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
               </button>
+              {isLanMode && (
+                <button onClick={handleServerPrint} disabled={serverPrinting}
+                  className="flex items-center gap-1.5 px-3 py-2 border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg text-sm font-medium disabled:opacity-60">
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">{serverPrinting ? "Sending..." : "Server Print"}</span>
+                </button>
+              )}
             </div>
           </div>
 

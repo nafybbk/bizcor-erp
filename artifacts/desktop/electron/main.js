@@ -293,6 +293,77 @@ function showHeartbeatWarning(phase, message) {
   }).catch(() => {});
 }
 
+// ─── LAN Server-side Print ────────────────────────────────────────────────────
+
+function getPrintQueueFile() {
+  return path.join(app.getPath("userData"), "bizcor-db", "print-queue.json");
+}
+
+const TYPE_TO_ROUTE = {
+  SI: "sales/invoices", CN: "sales/credit-notes",
+  PB: "purchases/bills", DN: "purchases/debit-notes",
+  REC: "payments/receipts", PAY: "payments/payments",
+};
+
+let _lastPrintJobId = null;
+let _printBusy = false;
+
+async function processPrintJob(job) {
+  if (_printBusy) return;
+  _printBusy = true;
+  try {
+    const serverPort = server.getServerPort();
+    const route = TYPE_TO_ROUTE[job.voucherType] || "sales/invoices";
+    const invoiceUrl = `http://localhost:${serverPort}/${route}/${job.voucherId}`;
+
+    const printWin = new BrowserWindow({
+      show: false, width: 1200, height: 900,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    let loadCount = 0;
+    printWin.webContents.on("did-finish-load", () => {
+      loadCount++;
+      if (loadCount === 1) {
+        // First load (data: URL) — sets token then navigates to invoice
+        printWin.webContents.executeJavaScript(
+          `localStorage.setItem('erp_token', ${JSON.stringify(job.token)}); location.replace(${JSON.stringify(invoiceUrl)});`
+        ).catch(() => {});
+      } else if (loadCount === 2) {
+        // Invoice loaded with auth — wait for React render then print
+        setTimeout(() => {
+          printWin.webContents.print({ silent: true, printBackground: true }, () => {
+            printWin.close();
+            try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
+            _printBusy = false;
+          });
+        }, 3000);
+      }
+    });
+
+    printWin.on("closed", () => { _printBusy = false; });
+
+    // Load a blank page first so we can set localStorage before navigating
+    printWin.loadURL("data:text/html,<html><body></body></html>");
+  } catch (err) {
+    console.error("[print] Error:", err.message);
+    _printBusy = false;
+  }
+}
+
+function startPrintPoller() {
+  setInterval(() => {
+    try {
+      const qFile = getPrintQueueFile();
+      if (!fs.existsSync(qFile)) return;
+      const job = JSON.parse(fs.readFileSync(qFile, "utf8"));
+      if (!job || job.id === _lastPrintJobId) return;
+      _lastPrintJobId = job.id;
+      processPrintJob(job).catch(() => { _printBusy = false; });
+    } catch (_) {}
+  }, 2000);
+}
+
 async function startHeartbeat() {
   try {
     const businessCode = await fetchLocalBusinessCode();
@@ -474,6 +545,8 @@ if (!gotTheLock) {
         // Auto backup: check every hour if today's backup is pending
         setTimeout(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 30000);
         setInterval(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 60 * 60 * 1000);
+        // LAN client print jobs — poll every 2s
+        startPrintPoller();
       } else if (status === "error") {
         closeSplash();
         showServerError();

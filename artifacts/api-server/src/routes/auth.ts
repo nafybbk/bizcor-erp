@@ -118,8 +118,10 @@ router.post("/login", async (req, res) => {
         let maxAllowed = 2; // default free: admin + 1 staff
 
         if (business.planId) {
-          const plan = (await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1))[0] ?? null;
-          if (plan?.maxUsers) maxAllowed = plan.maxUsers;
+          try {
+            const plan = (await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1))[0] ?? null;
+            if (plan?.maxUsers) maxAllowed = plan.maxUsers;
+          } catch { /* plans column missing in old SQLite DB — use default limit */ }
         } else if (business.isTrial) {
           maxAllowed = 3; // trial: admin + 2 staff
         }
@@ -141,14 +143,20 @@ router.post("/login", async (req, res) => {
       if (isDesktopMode && business.planId) {
         const lanIp = getIp(req);
         if (lanIp && lanIp !== "127.0.0.1" && lanIp !== "::1") {
-          const { canConnectLan, parseLanLimit } = await import("../lib/lan-tracker");
-          const planForLan = await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1);
-          const lanLimit = parseLanLimit((planForLan[0]?.features as string[]) || []);
-          if (lanLimit > 0 && !canConnectLan(lanIp, lanLimit)) {
-            throw {
-              code: "LAN_LIMIT_EXCEEDED",
-              message: `LAN client limit puri ho gayi. Is plan mein sirf ${lanLimit} clients ek saath connect ho sakte hain.`,
-            };
+          try {
+            const { canConnectLan, parseLanLimit } = await import("../lib/lan-tracker");
+            const planForLan = await db.select().from(plansTable).where(eq(plansTable.id, business.planId)).limit(1);
+            const lanLimit = parseLanLimit((planForLan[0]?.features as string[]) || []);
+            if (lanLimit > 0 && !canConnectLan(lanIp, lanLimit)) {
+              throw {
+                code: "LAN_LIMIT_EXCEEDED",
+                message: `LAN client limit puri ho gayi. Is plan mein sirf ${lanLimit} clients ek saath connect ho sakte hain.`,
+              };
+            }
+          } catch (e: unknown) {
+            const err = e as { code?: string };
+            if (err?.code === "LAN_LIMIT_EXCEEDED") throw e;
+            // plans.package_config column missing in old SQLite DB — skip LAN limit check
           }
         }
       }

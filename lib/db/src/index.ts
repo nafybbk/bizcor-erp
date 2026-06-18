@@ -47,6 +47,8 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN referral_reward_count INTEGER DEFAULT 0",
     "ALTER TABLE businesses ADD COLUMN referral_rewarded_at TEXT",
     "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
+    // plans table — package_config added to plansTable schema (login queries plans)
+    "ALTER TABLE plans ADD COLUMN package_config TEXT",
   ];
   for (const stmt of migrations) {
     try { _sqlite.prepare(stmt).run(); } catch { /* column already exists */ }
@@ -94,6 +96,7 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_reward_count INTEGER DEFAULT 0",
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMPTZ",
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_start_date TIMESTAMPTZ",
+    "ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config TEXT",
   ];
   for (const stmt of pgMigrations) {
     try { await pool.query(stmt); } catch { /* ignore if already exists */ }
