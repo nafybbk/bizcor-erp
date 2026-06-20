@@ -1,6 +1,30 @@
-// File System Access API helpers
-// Stores folder handle in IndexedDB for persistence across sessions
+// File System helpers — supports both:
+//   Browser: File System Access API (Chrome/Edge)
+//   Electron: Native dialog + fs via IPC (electronAPI)
 
+// ─── Electron detection ───────────────────────────────────────────────────────
+export function isElectron(): boolean {
+  return typeof window !== "undefined" && !!window.electronAPI;
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+// In Electron: handle = string (directory path)
+// In browser:  handle = FileSystemDirectoryHandle
+export type FolderHandle = FileSystemDirectoryHandle | string;
+
+export interface FolderState {
+  handle: FolderHandle | null;
+  name: string | null;
+}
+
+// ─── Electron folder stored in localStorage ───────────────────────────────────
+const ELECTRON_FOLDER_KEY = "bizcor-rd-electron-folder";
+
+function getElectronBasename(fullPath: string): string {
+  return window.electronAPI?.basename(fullPath) ?? fullPath.split(/[\\/]/).pop() ?? fullPath;
+}
+
+// ─── Browser: IndexedDB handle persistence ────────────────────────────────────
 const DB_NAME = "bizcor-rd";
 const STORE = "handles";
 const KEY = "outputFolder";
@@ -14,7 +38,7 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-async function getStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
+async function getBrowserStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
   try {
     const db = await openDB();
     return new Promise((resolve) => {
@@ -28,7 +52,7 @@ async function getStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
   }
 }
 
-async function storeHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+async function storeBrowserHandle(handle: FileSystemDirectoryHandle): Promise<void> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -37,65 +61,93 @@ async function storeHandle(handle: FileSystemDirectoryHandle): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
-    // silent
-  }
+  } catch { /* silent */ }
 }
 
-export interface FolderState {
-  handle: FileSystemDirectoryHandle | null;
-  name: string | null;
-}
-
+// ─── loadStoredFolder ─────────────────────────────────────────────────────────
 export async function loadStoredFolder(): Promise<FolderState> {
-  const handle = await getStoredHandle();
-  if (!handle) return { handle: null, name: null };
+  if (isElectron()) {
+    const savedPath = localStorage.getItem(ELECTRON_FOLDER_KEY);
+    if (!savedPath) return { handle: null, name: null };
+    return { handle: savedPath, name: getElectronBasename(savedPath) };
+  }
 
-  // Verify permission still granted
+  // Browser FSA
+  const handle = await getBrowserStoredHandle();
+  if (!handle) return { handle: null, name: null };
   try {
     const perm = await (handle as any).queryPermission({ mode: "readwrite" });
     if (perm === "granted") return { handle, name: handle.name };
   } catch { /* ignore */ }
-
   return { handle: null, name: null };
 }
 
+// ─── pickFolder ───────────────────────────────────────────────────────────────
 export async function pickFolder(): Promise<FolderState> {
+  if (isElectron()) {
+    const folderPath = await window.electronAPI!.pickFolder();
+    if (!folderPath) return { handle: null, name: null };
+    localStorage.setItem(ELECTRON_FOLDER_KEY, folderPath);
+    return { handle: folderPath, name: getElectronBasename(folderPath) };
+  }
+
+  // Browser FSA
   try {
     const handle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
-    await storeHandle(handle);
+    await storeBrowserHandle(handle);
     return { handle, name: handle.name };
   } catch {
     return { handle: null, name: null };
   }
 }
 
-export async function requestPermission(handle: FileSystemDirectoryHandle): Promise<boolean> {
+// ─── requestPermission ────────────────────────────────────────────────────────
+export async function requestPermission(handle: FolderHandle): Promise<boolean> {
+  if (isElectron()) return true; // Electron always has access
   try {
-    const perm = await (handle as any).requestPermission({ mode: "readwrite" });
+    const perm = await (handle as FileSystemDirectoryHandle as any).requestPermission({ mode: "readwrite" });
     return perm === "granted";
   } catch {
     return false;
   }
 }
 
+// ─── saveJsonToFolder ─────────────────────────────────────────────────────────
 export async function saveJsonToFolder(
-  folder: FileSystemDirectoryHandle,
+  folder: FolderHandle,
   filename: string,
   data: object
 ): Promise<void> {
-  const fileHandle = await folder.getFileHandle(filename, { create: true });
+  const content = JSON.stringify(data, null, 2);
+
+  if (isElectron()) {
+    await window.electronAPI!.writeFile(folder as string, filename, content);
+    return;
+  }
+
+  // Browser FSA
+  const dirHandle = folder as FileSystemDirectoryHandle;
+  const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
   const writable = await (fileHandle as any).createWritable();
-  await writable.write(JSON.stringify(data, null, 2));
+  await writable.write(content);
   await writable.close();
 }
 
+// ─── loadJsonFromFolder ───────────────────────────────────────────────────────
 export async function loadJsonFromFolder(
-  folder: FileSystemDirectoryHandle,
+  folder: FolderHandle,
   filename: string
 ): Promise<object | null> {
   try {
-    const fileHandle = await folder.getFileHandle(filename);
+    if (isElectron()) {
+      const content = await window.electronAPI!.readFile(folder as string, filename);
+      if (!content) return null;
+      return JSON.parse(content);
+    }
+
+    // Browser FSA
+    const dirHandle = folder as FileSystemDirectoryHandle;
+    const fileHandle = await dirHandle.getFileHandle(filename);
     const file = await fileHandle.getFile();
     const text = await file.text();
     return JSON.parse(text);
@@ -104,17 +156,38 @@ export async function loadJsonFromFolder(
   }
 }
 
-export async function listJsonFiles(folder: FileSystemDirectoryHandle): Promise<string[]> {
-  const files: string[] = [];
+// ─── listJsonFiles ────────────────────────────────────────────────────────────
+export async function listJsonFiles(folder: FolderHandle): Promise<string[]> {
   try {
-    for await (const [name] of (folder as any).entries()) {
+    if (isElectron()) {
+      return await window.electronAPI!.listJsonFiles(folder as string);
+    }
+
+    // Browser FSA
+    const files: string[] = [];
+    const dirHandle = folder as FileSystemDirectoryHandle;
+    for await (const [name] of (dirHandle as any).entries()) {
       if (name.endsWith(".json")) files.push(name);
     }
-  } catch { /* ignore */ }
-  return files.sort();
+    return files.sort();
+  } catch {
+    return [];
+  }
 }
 
+// ─── openJsonFile ─────────────────────────────────────────────────────────────
 export async function openJsonFile(): Promise<{ data: object; filename: string } | null> {
+  if (isElectron()) {
+    const result = await window.electronAPI!.openFile();
+    if (!result) return null;
+    try {
+      return { data: JSON.parse(result.content), filename: result.filename };
+    } catch {
+      return null;
+    }
+  }
+
+  // Browser FSA
   try {
     const [fileHandle] = await (window as any).showOpenFilePicker({
       types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
@@ -128,17 +201,25 @@ export async function openJsonFile(): Promise<{ data: object; filename: string }
   }
 }
 
+// ─── saveAsJsonFile ───────────────────────────────────────────────────────────
 export async function saveAsJsonFile(
   data: object,
   suggestedName: string
 ): Promise<boolean> {
+  const content = JSON.stringify(data, null, 2);
+
+  if (isElectron()) {
+    return await window.electronAPI!.saveFileAs(suggestedName, content);
+  }
+
+  // Browser FSA
   try {
     const fileHandle = await (window as any).showSaveFilePicker({
       suggestedName,
       types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
     });
     const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(data, null, 2));
+    await writable.write(content);
     await writable.close();
     return true;
   } catch {
@@ -147,5 +228,5 @@ export async function saveAsJsonFile(
 }
 
 export function isFSASupported(): boolean {
-  return "showDirectoryPicker" in window;
+  return isElectron() || "showDirectoryPicker" in window;
 }

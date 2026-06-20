@@ -12,7 +12,7 @@ import type {
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
 import { getPaperDimensions } from "@/lib/reportEngine/paperSizes";
 import { loadStoredFolder, requestPermission, saveJsonToFolder, loadJsonFromFolder, pickFolder, openJsonFile, saveAsJsonFile } from "@/lib/fileSystem";
-import type { FolderState } from "@/lib/fileSystem";
+import type { FolderState, FolderHandle } from "@/lib/fileSystem";
 import { Loader2, FolderOpen } from "lucide-react";
 
 // ─── Exported types (used by DesignerCanvas) ──────────────────────────────────
@@ -333,7 +333,7 @@ export default function Designer() {
     }
   }
 
-  async function ensurePermission(): Promise<FileSystemDirectoryHandle | null> {
+  async function ensurePermission(): Promise<FolderHandle | null> {
     if (!folder.handle) return null;
     const ok = await requestPermission(folder.handle);
     return ok ? folder.handle : null;
