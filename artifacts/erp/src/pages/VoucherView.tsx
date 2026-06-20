@@ -304,7 +304,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
               return (
                 <div key={pageIdx} className="invoice-page bg-white border-2 border-black text-gray-900"
-                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px" }}>
+                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px", display: "flex", flexDirection: "column", minHeight: "257mm" }}>
 
                   {/* HEADER */}
                   {isFirstPage ? (
@@ -412,7 +412,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   )}
 
                   {/* ITEMS TABLE */}
-                  <div>
+                  <div style={{ flex: 1 }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
                     <thead>
                       <tr>
@@ -473,7 +473,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                             : <em style={{ color: "#666", fontWeight: "normal" }}>Continued on next page...</em>
                           }
                         </td>
-                        <td style={tdItem} colSpan={3} />
+                        <td style={tdItem} colSpan={4} />
                         {hasDiscount && <td style={tdItem} />}
                         {isInterState
                           ? <td style={{ ...tdItem, textAlign: "right", fontWeight: "bold" }}>{isLastPage ? fmt.number(voucher.totalIgst) : ""}</td>
