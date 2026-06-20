@@ -3,7 +3,7 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { formatPrintNumber } from "@/lib/numberFormat";
-import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2 } from "lucide-react";
+import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2, Type } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
 import TemplatePrintModal from "@/components/TemplatePrintModal";
@@ -12,6 +12,30 @@ interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
   listHref: string;
 }
+
+const FS_KEY = "bizcor_invoice_font_sizes";
+const DEFAULT_FS = {
+  bizName: 18,
+  bizInfo: 10,
+  docTitle: 14,
+  partyName: 13,
+  partyLabel: 10,
+  addrLabel: 9,
+  addrText: 10,
+  infoLabel: 10,
+  infoValue: 11,
+  tableHeader: 11,
+  tableItem: 11,
+  itemDesc: 10,
+  hsnTable: 12,
+  totals: 11,
+  netTotal: 13,
+  terms: 11,
+  declaration: 10,
+  signatory: 10,
+  bizFooter: 9,
+};
+type FontSizes = typeof DEFAULT_FS;
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "DRAFT", posted: "POSTED", partial: "PARTIAL", paid: "PAID", cancelled: "CANCELLED",
@@ -67,6 +91,19 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [serverPrinting, setServerPrinting] = useState(false);
+  const [showFontPanel, setShowFontPanel] = useState(false);
+  const [fontSizes, setFontSizes] = useState<FontSizes>(() => {
+    try { return { ...DEFAULT_FS, ...JSON.parse(localStorage.getItem(FS_KEY) || "{}") }; }
+    catch { return DEFAULT_FS; }
+  });
+  const setFs = (key: keyof FontSizes, delta: number) => {
+    setFontSizes(prev => {
+      const next = { ...prev, [key]: Math.max(6, Math.min(32, prev[key] + delta)) };
+      localStorage.setItem(FS_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
+  const resetFs = () => { setFontSizes(DEFAULT_FS); localStorage.removeItem(FS_KEY); };
 
   // LAN mode = accessed via IP address (not localhost or domain)
   const isLanMode = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(window.location.hostname);
@@ -196,10 +233,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
     }), { taxableValue: 0, igst: 0, cgst: 0, sgst: 0 });
 
     // NO horizontal lines between item rows — only column separators (borderLeft) + outer table border
-    const thStyle: React.CSSProperties = { border: "1px solid #000", padding: "3px 6px", fontSize: "11px", fontWeight: "bold", background: "#f3f4f6", textAlign: "center" };
-    const tdItem: React.CSSProperties  = { borderLeft: "1px solid #000", padding: "2px 6px", fontSize: "11px", verticalAlign: "top" };
-    const tdCls = "border border-black px-1.5 py-0.5 text-xs"; // HSN summary — full grid ok
-    const thCls = "border border-black px-1.5 py-0.5 text-xs font-bold bg-gray-100";
+    const fs = fontSizes;
+    const thStyle: React.CSSProperties = { border: "1px solid #000", padding: "3px 6px", fontSize: `${fs.tableHeader}px`, fontWeight: "bold", background: "#f3f4f6", textAlign: "center" };
+    const tdItem: React.CSSProperties  = { borderLeft: "1px solid #000", padding: "2px 6px", fontSize: `${fs.tableItem}px`, verticalAlign: "top" };
+    const tdCls = "border border-black px-1.5 py-0.5";
+    const thCls = "border border-black px-1.5 py-0.5 font-bold bg-gray-100";
     const colCount = 7 + (hasDiscount ? 1 : 0) + (isInterState ? 0 : 1);
 
     // ── PAGINATION ──────────────────────────────────────────────────────────
@@ -280,6 +318,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
                 <Share2 className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
               </button>
+              <button onClick={() => setShowFontPanel(p => !p)}
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium ${showFontPanel ? "border-indigo-400 text-indigo-700 bg-indigo-100" : "border-gray-300 text-gray-600 bg-white hover:bg-gray-50"}`}>
+                <Type className="w-4 h-4" /> <span className="hidden sm:inline">Fonts</span>
+              </button>
               <button onClick={handlePrint}
                 className="flex items-center gap-1.5 px-3 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
                 <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
@@ -293,6 +335,52 @@ export default function VoucherView({ voucherType, listHref }: Props) {
               )}
             </div>
           </div>
+
+          {/* ===== FONT SIZE PANEL ===== */}
+          {showFontPanel && (
+            <div className="no-print bg-white border border-indigo-200 rounded-xl p-4 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Type className="w-4 h-4 text-indigo-600" />
+                  <span className="font-semibold text-gray-800 text-sm">Invoice Font Sizes</span>
+                  <span className="text-xs text-gray-400">(Live preview — auto saved)</span>
+                </div>
+                <button onClick={resetFs} className="text-xs text-red-500 hover:text-red-700 border border-red-200 rounded px-2 py-1 hover:bg-red-50">Reset All</button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {([
+                  ["bizName",    "Business Name"],
+                  ["bizInfo",    "Biz Address / GSTIN"],
+                  ["docTitle",   "TAX INVOICE title"],
+                  ["partyName",  "Customer Name"],
+                  ["partyLabel", "\"Customer Details:\" label"],
+                  ["addrLabel",  "Billing / Shipping label"],
+                  ["addrText",   "Billing / Shipping address"],
+                  ["infoLabel",  "Invoice# / Date labels"],
+                  ["infoValue",  "Invoice# / Date values"],
+                  ["tableHeader","Table Header row"],
+                  ["tableItem",  "Table Item rows"],
+                  ["itemDesc",   "Item description"],
+                  ["hsnTable",   "HSN Summary table"],
+                  ["totals",     "Amt in Words / Bank"],
+                  ["netTotal",   "Net Total Payable"],
+                  ["terms",      "Terms & Conditions"],
+                  ["declaration","Declaration text"],
+                  ["signatory",  "Authorised Signatory"],
+                  ["bizFooter",  "BizCor footer line"],
+                ] as [keyof FontSizes, string][]).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-600 flex-1 min-w-0 truncate" title={label}>{label}</span>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button onClick={() => setFs(key, -1)} className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center leading-none">−</button>
+                      <span className="w-7 text-center text-xs font-mono font-bold text-indigo-700">{fontSizes[key]}</span>
+                      <button onClick={() => setFs(key, +1)} className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-sm flex items-center justify-center leading-none">+</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* ===== TALLY STYLE PRINTABLE — paginated ===== */}
           <div id="printable">
@@ -312,20 +400,20 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         {biz.logo && <img src={biz.logo} alt="Logo" style={{ width: "50px", height: "50px", objectFit: "contain", flexShrink: 0 }} />}
                         <div>
-                          <div style={{ fontSize: "18px", fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>{biz.name || "Your Business Name"}</div>
-                          {bizAddress && <div style={{ fontSize: "10px" }}>{bizAddress}</div>}
-                          <div style={{ fontSize: "10px" }}>
+                          <div style={{ fontSize: `${fs.bizName}px`, fontWeight: "bold", textTransform: "uppercase", lineHeight: 1.2 }}>{biz.name || "Your Business Name"}</div>
+                          {bizAddress && <div style={{ fontSize: `${fs.bizInfo}px` }}>{bizAddress}</div>}
+                          <div style={{ fontSize: `${fs.bizInfo}px` }}>
                             {biz.phone && <span>Mobile: {biz.phone}</span>}
                             {biz.phone && biz.email && <span>{"  "}</span>}
                             {biz.email && <span>Email: {biz.email}</span>}
                           </div>
-                          {biz.gstin && <div style={{ fontSize: "10px" }}>GSTIN: <strong>{biz.gstin}</strong></div>}
-                          {biz.pan && <div style={{ fontSize: "10px" }}>PAN: {biz.pan}</div>}
+                          {biz.gstin && <div style={{ fontSize: `${fs.bizInfo}px` }}>GSTIN: <strong>{biz.gstin}</strong></div>}
+                          {biz.pan && <div style={{ fontSize: `${fs.bizInfo}px` }}>PAN: {biz.pan}</div>}
                         </div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontWeight: "bold", fontSize: "14px", letterSpacing: "1px" }}>{docTitle}</div>
-                        <div style={{ fontSize: "9px" }}>ORIGINAL FOR RECIPIENT</div>
+                        <div style={{ fontWeight: "bold", fontSize: `${fs.docTitle}px`, letterSpacing: "1px" }}>{docTitle}</div>
+                        <div style={{ fontSize: `${fs.bizFooter}px` }}>ORIGINAL FOR RECIPIENT</div>
                       </div>
                     </div>
                   ) : (
@@ -343,64 +431,64 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   {isFirstPage && (
                     <div className="border-b border-black grid grid-cols-2">
                       <div className="border-r border-black px-2 py-1.5">
-                        <div style={{ fontSize: "10px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Customer Details:</div>
-                        <div style={{ fontSize: "13px", fontWeight: "bold" }}>{voucher.partyName}</div>
-                        {voucher.partyGstin && <div style={{ fontSize: "10px" }}>GSTIN: {voucher.partyGstin}</div>}
+                        <div style={{ fontSize: `${fs.partyLabel}px`, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Customer Details:</div>
+                        <div style={{ fontSize: `${fs.partyName}px`, fontWeight: "bold" }}>{voucher.partyName}</div>
+                        {voucher.partyGstin && <div style={{ fontSize: `${fs.addrText}px` }}>GSTIN: {voucher.partyGstin}</div>}
                         {voucher.billingAddress && (
                           <div style={{ marginTop: "2px" }}>
-                            <div style={{ fontSize: "9px", fontWeight: "bold" }}>Billing Address:</div>
-                            <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.billingAddress}</div>
+                            <div style={{ fontSize: `${fs.addrLabel}px`, fontWeight: "bold" }}>Billing Address:</div>
+                            <div style={{ fontSize: `${fs.addrText}px`, whiteSpace: "pre-line" }}>{voucher.billingAddress}</div>
                           </div>
                         )}
                         {voucher.shippingAddress && (
                           <div style={{ marginTop: "2px" }}>
-                            <div style={{ fontSize: "9px", fontWeight: "bold" }}>Shipping Address:</div>
-                            <div style={{ fontSize: "10px", whiteSpace: "pre-line" }}>{voucher.shippingAddress}</div>
+                            <div style={{ fontSize: `${fs.addrLabel}px`, fontWeight: "bold" }}>Shipping Address:</div>
+                            <div style={{ fontSize: `${fs.addrText}px`, whiteSpace: "pre-line" }}>{voucher.shippingAddress}</div>
                           </div>
                         )}
                       </div>
                       <div style={{ padding: 0 }}>
-                        <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
+                        <table style={{ width: "100%", fontSize: `${fs.infoValue}px`, borderCollapse: "collapse" }}>
                           <tbody>
                             <tr>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", width: "50%", verticalAlign: "top" }}>
-                                <div style={{ fontWeight: "bold", fontSize: "10px" }}>Invoice #:</div>
+                                <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Invoice #:</div>
                                 <div style={{ fontWeight: "bold" }}>
                                   <span className="screen-only">{voucher.voucherNumber}</span>
                                   <span className="print-only">{formatPrintNumber(voucher.voucherNumber, biz)}</span>
                                 </div>
                               </td>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", width: "50%", verticalAlign: "top" }}>
-                                <div style={{ fontWeight: "bold", fontSize: "10px" }}>Date:</div>
+                                <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Date:</div>
                                 <div style={{ fontWeight: "bold" }}>{fmt.date(voucher.date)}</div>
                               </td>
                             </tr>
                             <tr>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
-                                <div style={{ fontWeight: "bold", fontSize: "10px" }}>Place of Supply:</div>
+                                <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Place of Supply:</div>
                                 <div style={{ fontWeight: "bold" }}>{voucher.placeOfSupply || "—"}</div>
                               </td>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
-                                <div style={{ fontWeight: "bold", fontSize: "10px" }}>Due Date:</div>
+                                <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Due Date:</div>
                                 <div style={{ fontWeight: "bold" }}>{voucher.dueDate ? fmt.date(voucher.dueDate) : "—"}</div>
                               </td>
                             </tr>
                             <tr>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
-                                <div style={{ fontWeight: "bold", fontSize: "10px" }}>Status:</div>
+                                <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Status:</div>
                                 <div style={{ fontWeight: "bold" }}>{STATUS_LABELS[voucher.status] || voucher.status?.toUpperCase()}</div>
                               </td>
                               <td style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
                                 {voucher.linkedVoucherNumber
-                                  ? <><div style={{ fontWeight: "bold", fontSize: "10px" }}>{voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}</div><div style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</div></>
-                                  : <><div style={{ fontWeight: "bold", fontSize: "10px" }}>&nbsp;</div><div>&nbsp;</div></>
+                                  ? <><div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>{voucherType === "sales/credit-notes" ? "Against Invoice:" : "Against Bill:"}</div><div style={{ fontWeight: "bold" }}>{voucher.linkedVoucherNumber}</div></>
+                                  : <><div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>&nbsp;</div><div>&nbsp;</div></>
                                 }
                               </td>
                             </tr>
                             {voucher.referenceNumber && (
                               <tr>
                                 <td colSpan={2} style={{ border: "1px solid #000", padding: "3px 6px", verticalAlign: "top" }}>
-                                  <div style={{ fontWeight: "bold", fontSize: "10px" }}>Reference:</div>
+                                  <div style={{ fontWeight: "bold", fontSize: `${fs.infoLabel}px` }}>Reference:</div>
                                   <div style={{ whiteSpace: "pre-line" }}>{voucher.referenceNumber}</div>
                                 </td>
                               </tr>
@@ -436,7 +524,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           <td style={{ ...tdItem, textAlign: "center" }}>{startIdx + idx + 1}</td>
                           <td style={tdItem}>
                             <div style={{ fontWeight: "bold" }}>{item.itemName}</div>
-                            {item.description && <div style={{ fontSize: "10px" }}>{item.description}</div>}
+                            {item.description && <div style={{ fontSize: `${fs.itemDesc}px` }}>{item.description}</div>}
                             {item.customFields && Object.keys(item.customFields).length > 0 && (
                               <div style={{ fontSize: "10px" }}>
                                 {Object.entries(item.customFields).filter(([, v]) => v).map(([k, v]) => (
@@ -467,7 +555,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <tfoot>
                       <tr><td colSpan={20} style={{ borderTop: "1px solid #000", padding: 0, height: 0 }} /></tr>
                       <tr>
-                        <td style={{ ...tdItem, borderLeft: "none", fontWeight: "bold", fontSize: "11px" }} colSpan={2}>
+                        <td style={{ ...tdItem, borderLeft: "none", fontWeight: "bold", fontSize: `${fs.tableItem}px` }} colSpan={2}>
                           {isLastPage
                             ? `Total Items: ${totalItems} | Total Qty: ${fmtQty(totalQty)}`
                             : <em style={{ color: "#666", fontWeight: "normal" }}>Continued on next page...</em>
@@ -490,8 +578,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <div className="invoice-footer">
                       {hsnRows.length > 0 && (
                         <div className="border-t border-black">
-                          <div style={{ fontWeight: "bold", fontSize: "11px", padding: "2px 6px", background: "#f3f4f6" }}>HSN/SAC Summary</div>
-                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <div style={{ fontWeight: "bold", fontSize: `${fs.hsnTable}px`, padding: "2px 6px", background: "#f3f4f6" }}>HSN/SAC Summary</div>
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: `${fs.hsnTable}px` }}>
                             <thead>
                               <tr>
                                 <th className={thCls} style={{ textAlign: "left" }}>HSN/SAC</th>
@@ -535,7 +623,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                       )}
 
                       <div className="border-t-2 border-black grid grid-cols-2">
-                        <div className="border-r border-black px-2 py-1.5" style={{ fontSize: "11px" }}>
+                        <div className="border-r border-black px-2 py-1.5" style={{ fontSize: `${fs.totals}px` }}>
                           <div style={{ fontWeight: "bold", marginBottom: "2px" }}>Amount in Words:</div>
                           <div style={{ fontStyle: "italic" }}>{toWords(Number(voucher.grandTotal) || 0)}</div>
                           {(biz.bankName || biz.bankAccount) && (
@@ -554,7 +642,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                             </div>
                           )}
                         </div>
-                        <div className="px-2 py-1.5" style={{ fontSize: "11px" }}>
+                        <div className="px-2 py-1.5" style={{ fontSize: `${fs.totals}px` }}>
                           <table style={{ width: "100%", marginLeft: "auto" }}>
                             <tbody>
                               {Number(voucher.totalDiscount) > 0 && (
@@ -579,8 +667,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                                 <tr><td>Transport{voucher.transportName ? ` (${voucher.transportName})` : ""}</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.transportCharges)}</td></tr>
                               )}
                               <tr style={{ borderTop: "2px solid black" }}>
-                                <td style={{ fontWeight: "bold", fontSize: "13px" }}>Net Total Payable</td>
-                                <td style={{ textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>{fmt.currency(voucher.grandTotal)}</td>
+                                <td style={{ fontWeight: "bold", fontSize: `${fs.netTotal}px` }}>Net Total Payable</td>
+                                <td style={{ textAlign: "right", fontWeight: "bold", fontSize: `${fs.netTotal}px` }}>{fmt.currency(voucher.grandTotal)}</td>
                               </tr>
                               {Number(voucher.paidAmount) > 0 && (
                                 <tr><td>Paid</td><td style={{ textAlign: "right" }}>{fmt.currency(voucher.paidAmount)}</td></tr>
@@ -596,7 +684,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                         </div>
                       </div>
 
-                      <div className="border-t border-black grid grid-cols-2 px-2 py-1.5" style={{ fontSize: "11px" }}>
+                      <div className="border-t border-black grid grid-cols-2 px-2 py-1.5" style={{ fontSize: `${fs.terms}px` }}>
                         <div className="border-r border-black pr-2">
                           {(voucher.termsAndConditions || biz.invoiceFooter) && (
                             <>
@@ -604,15 +692,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                               <div style={{ whiteSpace: "pre-line", lineHeight: "1.4" }}>{voucher.termsAndConditions || biz.invoiceFooter}</div>
                             </>
                           )}
-                          <div style={{ marginTop: "4px", fontStyle: "italic", fontSize: "10px" }}>
+                          <div style={{ marginTop: "4px", fontStyle: "italic", fontSize: `${fs.declaration}px` }}>
                             We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
                           </div>
                         </div>
                         <div className="text-right pl-2" style={{ paddingTop: "8px" }}>
                           <div style={{ marginTop: "40px", borderTop: "1px solid black", display: "inline-block", minWidth: "140px", textAlign: "center", paddingTop: "3px" }}>
-                            <div style={{ fontWeight: "bold" }}>For {biz.name || ""}</div>
-                            {biz.signatoryName && <div style={{ fontSize: "10px" }}>{biz.signatoryName}</div>}
-                            <div style={{ fontSize: "10px" }}>Authorised Signatory</div>
+                            <div style={{ fontWeight: "bold", fontSize: `${fs.signatory}px` }}>For {biz.name || ""}</div>
+                            {biz.signatoryName && <div style={{ fontSize: `${fs.signatory}px` }}>{biz.signatoryName}</div>}
+                            <div style={{ fontSize: `${fs.signatory}px` }}>Authorised Signatory</div>
                           </div>
                         </div>
                       </div>
@@ -620,7 +708,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   )}
 
                   {/* BIZCOR FOOTER — every page */}
-                  <div className="border-t border-black text-center py-1" style={{ fontSize: "9px", color: "#6b7280" }}>
+                  <div className="border-t border-black text-center py-1" style={{ fontSize: `${fs.bizFooter}px`, color: "#6b7280" }}>
                     BizCor ERP — info@naewtgroup.com{totalPages > 1 ? ` | Page ${pageIdx + 1} of ${totalPages}` : ""}
                   </div>
                 </div>
