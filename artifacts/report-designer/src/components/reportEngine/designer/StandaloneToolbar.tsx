@@ -1,6 +1,7 @@
 import {
   ArrowLeft, Save, ZoomIn, ZoomOut, RotateCcw,
   FileBarChart2, Loader2, Grid3X3, Maximize2, FolderOpen, CheckCircle2,
+  FolderInput, SaveAll,
 } from "lucide-react";
 import type { PaperSize, Orientation } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
@@ -15,6 +16,7 @@ interface Props {
   snapToGrid: boolean;
   gridSize: number;
   isSaving: boolean;
+  isSavingAs: boolean;
   savedToFile: boolean;
   isDirty: boolean;
   folderName: string | null;
@@ -26,6 +28,8 @@ interface Props {
   onSnapToggle: () => void;
   onGridSizeChange: (v: number) => void;
   onSave: () => void;
+  onSaveAs: () => void;
+  onOpenFile: () => void;
   onPickFolder: () => void;
   onUndo: () => void;
   canUndo: boolean;
@@ -41,11 +45,11 @@ const GRID_SIZES = [
 export default function StandaloneToolbar({
   name, reportType, paperSize, orientation, zoom,
   snapToGrid, gridSize,
-  isSaving, savedToFile, isDirty, folderName,
+  isSaving, isSavingAs, savedToFile, isDirty, folderName,
   onNameChange, onReportTypeChange, onPaperSizeChange,
   onOrientationChange, onZoomChange,
   onSnapToggle, onGridSizeChange,
-  onSave, onPickFolder, onUndo, canUndo, onBack,
+  onSave, onSaveAs, onOpenFile, onPickFolder, onUndo, canUndo, onBack,
 }: Props) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white border-b border-gray-700 min-h-[48px] flex-shrink-0 flex-wrap">
@@ -170,38 +174,61 @@ export default function StandaloneToolbar({
 
       <div className="w-px h-5 bg-gray-700 shrink-0" />
 
-      {/* Folder picker */}
+      {/* Open File */}
+      <button
+        onClick={onOpenFile}
+        title="PC se koi bhi JSON template file kholo"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors shrink-0"
+      >
+        <FolderInput className="w-3.5 h-3.5" />
+        Open File
+      </button>
+
+      {/* Quick-save folder */}
       <button
         onClick={onPickFolder}
-        title="Save folder chuniye"
+        title="Default folder — ek baar set karo (quick save ke liye)"
         className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors shrink-0"
       >
         <FolderOpen className="w-3.5 h-3.5" />
         {folderName
-          ? <span className="max-w-[100px] truncate text-green-400">{folderName}</span>
+          ? <span className="max-w-[80px] truncate text-green-400">{folderName}</span>
           : <span>Folder</span>
         }
       </button>
 
-      {/* Save */}
+      {/* Save As — main action */}
       <button
-        onClick={onSave}
-        disabled={isSaving}
-        title={`${reportType}.json file mein save karo`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-60 ${
-          savedToFile && !isDirty
-            ? 'bg-green-600 hover:bg-green-700 text-white'
-            : 'bg-blue-600 hover:bg-blue-700 text-white'
-        }`}
+        onClick={onSaveAs}
+        disabled={isSavingAs}
+        title="Koi bhi naam/location mein save karo"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-60"
       >
-        {isSaving
-          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          : savedToFile && !isDirty
-          ? <CheckCircle2 className="w-3.5 h-3.5" />
-          : <Save className="w-3.5 h-3.5" />
-        }
-        {savedToFile && !isDirty ? 'Saved ✓' : 'Save to File'}
+        {isSavingAs ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <SaveAll className="w-3.5 h-3.5" />}
+        Save As…
       </button>
+
+      {/* Quick Save (to default folder) */}
+      {folderName && (
+        <button
+          onClick={onSave}
+          disabled={isSaving}
+          title={`Default folder mein save karo: ${reportType}.json`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-60 ${
+            savedToFile && !isDirty
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-gray-700 hover:bg-gray-600 text-green-300 border border-green-700'
+          }`}
+        >
+          {isSaving
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : savedToFile && !isDirty
+            ? <CheckCircle2 className="w-3.5 h-3.5" />
+            : <Save className="w-3.5 h-3.5" />
+          }
+          {savedToFile && !isDirty ? 'Saved ✓' : 'Quick Save'}
+        </button>
+      )}
     </div>
   );
 }

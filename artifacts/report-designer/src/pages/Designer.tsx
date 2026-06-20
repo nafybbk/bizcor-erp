@@ -11,7 +11,7 @@ import type {
 } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
 import { getPaperDimensions } from "@/lib/reportEngine/paperSizes";
-import { loadStoredFolder, requestPermission, saveJsonToFolder, loadJsonFromFolder, pickFolder } from "@/lib/fileSystem";
+import { loadStoredFolder, requestPermission, saveJsonToFolder, loadJsonFromFolder, pickFolder, openJsonFile, saveAsJsonFile } from "@/lib/fileSystem";
 import type { FolderState } from "@/lib/fileSystem";
 import { Loader2, FolderOpen } from "lucide-react";
 
@@ -185,6 +185,7 @@ export default function Designer() {
   const [folder, setFolder] = useState<FolderState>({ handle: null, name: null });
   const [folderLoading, setFolderLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingAs, setIsSavingAs] = useState(false);
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [savedToFile, setSavedToFile] = useState(false);
 
@@ -276,6 +277,59 @@ export default function Designer() {
     if (f.handle) {
       setFolder(f);
       toast({ title: '📁 Folder set!', description: f.name || '' });
+    }
+  }
+
+  // ── Open File — PC se koi bhi JSON template kholo ─────────────────────────
+  async function handleOpenFile() {
+    const result = await openJsonFile();
+    if (!result) return;
+    try {
+      const tmpl = result.data as SavedTemplate;
+      const layout = typeof tmpl.layoutJson === 'string'
+        ? JSON.parse(tmpl.layoutJson) as TemplateLayout
+        : tmpl.layoutJson as unknown as TemplateLayout;
+      setBands(layoutToBands(layout));
+      if (tmpl.name) setName(tmpl.name);
+      if (tmpl.reportType) setReportType(tmpl.reportType);
+      if (tmpl.paperSize) setPaperSize(tmpl.paperSize as PaperSize);
+      if (tmpl.orientation) setOrientation(tmpl.orientation as Orientation);
+      undoStack.current = [];
+      setIsDirty(false);
+      setSavedToFile(false);
+      toast({ title: `📂 ${result.filename} khula!`, description: 'File load ho gayi — ab edit karo' });
+    } catch {
+      toast({ title: 'Load failed', description: 'Invalid template file', variant: 'destructive' });
+    }
+  }
+
+  // ── Save As — koi bhi naam/location mein save karo ────────────────────────
+  async function handleSaveAs() {
+    if (!bands) return;
+    setIsSavingAs(true);
+    try {
+      const layoutJson = bandsToLayout(bands, margin);
+      const payload = {
+        name,
+        reportType,
+        paperSize,
+        orientation,
+        version: 1,
+        isDefault: true,
+        layoutJson,
+        updatedAt: new Date().toISOString(),
+        _bizcor_file_template: true,
+      };
+      const ok = await saveAsJsonFile(payload, `${reportType}.json`);
+      if (ok) {
+        setSavedToFile(true);
+        setIsDirty(false);
+        toast({ title: '✅ Saved!', description: 'File save ho gayi' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setIsSavingAs(false);
     }
   }
 
@@ -436,6 +490,7 @@ export default function Designer() {
         snapToGrid={snapToGrid}
         gridSize={gridSize}
         isSaving={isSaving}
+        isSavingAs={isSavingAs}
         savedToFile={savedToFile}
         isDirty={isDirty}
         folderName={folder.name}
@@ -447,6 +502,8 @@ export default function Designer() {
         onSnapToggle={() => setSnapToGrid(s => !s)}
         onGridSizeChange={setGridSize}
         onSave={handleSaveToFile}
+        onSaveAs={handleSaveAs}
+        onOpenFile={handleOpenFile}
         onPickFolder={handlePickFolder}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}

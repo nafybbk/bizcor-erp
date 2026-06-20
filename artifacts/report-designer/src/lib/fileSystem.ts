@@ -114,6 +114,38 @@ export async function listJsonFiles(folder: FileSystemDirectoryHandle): Promise<
   return files.sort();
 }
 
+export async function openJsonFile(): Promise<{ data: object; filename: string } | null> {
+  try {
+    const [fileHandle] = await (window as any).showOpenFilePicker({
+      types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
+      multiple: false,
+    });
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return { data: JSON.parse(text), filename: file.name };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAsJsonFile(
+  data: object,
+  suggestedName: string
+): Promise<boolean> {
+  try {
+    const fileHandle = await (window as any).showSaveFilePicker({
+      suggestedName,
+      types: [{ description: "JSON Template", accept: { "application/json": [".json"] } }],
+    });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isFSASupported(): boolean {
   return "showDirectoryPicker" in window;
 }
