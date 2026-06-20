@@ -304,7 +304,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
               return (
                 <div key={pageIdx} className="invoice-page bg-white border-2 border-black text-gray-900"
-                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px", display: "flex", flexDirection: "column", minHeight: "252mm" }}>
+                  style={{ fontFamily: "Arial, sans-serif", fontSize: "12px", marginBottom: "20px" }}>
 
                   {/* HEADER */}
                   {isFirstPage ? (
@@ -411,9 +411,9 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     </div>
                   )}
 
-                  {/* ITEMS TABLE — flex:1 stretches to fill available page space */}
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                  <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
+                  {/* ITEMS TABLE */}
+                  <div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
                     <thead>
                       <tr>
                         <th style={{ ...thStyle, width: "28px" }}>S.No</th>
@@ -463,12 +463,6 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           <td style={{ ...tdItem, textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                         </tr>
                       ))}
-                      {/* Single spacer row fills remaining space naturally */}
-                      <tr style={{ height: "100%" }}>
-                        {Array.from({ length: colCount }).map((_, ci) => (
-                          <td key={ci} style={{ borderLeft: "1px solid #000" }} />
-                        ))}
-                      </tr>
                     </tbody>
                     <tfoot>
                       <tr><td colSpan={20} style={{ borderTop: "1px solid #000", padding: 0, height: 0 }} /></tr>
@@ -986,23 +980,47 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                   </tr>
                   );
                 })}
-                {/* Single spacer row fills remaining space */}
-                <tr style={{ height: "100%" }}>
-                  <td /><td /><td /><td /><td /><td />
-                </tr>
               </tbody>
             </table>
           </div>
 
-          {/* ---- TOTALS SUMMARY ---- */}
-          <div className="px-7 py-3 border-t border-gray-100 flex flex-col items-end">
-            <div className="w-full max-w-xs space-y-1">
-              {Number(voucher.totalDiscount) > 0 && (
-                <div className="flex justify-between text-gray-600 text-xs">
-                  <span>Discount</span>
-                  <span className="font-medium text-red-500">-{fmt.currency(voucher.totalDiscount)}</span>
+          {/* ---- TOTALS + TERMS side-by-side ---- */}
+          <div className="border-t border-gray-200 grid grid-cols-2 gap-0" style={{ pageBreakInside: "avoid" }}>
+            {/* Left: Terms & Conditions */}
+            <div className="border-r border-gray-200 px-7 py-4">
+              {(voucher.termsAndConditions || biz.invoiceFooter) && (
+                <>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Terms &amp; Conditions</div>
+                  <div className="text-xs text-gray-500 whitespace-pre-line leading-relaxed">
+                    {voucher.termsAndConditions || biz.invoiceFooter}
+                  </div>
+                </>
+              )}
+              {(voucher.bankName || biz.bankName) && (
+                <div className="mt-3">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Bank Details</div>
+                  <div className="text-xs text-gray-600 space-y-0.5">
+                    {(voucher.bankName || biz.bankName) && <div>Bank: {voucher.bankName || biz.bankName}</div>}
+                    {(voucher.accountNumber || biz.accountNumber) && <div>A/C No: {voucher.accountNumber || biz.accountNumber}</div>}
+                    {(voucher.ifscCode || biz.ifscCode) && <div>IFSC: {voucher.ifscCode || biz.ifscCode}</div>}
+                    {(voucher.branchName || biz.branchName) && <div>Branch: {voucher.branchName || biz.branchName}</div>}
+                  </div>
                 </div>
               )}
+              <div className="mt-3 text-xs text-gray-400">
+                This is a computer generated document. No signature required unless specified.
+              </div>
+            </div>
+
+            {/* Right: Totals + Signature */}
+            <div className="px-7 py-4 flex flex-col justify-between">
+              <div className="space-y-1">
+                {Number(voucher.totalDiscount) > 0 && (
+                  <div className="flex justify-between text-gray-600 text-xs">
+                    <span>Discount</span>
+                    <span className="font-medium text-red-500">-{fmt.currency(voucher.totalDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-gray-600">
                   <span>Taxable Amount</span>
                   <span className="font-medium">{fmt.currency(voucher.taxableAmount)}</span>
@@ -1021,7 +1039,6 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <span>IGST</span><span>{fmt.currency(voucher.totalIgst)}</span>
                   </div>
                 )}
-                {/* Invoice Value = taxable + tax */}
                 {(() => {
                   const invoiceValue = Number(voucher.taxableAmount) + Number(voucher.totalCgst || 0) + Number(voucher.totalSgst || 0) + Number(voucher.totalIgst || 0);
                   const invoiceAmount = invoiceValue + Number(voucher.roundOff || 0);
@@ -1031,11 +1048,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                         <span>Invoice Value</span>
                         <span>{fmt.currency(invoiceValue)}</span>
                       </div>
-
-                      {/* Dashed divider */}
                       <div className="border-t-2 border-dashed border-gray-300 my-1" />
-
-                      {/* Block 2 — payable breakdown */}
                       {Number(voucher.roundOff) !== 0 && (
                         <div className="flex justify-between text-gray-500 text-xs">
                           <span>Round Off</span>
@@ -1071,34 +1084,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     <span>Balance Due</span><span>{fmt.currency(voucher.balanceDue)}</span>
                   </div>
                 )}
-            </div>
-          </div>
-
-          {/* ---- FOOTER: Terms + Signature ---- */}
-          <div className="border-t border-gray-200 grid grid-cols-2 px-7 py-5 gap-6" style={{ pageBreakInside: "avoid" }}>
-            <div>
-              {(voucher.termsAndConditions || biz.invoiceFooter) && (
-                <>
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Terms & Conditions</div>
-                  <div className="text-xs text-gray-500 whitespace-pre-line leading-relaxed">
-                    {voucher.termsAndConditions || biz.invoiceFooter}
-                  </div>
-                </>
-              )}
-              <div className="mt-3 text-xs text-gray-400">
-                This is a computer generated document. No signature required unless specified.
               </div>
-            </div>
-            <div className="text-right flex flex-col justify-between">
-              <div />
-              <div>
-                <div className="border-t-2 border-gray-800 pt-3 mt-12 inline-block min-w-40 text-center">
-                  <div className="font-bold text-sm text-gray-800">
-                    {biz.name || ""}
-                  </div>
-                  {biz.signatoryName && (
-                    <div className="text-xs text-gray-500 mt-0.5">{biz.signatoryName}</div>
-                  )}
+              {/* Signature */}
+              <div className="text-right mt-8">
+                <div className="border-t-2 border-gray-800 pt-3 inline-block min-w-40 text-center">
+                  <div className="font-bold text-sm text-gray-800">{biz.name || ""}</div>
+                  {biz.signatoryName && <div className="text-xs text-gray-500 mt-0.5">{biz.signatoryName}</div>}
                   <div className="text-xs text-gray-400 mt-0.5">Authorized Signatory</div>
                 </div>
               </div>
