@@ -50,11 +50,32 @@ export default function BusinessSettings() {
   const [voucherCode, setVoucherCode] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
   const [redeemResult, setRedeemResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [printServerIp, setPrintServerIp] = useState(() => localStorage.getItem("bizcor_print_server_ip") || "");
+  const [printTestResult, setPrintTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
     api.get<any>("/businesses/current").then(b => setForm(b)).catch(console.error).finally(() => setLoading(false));
     api.get("/healthz").then(() => setIsOnline(true)).catch(() => setIsOnline(false));
   }, []);
+
+  const savePrintServerIp = () => {
+    const val = printServerIp.trim();
+    if (val) localStorage.setItem("bizcor_print_server_ip", val);
+    else localStorage.removeItem("bizcor_print_server_ip");
+  };
+
+  const testPrintServer = async () => {
+    const ip = printServerIp.trim();
+    if (!ip) { setPrintTestResult({ ok: false, msg: "Pehle IP enter karein" }); return; }
+    setPrintTestResult(null);
+    try {
+      const r = await fetch(`http://${ip}:3737/ping`, { signal: AbortSignal.timeout(3000) });
+      const d = await r.json();
+      setPrintTestResult({ ok: !!d.ok, msg: d.ok ? `✅ Connected — ${d.app}` : "❌ Unexpected response" });
+    } catch {
+      setPrintTestResult({ ok: false, msg: "❌ Connect nahi hua. IP check karein aur port 3737 firewall mein open hai ya nahi." });
+    }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -465,6 +486,34 @@ export default function BusinessSettings() {
         {/* Offline Data Folder */}
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Business Code (Read-only)</label>
           <input className={inputCls + " bg-gray-50 text-gray-500 font-mono tracking-widest"} value={form.businessCode || ""} readOnly /></div>
+      </div>
+
+      {/* LAN Print Server */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2">🖨️ LAN Print Server</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Print Server IP Address</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className={inputCls}
+              placeholder="e.g. 192.168.1.10 (LAN server PC ka IP)"
+              value={printServerIp}
+              onChange={e => setPrintServerIp(e.target.value)}
+              onBlur={savePrintServerIp}
+            />
+            <button type="button" onClick={testPrintServer}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-sm font-medium whitespace-nowrap">
+              Test
+            </button>
+          </div>
+          {printTestResult && (
+            <div className={`text-xs mt-1 ${printTestResult.ok ? "text-green-600" : "text-red-600"}`}>
+              {printTestResult.msg}
+            </div>
+          )}
+          <p className="text-xs text-gray-400 mt-1">Sirf LAN Server mode mein use hota hai. Blank rakhein toh server PC ka IP auto-detect hoga.</p>
+        </div>
       </div>
 
       {/* Activate License */}
