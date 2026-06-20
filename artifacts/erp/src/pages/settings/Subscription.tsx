@@ -281,7 +281,7 @@ export default function Subscription() {
   const [loading, setLoading] = useState(true);
   const [voucherCode, setVoucherCode] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
-  const [redeemResult, setRedeemResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [redeemResult, setRedeemResult] = useState<{ success: boolean; pending?: boolean; message: string } | null>(null);
   const [showVoucherFor, setShowVoucherFor] = useState<number | null>(null);
   const [myVoucher, setMyVoucher] = useState<{ code: string | null; redeemedAt: string | null } | null>(null);
   const [voucherCopied, setVoucherCopied] = useState(false);
@@ -339,10 +339,24 @@ export default function Subscription() {
         } catch { /* not in Electron */ }
 
         // Offline EXE: validate via cloud, update local SQLite, get fresh token
-        const res = await api.post<any>("/redeem-voucher-offline", {
-          code: voucherCode.trim(),
-          hardwareFingerprint,
-        });
+        let res: any;
+        try {
+          res = await api.post<any>("/redeem-voucher-offline", {
+            code: voucherCode.trim(),
+            hardwareFingerprint,
+          });
+        } catch (err: any) {
+          // HTTP 202 PENDING_APPROVAL comes as non-2xx in some clients — check body
+          if (err?.status === 202 || err?.data?.status === "PENDING_APPROVAL") {
+            setRedeemResult({ success: false, pending: true, message: err?.data?.message || "Naya device detect hua hai. Tech Support approval ke baad activate hoga." });
+            return;
+          }
+          throw err;
+        }
+        if (res?.status === "PENDING_APPROVAL") {
+          setRedeemResult({ success: false, pending: true, message: res.message });
+          return;
+        }
         // Save fresh token so planExpiresAt updates immediately (no re-login needed)
         if (res.token) localStorage.setItem("erp_token", res.token);
         setRedeemResult({ success: true, message: res.message });
@@ -672,9 +686,22 @@ export default function Subscription() {
         </div>
         <p className="text-xs text-indigo-500">Enter the license code received from your vendor/dealer</p>
         {redeemResult && (
-          <div className={`flex items-start gap-2 text-sm px-3 py-2.5 rounded-lg border ${redeemResult.success ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-600"}`}>
-            {redeemResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <X className="w-4 h-4 shrink-0 mt-0.5" />}
-            {redeemResult.message}
+          <div className={`flex items-start gap-2 text-sm px-3 py-2.5 rounded-lg border ${
+            redeemResult.success ? "bg-green-50 border-green-200 text-green-700"
+            : redeemResult.pending ? "bg-yellow-50 border-yellow-300 text-yellow-800"
+            : "bg-red-50 border-red-200 text-red-600"
+          }`}>
+            {redeemResult.success ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              : redeemResult.pending ? <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+              : <X className="w-4 h-4 shrink-0 mt-0.5" />}
+            <div>
+              {redeemResult.message}
+              {redeemResult.pending && (
+                <div className="mt-1 text-xs text-yellow-700">
+                  Approval milne ke baad dobara same code enter karein — auto activate ho jaayega.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { api, fmt } from "@/lib/api";
 import {
   Plus, Loader2, X, Copy, Check, Ticket, Search, Ban, Trash2,
   FolderOpen, CheckCircle2, Clock, XCircle, Edit2, RefreshCw,
+  Monitor, ThumbsUp, ThumbsDown, Bell,
 } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
@@ -26,6 +27,12 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.Re
 };
 
 interface CountRow { planId: number; planName: string; status: string; cnt: number }
+interface ActivationRequest {
+  id: number; code: string; business_code: string; business_name: string | null;
+  business_email: string | null; hardware_fingerprint: string | null;
+  ip: string | null; exe_version: string | null;
+  status: string; created_at: string; reviewed_at: string | null;
+}
 interface Voucher {
   id: number; code: string; planId: number; planName: string;
   validityDays: number; sellingPrice: string | null; status: string;
@@ -56,6 +63,48 @@ export default function AdminVouchers() {
   const [generating, setGenerating] = useState(false);
   const [newCodes, setNewCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+
+  // Activation Requests
+  const [showRequests, setShowRequests] = useState(false);
+  const [requests, setRequests] = useState<ActivationRequest[]>([]);
+  const [requestsStatus, setRequestsStatus] = useState<"pending" | "approved" | "denied">("pending");
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsAction, setRequestsAction] = useState<number | null>(null);
+
+  const loadRequests = useCallback((status = requestsStatus) => {
+    setRequestsLoading(true);
+    api.get<ActivationRequest[]>(`/activation-requests?status=${status}`)
+      .then(rows => setRequests(Array.isArray(rows) ? rows : []))
+      .catch(console.error)
+      .finally(() => setRequestsLoading(false));
+  }, [requestsStatus]);
+
+  const approveRequest = async (id: number) => {
+    setRequestsAction(id);
+    try {
+      await api.post(`/activation-requests/${id}/approve`, {});
+      loadRequests();
+    } catch (e: any) { alert(e.message); }
+    finally { setRequestsAction(null); }
+  };
+
+  const denyRequest = async (id: number) => {
+    if (!confirm("Is request ko deny karo?")) return;
+    setRequestsAction(id);
+    try {
+      await api.post(`/activation-requests/${id}/deny`, {});
+      loadRequests();
+    } catch (e: any) { alert(e.message); }
+    finally { setRequestsAction(null); }
+  };
+
+  // Pending count for badge
+  const [pendingCount, setPendingCount] = useState(0);
+  useEffect(() => {
+    api.get<ActivationRequest[]>("/activation-requests?status=pending")
+      .then(rows => setPendingCount(Array.isArray(rows) ? rows.length : 0))
+      .catch(() => {});
+  }, []);
 
   // Edit voucher modal
   const [editVoucher, setEditVoucher] = useState<Voucher | null>(null);
@@ -217,6 +266,101 @@ export default function AdminVouchers() {
           className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg">
           <Plus className="w-4 h-4" /> Generate Vouchers
         </button>
+      </div>
+
+      {/* Activation Requests Panel */}
+      <div className="bg-white border border-amber-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => { setShowRequests(v => { const next = !v; if (!v) loadRequests(requestsStatus); return next; }); }}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-50 transition-colors">
+          <div className="flex items-center gap-2 font-semibold text-amber-800 text-sm">
+            <Monitor className="w-4 h-4 text-amber-500" />
+            Device Activation Requests
+            {pendingCount > 0 && (
+              <span className="flex items-center gap-1 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                <Bell className="w-3 h-3" /> {pendingCount} pending
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-gray-400">{showRequests ? "▲ Close" : "▼ Open"}</span>
+        </button>
+
+        {showRequests && (
+          <div className="border-t border-amber-100 p-4 space-y-3">
+            {/* Status filter tabs */}
+            <div className="flex gap-1.5">
+              {(["pending", "approved", "denied"] as const).map(s => (
+                <button key={s} onClick={() => { setRequestsStatus(s); loadRequests(s); }}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors capitalize ${
+                    requestsStatus === s
+                      ? s === "pending" ? "bg-amber-500 text-white border-amber-500"
+                        : s === "approved" ? "bg-green-600 text-white border-green-600"
+                        : "bg-red-500 text-white border-red-500"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                  }`}>{s}</button>
+              ))}
+              <button onClick={() => loadRequests(requestsStatus)} className="ml-auto flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-indigo-600 border border-gray-200 rounded-lg">
+                <RefreshCw className="w-3 h-3" /> Refresh
+              </button>
+            </div>
+
+            {requestsLoading ? (
+              <div className="flex items-center gap-2 text-gray-400 text-sm py-4 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>
+            ) : requests.length === 0 ? (
+              <div className="text-center py-6 text-gray-400 text-sm">
+                {requestsStatus === "pending" ? "Koi pending request nahi hai" : `Koi ${requestsStatus} request nahi mili`}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {requests.map(r => (
+                  <div key={r.id} className="border border-gray-200 rounded-lg p-3 flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-sm text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{r.code}</span>
+                        <span className="text-xs text-gray-600 font-medium">{r.business_code}</span>
+                        {r.business_name && <span className="text-xs text-gray-500">— {r.business_name}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap text-xs text-gray-500">
+                        {r.ip && <span>IP: {r.ip}</span>}
+                        {r.exe_version && <span>v{r.exe_version}</span>}
+                        <span>{new Date(r.created_at).toLocaleString("en-IN")}</span>
+                        {r.reviewed_at && <span>Reviewed: {new Date(r.reviewed_at).toLocaleString("en-IN")}</span>}
+                      </div>
+                      {r.hardware_fingerprint && (
+                        <div className="text-xs font-mono text-gray-400 truncate max-w-xs" title={r.hardware_fingerprint}>
+                          HW: {r.hardware_fingerprint.substring(0, 40)}…
+                        </div>
+                      )}
+                    </div>
+                    {r.status === "pending" && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => approveRequest(r.id)}
+                          disabled={requestsAction === r.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg disabled:opacity-60">
+                          {requestsAction === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ThumbsUp className="w-3.5 h-3.5" />}
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => denyRequest(r.id)}
+                          disabled={requestsAction === r.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg disabled:opacity-60">
+                          <ThumbsDown className="w-3.5 h-3.5" /> Deny
+                        </button>
+                      </div>
+                    )}
+                    {r.status !== "pending" && (
+                      <span className={`shrink-0 text-xs font-semibold px-2 py-1 rounded-full border ${
+                        r.status === "approved" ? "bg-green-100 text-green-700 border-green-200"
+                        : "bg-red-100 text-red-600 border-red-200"
+                      }`}>{r.status === "approved" ? "✓ Approved" : "✗ Denied"}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Mobile: horizontal scrollable plan pills */}
