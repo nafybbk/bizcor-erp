@@ -1,0 +1,78 @@
+name: Build Report Designer EXE
+
+on:
+  # Manual trigger — GitHub pe jaao, Actions tab, "Run workflow" button
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.1)"
+        required: false
+        default: "1.0.0"
+  # Ya tag push se auto-trigger: git tag rd-v1.0.0 && git push origin rd-v1.0.0
+  push:
+    tags:
+      - "rd-v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build frontend (Electron mode)
+        run: pnpm --filter @workspace/report-designer run build:electron
+
+      - name: Install Electron dependencies
+        working-directory: artifacts/report-designer-desktop
+        run: npm install
+
+      - name: Build Windows EXE
+        working-directory: artifacts/report-designer-desktop
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Installer EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: BizCor-Report-Designer-Installer
+          path: artifacts/report-designer-desktop/release/*.exe
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: BizCor-Report-Designer-Portable
+          path: artifacts/report-designer-desktop/release/BizCor-Report-Designer-Portable.exe
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Create GitHub Release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/rd-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "BizCor Report Designer ${{ github.ref_name }}"
+          files: |
+            artifacts/report-designer-desktop/release/*.exe
+          generate_release_notes: false
+          body: |
+            ## BizCor Report Designer — Windows EXE
+
+            **Portable EXE** — koi install nahi, seedha double-click:
+            `BizCor-Report-Designer-Portable.exe`
+
+            **Installer** — Start Menu shortcut banta hai:
+            `BizCor Report Designer Setup *.exe`
