@@ -21,6 +21,7 @@ import importDataRouter from "./importData";
 import supportChatRouter from "./supportChat";
 import chatRouter from "./chat";
 import reportTemplatesRouter from "./reportTemplates";
+import templateFilesRouter from "./templateFiles";
 import printServerRouter from "./print-server";
 import activationRequestsRouter from "./activationRequests";
 
@@ -325,6 +326,7 @@ router.use("/dashboard", dashboardRouter);
 router.use("/cash-bank", cashBankRouter);
 router.use(chatRouter);
 router.use(reportTemplatesRouter);
+router.use(templateFilesRouter);
 router.use(printServerRouter);
 
 export default router;

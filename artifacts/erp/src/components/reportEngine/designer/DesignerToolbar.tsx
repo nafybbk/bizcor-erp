@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import {
   ArrowLeft, Save, Eye, ZoomIn, ZoomOut, RotateCcw,
-  FileBarChart2, Loader2, Grid3X3, Maximize2,
+  FileBarChart2, Loader2, Grid3X3, Maximize2, FolderDown,
 } from "lucide-react";
 import type { PaperSize, Orientation } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
@@ -16,6 +16,8 @@ interface Props {
   snapToGrid: boolean;
   gridSize: number;
   isSaving: boolean;
+  isSavingToFile: boolean;
+  fileTemplateActive: boolean;
   isDirty: boolean;
   templateId: number | null;
   onNameChange: (v: string) => void;
@@ -26,6 +28,7 @@ interface Props {
   onSnapToggle: () => void;
   onGridSizeChange: (v: number) => void;
   onSave: () => void;
+  onSaveToFile: () => void;
   onUndo: () => void;
   canUndo: boolean;
 }
@@ -39,11 +42,11 @@ const GRID_SIZES = [
 export default function DesignerToolbar({
   name, reportType, paperSize, orientation, zoom,
   snapToGrid, gridSize,
-  isSaving, isDirty, templateId,
+  isSaving, isSavingToFile, fileTemplateActive, isDirty, templateId,
   onNameChange, onReportTypeChange, onPaperSizeChange,
   onOrientationChange, onZoomChange,
   onSnapToggle, onGridSizeChange,
-  onSave, onUndo, canUndo,
+  onSave, onSaveToFile, onUndo, canUndo,
 }: Props) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white border-b border-gray-700 min-h-[48px] flex-shrink-0 flex-wrap">
@@ -188,7 +191,22 @@ export default function DesignerToolbar({
         </Link>
       )}
 
-      {/* Save */}
+      {/* Save to File */}
+      <button
+        onClick={onSaveToFile}
+        disabled={isSavingToFile || isSaving}
+        title={`File mein save karo: templates/<businessId>/${reportType}.json`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-60 ${
+          fileTemplateActive
+            ? "bg-green-600 hover:bg-green-700 text-white"
+            : "bg-gray-700 hover:bg-gray-600 text-green-300 border border-green-700"
+        }`}
+      >
+        {isSavingToFile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderDown className="w-3.5 h-3.5" />}
+        {fileTemplateActive ? "File ✓" : "File Save"}
+      </button>
+
+      {/* Save to DB */}
       <button
         onClick={onSave}
         disabled={isSaving}

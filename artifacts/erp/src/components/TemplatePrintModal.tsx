@@ -56,9 +56,21 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
   const [showPreview, setShowPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
+  // ── File-based template check (priority over DB) ───────────────────────────
+  const { data: fileTemplate } = useQuery<SavedTemplate | null>({
+    queryKey: ["template-file", reportType],
+    queryFn: async () => {
+      try { return await api.get<SavedTemplate>(`/template-files/${reportType}`); }
+      catch { return null; }
+    },
+    retry: false,
+    staleTime: 30_000,
+  });
+
   const { data: templates = [], isLoading } = useQuery<SavedTemplate[]>({
     queryKey: ["report-templates", reportType],
     queryFn: () => api.get<SavedTemplate[]>(`/report-templates?report_type=${reportType}`),
+    enabled: !fileTemplate, // Skip DB query if file template exists
   });
 
   const createDefault = useMutation({
@@ -86,7 +98,8 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
     setSelectedId(def ? def.id : templates[0].id);
   }, [templates]);
 
-  const selected = templates.find(t => t.id === selectedId) || null;
+  // File template takes priority; falls back to DB selected
+  const selected: SavedTemplate | null = fileTemplate || templates.find(t => t.id === selectedId) || null;
 
   function handleSelect(t: SavedTemplate) {
     setSelectedId(t.id);
@@ -95,7 +108,7 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
 
   function handlePrint() {
     if (!selected) return;
-    localStorage.setItem(lsKey, String(selected.id));
+    if (!fileTemplate && selected.id) localStorage.setItem(lsKey, String(selected.id));
     setShowPreview(true);
     setPrinting(true);
     setTimeout(() => {
@@ -238,9 +251,21 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
           </button>
         </div>
 
-        {/* Template list */}
+        {/* File template active banner */}
+        {fileTemplate && (
+          <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium">
+            <span>📁</span>
+            <span>File Template Active — <code className="font-mono">{reportType}.json</code> use ho rahi hai</span>
+          </div>
+        )}
+
+        {/* Template list — only shown when no file template */}
         <div className="px-4 py-3 max-h-72 overflow-y-auto space-y-1.5">
-          {isLoading ? (
+          {fileTemplate ? (
+            <div className="text-center py-4 text-sm text-gray-500">
+              File template se print hoga. DB templates override nahi kar sakte jab tak file nahi hatao.
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
             </div>
@@ -298,14 +323,16 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
 
         {/* Footer */}
         <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2">
-          {templates.length > 0 ? (
+          {(fileTemplate || templates.length > 0) ? (
             <>
-              <button
-                onClick={onFallback}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <FileDown className="w-4 h-4" /> Purana Style
-              </button>
+              {!fileTemplate && (
+                <button
+                  onClick={onFallback}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  <FileDown className="w-4 h-4" /> Purana Style
+                </button>
+              )}
               <button
                 onClick={handlePrint}
                 disabled={!selected || printing}

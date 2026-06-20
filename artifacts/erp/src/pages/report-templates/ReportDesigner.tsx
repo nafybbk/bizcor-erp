@@ -220,6 +220,8 @@ export default function ReportDesigner() {
   // UI
   const [zoom,    setZoom]    = useState(0.75);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingToFile, setIsSavingToFile] = useState(false);
+  const [fileTemplateActive, setFileTemplateActive] = useState(false);
   const [isDirty,  setIsDirty]  = useState(false);
   const [savedId,  setSavedId]  = useState<number | null>(null);
 
@@ -441,6 +443,27 @@ export default function ReportDesigner() {
     }
   }
 
+  async function handleSaveToFile() {
+    if (!bands) return;
+    setIsSavingToFile(true);
+    try {
+      const layoutJson = bandsToLayout(bands, margin);
+      const payload = { name, reportType, paperSize, orientation, layoutJson };
+      await api.put(`/template-files/${reportType}`, payload);
+      setFileTemplateActive(true);
+      toast({ title: '📁 File Save Ho Gayi!', description: `templates/<businessId>/${reportType}.json — Print ab yahi file use karega` });
+    } catch (err: any) {
+      toast({ title: 'File save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setIsSavingToFile(false);
+    }
+  }
+
+  // Check on load if file template already exists for this reportType
+  useEffect(() => {
+    api.get(`/template-files/${reportType}`).then(() => setFileTemplateActive(true)).catch(() => setFileTemplateActive(false));
+  }, [reportType]);
+
   // ─── Render ───────────────────────────────────────────────────────────────
   if ((!isNew && isLoading) || !bands) {
     return (
@@ -461,6 +484,8 @@ export default function ReportDesigner() {
         snapToGrid={snapToGrid}
         gridSize={gridSize}
         isSaving={isSaving}
+        isSavingToFile={isSavingToFile}
+        fileTemplateActive={fileTemplateActive}
         isDirty={isDirty}
         templateId={savedId}
         onNameChange={setName}
@@ -471,6 +496,7 @@ export default function ReportDesigner() {
         onSnapToggle={() => setSnapToGrid(s => !s)}
         onGridSizeChange={setGridSize}
         onSave={handleSave}
+        onSaveToFile={handleSaveToFile}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}
       />
