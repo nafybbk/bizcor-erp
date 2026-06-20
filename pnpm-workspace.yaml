@@ -37,6 +37,7 @@ minimumReleaseAgeExclude:
 packages:
   - 'artifacts/*'
   - '!artifacts/desktop'
+  - '!artifacts/report-designer-desktop'
   - lib/*
   - lib/integrations/*
   - scripts
