@@ -466,7 +466,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       : "debit_note";
 
     Promise.all([
-      api.get<any>(`/parties?limit=9999`),
+      api.get<any>(`/parties?type=${partyType}&limit=9999`),
       api.get<any>("/items?limit=9999"),
       api.get<any>("/masters/tax-rates"),
       api.get<any>("/masters/units"),
