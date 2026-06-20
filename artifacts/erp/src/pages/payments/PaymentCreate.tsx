@@ -39,7 +39,7 @@ export default function PaymentCreate({ type, editId, initialData }: Props) {
   const listHref = type === "receipt" ? "/payments/receipts" : "/payments/payments";
 
   const searchParties = useCallback(async (q: string) => {
-    const r = await api.get<any>(`/parties?type=${partyType}&search=${encodeURIComponent(q)}&limit=500`);
+    const r = await api.get<any>(`/parties?search=${encodeURIComponent(q)}&limit=9999`);
     setParties(r.data || []);
   }, [partyType]);
 
