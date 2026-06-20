@@ -21,7 +21,9 @@ import importDataRouter from "./importData";
 import supportChatRouter from "./supportChat";
 import chatRouter from "./chat";
 import reportTemplatesRouter from "./reportTemplates";
+import templateFilesRouter from "./templateFiles";
 import printServerRouter from "./print-server";
+import activationRequestsRouter from "./activationRequests";
 
 const router: IRouter = Router();
 
@@ -91,14 +93,59 @@ router.post("/activate-offline", async (req, res) => {
     const [biz] = await db.select().from(businessesTable)
       .where(eq(businessesTable.businessCode, businessCode.trim().toUpperCase())).limit(1);
 
-    // If voucher already used — allow ONLY if same business is re-activating (reinstall / refresh)
+    // If voucher already used — check if same business + hardware
     if (voucher.status === "used") {
       const isSameBusiness = biz && voucher.redeemedByBusinessId === biz.id;
       if (!isSameBusiness) {
         res.status(400).json({ error: "Yeh voucher kisi aur business ke liye use ho chuka hai" });
         return;
       }
-      // Same business — allow re-activation (fall through)
+      // Same business — check hardware fingerprint
+      let prevHardware: string | null = null;
+      try {
+        const prev = JSON.parse(voucher.notes || "{}");
+        prevHardware = prev.hardware || null;
+      } catch { /* ignore */ }
+
+      const newHardware = hardwareFingerprint || null;
+      const sameHardware = !prevHardware || !newHardware || prevHardware === newHardware;
+
+      if (!sameHardware) {
+        // Different PC — create pending approval request
+        const { pool, sqlite } = await import("@workspace/db");
+        const insertData = {
+          code: voucherCode.trim().toUpperCase(),
+          businessCode: businessCode.trim().toUpperCase(),
+          businessName: businessName || null,
+          businessEmail: businessEmail || null,
+          hardwareFingerprint: newHardware,
+          ip: ip || null,
+          exeVersion: exeVersion || null,
+        };
+
+        if (sqlite) {
+          try {
+            sqlite.prepare(`
+              INSERT INTO activation_requests (code, business_code, business_name, business_email, hardware_fingerprint, ip, exe_version, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+            `).run(insertData.code, insertData.businessCode, insertData.businessName, insertData.businessEmail, insertData.hardwareFingerprint, insertData.ip, insertData.exeVersion);
+          } catch { /* ignore duplicate */ }
+        } else if (pool) {
+          try {
+            await pool.query(
+              `INSERT INTO activation_requests (code, business_code, business_name, business_email, hardware_fingerprint, ip, exe_version, status) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending')`,
+              [insertData.code, insertData.businessCode, insertData.businessName, insertData.businessEmail, insertData.hardwareFingerprint, insertData.ip, insertData.exeVersion]
+            );
+          } catch { /* ignore duplicate */ }
+        }
+
+        res.status(202).json({
+          status: "PENDING_APPROVAL",
+          message: "Naya device detect hua hai. Tech Support approval ke baad activate hoga. Thodi der mein dobara try karein.",
+        });
+        return;
+      }
+      // Same hardware — allow re-activation (fall through)
     }
 
     const now = new Date();
@@ -252,6 +299,7 @@ router.post("/heartbeat", async (req, res) => {
 router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
 router.use(supportChatRouter);
+router.use(activationRequestsRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 
@@ -278,6 +326,7 @@ router.use("/dashboard", dashboardRouter);
 router.use("/cash-bank", cashBankRouter);
 router.use(chatRouter);
 router.use(reportTemplatesRouter);
+router.use(templateFilesRouter);
 router.use(printServerRouter);
 
 export default router;

@@ -64,8 +64,7 @@ export default function PartySelect({
   const [showAll, setShowAll] = useState(false);
 
   const filtered = parties
-    .filter(p => showAll || !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()))
-    .slice(0, 50);
+    .filter(p => showAll || !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()));
 
   const isNew =
     !!onAddNew &&

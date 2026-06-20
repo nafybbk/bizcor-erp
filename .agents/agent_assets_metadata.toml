@@ -257,3 +257,9 @@ id = "Vx4ehjYahhux7VcodID82"
 uri = "file://BizCor-ERP-Features.pdf"
 type = "pdf"
 title = "BizCor ERP — Customer Feature Guide (PDF)"
+
+[[outputs]]
+id = "XBufSROrc8HNgolvwzyEy"
+uri = "file://bizcor-erp-backup.zip"
+type = "unspecified"
+title = "BizCor ERP — Full Project Backup (211 MB)"

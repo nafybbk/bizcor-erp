@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, fmt } from "@/lib/api";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
-import { Loader2, Printer } from "lucide-react";
+import { Loader2, Printer, X } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
 
 const ALL_COLS: ColDef[] = [
@@ -34,6 +34,7 @@ export default function PartyLedger() {
   const [ledger, setLedger] = useState<any>(null);
   const [partySearch, setPartySearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [billWise, setBillWise] = useState(false);
@@ -41,6 +42,8 @@ export default function PartyLedger() {
   const [visibleCols, setVisibleCols] = useState<string[]>(() =>
     getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
   );
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const bills: any[] = ledger?.bills || [];
   const totalBillAmount = bills.reduce((s: number, b: any) => s + b.billAmount, 0);
@@ -184,14 +187,10 @@ export default function PartyLedger() {
 </style>`
     ).replace(
       "<body>",
-      `<body><div class="print-bar"><span>Party Statement — Preview</span><button class="btn-print" onclick="window.print()">🖨 Print</button><button class="btn-close" onclick="window.close()">✕ Close</button></div>`
+      `<body><div class="print-bar"><span>Party Statement — Preview</span><button class="btn-print" onclick="window.print()">🖨 Print</button></div>`
     );
 
-    const w = window.open("", "_blank", "width=960,height=750");
-    if (!w) return;
-    w.document.write(htmlWithBtn);
-    w.document.close();
-    w.focus();
+    setPrintHtml(htmlWithBtn);
   };
 
   const handleColChange = (cols: string[]) => { setVisibleCols(cols); saveVisibleCols(REPORT_KEY, cols); };
@@ -203,11 +202,14 @@ export default function PartyLedger() {
 
   const loadLedger = (partyId: number) => {
     setLoading(true);
+    setLoadError(null);
     const params = new URLSearchParams();
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     api.get<any>(`/accounting/ledger/${partyId}?${params}`)
-      .then(setLedger).catch(console.error).finally(() => setLoading(false));
+      .then(data => { setLedger(data); setLoadError(null); })
+      .catch((err: any) => { setLoadError(err?.message || "Ledger load nahi ho saka"); setLedger(null); })
+      .finally(() => setLoading(false));
   };
 
   const selectParty = (p: any) => {
@@ -227,6 +229,7 @@ export default function PartyLedger() {
   ];
 
   return (
+    <>
     <div className="max-w-5xl space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Party Statement</h1>
@@ -317,6 +320,18 @@ export default function PartyLedger() {
       </div>
 
       {loading && <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>}
+
+      {loadError && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-red-700 text-sm flex items-start gap-2">
+          <span className="text-lg">⚠️</span>
+          <div>
+            <div className="font-medium">Party ledger load nahi ho saka</div>
+            <div className="text-xs text-red-500 mt-0.5 font-mono">{loadError}</div>
+            <button onClick={() => selectedParty && loadLedger(selectedParty.id)}
+              className="mt-2 text-xs text-red-700 underline hover:no-underline">Dobara try karein</button>
+          </div>
+        </div>
+      )}
 
       {ledger && !loading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -457,5 +472,39 @@ export default function PartyLedger() {
         </div>
       )}
     </div>
+
+    {/* ── In-page print preview modal (replaces window.open) ───────────── */}
+    {printHtml && (
+      <div className="fixed inset-0 z-[9999] flex flex-col bg-gray-700">
+        <div className="flex items-center justify-between px-4 h-11 bg-gray-900 text-white flex-shrink-0">
+          <span className="text-sm font-semibold">Party Statement — Preview</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => iframeRef.current?.contentWindow?.print()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg"
+            >
+              <Printer className="w-4 h-4" /> Print / PDF
+            </button>
+            <button
+              onClick={() => setPrintHtml(null)}
+              className="p-1.5 hover:bg-gray-700 rounded text-gray-400 hover:text-white"
+              title="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <iframe
+            ref={iframeRef}
+            srcDoc={printHtml}
+            title="Party Statement"
+            className="w-full h-full border-none"
+            sandbox="allow-same-origin allow-scripts allow-modals"
+          />
+        </div>
+      </div>
+    )}
+    </>
   );
 }

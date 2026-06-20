@@ -349,6 +349,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [fieldSize, setFieldSizeState] = useState<FieldSize>(() => getFieldSize());
   const applyFieldSize = (s: FieldSize) => { setFieldSizeState(s); saveFieldSize(s); };
 
+  // ── Integrated Payment ──────────────────────────────────────────
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    paymentMode: "cash" as "cash" | "bank" | "cheque" | "upi" | "other",
+    accountId: "",
+    referenceNumber: "",
+  });
+  const [cashBankAccounts, setCashBankAccounts] = useState<any[]>([]);
+
   // ── Resizable columns ──────────────────────────────────────────
   const COL_DEFAULTS: Record<string, number> = {
     item: 200, hsn: 88, qty: 70, unit: 70, rate: 160,
@@ -466,13 +476,18 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       : "debit_note";
 
     Promise.all([
-      api.get<any>(`/parties?type=${partyType}&limit=200`),
-      api.get<any>("/items?limit=200"),
+      api.get<any>(`/parties?type=${partyType}&limit=9999`),
+      api.get<any>("/items?limit=9999"),
       api.get<any>("/masters/tax-rates"),
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-    ]).then(([p, it, t, u, biz, nextNumRes]) => {
+      api.get<any>("/cash-bank/accounts").catch(() => []),
+    ]).then(([p, it, t, u, biz, nextNumRes, cbRes]) => {
+      const cbList: any[] = Array.isArray(cbRes) ? cbRes : (cbRes?.data || []);
+      setCashBankAccounts(cbList);
+      const defAcc = cbList.find((a: any) => a.isDefault) || cbList.find((a: any) => a.type === "cash");
+      if (defAcc) setPaymentForm(f => ({ ...f, accountId: String(defAcc.id) }));
       setParties(p.data || []);
       setItems(it.data || []);
       setTaxRates(t.data || []);
@@ -883,6 +898,27 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         }
       }
       // Show print prompt instead of immediately navigating
+      // Auto-create Receipt/Payment voucher if requested
+      if (paymentReceived && !editId && savedVoucherId && Number(paymentForm.amount) > 0) {
+        try {
+          await api.post("/payments", {
+            type: isSales ? "receipt" : "payment",
+            partyId: payload.partyId,
+            partyName: form.partyName,
+            date: form.date,
+            amount: Number(paymentForm.amount),
+            paymentMode: paymentForm.paymentMode,
+            accountId: paymentForm.accountId ? Number(paymentForm.accountId) : null,
+            referenceNumber: paymentForm.referenceNumber || undefined,
+            notes: `Auto with ${savedVoucherNum}`,
+            isOnAccount: false,
+            allocations: [{ voucherId: savedVoucherId, allocatedAmount: Number(paymentForm.amount) }],
+          });
+        } catch (err: any) {
+          console.error("Payment auto-create failed:", err);
+        }
+      }
+
       if (savedVoucherId) {
         setSavedInfo({ id: savedVoucherId, number: savedVoucherNum });
         setShowPrintPrompt(true);
@@ -1904,6 +1940,82 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             </div>
           </div>
         </div>
+
+        {/* ── Integrated Payment Section ── */}
+        {!editId && !isReturn && (
+          <div className={`rounded-xl border p-5 space-y-3 ${paymentReceived ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input type="checkbox" checked={paymentReceived}
+                onChange={e => {
+                  setPaymentReceived(e.target.checked);
+                  if (e.target.checked) setPaymentForm(f => ({ ...f, amount: String(grandTotal) }));
+                }}
+                className="w-4 h-4 rounded accent-green-600" />
+              <span className="font-semibold text-gray-800 text-sm">
+                {isSales ? "💰 Payment Received" : "💸 Payment Made"}
+              </span>
+              {paymentReceived && (
+                <span className="text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full font-medium">
+                  Receipt voucher auto-created on save
+                </span>
+              )}
+            </label>
+
+            {paymentReceived && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Amount (₹) *</label>
+                  <input type="number" min="0" step="0.01"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-full"
+                    value={paymentForm.amount}
+                    onFocus={e => e.target.select()}
+                    onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Payment Mode</label>
+                  <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-full"
+                    value={paymentForm.paymentMode}
+                    onChange={e => {
+                      const mode = e.target.value as any;
+                      const filtered = cashBankAccounts.filter((a: any) => mode === "cash" ? a.type === "cash" : a.type === "bank");
+                      const def = filtered.find((a: any) => a.isDefault) || filtered[0];
+                      setPaymentForm(f => ({ ...f, paymentMode: mode, accountId: def ? String(def.id) : "" }));
+                    }}>
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="upi">UPI</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    {paymentForm.paymentMode === "cash" ? "💵 Cash Account" : "🏦 Bank Account"}
+                  </label>
+                  <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-full"
+                    value={paymentForm.accountId}
+                    onChange={e => setPaymentForm(f => ({ ...f, accountId: e.target.value }))}>
+                    <option value="">-- Select --</option>
+                    {cashBankAccounts
+                      .filter((a: any) => paymentForm.paymentMode === "cash" ? a.type === "cash" : a.type === "bank")
+                      .map((a: any) => (
+                        <option key={a.id} value={a.id}>{a.name}{a.bankName ? ` — ${a.bankName}` : ""}</option>
+                      ))}
+                  </select>
+                </div>
+                {paymentForm.paymentMode !== "cash" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reference #</label>
+                    <input className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-full"
+                      value={paymentForm.referenceNumber}
+                      onChange={e => setPaymentForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                      placeholder="Cheque / UTR no." />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </form>
 
       {/* ── Bin Docs Modal ── */}

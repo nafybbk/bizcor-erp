@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
@@ -38,6 +38,7 @@ const REPORT_KEY = "voucher_list";
 
 export default function VoucherList({ voucherType, title, createHref, viewHref, isIncome = true }: VoucherListProps) {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const canEdit = user?.canEdit !== false;
   const canDelete = user?.canDelete !== false;
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -201,7 +202,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
                           )}
                           <button
                             title="Print"
-                            onClick={() => window.open(`${viewHref(v.id)}?print=1`, "_blank")}
+                            onClick={() => navigate(`${viewHref(v.id)}?print=1`)}
                             className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
                           >
                             <Printer className="w-4 h-4" />

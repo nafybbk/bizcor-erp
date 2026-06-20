@@ -49,6 +49,19 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
     // plans table — package_config added to plansTable schema (login queries plans)
     "ALTER TABLE plans ADD COLUMN package_config TEXT",
+    `CREATE TABLE IF NOT EXISTS activation_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL,
+      business_code TEXT NOT NULL,
+      business_name TEXT,
+      business_email TEXT,
+      hardware_fingerprint TEXT,
+      ip TEXT,
+      exe_version TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      reviewed_at TEXT
+    )`,
   ];
   for (const stmt of migrations) {
     try { _sqlite.prepare(stmt).run(); } catch { /* column already exists */ }
@@ -97,6 +110,19 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMPTZ",
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_start_date TIMESTAMPTZ",
     "ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config TEXT",
+    `CREATE TABLE IF NOT EXISTS activation_requests (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL,
+      business_code TEXT NOT NULL,
+      business_name TEXT,
+      business_email TEXT,
+      hardware_fingerprint TEXT,
+      ip TEXT,
+      exe_version TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ
+    )`,
   ];
   for (const stmt of pgMigrations) {
     try { await pool.query(stmt); } catch { /* ignore if already exists */ }

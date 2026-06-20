@@ -1,0 +1,60 @@
+{
+  "name": "bizcor-report-designer",
+  "version": "1.0.0",
+  "description": "BizCor Report Designer — Standalone Desktop App",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --publish never",
+    "build:portable": "electron-builder --win portable --publish never"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.bizcor.report-designer",
+    "productName": "BizCor Report Designer",
+    "copyright": "Copyright © 2025 BizCor",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend-dist/",
+        "to": "frontend-dist/"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BizCor Report Designer",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "BizCor-Report-Designer-Portable.exe"
+    }
+  }
+}

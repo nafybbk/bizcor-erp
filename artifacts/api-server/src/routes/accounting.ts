@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, sql, gte, lte, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, gte, lte, inArray, isNull, ne } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -13,20 +13,36 @@ router.get("/ledger/:partyId", async (req, res) => {
     const partyId = Number(req.params.partyId);
     const { fromDate, toDate } = req.query;
 
-    const party = await db.query.partiesTable.findFirst({
-      where: and(eq(partiesTable.id, partyId), eq(partiesTable.businessId, businessId)),
-    });
-    if (!party) { res.status(404).json({ error: "Not Found" }); return; }
+    const [party] = await db.select().from(partiesTable)
+      .where(and(eq(partiesTable.id, partyId), eq(partiesTable.businessId, businessId))).limit(1);
+    if (!party) { res.status(404).json({ error: "Party not found" }); return; }
 
-    const vConditions: any[] = [eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt)];
+    const vConditions: any[] = [
+      eq(vouchersTable.businessId, businessId),
+      eq(vouchersTable.partyId, partyId),
+      isNull(vouchersTable.deletedAt),
+      ne(vouchersTable.status, "cancelled" as any),
+    ];
     if (fromDate) vConditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) vConditions.push(lte(vouchersTable.date, String(toDate)));
-    const vouchers = await db.select().from(vouchersTable).where(and(...vConditions));
+    const vouchers = await db.select({
+      id: vouchersTable.id,
+      voucherType: vouchersTable.voucherType,
+      voucherNumber: vouchersTable.voucherNumber,
+      date: vouchersTable.date,
+      grandTotal: vouchersTable.grandTotal,
+    }).from(vouchersTable).where(and(...vConditions));
 
-    const pConditions: any[] = [eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId)];
+    const pConditions: any[] = [eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId), isNull(paymentsTable.deletedAt)];
     if (fromDate) pConditions.push(gte(paymentsTable.date, String(fromDate)));
     if (toDate) pConditions.push(lte(paymentsTable.date, String(toDate)));
-    const payments = await db.select().from(paymentsTable).where(and(...pConditions));
+    const payments = await db.select({
+      id: paymentsTable.id,
+      type: paymentsTable.type,
+      paymentNumber: paymentsTable.paymentNumber,
+      date: paymentsTable.date,
+      amount: paymentsTable.amount,
+    }).from(paymentsTable).where(and(...pConditions));
 
     // --- FIX: merge all entries first, sort by date, then calculate running balance ---
     const rawEntries: any[] = [];
@@ -64,18 +80,39 @@ router.get("/ledger/:partyId", async (req, res) => {
 
     // --- Bill-wise: FIFO distribution using ALL historical data (ignore date filter) ---
     // Fetch ALL bills + payments + credit/debit notes for this party (no date filter) for correct FIFO
-    const allBillVouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt),
-        sql`${vouchersTable.voucherType} IN ('sales_invoice','purchase_bill')`
+    const allBillVouchers = await db.select({
+      id: vouchersTable.id,
+      voucherType: vouchersTable.voucherType,
+      voucherNumber: vouchersTable.voucherNumber,
+      date: vouchersTable.date,
+      grandTotal: vouchersTable.grandTotal,
+    }).from(vouchersTable).where(
+      and(
+        eq(vouchersTable.businessId, businessId),
+        eq(vouchersTable.partyId, partyId),
+        isNull(vouchersTable.deletedAt),
+        ne(vouchersTable.status, "cancelled" as any),
+        inArray(vouchersTable.voucherType, ["sales_invoice", "purchase_bill"] as any[])
       )
     );
-    const allCreditDebitVouchers = await db.select().from(vouchersTable).where(
-      and(eq(vouchersTable.businessId, businessId), eq(vouchersTable.partyId, partyId), isNull(vouchersTable.deletedAt),
-        sql`${vouchersTable.voucherType} IN ('credit_note','debit_note')`
+    const allCreditDebitVouchers = await db.select({
+      id: vouchersTable.id,
+      grandTotal: vouchersTable.grandTotal,
+    }).from(vouchersTable).where(
+      and(
+        eq(vouchersTable.businessId, businessId),
+        eq(vouchersTable.partyId, partyId),
+        isNull(vouchersTable.deletedAt),
+        ne(vouchersTable.status, "cancelled" as any),
+        inArray(vouchersTable.voucherType, ["credit_note", "debit_note"] as any[])
       )
     );
-    const allPayments = await db.select().from(paymentsTable).where(
-      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId))
+    const allPayments = await db.select({
+      id: paymentsTable.id,
+      date: paymentsTable.date,
+      amount: paymentsTable.amount,
+    }).from(paymentsTable).where(
+      and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId), isNull(paymentsTable.deletedAt))
     );
 
     // Sort bills and payments by date ascending (FIFO)

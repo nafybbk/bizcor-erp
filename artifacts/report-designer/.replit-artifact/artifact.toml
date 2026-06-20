@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/report-designer/"
+title = "BizCor Report Designer"
+version = "1.0.0"
+id = "artifacts/report-designer"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/report-designer/" ]
+localPort = 24261
+
+[services.development]
+run = "pnpm --filter @workspace/report-designer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/report-designer", "run", "build" ]
+publicDir = "artifacts/report-designer/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24261"
+BASE_PATH = "/report-designer/"
