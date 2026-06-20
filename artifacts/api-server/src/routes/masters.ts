@@ -216,6 +216,51 @@ router.delete("/hsn/:id", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// HSN BULK IMPORT
+router.post("/hsn/import", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const { rows, mode = "skip" } = req.body as {
+      rows: { code: string; description?: string; taxRate?: string | null }[];
+      mode?: "skip" | "overwrite";
+    };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "Rows array required" }); return;
+    }
+
+    // Get existing codes for this business
+    const existing = await db.select({ id: hsnCodesTable.id, code: hsnCodesTable.code })
+      .from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
+    const existingMap = new Map(existing.map(e => [e.code.trim(), e.id]));
+
+    let inserted = 0, updated = 0, skipped = 0;
+
+    for (const row of rows) {
+      const code = String(row.code).trim();
+      if (!code) continue;
+      const description = row.description?.trim() || null;
+      const taxRate = row.taxRate != null && String(row.taxRate).trim() !== ""
+        ? String(parseFloat(String(row.taxRate))) : null;
+
+      if (existingMap.has(code)) {
+        if (mode === "overwrite") {
+          await db.update(hsnCodesTable)
+            .set({ description, taxRate })
+            .where(and(eq(hsnCodesTable.businessId, businessId), eq(hsnCodesTable.code, code)));
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        await db.insert(hsnCodesTable).values({ businessId, code, description, taxRate });
+        inserted++;
+      }
+    }
+
+    res.json({ success: true, inserted, updated, skipped, total: rows.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // TAX RATES
 router.patch("/tax-rates/reorder", async (req, res) => {
   try {

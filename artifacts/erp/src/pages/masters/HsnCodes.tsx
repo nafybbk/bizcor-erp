@@ -1,6 +1,54 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Plus, Loader2, Edit2, Trash2, X, Check } from "lucide-react";
+import { Plus, Loader2, Edit2, Trash2, X, Check, Upload, FileSpreadsheet, AlertCircle, ChevronDown } from "lucide-react";
+import * as XLSX from "xlsx";
+
+// ── Column auto-detection — handles multiple GST portal export formats ─────────
+const COL_ALIASES: Record<string, string[]> = {
+  code: ["hsn code", "hsn/sac", "hsn", "sac code", "sac", "hsncode", "hsn_code", "code", "commodity code"],
+  description: ["description", "goods and service", "goods/service", "goods & service", "commodity", "item description", "product description", "desc"],
+  taxRate: ["igst rate", "gst rate", "igst%", "gst%", "tax rate", "rate", "igst", "gst", "tax%", "rate%"],
+};
+
+function detectCol(headers: string[], colKey: "code" | "description" | "taxRate"): number {
+  const aliases = COL_ALIASES[colKey];
+  for (const alias of aliases) {
+    const idx = headers.findIndex(h => h.toLowerCase().trim() === alias);
+    if (idx >= 0) return idx;
+  }
+  // Partial match fallback
+  for (const alias of aliases) {
+    const idx = headers.findIndex(h => h.toLowerCase().trim().includes(alias));
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+interface ParsedRow { code: string; description: string; taxRate: string; _raw: string[] }
+interface ColMap { code: number; description: number; taxRate: number }
+
+function parseFile(file: File): Promise<{ headers: string[]; rows: string[][] }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: "" }) as string[][];
+        // Skip empty leading rows
+        const firstNonEmpty = raw.findIndex(r => r.some(c => String(c).trim()));
+        const trimmed = raw.slice(firstNonEmpty);
+        const headers = (trimmed[0] || []).map(h => String(h).trim());
+        const rows = trimmed.slice(1).filter(r => r.some(c => String(c).trim()));
+        resolve({ headers, rows: rows.map(r => r.map(c => String(c).trim())) });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export default function HsnCodes() {
   const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -8,12 +56,24 @@ export default function HsnCodes() {
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ code: "", description: "", taxRate: "" });
+  const [search, setSearch] = useState("");
+
+  // Upload state
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState<"idle" | "preview" | "done">("idle");
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [rawRows, setRawRows] = useState<string[][]>([]);
+  const [colMap, setColMap] = useState<ColMap>({ code: -1, description: -1, taxRate: -1 });
+  const [importMode, setImportMode] = useState<"skip" | "overwrite">("skip");
+  const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skipped: number; total: number } | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
 
   const load = () => {
     setLoading(true);
     api.get<any>("/masters/hsn").then(r => setCodes(r.data)).catch(console.error).finally(() => setLoading(false));
   };
-
   useEffect(() => { load(); }, []);
 
   const save = async (e: React.FormEvent) => {
@@ -22,25 +82,86 @@ export default function HsnCodes() {
     await api.post("/masters/hsn", { ...form, taxRate: form.taxRate ? Number(form.taxRate) : null });
     setForm({ code: "", description: "", taxRate: "" }); setSaving(false); load();
   };
-
   const startEdit = (c: any) => { setEditId(c.id); setEditForm({ code: c.code, description: c.description || "", taxRate: c.taxRate ? String(c.taxRate) : "" }); };
   const cancelEdit = () => setEditId(null);
   const saveEdit = async (id: number) => {
     await api.patch(`/masters/hsn/${id}`, { ...editForm, taxRate: editForm.taxRate ? Number(editForm.taxRate) : null });
     setEditId(null); load();
   };
-
   const del = async (id: number) => {
     if (!confirm("Delete HSN code?")) return;
-    await api.delete(`/masters/hsn/${id}`);
-    load();
+    await api.delete(`/masters/hsn/${id}`); load();
   };
 
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParseError(null);
+    setImportResult(null);
+    setFileName(file.name);
+    try {
+      const { headers: h, rows: r } = await parseFile(file);
+      if (h.length === 0 || r.length === 0) { setParseError("File mein koi data nahi mila. CSV/Excel format check karo."); return; }
+      const cm: ColMap = {
+        code: detectCol(h, "code"),
+        description: detectCol(h, "description"),
+        taxRate: detectCol(h, "taxRate"),
+      };
+      setHeaders(h);
+      setRawRows(r);
+      setColMap(cm);
+      setUploadStep("preview");
+    } catch {
+      setParseError("File parse nahi ho saka. CSV ya Excel (.xlsx) format mein hona chahiye.");
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const parsedRows: ParsedRow[] = rawRows.map(r => ({
+    code: colMap.code >= 0 ? r[colMap.code] || "" : "",
+    description: colMap.description >= 0 ? r[colMap.description] || "" : "",
+    taxRate: colMap.taxRate >= 0 ? r[colMap.taxRate] || "" : "",
+    _raw: r,
+  })).filter(r => r.code.trim());
+
+  const doImport = async () => {
+    if (parsedRows.length === 0) return;
+    setUploading(true);
+    try {
+      const result = await api.post<any>("/masters/hsn/import", {
+        rows: parsedRows.map(r => ({ code: r.code.trim(), description: r.description.trim() || undefined, taxRate: r.taxRate ? r.taxRate.replace(/[^0-9.]/g, "") : null })),
+        mode: importMode,
+      });
+      setImportResult(result);
+      setUploadStep("done");
+      load();
+    } catch (err: any) {
+      setParseError(err?.message || "Import nahi ho saka");
+    } finally { setUploading(false); }
+  };
+
+  const resetUpload = () => { setUploadStep("idle"); setHeaders([]); setRawRows([]); setImportResult(null); setParseError(null); setFileName(""); };
+
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const filtered = search ? codes.filter(c => c.code.toLowerCase().includes(search.toLowerCase()) || (c.description || "").toLowerCase().includes(search.toLowerCase())) : codes;
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">HSN / SAC Codes</h1>
+    <div className="max-w-4xl space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">HSN / SAC Codes</h1>
+        <div className="flex items-center gap-2">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search code or description..."
+            className={inputCls + " w-56"} />
+          <button
+            onClick={() => { resetUpload(); fileRef.current?.click(); }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
+            <Upload className="w-4 h-4" /> GST Portal Upload
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
+        </div>
+      </div>
+
+      {/* Add form */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-semibold text-gray-800 mb-3 text-sm">Add New Code</h3>
         <form onSubmit={save} className="grid grid-cols-4 gap-3">
@@ -58,8 +179,140 @@ export default function HsnCodes() {
         </form>
       </div>
 
+      {/* Upload Preview Panel */}
+      {uploadStep !== "idle" && (
+        <div className="bg-white rounded-xl border border-green-200 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 bg-green-50 border-b border-green-100">
+            <div className="flex items-center gap-2 font-semibold text-green-800 text-sm">
+              <FileSpreadsheet className="w-4 h-4" />
+              {fileName} — {uploadStep === "done" ? "Import Complete" : `${parsedRows.length} rows ready`}
+            </div>
+            <button onClick={resetUpload} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+          </div>
+
+          {parseError && (
+            <div className="flex items-start gap-2 px-5 py-3 bg-red-50 text-red-700 text-sm border-b border-red-100">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {parseError}
+            </div>
+          )}
+
+          {uploadStep === "preview" && !parseError && (
+            <div className="p-5 space-y-4">
+              {/* Column mapping */}
+              <div className="grid grid-cols-3 gap-3">
+                {(["code", "description", "taxRate"] as const).map(key => {
+                  const labels: Record<string, string> = { code: "HSN/SAC Code *", description: "Description", taxRate: "Tax Rate %" };
+                  return (
+                    <div key={key}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{labels[key]}</label>
+                      <div className="relative">
+                        <select
+                          value={colMap[key]}
+                          onChange={e => setColMap(m => ({ ...m, [key]: Number(e.target.value) }))}
+                          className={inputCls + " w-full pr-8 appearance-none " + (key === "code" && colMap.code < 0 ? "border-red-400" : "")}>
+                          <option value={-1}>— Column nahi mila —</option>
+                          {headers.map((h, i) => <option key={i} value={i}>{h} (Col {i + 1})</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {colMap.code < 0 && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200">
+                  <AlertCircle className="w-3.5 h-3.5" /> HSN Code column select karo tabhi import hoga
+                </div>
+              )}
+
+              {/* Preview table */}
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-2">Preview (pehli 10 rows):</div>
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">#</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">HSN/SAC Code</th>
+                        <th className="text-left px-3 py-2 font-medium text-gray-600">Description</th>
+                        <th className="text-right px-3 py-2 font-medium text-gray-600">Tax %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {parsedRows.slice(0, 10).map((r, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                          <td className="px-3 py-2 font-mono font-bold text-blue-700">{r.code || <span className="text-red-400">missing</span>}</td>
+                          <td className="px-3 py-2 text-gray-600 max-w-xs truncate">{r.description || "—"}</td>
+                          <td className="px-3 py-2 text-right text-gray-500">{r.taxRate || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {parsedRows.length > 10 && (
+                    <div className="px-3 py-2 text-xs text-gray-400 bg-gray-50 border-t border-gray-100 text-center">
+                      + {parsedRows.length - 10} more rows
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Import options */}
+              <div className="flex items-center justify-between flex-wrap gap-3 pt-1">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-gray-700">Duplicate codes:</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                    <input type="radio" name="mode" checked={importMode === "skip"} onChange={() => setImportMode("skip")} className="accent-blue-600" />
+                    <span>Skip (existing keep karein)</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                    <input type="radio" name="mode" checked={importMode === "overwrite"} onChange={() => setImportMode("overwrite")} className="accent-orange-500" />
+                    <span>Overwrite (update karein)</span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={resetUpload} className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50">Cancel</button>
+                  <button
+                    onClick={doImport}
+                    disabled={uploading || colMap.code < 0 || parsedRows.length === 0}
+                    className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg disabled:opacity-60">
+                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Import {parsedRows.length} Codes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {uploadStep === "done" && importResult && (
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-4 gap-4">
+                {[
+                  { label: "Total Rows", value: importResult.total, color: "text-gray-700 bg-gray-50 border-gray-200" },
+                  { label: "Naye Add", value: importResult.inserted, color: "text-green-700 bg-green-50 border-green-200" },
+                  { label: "Updated", value: importResult.updated, color: "text-blue-700 bg-blue-50 border-blue-200" },
+                  { label: "Skipped", value: importResult.skipped, color: "text-gray-500 bg-gray-50 border-gray-200" },
+                ].map(s => (
+                  <div key={s.label} className={`rounded-lg border px-4 py-3 text-center ${s.color}`}>
+                    <div className="text-2xl font-bold">{s.value}</div>
+                    <div className="text-xs font-medium mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <button onClick={resetUpload} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg font-medium">Done</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HSN Codes Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {loading ? <div className="flex items-center justify-center h-32"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div> : (
+        {loading ? (
+          <div className="flex items-center justify-center h-32"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
+        ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
@@ -71,7 +324,7 @@ export default function HsnCodes() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {codes.map((c, idx) => (
+              {filtered.map((c, idx) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                   {editId === c.id ? (
@@ -101,9 +354,18 @@ export default function HsnCodes() {
                   )}
                 </tr>
               ))}
-              {codes.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No HSN codes added yet</td></tr>}
+              {filtered.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  {codes.length === 0 ? "No HSN codes added yet" : "Koi result nahi mila"}
+                </td></tr>
+              )}
             </tbody>
           </table>
+        )}
+        {codes.length > 0 && (
+          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 text-right">
+            Total: {codes.length} codes
+          </div>
         )}
       </div>
     </div>
