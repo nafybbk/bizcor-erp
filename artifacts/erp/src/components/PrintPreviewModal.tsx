@@ -5,9 +5,13 @@ import { X, Printer, ZoomIn, ZoomOut, MessageCircle, SlidersHorizontal } from "l
 interface PrintCfg {
   fontSize: number;     // 10–20 (px)
   headerLevel: number;  // 0 (kala/dark) → 100 (halka/light)
+  marginTop: number;    // mm
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
 }
 const CFG_KEY = "bizcor_print_cfg2";
-const DEFAULT_CFG: PrintCfg = { fontSize: 13, headerLevel: 40 };
+const DEFAULT_CFG: PrintCfg = { fontSize: 13, headerLevel: 40, marginTop: 10, marginRight: 10, marginBottom: 10, marginLeft: 10 };
 
 function loadCfg(): PrintCfg {
   try { return { ...DEFAULT_CFG, ...JSON.parse(localStorage.getItem(CFG_KEY) || "{}") }; }
@@ -108,6 +112,7 @@ body{
     transform:none!important;width:100%!important;
     box-shadow:none!important;border-radius:0!important;margin:0!important;
   }
+  @page{margin:${cfg.marginTop}mm ${cfg.marginRight}mm ${cfg.marginBottom}mm ${cfg.marginLeft}mm;}
 }
 ${css}
 </style>
@@ -277,8 +282,52 @@ export default function PrintPreviewModal({
               </div>
             </div>
 
-            <div className="text-gray-600 text-xs self-center">Settings apne aap save hoti hain</div>
           </div>
+
+          {/* Margin editor — mini A4 visual + sliders */}
+          <div className="mt-3 pt-3 border-t border-gray-700">
+            <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Print Margins (mm)</div>
+            <div className="flex gap-6 items-start flex-wrap">
+
+              {/* Mini A4 visual */}
+              <div className="relative flex-shrink-0" style={{ width: 72, height: 96, background: "white", border: "1px solid #555", borderRadius: 2 }}>
+                {/* Top line */}
+                <div className="absolute left-0 right-0" style={{ top: `${(cfg.marginTop / 30) * 100}%`, borderTop: "1.5px dashed #3b82f6", pointerEvents: "none" }} />
+                {/* Bottom line */}
+                <div className="absolute left-0 right-0" style={{ bottom: `${(cfg.marginBottom / 30) * 100}%`, borderTop: "1.5px dashed #3b82f6", pointerEvents: "none" }} />
+                {/* Left line */}
+                <div className="absolute top-0 bottom-0" style={{ left: `${(cfg.marginLeft / 30) * 100}%`, borderLeft: "1.5px dashed #3b82f6", pointerEvents: "none" }} />
+                {/* Right line */}
+                <div className="absolute top-0 bottom-0" style={{ right: `${(cfg.marginRight / 30) * 100}%`, borderLeft: "1.5px dashed #3b82f6", pointerEvents: "none" }} />
+                {/* Center dot */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div style={{ width: 20, height: 20, background: "#f3f4f6", borderRadius: 2, border: "1px solid #ddd" }} />
+                </div>
+              </div>
+
+              {/* 4 sliders */}
+              <div className="flex flex-col gap-2 flex-1 min-w-[200px]">
+                {(["marginTop", "marginRight", "marginBottom", "marginLeft"] as const).map(key => {
+                  const labels: Record<string, string> = { marginTop: "↑ Top", marginRight: "Right →", marginBottom: "↓ Bottom", marginLeft: "← Left" };
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs w-16 flex-shrink-0">{labels[key]}</span>
+                      <input
+                        type="range" min={0} max={30} step={1}
+                        value={cfg[key]}
+                        onChange={e => updateCfg({ [key]: Number(e.target.value) })}
+                        className="flex-1 accent-blue-500 cursor-pointer"
+                      />
+                      <span className="text-gray-300 text-xs font-mono w-8 text-right">{cfg[key]}mm</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </div>
+
+          <div className="text-gray-600 text-xs mt-2">Settings apne aap save hoti hain</div>
         </div>
       )}
 
