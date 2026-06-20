@@ -484,7 +484,14 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
       api.get<any>("/cash-bank/accounts").catch(() => []),
     ]).then(([p, it, t, u, biz, nextNumRes, cbRes]) => {
-      const cbList: any[] = Array.isArray(cbRes) ? cbRes : (cbRes?.data || []);
+      let cbList: any[] = Array.isArray(cbRes) ? cbRes : (cbRes?.data || []);
+      // If no accounts set up, create synthetic fallbacks from business settings
+      if (cbList.length === 0) {
+        cbList = [
+          { id: "", name: "💵 Cash", type: "cash", isDefault: true },
+          { id: "", name: biz?.bankName ? `🏦 ${biz.bankName}${biz.bankAccount ? " (" + biz.bankAccount + ")" : ""}` : "🏦 Bank Account", type: "bank", isDefault: false },
+        ];
+      }
       setCashBankAccounts(cbList);
       const defAcc = cbList.find((a: any) => a.isDefault) || cbList.find((a: any) => a.type === "cash");
       if (defAcc) setPaymentForm(f => ({ ...f, accountId: String(defAcc.id) }));
@@ -909,7 +916,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             amount: Number(paymentForm.amount),
             paymentMode: paymentForm.paymentMode,
             accountId: paymentForm.accountId ? Number(paymentForm.accountId) : null,
-            referenceNumber: paymentForm.referenceNumber || undefined,
+            referenceNumber: paymentForm.referenceNumber || savedVoucherNum,
             notes: `Auto with ${savedVoucherNum}`,
             isOnAccount: false,
             allocations: [{ voucherId: savedVoucherId, allocatedAmount: Number(paymentForm.amount) }],

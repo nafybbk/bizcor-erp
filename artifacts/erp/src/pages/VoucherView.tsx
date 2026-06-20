@@ -697,7 +697,23 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           </div>
                         </div>
                         <div className="text-right pl-2" style={{ paddingTop: "8px" }}>
-                          <div style={{ marginTop: "40px", borderTop: "1px solid black", display: "inline-block", minWidth: "140px", textAlign: "center", paddingTop: "3px" }}>
+                          {(voucher.status === "paid" || voucher.status === "partial") && (
+                            <div style={{
+                              display: "inline-block",
+                              border: `2.5px solid ${voucher.status === "paid" ? "#16a34a" : "#d97706"}`,
+                              color: voucher.status === "paid" ? "#16a34a" : "#d97706",
+                              padding: "3px 10px",
+                              fontWeight: "bold",
+                              fontSize: "13px",
+                              letterSpacing: "2px",
+                              borderRadius: "3px",
+                              marginBottom: "6px",
+                              transform: "rotate(-6deg)",
+                            }}>
+                              {voucher.status === "paid" ? "✓ PAID" : "◎ PARTIAL"}
+                            </div>
+                          )}
+                          <div style={{ marginTop: voucher.status === "paid" || voucher.status === "partial" ? "8px" : "40px", borderTop: "1px solid black", display: "inline-block", minWidth: "140px", textAlign: "center", paddingTop: "3px" }}>
                             <div style={{ fontWeight: "bold", fontSize: `${fs.signatory}px` }}>For {biz.name || ""}</div>
                             {biz.signatoryName && <div style={{ fontSize: `${fs.signatory}px` }}>{biz.signatoryName}</div>}
                             <div style={{ fontSize: `${fs.signatory}px` }}>Authorised Signatory</div>
@@ -865,9 +881,17 @@ export default function VoucherView({ voucherType, listHref }: Props) {
       {/* Toolbar */}
       <div className="max-w-4xl space-y-4">
         <div className="flex items-center justify-between gap-2 no-print">
-          <button onClick={() => navigate(listHref)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 flex-shrink-0">
-            <ArrowLeft className="w-4 h-4" /> <span>Back</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => navigate(listHref)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+              <ArrowLeft className="w-4 h-4" /> <span>Back</span>
+            </button>
+            {voucher.status === "paid" && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold border bg-green-50 text-green-700 border-green-300">✓ PAID</span>
+            )}
+            {voucher.status === "partial" && (
+              <span className="px-3 py-1 rounded-full text-xs font-bold border bg-amber-50 text-amber-700 border-amber-300">◎ PARTIAL</span>
+            )}
+          </div>
           <div className="flex gap-1.5 flex-wrap justify-end">
             {canDelete && (
               <button onClick={handleDelete}
@@ -1174,8 +1198,23 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 )}
               </div>
               {/* Signature */}
-              <div className="text-right mt-8">
-                <div className="border-t-2 border-gray-800 pt-3 inline-block min-w-40 text-center">
+              <div className="text-right mt-4">
+                {(voucher.status === "paid" || voucher.status === "partial") && (
+                  <div className="inline-block mb-3" style={{
+                    border: `2.5px solid ${voucher.status === "paid" ? "#16a34a" : "#d97706"}`,
+                    color: voucher.status === "paid" ? "#16a34a" : "#d97706",
+                    padding: "4px 14px",
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                    letterSpacing: "3px",
+                    borderRadius: "3px",
+                    transform: "rotate(-6deg)",
+                    display: "inline-block",
+                  }}>
+                    {voucher.status === "paid" ? "✓ PAID" : "◎ PARTIAL"}
+                  </div>
+                )}
+                <div className="border-t-2 border-gray-800 pt-3 inline-block min-w-40 text-center" style={{ display: "block" }}>
                   <div className="font-bold text-sm text-gray-800">{biz.name || ""}</div>
                   {biz.signatoryName && <div className="text-xs text-gray-500 mt-0.5">{biz.signatoryName}</div>}
                   <div className="text-xs text-gray-400 mt-0.5">Authorized Signatory</div>
