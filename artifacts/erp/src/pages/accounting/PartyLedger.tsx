@@ -34,6 +34,7 @@ export default function PartyLedger() {
   const [ledger, setLedger] = useState<any>(null);
   const [partySearch, setPartySearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [billWise, setBillWise] = useState(false);
@@ -203,11 +204,14 @@ export default function PartyLedger() {
 
   const loadLedger = (partyId: number) => {
     setLoading(true);
+    setLoadError(null);
     const params = new URLSearchParams();
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
     api.get<any>(`/accounting/ledger/${partyId}?${params}`)
-      .then(setLedger).catch(console.error).finally(() => setLoading(false));
+      .then(data => { setLedger(data); setLoadError(null); })
+      .catch((err: any) => { setLoadError(err?.message || "Ledger load nahi ho saka"); setLedger(null); })
+      .finally(() => setLoading(false));
   };
 
   const selectParty = (p: any) => {
@@ -317,6 +321,18 @@ export default function PartyLedger() {
       </div>
 
       {loading && <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>}
+
+      {loadError && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-red-700 text-sm flex items-start gap-2">
+          <span className="text-lg">⚠️</span>
+          <div>
+            <div className="font-medium">Party ledger load nahi ho saka</div>
+            <div className="text-xs text-red-500 mt-0.5 font-mono">{loadError}</div>
+            <button onClick={() => selectedParty && loadLedger(selectedParty.id)}
+              className="mt-2 text-xs text-red-700 underline hover:no-underline">Dobara try karein</button>
+          </div>
+        </div>
+      )}
 
       {ledger && !loading && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
