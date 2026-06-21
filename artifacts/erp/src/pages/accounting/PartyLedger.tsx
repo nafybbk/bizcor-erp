@@ -200,12 +200,14 @@ export default function PartyLedger() {
     api.get<any>("/parties?limit=500").then(r => setParties(r.data || [])).catch(console.error);
   }, []);
 
-  const loadLedger = (partyId: number) => {
+  const loadLedger = (partyId: number, viewType?: string) => {
     setLoading(true);
     setLoadError(null);
     const params = new URLSearchParams();
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
+    const vt = viewType ?? (partyTypeFilter !== "all" ? partyTypeFilter : undefined);
+    if (vt && vt !== "all") params.set("viewType", vt);
     api.get<any>(`/accounting/ledger/${partyId}?${params}`)
       .then(data => { setLedger(data); setLoadError(null); })
       .catch((err: any) => { setLoadError(err?.message || "Ledger load nahi ho saka"); setLedger(null); })
@@ -220,7 +222,7 @@ export default function PartyLedger() {
 
   useEffect(() => {
     if (selectedParty) loadLedger(selectedParty.id);
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, partyTypeFilter]);
 
   const TYPE_TABS: { key: PartyTypeFilter; label: string; color: string }[] = [
     { key: "all",      label: "All",      color: "gray" },
