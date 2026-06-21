@@ -1,8 +1,41 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, like, or, sql, desc } from "drizzle-orm";
+import { eq, and, like, or, sql, desc, isNotNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+
+// Generate AC0001 / AS0001 style unique codes per business per first-letter group
+async function generatePartyCodes(businessId: number, name: string, type: string) {
+  const fl = (name.trim()[0] || "X").toUpperCase();
+  let customerCode: string | undefined;
+  let supplierCode: string | undefined;
+
+  if (type === "customer" || type === "both") {
+    const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` })
+      .from(partiesTable)
+      .where(and(
+        eq(partiesTable.businessId, businessId),
+        sql`UPPER(SUBSTR(TRIM(${partiesTable.name}), 1, 1)) = ${fl}`,
+        or(eq(partiesTable.type, "customer" as any), eq(partiesTable.type, "both" as any))!,
+        isNotNull(partiesTable.customerCode)
+      ));
+    customerCode = `${fl}C${String(Number(cnt) + 1).padStart(4, "0")}`;
+  }
+
+  if (type === "supplier" || type === "both") {
+    const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` })
+      .from(partiesTable)
+      .where(and(
+        eq(partiesTable.businessId, businessId),
+        sql`UPPER(SUBSTR(TRIM(${partiesTable.name}), 1, 1)) = ${fl}`,
+        or(eq(partiesTable.type, "supplier" as any), eq(partiesTable.type, "both" as any))!,
+        isNotNull(partiesTable.supplierCode)
+      ));
+    supplierCode = `${fl}S${String(Number(cnt) + 1).padStart(4, "0")}`;
+  }
+
+  return { customerCode, supplierCode };
+}
 
 const router = Router();
 router.use(requireBusiness);
@@ -30,12 +63,14 @@ router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const { name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode, openingBalance, openingBalanceType, creditLimit, creditDays, customFields } = req.body;
+    const { customerCode, supplierCode } = await generatePartyCodes(businessId, name, type);
     const [party] = await db.insert(partiesTable).values({
       businessId, name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode,
       openingBalance: openingBalance ? String(openingBalance) : "0",
       openingBalanceType: openingBalanceType || "debit",
       creditLimit: creditLimit ? String(creditLimit) : "0",
       creditDays: creditDays || 0, customFields,
+      customerCode, supplierCode,
     }).returning();
     res.status(201).json(party);
   } catch (err) {

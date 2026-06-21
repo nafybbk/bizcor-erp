@@ -81,6 +81,8 @@ export const partiesTable = pgTable("parties", {
   creditDays: integer("credit_days").default(0),
   isActive: boolean("is_active").notNull().default(true),
   customFields: jsonb("custom_fields"),
+  customerCode: text("customer_code"),
+  supplierCode: text("supplier_code"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
