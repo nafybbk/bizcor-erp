@@ -5,11 +5,39 @@ import path from "path";
 
 const router = Router();
 
-// Templates folder structure:
-//   templates/defaults/<reportType>.json  — BizCor built-in defaults (read-only)
-//   templates/<businessId>/<reportType>.json  — per-business customized copies
+// Templates folder structure (priority order):
+//   1. <bizcor-db-folder>/reports/<reportType>.json  — external editable folder (desktop only)
+//   2. templates/<businessId>/<reportType>.json       — per-business copies (app folder)
+//   3. templates/defaults/<reportType>.json           — BizCor built-in defaults (read-only)
 const TEMPLATES_DIR = path.resolve(process.cwd(), "templates");
 const DEFAULTS_DIR = path.join(TEMPLATES_DIR, "defaults");
+
+// Desktop mode: reports folder inside bizcor-db (externally editable)
+function getExternalReportsDir(): string | null {
+  const sqlitePath = process.env.SQLITE_PATH;
+  if (!sqlitePath) return null;
+  return path.join(path.dirname(sqlitePath), "reports");
+}
+
+function externalReportPath(reportType: string): string | null {
+  const dir = getExternalReportsDir();
+  if (!dir) return null;
+  return path.join(dir, `${reportType}.json`);
+}
+
+// Auto-export report to external folder (so user can edit it externally)
+function autoExportToExternal(reportType: string, data: any): void {
+  try {
+    const fpath = externalReportPath(reportType);
+    if (!fpath) return;
+    const dir = path.dirname(fpath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(fpath)) {
+      // Only write if not already there — don't overwrite user's edits
+      fs.writeFileSync(fpath, JSON.stringify(data, null, 2), "utf-8");
+    }
+  } catch { /* ignore */ }
+}
 
 const VALID_REPORT_TYPES = [
   "sales_invoice",
@@ -94,7 +122,7 @@ router.get("/template-files", requireAuth, (req, res) => {
   }
 });
 
-// ── Get single template file (business copy → defaults fallback) ───────────────
+// ── Get single template file (external → business → defaults fallback) ──────────
 router.get("/template-files/:reportType", requireAuth, (req, res) => {
   try {
     const businessId = req.user!.businessId!;
@@ -104,18 +132,28 @@ router.get("/template-files/:reportType", requireAuth, (req, res) => {
       res.status(400).json({ error: "Invalid reportType" }); return;
     }
 
-    // 1. Business-specific file
+    // 1. External editable folder (bizcor-db/reports/) — desktop only, highest priority
+    const extPath = externalReportPath(reportType);
+    if (extPath && fs.existsSync(extPath)) {
+      const data = readJson(extPath);
+      res.json({ ...data, _source: "external" });
+      return;
+    }
+
+    // 2. Business-specific file (app templates folder)
     const bizPath = templatePath(businessId, reportType);
     if (fs.existsSync(bizPath)) {
       const data = readJson(bizPath);
+      autoExportToExternal(reportType, data);
       res.json({ ...data, _source: "business" });
       return;
     }
 
-    // 2. Fallback to BizCor default
+    // 3. Fallback to BizCor default
     const defPath = defaultPath(reportType);
     if (fs.existsSync(defPath)) {
       const data = readJson(defPath);
+      autoExportToExternal(reportType, data);
       res.json({ ...data, _source: "default" });
       return;
     }
