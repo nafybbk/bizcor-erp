@@ -287,9 +287,11 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             .print-only { display: block !important; }
             .screen-only { display: none !important; }
             @page { margin: 19mm 12.7mm 25.4mm; size: A4; }
-            #printable .invoice-page { page-break-after: always; }
+            #printable .invoice-page { page-break-after: always; height: 252.6mm !important; min-height: unset !important; }
             #printable .invoice-page:last-child { page-break-after: auto; }
             #printable .invoice-footer { page-break-inside: avoid; }
+            #printable .items-table-wrap { flex: 1 !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+            #printable .items-table-wrap table { flex: 1 !important; }
             #printable table tr { page-break-inside: avoid; }
           }
           .print-only { display: none; }
@@ -499,9 +501,9 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                     </div>
                   )}
 
-                  {/* ITEMS TABLE */}
-                  <div style={{ flex: 1 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
+                  {/* ITEMS TABLE — flex: 1 so it fills all space between header and footer */}
+                  <div className="items-table-wrap" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                  <table style={{ width: "100%", flex: 1, height: "100%", borderCollapse: "collapse", border: "1px solid #000" }}>
                     <thead>
                       <tr>
                         <th style={{ ...thStyle, width: "28px" }}>S.No</th>
@@ -551,21 +553,21 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           <td style={{ ...tdItem, textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                         </tr>
                       ))}
-                      {/* Phantom spacer rows — only on non-last pages so footer doesn't overflow */}
-                      {!isLastPage && (() => {
-                        const rowsOnPage = isFirstPage ? ROWS_FIRST : ROWS_CONT;
-                        const phantomCount = Math.max(0, rowsOnPage - pageItems.length);
-                        const ph: React.CSSProperties = { borderLeft: "1px solid #000", padding: 0, height: "18px" };
-                        return Array.from({ length: phantomCount }).map((_, i) => (
-                          <tr key={`ph-${i}`}>
-                            <td style={{ padding: 0, height: "18px" }} />
-                            <td style={ph} /><td style={ph} /><td style={ph} /><td style={ph} /><td style={ph} />
-                            {hasDiscount && <td style={ph} />}
-                            {isInterState ? <td style={ph} /> : <><td style={ph} /><td style={ph} /></>}
-                            <td style={ph} />
-                          </tr>
-                        ));
-                      })()}
+                      {/* Single auto-stretch spacer — fills ALL remaining space between items and totals */}
+                      <tr style={{ height: "100%" }}>
+                        <td style={{ padding: 0 }} />
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                        {hasDiscount && <td style={{ borderLeft: "1px solid #000", padding: 0 }} />}
+                        {isInterState
+                          ? <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                          : <><td style={{ borderLeft: "1px solid #000", padding: 0 }} /><td style={{ borderLeft: "1px solid #000", padding: 0 }} /></>
+                        }
+                        <td style={{ borderLeft: "1px solid #000", padding: 0 }} />
+                      </tr>
                     </tbody>
                     <tfoot>
                       <tr><td colSpan={20} style={{ borderTop: "1px solid #000", padding: 0, height: 0 }} /></tr>
