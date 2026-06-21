@@ -95,7 +95,16 @@ router.post("/activate-offline", async (req, res) => {
 
     // If voucher already used — check if same business + hardware
     if (voucher.status === "used") {
-      const isSameBusiness = biz && voucher.redeemedByBusinessId === biz.id;
+      let isSameBusiness = !!(biz && voucher.redeemedByBusinessId === biz.id);
+      // Fallback: redeemedByBusinessId may be null — check businessCode stored in notes
+      if (!isSameBusiness && biz) {
+        try {
+          const notes = JSON.parse(voucher.notes || "{}");
+          if (notes.businessCode && notes.businessCode === businessCode.trim().toUpperCase()) {
+            isSameBusiness = true;
+          }
+        } catch { /* ignore */ }
+      }
       if (!isSameBusiness) {
         res.status(400).json({ error: "Yeh voucher kisi aur business ke liye use ho chuka hai" });
         return;
