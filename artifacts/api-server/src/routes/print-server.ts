@@ -25,7 +25,7 @@ router.post("/print-server", requireAuth, async (req, res) => {
     return;
   }
 
-  const queueFile = path.join(sqlitePath, "print-queue.json");
+  const queueFile = path.join(path.dirname(sqlitePath), "print-queue.json");
   const job = {
     id: Date.now(),
     voucherId: String(voucherId),

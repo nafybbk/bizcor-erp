@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, Tray, Menu, shell, ipcMain, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, Tray, Menu, shell, ipcMain, nativeImage, dialog, Notification } = require("electron");
 const path = require("path");
 const os = require("os");
 const { autoUpdater } = require("electron-updater");
@@ -311,6 +311,18 @@ let _printBusy = false;
 async function processPrintJob(job) {
   if (_printBusy) return;
   _printBusy = true;
+
+  // Show server-side notification when client sends print
+  try {
+    if (Notification.isSupported()) {
+      new Notification({
+        title: "🖨 Print Request",
+        body: `Client se print request mili — ${job.voucherType} #${job.voucherId}`,
+        silent: false,
+      }).show();
+    }
+  } catch (_) {}
+
   try {
     const serverPort = server.getServerPort();
     const route = TYPE_TO_ROUTE[job.voucherType] || "sales/invoices";
