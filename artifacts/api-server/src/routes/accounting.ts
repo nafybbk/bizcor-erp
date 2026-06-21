@@ -260,8 +260,10 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
   const partyMap = new Map<number, any>(allParties.map(p => [p.id, p]));
 
   const data: any[] = [];
-  // Iterate ALL parties — not just those with invoices.
-  // A party with only opening balance or credit notes must still appear.
+  // Receivables → only parties with sales invoices OR debit opening balance (customer side)
+  // Payables   → only parties with purchase bills OR credit opening balance (supplier side)
+  const relevantOpeningType = invoiceType === "sales_invoice" ? "debit" : "credit";
+
   for (const party of allParties) {
     const partyId = party.id;
     const invoiceTotal = invoiceMap.get(partyId) || 0;
@@ -269,6 +271,13 @@ async function computeOutstanding(businessId: number, invoiceType: "sales_invoic
     const received = payMap.get(partyId) || 0;
     const openingBal = Number(party.openingBalance || 0);
     const openingType = party.openingBalanceType || "debit";
+
+    // Skip party if they have no invoices on this side AND their opening balance
+    // type belongs to the OTHER side — prevents customers from appearing in payables
+    const hasInvoices = invoiceTotal > 0 || cn > 0 || received > 0;
+    const openingMatchesSide = openingBal > 0 && openingType === relevantOpeningType;
+    if (!hasInvoices && !openingMatchesSide) continue;
+
     const opening = invoiceType === "sales_invoice"
       ? (openingType === "debit" ? openingBal : -openingBal)
       : (openingType === "credit" ? openingBal : -openingBal);
