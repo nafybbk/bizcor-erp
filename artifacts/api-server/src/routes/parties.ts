@@ -9,7 +9,7 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const { type, search, page = "1", limit = "50" } = req.query;
+    const { type, search, page = "1", limit = "10000" } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(partiesTable.businessId, businessId)];
     if (type && type !== "both") conditions.push(or(eq(partiesTable.type, type as "customer" | "supplier" | "both"), eq(partiesTable.type, "both"))!);
