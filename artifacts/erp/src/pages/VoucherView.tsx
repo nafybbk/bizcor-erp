@@ -551,8 +551,8 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                           <td style={{ ...tdItem, textAlign: "right", fontWeight: "bold" }}>{fmt.number(item.total)}</td>
                         </tr>
                       ))}
-                      {/* Phantom spacer rows — only column separators, no horizontal lines */}
-                      {(() => {
+                      {/* Phantom spacer rows — only on non-last pages so footer doesn't overflow */}
+                      {!isLastPage && (() => {
                         const rowsOnPage = isFirstPage ? ROWS_FIRST : ROWS_CONT;
                         const phantomCount = Math.max(0, rowsOnPage - pageItems.length);
                         const ph: React.CSSProperties = { borderLeft: "1px solid #000", padding: 0, height: "18px" };
