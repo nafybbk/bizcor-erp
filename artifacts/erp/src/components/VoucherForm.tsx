@@ -475,6 +475,16 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       : voucherType === "purchases/bills" ? "purchase_bill"
       : "debit_note";
 
+    // Load cash-bank accounts independently — must not depend on main Promise.all
+    api.get<any>("/cash-bank/accounts").then((cbRes: any) => {
+      const cbList: any[] = Array.isArray(cbRes) ? cbRes : (cbRes?.data || []);
+      if (cbList.length > 0) {
+        setCashBankAccounts(cbList);
+        const defAcc = cbList.find((a: any) => a.isDefault) || cbList.find((a: any) => a.type === "cash");
+        if (defAcc) setPaymentForm(f => ({ ...f, accountId: String(defAcc.id) }));
+      }
+    }).catch(() => {/* silent — synthetic fallback stays */});
+
     Promise.all([
       api.get<any>(`/parties?type=${partyType}&limit=9999`),
       api.get<any>("/items?limit=9999"),
@@ -482,19 +492,17 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-      api.get<any>("/cash-bank/accounts").catch(() => []),
-    ]).then(([p, it, t, u, biz, nextNumRes, cbRes]) => {
-      let cbList: any[] = Array.isArray(cbRes) ? cbRes : (cbRes?.data || []);
-      // If no accounts set up, create synthetic fallbacks from business settings
-      if (cbList.length === 0) {
-        cbList = [
+    ]).then(([p, it, t, u, biz, nextNumRes]) => {
+      // Synthetic fallback for cash-bank if no accounts loaded yet
+      setCashBankAccounts(prev => {
+        if (prev.length > 0) return prev; // already loaded
+        const fallback = [
           { id: "", name: "💵 Cash", type: "cash", isDefault: true },
           { id: "", name: biz?.bankName ? `🏦 ${biz.bankName}${biz.bankAccount ? " (" + biz.bankAccount + ")" : ""}` : "🏦 Bank Account", type: "bank", isDefault: false },
         ];
-      }
-      setCashBankAccounts(cbList);
-      const defAcc = cbList.find((a: any) => a.isDefault) || cbList.find((a: any) => a.type === "cash");
-      if (defAcc) setPaymentForm(f => ({ ...f, accountId: String(defAcc.id) }));
+        setPaymentForm(f => ({ ...f, accountId: "" }));
+        return fallback;
+      });
       setParties(p.data || []);
       setItems(it.data || []);
       setTaxRates(t.data || []);
