@@ -9,26 +9,13 @@ function getDataDir(sqlitePath: string) {
   return path.dirname(sqlitePath);
 }
 
-// GET /api/print-server/printers
-// Returns list of printers available on server PC (written by Electron at startup)
-router.get("/print-server/printers", requireAuth, (req, res) => {
-  const sqlitePath = process.env.SQLITE_PATH;
-  if (!sqlitePath) {
-    res.status(400).json({ error: "Only available in desktop/LAN mode." });
-    return;
-  }
-  const printersFile = path.join(getDataDir(sqlitePath), "printers.json");
-  if (!fs.existsSync(printersFile)) {
-    res.json({ printers: [] });
-    return;
-  }
-  try {
-    const printers = JSON.parse(fs.readFileSync(printersFile, "utf8"));
-    res.json({ printers });
-  } catch {
-    res.json({ printers: [] });
-  }
-});
+function getQueueFile(sqlitePath: string) {
+  return path.join(getDataDir(sqlitePath), "print-queue.json");
+}
+
+function getStatusFile(sqlitePath: string) {
+  return path.join(getDataDir(sqlitePath), "print-status.json");
+}
 
 // POST /api/print-server
 // Desktop/LAN mode only — writes a print job for Electron to pick up and print silently
@@ -39,11 +26,10 @@ router.post("/print-server", requireAuth, async (req, res) => {
     return;
   }
 
-  const { voucherId, voucherType, token, printerName } = req.body as {
+  const { voucherId, voucherType, token } = req.body as {
     voucherId: string | number;
     voucherType: string;
     token: string;
-    printerName?: string;
   };
 
   if (!voucherId || !voucherType || !token) {
@@ -51,18 +37,43 @@ router.post("/print-server", requireAuth, async (req, res) => {
     return;
   }
 
-  const queueFile = path.join(getDataDir(sqlitePath), "print-queue.json");
+  const jobId = Date.now();
   const job = {
-    id: Date.now(),
+    id: jobId,
     voucherId: String(voucherId),
     voucherType,
     token,
-    printerName: printerName || "",
     requestedAt: new Date().toISOString(),
   };
 
-  fs.writeFileSync(queueFile, JSON.stringify(job), "utf8");
-  res.json({ success: true, message: "Print request sent to server printer." });
+  // Clear old status before writing new job
+  try { fs.unlinkSync(getStatusFile(sqlitePath)); } catch (_) {}
+
+  fs.writeFileSync(getQueueFile(sqlitePath), JSON.stringify(job), "utf8");
+  res.json({ success: true, jobId });
+});
+
+// GET /api/print-server/status
+// Client polls this to know if Electron has finished printing
+router.get("/print-server/status", requireAuth, (req, res) => {
+  const sqlitePath = process.env.SQLITE_PATH;
+  if (!sqlitePath) {
+    res.status(400).json({ error: "Only available in desktop/LAN mode." });
+    return;
+  }
+
+  const statusFile = getStatusFile(sqlitePath);
+  if (!fs.existsSync(statusFile)) {
+    res.json({ status: "pending" });
+    return;
+  }
+
+  try {
+    const data = JSON.parse(fs.readFileSync(statusFile, "utf8"));
+    res.json(data);
+  } catch {
+    res.json({ status: "pending" });
+  }
 });
 
 export default router;

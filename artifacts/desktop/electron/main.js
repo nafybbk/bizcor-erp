@@ -299,6 +299,15 @@ function getPrintQueueFile() {
   return path.join(app.getPath("userData"), "bizcor-db", "print-queue.json");
 }
 
+function getPrintStatusFile() {
+  return path.join(app.getPath("userData"), "bizcor-db", "print-status.json");
+}
+
+function writePrintStatus(jobId, status, message) {
+  try {
+    fs.writeFileSync(getPrintStatusFile(), JSON.stringify({ jobId, status, message: message || "" }), "utf8");
+  } catch (_) {}
+}
 
 const TYPE_TO_ROUTE = {
   SI: "sales/invoices", CN: "sales/credit-notes",
@@ -313,66 +322,74 @@ async function processPrintJob(job) {
   if (_printBusy) return;
   _printBusy = true;
 
+  writePrintStatus(job.id, "printing", "");
+
   // Notification on server PC
   try {
     if (Notification.isSupported()) {
       new Notification({
         title: "🖨 Print Ho Raha Hai",
-        body: `${job.voucherType} #${job.voucherId} → ${job.printerName || "Default Printer"}`,
+        body: `${job.voucherType} #${job.voucherId}`,
         silent: false,
       }).show();
     }
   } catch (_) {}
 
+  const printWin = new BrowserWindow({
+    show: false,
+    width: 1200, height: 900,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+
   try {
     const serverPort = server.getServerPort();
     const route = TYPE_TO_ROUTE[job.voucherType] || "sales/invoices";
-    const invoiceUrl = `http://localhost:${serverPort}/${route}/${job.voucherId}`;
+    const invoiceUrl = `http://localhost:${serverPort}/${route}/${job.voucherId}?print=1`;
 
-    // /print-auth sets token in localStorage (same origin) then redirects to invoice
-    const authUrl = `http://localhost:${serverPort}/print-auth?token=${encodeURIComponent(job.token)}&to=${encodeURIComponent(invoiceUrl)}`;
-
-    const printWin = new BrowserWindow({
-      show: false,
-      width: 1200, height: 900,
-      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    // Step 1: Load blank page so we can set localStorage token
+    await new Promise(resolve => {
+      printWin.webContents.once("did-finish-load", resolve);
+      printWin.loadURL("about:blank");
     });
 
-    let invoiceLoaded = false;
+    // Step 2: Inject JWT token into localStorage (same origin as next load)
+    await printWin.webContents.executeJavaScript(
+      `localStorage.setItem('erp_token', ${JSON.stringify(job.token)})`
+    );
 
-    printWin.webContents.on("did-finish-load", async () => {
-      const currentUrl = printWin.webContents.getURL();
-      // Skip /print-auth redirect page
-      if (currentUrl.includes("/print-auth")) return;
-      if (invoiceLoaded) return;
-      invoiceLoaded = true;
+    // Step 3: Load the invoice page (React will read token from localStorage)
+    await new Promise(resolve => {
+      printWin.webContents.once("did-finish-load", resolve);
+      printWin.loadURL(invoiceUrl);
+    });
 
-      // Wait for React to fully render invoice
-      await new Promise(r => setTimeout(r, 3000));
+    // Step 4: Wait for React to fully render
+    await new Promise(r => setTimeout(r, 4000));
 
-      // Print silently to default printer
+    // Step 5: Print silently to default printer
+    await new Promise((resolve, reject) => {
       printWin.webContents.print(
         { silent: true, printBackground: true },
         (success, failureReason) => {
-          if (!success) {
-            dialog.showMessageBox({
-              type: "error", title: "Print Failed",
-              message: `Print nahi ho saka: ${failureReason || "Unknown error"}`,
-              buttons: ["Theek Hai"],
-            });
-          }
-          printWin.close();
-          try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
-          _printBusy = false;
+          if (success) resolve();
+          else reject(new Error(failureReason || "Print failed"));
         }
       );
     });
 
-    printWin.on("closed", () => { _printBusy = false; });
-    printWin.loadURL(authUrl);
+    writePrintStatus(job.id, "done", "");
 
   } catch (err) {
     console.error("[print] Error:", err.message);
+    writePrintStatus(job.id, "error", err.message);
+    dialog.showMessageBox({
+      type: "error", title: "Print Failed",
+      message: `Print nahi ho saka: ${err.message}`,
+      buttons: ["Theek Hai"],
+    }).catch(() => {});
+  } finally {
+    try { printWin.close(); } catch (_) {}
+    try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
     _printBusy = false;
   }
 }
@@ -386,7 +403,10 @@ function startPrintPoller() {
       const job = JSON.parse(fs.readFileSync(qFile, "utf8"));
       if (!job || job.id === _lastPrintJobId) return;
       _lastPrintJobId = job.id;
-      processPrintJob(job).catch(() => { _printBusy = false; });
+      processPrintJob(job).catch(err => {
+        console.error("[print] unhandled:", err.message);
+        _printBusy = false;
+      });
     } catch (_) {}
   }, 2000);
 }

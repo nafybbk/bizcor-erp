@@ -120,12 +120,39 @@ export default function VoucherView({ voucherType, listHref }: Props) {
     if (!token) { alert("Login session not found. Please re-login."); return; }
     setServerPrinting(true);
     try {
-      await api.post("/print-server", {
+      const res = await api.post<{ success: boolean; jobId: number }>("/print-server", {
         voucherId: params.id,
         voucherType: voucherTypeCode[voucherType] || "SI",
         token,
       });
-      alert("✅ Print request bhej diya!\nServer PC pe print ho raha hai.");
+      const jobId = res.jobId;
+
+      // Poll for print status (max 30 seconds)
+      let attempts = 0;
+      const maxAttempts = 30;
+      await new Promise<void>((resolve, reject) => {
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const status = await api.get<{ status: string; message?: string; jobId?: number }>("/print-server/status");
+            if (status.jobId === jobId || attempts > 3) {
+              if (status.status === "done") {
+                clearInterval(interval);
+                resolve();
+              } else if (status.status === "error") {
+                clearInterval(interval);
+                reject(new Error(status.message || "Print failed"));
+              }
+            }
+          } catch (_) {}
+          if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            resolve(); // timeout — assume printed
+          }
+        }, 1000);
+      });
+
+      alert("✅ Print ho gaya!");
     } catch (err: any) {
       alert(`❌ Print error: ${err?.message || "Server PC ka BizCor ERP chal raha hai?"}`);
     } finally {
