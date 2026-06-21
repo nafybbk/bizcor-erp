@@ -276,8 +276,12 @@ function restoreFromFile(filePath, pin) {
 
   // Take a safety copy before restore
   if (fs.existsSync(dbPath)) {
-    fs.copyFileSync(dbPath, dbPath + ".pre-restore");
+    try { fs.copyFileSync(dbPath, dbPath + ".pre-restore"); } catch (_) {}
   }
+
+  // Remove WAL/SHM files — these can cause corruption if left alongside restored DB
+  try { fs.unlinkSync(dbPath + "-wal"); } catch (_) {}
+  try { fs.unlinkSync(dbPath + "-shm"); } catch (_) {}
 
   fs.writeFileSync(dbPath, rawDb);
   return { success: true, size: rawDb.length };
