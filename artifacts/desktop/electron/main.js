@@ -299,65 +299,6 @@ function getPrintQueueFile() {
   return path.join(app.getPath("userData"), "bizcor-db", "print-queue.json");
 }
 
-function getPrintersFile() {
-  return path.join(app.getPath("userData"), "bizcor-db", "printers.json");
-}
-
-// Write server PC's available printers to JSON so clients can read via API
-async function refreshPrintersList() {
-  let list = [];
-
-  // Method 1: Electron getPrintersAsync via temp window
-  let tempWin = null;
-  try {
-    tempWin = new BrowserWindow({
-      show: false, width: 100, height: 100,
-      webPreferences: { nodeIntegration: false, contextIsolation: true },
-    });
-    await tempWin.loadURL("about:blank");
-    const printers = await tempWin.webContents.getPrintersAsync();
-    list = printers.map(p => ({ name: p.name, isDefault: p.isDefault || false }));
-    console.log(`[printers] getPrintersAsync: ${list.length} found`);
-  } catch (e) {
-    console.error("[printers] getPrintersAsync failed:", e && e.message);
-  } finally {
-    try { if (tempWin && !tempWin.isDestroyed()) tempWin.close(); } catch (_) {}
-  }
-
-  // Method 2: Windows wmic fallback (works even if Electron API fails)
-  if (list.length === 0 && process.platform === "win32") {
-    try {
-      const { exec } = require("child_process");
-      list = await new Promise((resolve) => {
-        exec("wmic printer get Name,Default /format:csv", { timeout: 10000 }, (err, stdout) => {
-          if (err) { resolve([]); return; }
-          const rows = stdout.split(/\r?\n/).filter(l => l.trim() && !l.startsWith("Node") && !l.startsWith("node"));
-          const printers = rows.map(line => {
-            const parts = line.split(",");
-            // CSV columns: Node, Default, Name
-            const isDefault = (parts[1] || "").trim().toUpperCase() === "TRUE";
-            const name = (parts[2] || "").trim();
-            return { name, isDefault };
-          }).filter(p => p.name && p.name.toLowerCase() !== "name");
-          resolve(printers);
-        });
-      });
-      console.log(`[printers] wmic fallback: ${list.length} found`, list.map(p => p.name));
-    } catch (e) {
-      console.error("[printers] wmic failed:", e && e.message);
-    }
-  }
-
-  try {
-    const pFile = getPrintersFile();
-    const dir = path.dirname(pFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(pFile, JSON.stringify(list), "utf8");
-    console.log(`[printers] Saved ${list.length} printer(s) to`, pFile);
-  } catch (e) {
-    console.error("[printers] write failed:", e && e.message);
-  }
-}
 
 const TYPE_TO_ROUTE = {
   SI: "sales/invoices", CN: "sales/credit-notes",
@@ -409,9 +350,9 @@ async function processPrintJob(job) {
       // Wait for React to fully render invoice
       await new Promise(r => setTimeout(r, 3000));
 
-      // Print silently to the printer client selected
+      // Print silently to default printer
       printWin.webContents.print(
-        { silent: true, printBackground: true, deviceName: job.printerName || "" },
+        { silent: true, printBackground: true },
         (success, failureReason) => {
           if (!success) {
             dialog.showMessageBox({
@@ -437,10 +378,6 @@ async function processPrintJob(job) {
 }
 
 function startPrintPoller() {
-  // Delay first printer refresh by 3s — Electron needs to be fully ready
-  setTimeout(() => refreshPrintersList(), 3000);
-  setInterval(() => { refreshPrintersList(); }, 60000);
-
   // Poll for incoming print jobs every 2s
   setInterval(() => {
     try {
