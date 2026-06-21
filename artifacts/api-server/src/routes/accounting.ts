@@ -17,12 +17,19 @@ router.get("/ledger/:partyId", async (req, res) => {
       .where(and(eq(partiesTable.id, partyId), eq(partiesTable.businessId, businessId))).limit(1);
     if (!party) { res.status(404).json({ error: "Party not found" }); return; }
 
+    // viewType: "customer" → SI/CN only, "supplier" → PB/DN only, else all
+    const viewType = String(req.query.viewType || "");
+    const customerVoucherTypes = ["sales_invoice", "credit_note"];
+    const supplierVoucherTypes = ["purchase_bill", "debit_note"];
+
     const vConditions: any[] = [
       eq(vouchersTable.businessId, businessId),
       eq(vouchersTable.partyId, partyId),
       isNull(vouchersTable.deletedAt),
       ne(vouchersTable.status, "cancelled" as any),
     ];
+    if (viewType === "customer") vConditions.push(inArray(vouchersTable.voucherType, customerVoucherTypes as any[]));
+    else if (viewType === "supplier") vConditions.push(inArray(vouchersTable.voucherType, supplierVoucherTypes as any[]));
     if (fromDate) vConditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) vConditions.push(lte(vouchersTable.date, String(toDate)));
     const vouchers = await db.select({
@@ -33,7 +40,10 @@ router.get("/ledger/:partyId", async (req, res) => {
       grandTotal: vouchersTable.grandTotal,
     }).from(vouchersTable).where(and(...vConditions));
 
+    // Payment type filter: customer → receipts only, supplier → payments only
     const pConditions: any[] = [eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId), isNull(paymentsTable.deletedAt)];
+    if (viewType === "customer") pConditions.push(eq(paymentsTable.type, "receipt" as any));
+    else if (viewType === "supplier") pConditions.push(eq(paymentsTable.type, "payment" as any));
     if (fromDate) pConditions.push(gte(paymentsTable.date, String(fromDate)));
     if (toDate) pConditions.push(lte(paymentsTable.date, String(toDate)));
     const payments = await db.select({
