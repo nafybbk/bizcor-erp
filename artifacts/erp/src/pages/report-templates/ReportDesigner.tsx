@@ -277,11 +277,26 @@ export default function ReportDesigner() {
   }, [template]);
 
   useEffect(() => {
-    if (isNew && !bands) {
-      const dims = getPaperDimensions(paperSize, orientation);
-      const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
-      setBands(defaultBands(cw));
-    }
+    if (!isNew || bands) return;
+    // Try loading BizCor preset template for this reportType
+    api.get<any>(`/template-files/${reportType}`)
+      .then(data => {
+        if (data?.bands) {
+          setBands(layoutToBands({ bands: data.bands }));
+          setName(`BizCor Default — ${REPORT_TYPES.find(r => r.key === reportType)?.label ?? reportType}`);
+          if (data.paperSize) setPaperSize(data.paperSize);
+          if (data.orientation) setOrientation(data.orientation);
+        } else {
+          const dims = getPaperDimensions(paperSize, orientation);
+          const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
+          setBands(defaultBands(cw));
+        }
+      })
+      .catch(() => {
+        const dims = getPaperDimensions(paperSize, orientation);
+        const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
+        setBands(defaultBands(cw));
+      });
   }, [isNew]);
 
   const paperDims = getPaperDimensions(paperSize, orientation);
