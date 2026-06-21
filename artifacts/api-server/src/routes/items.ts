@@ -9,12 +9,14 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const { search, page = "1", limit = "10000", type } = req.query;
+    const { search, page = "1", limit, type } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(itemsTable.businessId, businessId)];
     if (search) conditions.push(like(itemsTable.name, `%${search}%`));
     if (type) conditions.push(eq(itemsTable.type, type as "goods" | "service"));
-    const items = await db.select({
+    const lim = limit ? Number(limit) : null;
+    const pg = Number(page);
+    const baseQ = db.select({
       id: itemsTable.id, name: itemsTable.name, description: itemsTable.description,
       type: itemsTable.type, hsnCode: itemsTable.hsnCode, unitId: itemsTable.unitId,
       taxRateId: itemsTable.taxRateId, salePrice: itemsTable.salePrice, purchasePrice: itemsTable.purchasePrice,
@@ -24,7 +26,8 @@ router.get("/", async (req, res) => {
     }).from(itemsTable)
       .leftJoin(unitsTable, eq(itemsTable.unitId, unitsTable.id))
       .leftJoin(taxRatesTable, eq(itemsTable.taxRateId, taxRatesTable.id))
-      .where(and(...conditions)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit)).orderBy(itemsTable.name);
+      .where(and(...conditions)).orderBy(itemsTable.name);
+    const items = lim ? await (baseQ as any).limit(lim).offset((pg - 1) * lim) : await baseQ;
     const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(itemsTable).where(and(...conditions));
     const stockData = await db.select({
       itemId: voucherItemsTable.itemId,

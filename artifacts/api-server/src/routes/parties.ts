@@ -9,14 +9,17 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const { type, search, page = "1", limit = "10000" } = req.query;
+    const { type, search, page = "1", limit } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(partiesTable.businessId, businessId)];
     if (type && type !== "both") conditions.push(or(eq(partiesTable.type, type as "customer" | "supplier" | "both"), eq(partiesTable.type, "both"))!);
     if (search) conditions.push(or(like(partiesTable.name, `%${search}%`), like(partiesTable.gstin, `%${search}%`))!);
-    const parties = await db.select().from(partiesTable).where(and(...conditions)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit)).orderBy(partiesTable.name);
+    let q = db.select().from(partiesTable).where(and(...conditions)).orderBy(partiesTable.name);
+    const lim = limit ? Number(limit) : null;
+    const pg = Number(page);
+    const parties = lim ? await (q as any).limit(lim).offset((pg - 1) * lim) : await q;
     const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(partiesTable).where(and(...conditions));
-    res.json({ data: parties, total: Number(total), page: Number(page), limit: Number(limit) });
+    res.json({ data: parties, total: Number(total), page: pg, limit: lim ?? Number(total) });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });
