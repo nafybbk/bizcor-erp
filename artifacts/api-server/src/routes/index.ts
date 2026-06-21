@@ -253,11 +253,11 @@ router.get("/desktop/connected-clients", (_req, res) => {
 });
 
 // Desktop-only — WAL checkpoint before backup (flushes WAL into main DB file)
-router.get("/desktop/checkpoint", (_req, res) => {
+router.get("/desktop/checkpoint", async (_req, res) => {
   try {
     const sqlitePath = process.env.SQLITE_PATH;
     if (!sqlitePath) { res.status(400).json({ error: "Only in desktop mode." }); return; }
-    const { sqlite } = require("@workspace/db");
+    const { sqlite } = await import("@workspace/db");
     if (!sqlite) { res.status(400).json({ error: "SQLite not initialized." }); return; }
     const result = sqlite.pragma("wal_checkpoint(TRUNCATE)");
     res.json({ success: true, checkpoint: result });
