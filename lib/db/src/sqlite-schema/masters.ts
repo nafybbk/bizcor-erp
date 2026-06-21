@@ -73,6 +73,8 @@ export const partiesTable = sqliteTable("parties", {
   creditDays: integer("credit_days").default(0),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   customFields: text("custom_fields", { mode: "json" }),
+  customerCode: text("customer_code"),
+  supplierCode: text("supplier_code"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 
