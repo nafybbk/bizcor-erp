@@ -91,6 +91,10 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [serverPrinting, setServerPrinting] = useState(false);
+  const [loadingPrinters, setLoadingPrinters] = useState(false);
+  const [showPrinterSelect, setShowPrinterSelect] = useState(false);
+  const [serverPrinters, setServerPrinters] = useState<{ name: string; isDefault: boolean }[]>([]);
+  const [selectedPrinter, setSelectedPrinter] = useState("");
   const [showFontPanel, setShowFontPanel] = useState(false);
   const [fontSizes, setFontSizes] = useState<FontSizes>(() => {
     try { return { ...DEFAULT_FS, ...JSON.parse(localStorage.getItem(FS_KEY) || "{}") }; }
@@ -114,19 +118,44 @@ export default function VoucherView({ voucherType, listHref }: Props) {
     "purchases/bills": "PB", "purchases/debit-notes": "DN",
   };
 
+  // Step 1: fetch server printers, show selection on client
   const handleServerPrint = async () => {
     const token = localStorage.getItem("erp_token") || sessionStorage.getItem("erp_token") || "";
     if (!token) { alert("Login session not found. Please re-login."); return; }
+    setLoadingPrinters(true);
+    try {
+      const data = await api.get<{ printers: { name: string; isDefault: boolean }[] }>("/print-server/printers");
+      const printers = data?.printers || [];
+      if (printers.length === 0) {
+        alert("❌ Server PC pe koi printer nahi mila.\n\nServer PC pe BizCor ERP chal raha hai? Printer install hai?");
+        return;
+      }
+      const def = printers.find(p => p.isDefault) || printers[0];
+      setSelectedPrinter(def.name);
+      setServerPrinters(printers);
+      setShowPrinterSelect(true);
+    } catch {
+      alert("❌ Server se printers load nahi hue.\nServer PC ka BizCor ERP chal raha hai?");
+    } finally {
+      setLoadingPrinters(false);
+    }
+  };
+
+  // Step 2: send print job with selected printer
+  const confirmServerPrint = async () => {
+    const token = localStorage.getItem("erp_token") || sessionStorage.getItem("erp_token") || "";
+    setShowPrinterSelect(false);
     setServerPrinting(true);
     try {
       await api.post("/print-server", {
         voucherId: params.id,
         voucherType: voucherTypeCode[voucherType] || "SI",
         token,
+        printerName: selectedPrinter,
       });
-      alert("✅ Print request bhej diya server ke printer pe!");
+      alert(`✅ Print ho raha hai!\nPrinter: ${selectedPrinter}`);
     } catch (err: any) {
-      alert(`Print error: ${err?.message || "Failed"}`);
+      alert(`❌ Print error: ${err?.message || "Failed"}`);
     } finally {
       setServerPrinting(false);
     }
@@ -329,10 +358,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
               </button>
               {isLanMode && (
-                <button onClick={handleServerPrint} disabled={serverPrinting}
+                <button onClick={handleServerPrint} disabled={serverPrinting || loadingPrinters}
                   className="flex items-center gap-1.5 px-3 py-2 border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg text-sm font-medium disabled:opacity-60">
                   <FileDown className="w-4 h-4" />
-                  <span className="hidden sm:inline">{serverPrinting ? "Sending..." : "Server Print"}</span>
+                  <span className="hidden sm:inline">
+                    {loadingPrinters ? "Printers..." : serverPrinting ? "Printing..." : "Server Print"}
+                  </span>
                 </button>
               )}
             </div>
@@ -764,6 +795,57 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           onFallback={() => { setShowTemplateSelector(false); setShowPrintPreview(true); }}
         />
       )}
+      {/* ===== SERVER PRINTER SELECTION MODAL ===== */}
+      {showPrinterSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden">
+            <div className="bg-purple-600 px-5 py-4 flex items-center gap-3">
+              <span className="text-2xl">🖨</span>
+              <div>
+                <div className="text-white font-bold text-base">Server Printer Select Karo</div>
+                <div className="text-purple-200 text-xs mt-0.5">Kis printer pe print karna hai?</div>
+              </div>
+            </div>
+            <div className="px-5 py-4">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {serverPrinters.map(p => (
+                  <button
+                    key={p.name}
+                    onClick={() => setSelectedPrinter(p.name)}
+                    className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                      selectedPrinter === p.name
+                        ? "border-purple-500 bg-purple-50 text-purple-800"
+                        : "border-gray-200 hover:border-purple-300 hover:bg-gray-50 text-gray-700"
+                    }`}
+                  >
+                    <span className="text-lg">{selectedPrinter === p.name ? "🔵" : "⚪"}</span>
+                    <div>
+                      <div className="font-medium text-sm">{p.name}</div>
+                      {p.isDefault && <div className="text-xs text-green-600 font-medium">✓ Default Printer</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                onClick={() => setShowPrinterSelect(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmServerPrint}
+                disabled={!selectedPrinter}
+                className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-semibold hover:bg-purple-700 disabled:opacity-50"
+              >
+                🖨 Print Bhejo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPrintPreview && (
         <PrintPreviewModal
           printableId="printable"

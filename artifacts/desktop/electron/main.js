@@ -299,6 +299,24 @@ function getPrintQueueFile() {
   return path.join(app.getPath("userData"), "bizcor-db", "print-queue.json");
 }
 
+function getPrintersFile() {
+  return path.join(app.getPath("userData"), "bizcor-db", "printers.json");
+}
+
+// Write server PC's available printers to JSON so clients can read via API
+async function refreshPrintersList() {
+  try {
+    // Use mainWindow's webContents to get printer list
+    const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    if (!win) return;
+    const printers = await win.webContents.getPrintersAsync();
+    const list = printers.map(p => ({ name: p.name, isDefault: p.isDefault || false }));
+    const dir = path.dirname(getPrintersFile());
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(getPrintersFile(), JSON.stringify(list), "utf8");
+  } catch (_) {}
+}
+
 const TYPE_TO_ROUTE = {
   SI: "sales/invoices", CN: "sales/credit-notes",
   PB: "purchases/bills", DN: "purchases/debit-notes",
@@ -316,8 +334,8 @@ async function processPrintJob(job) {
   try {
     if (Notification.isSupported()) {
       new Notification({
-        title: "🖨 Print Request",
-        body: `Client se print request mili — ${job.voucherType} #${job.voucherId}`,
+        title: "🖨 Print Ho Raha Hai",
+        body: `${job.voucherType} #${job.voucherId} → ${job.printerName || "Default Printer"}`,
         silent: false,
       }).show();
     }
@@ -332,10 +350,8 @@ async function processPrintJob(job) {
     const authUrl = `http://localhost:${serverPort}/print-auth?token=${encodeURIComponent(job.token)}&to=${encodeURIComponent(invoiceUrl)}`;
 
     const printWin = new BrowserWindow({
-      show: true,
-      width: 1000,
-      height: 800,
-      title: `🖨 Server Print — ${job.voucherType} #${job.voucherId}`,
+      show: false,
+      width: 1200, height: 900,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
 
@@ -343,75 +359,30 @@ async function processPrintJob(job) {
 
     printWin.webContents.on("did-finish-load", async () => {
       const currentUrl = printWin.webContents.getURL();
-
-      // Skip the /print-auth redirect page — wait for invoice to load
+      // Skip /print-auth redirect page
       if (currentUrl.includes("/print-auth")) return;
-
-      // Prevent double-fire
       if (invoiceLoaded) return;
       invoiceLoaded = true;
 
       // Wait for React to fully render invoice
       await new Promise(r => setTimeout(r, 3000));
 
-      try {
-        // Get available printers on this server PC
-        const printers = await printWin.webContents.getPrintersAsync();
-        const printerNames = printers.map(p => p.name);
-
-        if (printerNames.length === 0) {
-          dialog.showMessageBox(printWin, {
-            type: "warning",
-            title: "Print — Koi Printer Nahi Mila",
-            message: "Server PC pe koi printer install nahi hai.\nPehle printer install karo phir dobara try karo.",
-            buttons: ["Theek Hai"],
-          });
+      // Print silently to the printer client selected
+      printWin.webContents.print(
+        { silent: true, printBackground: true, deviceName: job.printerName || "" },
+        (success, failureReason) => {
+          if (!success) {
+            dialog.showMessageBox({
+              type: "error", title: "Print Failed",
+              message: `Print nahi ho saka: ${failureReason || "Unknown error"}`,
+              buttons: ["Theek Hai"],
+            });
+          }
           printWin.close();
           try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
           _printBusy = false;
-          return;
         }
-
-        // Show printer selection dialog
-        const { response } = await dialog.showMessageBox(printWin, {
-          type: "question",
-          title: "🖨 Printer Select Karo",
-          message: `Client ne print request bheja:\n${job.voucherType} #${job.voucherId}\n\nKis printer pe print karna hai?`,
-          buttons: [...printerNames, "❌ Cancel"],
-          defaultId: 0,
-          cancelId: printerNames.length,
-        });
-
-        // Cancel
-        if (response === printerNames.length) {
-          printWin.close();
-          _printBusy = false;
-          return;
-        }
-
-        const selectedPrinter = printerNames[response];
-
-        printWin.webContents.print(
-          { silent: true, printBackground: true, deviceName: selectedPrinter },
-          (success, failureReason) => {
-            if (!success) {
-              dialog.showMessageBox({
-                type: "error",
-                title: "Print Failed",
-                message: `Print nahi ho saka: ${failureReason || "Unknown error"}`,
-                buttons: ["Theek Hai"],
-              });
-            }
-            printWin.close();
-            try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
-            _printBusy = false;
-          }
-        );
-      } catch (dialogErr) {
-        console.error("[print] Dialog error:", dialogErr.message);
-        printWin.close();
-        _printBusy = false;
-      }
+      );
     });
 
     printWin.on("closed", () => { _printBusy = false; });
@@ -424,6 +395,11 @@ async function processPrintJob(job) {
 }
 
 function startPrintPoller() {
+  // Refresh printers list immediately + every 60s so clients always see current list
+  refreshPrintersList();
+  setInterval(() => { refreshPrintersList(); }, 60000);
+
+  // Poll for incoming print jobs every 2s
   setInterval(() => {
     try {
       const qFile = getPrintQueueFile();
