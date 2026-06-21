@@ -305,27 +305,57 @@ function getPrintersFile() {
 
 // Write server PC's available printers to JSON so clients can read via API
 async function refreshPrintersList() {
+  let list = [];
+
+  // Method 1: Electron getPrintersAsync via temp window
   let tempWin = null;
   try {
-    // Always use a dedicated hidden window — getPrintersAsync() needs a loaded webContents
     tempWin = new BrowserWindow({
       show: false, width: 100, height: 100,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
     await tempWin.loadURL("about:blank");
-
     const printers = await tempWin.webContents.getPrintersAsync();
-    const list = printers.map(p => ({ name: p.name, isDefault: p.isDefault || false }));
+    list = printers.map(p => ({ name: p.name, isDefault: p.isDefault || false }));
+    console.log(`[printers] getPrintersAsync: ${list.length} found`);
+  } catch (e) {
+    console.error("[printers] getPrintersAsync failed:", e && e.message);
+  } finally {
+    try { if (tempWin && !tempWin.isDestroyed()) tempWin.close(); } catch (_) {}
+  }
 
+  // Method 2: Windows wmic fallback (works even if Electron API fails)
+  if (list.length === 0 && process.platform === "win32") {
+    try {
+      const { exec } = require("child_process");
+      list = await new Promise((resolve) => {
+        exec("wmic printer get Name,Default /format:csv", { timeout: 10000 }, (err, stdout) => {
+          if (err) { resolve([]); return; }
+          const rows = stdout.split(/\r?\n/).filter(l => l.trim() && !l.startsWith("Node") && !l.startsWith("node"));
+          const printers = rows.map(line => {
+            const parts = line.split(",");
+            // CSV columns: Node, Default, Name
+            const isDefault = (parts[1] || "").trim().toUpperCase() === "TRUE";
+            const name = (parts[2] || "").trim();
+            return { name, isDefault };
+          }).filter(p => p.name && p.name.toLowerCase() !== "name");
+          resolve(printers);
+        });
+      });
+      console.log(`[printers] wmic fallback: ${list.length} found`, list.map(p => p.name));
+    } catch (e) {
+      console.error("[printers] wmic failed:", e && e.message);
+    }
+  }
+
+  try {
     const pFile = getPrintersFile();
     const dir = path.dirname(pFile);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(pFile, JSON.stringify(list), "utf8");
-    console.log(`[printers] ${list.length} printer(s) saved:`, list.map(p => p.name));
+    console.log(`[printers] Saved ${list.length} printer(s) to`, pFile);
   } catch (e) {
-    console.error("[printers] refreshPrintersList failed:", e && e.message);
-  } finally {
-    try { if (tempWin && !tempWin.isDestroyed()) tempWin.close(); } catch (_) {}
+    console.error("[printers] write failed:", e && e.message);
   }
 }
 
