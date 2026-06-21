@@ -175,7 +175,18 @@ export default function PrintPreviewModal({
   }, [onClose]);
 
   const handlePrint = useCallback(() => {
-    iframeRef.current?.contentWindow?.print();
+    const iwin = iframeRef.current?.contentWindow;
+    if (iwin) {
+      try {
+        iwin.focus();
+        iwin.print();
+      } catch {
+        // Fallback: some browsers block iframe.print() — use main window print
+        window.print();
+      }
+    } else {
+      window.print();
+    }
   }, []);
 
   const handleWhatsApp = useCallback(() => {
@@ -339,7 +350,7 @@ export default function PrintPreviewModal({
             srcDoc={srcdoc}
             title="Invoice Preview"
             style={{ width: iframeWidth, height: "100%", border: "none", minHeight: "100%", display: "block" }}
-            sandbox="allow-same-origin allow-scripts allow-modals"
+            sandbox="allow-same-origin allow-scripts allow-modals allow-popups"
           />
         ) : (
           <div className="flex items-center justify-center h-full">
