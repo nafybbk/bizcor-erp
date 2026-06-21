@@ -312,7 +312,7 @@ async function processPrintJob(job) {
   if (_printBusy) return;
   _printBusy = true;
 
-  // Show server-side notification when client sends print
+  // Notification on server PC
   try {
     if (Notification.isSupported()) {
       new Notification({
@@ -328,35 +328,95 @@ async function processPrintJob(job) {
     const route = TYPE_TO_ROUTE[job.voucherType] || "sales/invoices";
     const invoiceUrl = `http://localhost:${serverPort}/${route}/${job.voucherId}`;
 
+    // /print-auth sets token in localStorage (same origin) then redirects to invoice
+    const authUrl = `http://localhost:${serverPort}/print-auth?token=${encodeURIComponent(job.token)}&to=${encodeURIComponent(invoiceUrl)}`;
+
     const printWin = new BrowserWindow({
-      show: false, width: 1200, height: 900,
+      show: true,
+      width: 1000,
+      height: 800,
+      title: `🖨 Server Print — ${job.voucherType} #${job.voucherId}`,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
 
-    let loadCount = 0;
-    printWin.webContents.on("did-finish-load", () => {
-      loadCount++;
-      if (loadCount === 1) {
-        // First load (data: URL) — sets token then navigates to invoice
-        printWin.webContents.executeJavaScript(
-          `localStorage.setItem('erp_token', ${JSON.stringify(job.token)}); location.replace(${JSON.stringify(invoiceUrl)});`
-        ).catch(() => {});
-      } else if (loadCount === 2) {
-        // Invoice loaded with auth — wait for React render then print
-        setTimeout(() => {
-          printWin.webContents.print({ silent: true, printBackground: true }, () => {
+    let invoiceLoaded = false;
+
+    printWin.webContents.on("did-finish-load", async () => {
+      const currentUrl = printWin.webContents.getURL();
+
+      // Skip the /print-auth redirect page — wait for invoice to load
+      if (currentUrl.includes("/print-auth")) return;
+
+      // Prevent double-fire
+      if (invoiceLoaded) return;
+      invoiceLoaded = true;
+
+      // Wait for React to fully render invoice
+      await new Promise(r => setTimeout(r, 3000));
+
+      try {
+        // Get available printers on this server PC
+        const printers = await printWin.webContents.getPrintersAsync();
+        const printerNames = printers.map(p => p.name);
+
+        if (printerNames.length === 0) {
+          dialog.showMessageBox(printWin, {
+            type: "warning",
+            title: "Print — Koi Printer Nahi Mila",
+            message: "Server PC pe koi printer install nahi hai.\nPehle printer install karo phir dobara try karo.",
+            buttons: ["Theek Hai"],
+          });
+          printWin.close();
+          try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
+          _printBusy = false;
+          return;
+        }
+
+        // Show printer selection dialog
+        const { response } = await dialog.showMessageBox(printWin, {
+          type: "question",
+          title: "🖨 Printer Select Karo",
+          message: `Client ne print request bheja:\n${job.voucherType} #${job.voucherId}\n\nKis printer pe print karna hai?`,
+          buttons: [...printerNames, "❌ Cancel"],
+          defaultId: 0,
+          cancelId: printerNames.length,
+        });
+
+        // Cancel
+        if (response === printerNames.length) {
+          printWin.close();
+          _printBusy = false;
+          return;
+        }
+
+        const selectedPrinter = printerNames[response];
+
+        printWin.webContents.print(
+          { silent: true, printBackground: true, deviceName: selectedPrinter },
+          (success, failureReason) => {
+            if (!success) {
+              dialog.showMessageBox({
+                type: "error",
+                title: "Print Failed",
+                message: `Print nahi ho saka: ${failureReason || "Unknown error"}`,
+                buttons: ["Theek Hai"],
+              });
+            }
             printWin.close();
             try { fs.unlinkSync(getPrintQueueFile()); } catch (_) {}
             _printBusy = false;
-          });
-        }, 3000);
+          }
+        );
+      } catch (dialogErr) {
+        console.error("[print] Dialog error:", dialogErr.message);
+        printWin.close();
+        _printBusy = false;
       }
     });
 
     printWin.on("closed", () => { _printBusy = false; });
+    printWin.loadURL(authUrl);
 
-    // Load a blank page first so we can set localStorage before navigating
-    printWin.loadURL("data:text/html,<html><body></body></html>");
   } catch (err) {
     console.error("[print] Error:", err.message);
     _printBusy = false;

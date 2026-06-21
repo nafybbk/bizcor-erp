@@ -52,6 +52,22 @@ app.use("/api", router);
 if (process.env.DESKTOP_MODE === "true") {
   const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, "../../frontend-dist");
 
+  // Print-auth: sets localStorage token then redirects to invoice (same-origin, no requireAuth)
+  app.get("/print-auth", (req, res) => {
+    const { token, to } = req.query as { token?: string; to?: string };
+    if (!token || !to) { res.status(400).send("Bad request"); return; }
+    const safeRedirect = String(to).startsWith("http://localhost") ? String(to) : "/";
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Loading...</title></head><body>
+<script>
+try{localStorage.setItem('erp_token',${JSON.stringify(String(token))});}catch(e){}
+location.replace(${JSON.stringify(safeRedirect)});
+</script>
+<p style="font-family:sans-serif;padding:20px">Invoice load ho raha hai...</p>
+</body></html>`);
+  });
+
   if (existsSync(frontendPath)) {
     app.use(express.static(frontendPath));
     app.get("/{*splat}", (_req, res) => {
