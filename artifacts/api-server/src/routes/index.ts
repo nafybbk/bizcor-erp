@@ -243,6 +243,20 @@ router.get("/desktop/connected-clients", (_req, res) => {
   res.json({ count: clients.length, clients });
 });
 
+// Desktop-only — WAL checkpoint before backup (flushes WAL into main DB file)
+router.get("/desktop/checkpoint", (_req, res) => {
+  try {
+    const sqlitePath = process.env.SQLITE_PATH;
+    if (!sqlitePath) { res.status(400).json({ error: "Only in desktop mode." }); return; }
+    const { sqlite } = require("@workspace/db");
+    if (!sqlite) { res.status(400).json({ error: "SQLite not initialized." }); return; }
+    const result = sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    res.json({ success: true, checkpoint: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Checkpoint failed." });
+  }
+});
+
 // Public — offline EXE weekly heartbeat (no business auth needed)
 router.post("/heartbeat", async (req, res) => {
   try {

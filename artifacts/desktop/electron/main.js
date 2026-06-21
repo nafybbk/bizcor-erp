@@ -489,6 +489,19 @@ ipcMain.handle("backup:get-folder", () => backup.getBackupDir());
 
 ipcMain.handle("backup:create", async () => {
   try {
+    // Flush WAL into main DB file before reading it for backup
+    const port = server.getServerPort();
+    if (port) {
+      await new Promise((resolve) => {
+        const http = require("http");
+        const req = http.get(`http://localhost:${port}/api/desktop/checkpoint`, (res) => {
+          res.resume();
+          res.on("end", resolve);
+        });
+        req.on("error", resolve); // ignore — backup still proceeds
+        req.setTimeout(5000, () => { req.destroy(); resolve(); });
+      });
+    }
     const result = backup.createBackup();
     return { success: true, ...result };
   } catch (err) {
