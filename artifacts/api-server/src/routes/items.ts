@@ -9,7 +9,7 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const { search, page = "1", limit = "50", type } = req.query;
+    const { search, page = "1", limit = "10000", type } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(itemsTable.businessId, businessId)];
     if (search) conditions.push(like(itemsTable.name, `%${search}%`));
