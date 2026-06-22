@@ -43,6 +43,12 @@ export default function Parties({ defaultType }: Props) {
       .catch(console.error).finally(() => setLoading(false));
   };
 
+  useEffect(() => {
+    setType(defaultType || "");
+    setPage(1);
+    setSearch("");
+  }, [defaultType]);
+
   useEffect(() => { load(); }, [page, search, type]);
 
   const openCreate = () => {
