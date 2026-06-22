@@ -36,15 +36,29 @@ export default function TrialBanner() {
 
   useEffect(() => {
     const win = window as any;
+
+    // Check if business has an active paid plan — overrides local trial timer
+    const isPlanActive = () =>
+      api.get<any>("/businesses/current")
+        .then(biz => !!(biz && !biz.isTrial && biz.planId))
+        .catch(() => false);
+
     if (win.bizcorDesktop?.getTrialStatus) {
-      win.bizcorDesktop.getTrialStatus().then((s: TrialStatus) => {
+      win.bizcorDesktop.getTrialStatus().then(async (s: TrialStatus) => {
+        // If local timer says show banner/alert, verify with server
+        if (s.showBanner || s.showAlert) {
+          const active = await isPlanActive();
+          if (active) return; // paid plan active — suppress banner completely
+        }
         setStatus(s);
         if (s.showTawk) loadTawk();
       });
     } else {
       api.get<any>("/businesses/current").then(biz => {
         if (!biz) return;
-        const expiry = biz.planExpiry ? new Date(biz.planExpiry) : null;
+        // Paid plan active — no banner at all
+        if (!biz.isTrial && biz.planId) return;
+        const expiry = biz.planExpiresAt ? new Date(biz.planExpiresAt) : null;
         if (!expiry) return;
         const now = new Date();
         const daysLeft = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
