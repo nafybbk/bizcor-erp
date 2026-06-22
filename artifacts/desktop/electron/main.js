@@ -241,19 +241,12 @@ function refreshTray() {
   const st = server.getStatus();
   const url = getServerURL();
   const trialStatus = trial.getTrialStatus();
-  const trialLabel =
-    trialStatus.phase === 1 ? `Trial: ${trialStatus.daysLeft} days remaining` :
-    trialStatus.phase === 2 ? `Trial: ${trialStatus.daysLeft} days left` :
-    trialStatus.phase === 3 ? `Grace period: ${trialStatus.daysLeft} days left` :
-    "Trial Expired — Locked";
-
   const clientsLabel = st === "running"
     ? `LAN Clients: ${_connectedCount} active (last 5 min)`
     : "LAN Clients: server stopped";
 
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "BizCor ERP", enabled: false },
-    { label: trialLabel, enabled: false },
     { type: "separator" },
     { label: st === "running" ? `Running — ${url}` : `Server: ${st}`, enabled: false },
     { label: clientsLabel, enabled: false },
