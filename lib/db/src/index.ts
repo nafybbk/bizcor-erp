@@ -29,6 +29,7 @@ if (sqlitePath) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _sqlite = new (Database as any)(dbPath);
   _sqlite.pragma("journal_mode = WAL");
+  _sqlite.pragma("busy_timeout = 5000");
   _sqlite.pragma("foreign_keys = ON");
 
   // Auto-migrate missing columns (safe — each in try/catch, SQLite ignores if already exists)
@@ -49,6 +50,9 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN plan_start_date TEXT",
     // plans table — package_config added to plansTable schema (login queries plans)
     "ALTER TABLE plans ADD COLUMN package_config TEXT",
+    // parties — unique codes per type
+    "ALTER TABLE parties ADD COLUMN customer_code TEXT",
+    "ALTER TABLE parties ADD COLUMN supplier_code TEXT",
     `CREATE TABLE IF NOT EXISTS activation_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL,
