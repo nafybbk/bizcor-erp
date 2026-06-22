@@ -23,6 +23,7 @@ export default function Parties({ defaultType }: Props) {
   const [form, setForm] = useState({ ...emptyForm, type: (defaultType || "customer") as any });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editCodes, setEditCodes] = useState<{ customerCode?: string; supplierCode?: string }>({});
   const limit = 50;
 
   const pageTitle = defaultType === "customer" ? "Customers" : defaultType === "supplier" ? "Suppliers" : "Parties";
@@ -46,11 +47,13 @@ export default function Parties({ defaultType }: Props) {
 
   const openCreate = () => {
     setEditId(null);
+    setEditCodes({});
     setForm({ ...emptyForm, type: (defaultType || "customer") as any });
     setError(""); setShowModal(true);
   };
   const openEdit = (p: any) => {
     setEditId(p.id);
+    setEditCodes({ customerCode: p.customerCode || undefined, supplierCode: p.supplierCode || undefined });
     setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0) });
     setError(""); setShowModal(true);
   };
@@ -165,6 +168,7 @@ export default function Parties({ defaultType }: Props) {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">Name</th>
+                  <th className="text-left px-4 py-3 font-medium">Code</th>
                   <th className="text-left px-4 py-3 font-medium">GSTIN</th>
                   <th className="text-left px-4 py-3 font-medium">State</th>
                   <th className="text-left px-4 py-3 font-medium">Type</th>
@@ -179,6 +183,13 @@ export default function Parties({ defaultType }: Props) {
                 {parties.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-0.5">
+                        {p.customerCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded w-fit">{p.customerCode}</span>}
+                        {p.supplierCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded w-fit">{p.supplierCode}</span>}
+                        {!p.customerCode && !p.supplierCode && <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.gstin || "-"}</td>
                     <td className="px-4 py-3 text-xs text-gray-500">{p.state ? `${p.state}${p.stateCode ? ` (${p.stateCode})` : ""}` : "-"}</td>
                     <td className="px-4 py-3">
@@ -225,6 +236,13 @@ export default function Parties({ defaultType }: Props) {
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <div className="p-6 grid grid-cols-2 gap-4">
+              {editId && (editCodes.customerCode || editCodes.supplierCode) && (
+                <div className="col-span-2 flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                  <span className="text-xs text-gray-500 font-medium">Party Code:</span>
+                  {editCodes.customerCode && <span className="font-mono text-sm px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-semibold">{editCodes.customerCode}</span>}
+                  {editCodes.supplierCode && <span className="font-mono text-sm px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-semibold">{editCodes.supplierCode}</span>}
+                </div>
+              )}
               <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label><input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                 <select className={inputCls} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as any }))}>

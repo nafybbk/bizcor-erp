@@ -464,6 +464,8 @@ function runSqliteMigrations() {
     "ALTER TABLE parties ADD COLUMN email TEXT",
     "ALTER TABLE parties ADD COLUMN city TEXT",
     "ALTER TABLE parties ADD COLUMN pincode TEXT",
+    "ALTER TABLE parties ADD COLUMN customer_code TEXT",
+    "ALTER TABLE parties ADD COLUMN supplier_code TEXT",
     // payments — account_id for Cash & Bank linking
     "ALTER TABLE payments ADD COLUMN account_id INTEGER",
     // payments — soft delete (bin)
