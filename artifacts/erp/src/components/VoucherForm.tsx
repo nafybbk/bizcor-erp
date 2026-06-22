@@ -1291,7 +1291,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       `}</style>
       <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }} className="space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">{editId ? "Edit" : "New"} {title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {editId ? "Edit" : "New"} {title}
+            {editId && form.voucherNumber ? <span className="text-blue-600 ml-2 font-mono text-lg">— {form.voucherNumber}</span> : ""}
+          </h1>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Field size toggle */}
             <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 mr-1">
