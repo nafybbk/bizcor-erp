@@ -23,12 +23,20 @@ const resourcesPath = process.resourcesPath || path.join(__dirname, "..");
 
 function getLocalIP() {
   const nets = os.networkInterfaces();
+  const virtualKeywords = ["vethernet", "hyper-v", "vmware", "virtualbox", "loopback", "tap", "docker", "wsl", "pseudo", "teredo", "isatap", "6to4"];
+  const candidates = [];
   for (const name of Object.keys(nets)) {
+    const nameLower = name.toLowerCase();
+    const isVirtual = virtualKeywords.some(k => nameLower.includes(k));
     for (const net of nets[name]) {
-      if (net.family === "IPv4" && !net.internal) return net.address;
+      if (net.family === "IPv4" && !net.internal && !net.address.startsWith("169.254")) {
+        candidates.push({ address: net.address, virtual: isVirtual, name });
+      }
     }
   }
-  return "localhost";
+  // Prefer real physical adapters; fall back to virtual if nothing else
+  const real = candidates.find(c => !c.virtual);
+  return real ? real.address : (candidates[0]?.address || "localhost");
 }
 
 function getServerURL() {
