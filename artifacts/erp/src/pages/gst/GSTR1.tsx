@@ -574,15 +574,20 @@ export default function GSTR1() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {items.map((x, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <TD><span className="font-semibold text-gray-800">{x.label}</span></TD>
-                          <TD mono>{x.d.srFrom}</TD><TD mono>{x.d.srTo}</TD>
-                          <TD right bold>{x.d.totalIssued}</TD>
-                          <TD right><span className={x.d.cancelled > 0 ? "text-red-600 font-semibold" : "text-gray-400"}>{x.d.cancelled}</span></TD>
-                          <TD right bold>{x.d.netIssued}</TD>
-                        </tr>
-                      ))}
+                      {items.flatMap((x, i) => {
+                        const ranges: any[] = x.d.ranges?.length ? x.d.ranges : [{ srFrom: x.d.srFrom, srTo: x.d.srTo, totalIssued: x.d.totalIssued, cancelled: x.d.cancelled, netIssued: x.d.netIssued }];
+                        return ranges.map((rng, ri) => (
+                          <tr key={`${i}-${ri}`} className="hover:bg-gray-50">
+                            {ri === 0
+                              ? <td className="px-3 py-2 text-sm font-semibold text-gray-800" rowSpan={ranges.length}>{x.label}</td>
+                              : null}
+                            <TD mono>{rng.srFrom}</TD><TD mono>{rng.srTo}</TD>
+                            <TD right bold>{rng.totalIssued}</TD>
+                            <TD right><span className={rng.cancelled > 0 ? "text-red-600 font-semibold" : "text-gray-400"}>{rng.cancelled}</span></TD>
+                            <TD right bold>{rng.netIssued}</TD>
+                          </tr>
+                        ));
+                      })}
                     </tbody>
                   </table>
                 </div>
