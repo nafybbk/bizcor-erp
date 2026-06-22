@@ -174,6 +174,7 @@ export default function Parties({ defaultType }: Props) {
                   <th className="text-left px-4 py-3 font-medium">Type</th>
                   <th className="text-left px-4 py-3 font-medium">Phone</th>
                   <th className="text-left px-4 py-3 font-medium">City</th>
+                  <th className="text-right px-4 py-3 font-medium">Opening Bal.</th>
                   <th className="text-right px-4 py-3 font-medium">Credit Limit</th>
                   <th className="text-right px-4 py-3 font-medium">Days</th>
                   <th className="px-4 py-3"></th>
@@ -197,6 +198,15 @@ export default function Parties({ defaultType }: Props) {
                     </td>
                     <td className="px-4 py-3 text-gray-600">{p.phone || "-"}</td>
                     <td className="px-4 py-3 text-gray-600">{p.city || "-"}</td>
+                    <td className="px-4 py-3 text-right">
+                      {Number(p.openingBalance) !== 0
+                        ? <span className={p.openingBalanceType === "credit" ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
+                            {fmt.currency(Math.abs(Number(p.openingBalance)))}
+                            <span className="text-[10px] ml-1 opacity-70">{p.openingBalanceType === "credit" ? "Cr" : "Dr"}</span>
+                          </span>
+                        : <span className="text-gray-300">-</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {Number(p.creditLimit) > 0
                         ? <span className="text-amber-700 font-medium">{fmt.currency(Number(p.creditLimit))}</span>
