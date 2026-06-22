@@ -58,7 +58,7 @@ export default function PartySelect({
   const triggerSearch = useCallback((q: string) => {
     if (!onSearch) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onSearch(q), 250);
+    debounceRef.current = setTimeout(() => onSearch(q), 300);
   }, [onSearch]);
 
   const [showAll, setShowAll] = useState(false);
@@ -94,12 +94,19 @@ export default function PartySelect({
           value={search}
           placeholder={placeholder}
           onChange={e => {
-            setSearch(e.target.value);
+            const val = e.target.value;
+            setSearch(val);
             setShowAll(false);
             setOpen(true);
-            triggerSearch(e.target.value);
+            // Only call server search when local has no matches (avoids unnecessary API calls)
+            const localMatch = parties.filter(p =>
+              !val.trim() || p.name?.toLowerCase().includes(val.toLowerCase())
+            );
+            if (localMatch.length === 0 && val.trim().length >= 2) {
+              triggerSearch(val);
+            }
           }}
-          onFocus={() => { setOpen(true); setShowAll(true); triggerSearch(search); }}
+          onFocus={() => { setOpen(true); setShowAll(true); }}
           onKeyDown={e => {
             if (e.key === "Enter" && filtered.length > 0) {
               e.preventDefault();
