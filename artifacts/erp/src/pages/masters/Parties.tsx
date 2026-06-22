@@ -164,61 +164,62 @@ export default function Parties({ defaultType }: Props) {
           <div className="text-center py-16 text-gray-400">No {pageTitle.toLowerCase()} found. <button onClick={openCreate} className="text-blue-600">Add one →</button></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ tableLayout: "auto" }}>
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">Name</th>
-                  <th className="text-left px-4 py-3 font-medium">Code</th>
-                  <th className="text-left px-4 py-3 font-medium">GSTIN</th>
-                  <th className="text-left px-4 py-3 font-medium">State</th>
-                  <th className="text-left px-4 py-3 font-medium">Type</th>
-                  <th className="text-left px-4 py-3 font-medium">Phone</th>
-                  <th className="text-left px-4 py-3 font-medium">City</th>
-                  <th className="text-right px-4 py-3 font-medium">Opening Bal.</th>
-                  <th className="text-right px-4 py-3 font-medium">Credit Limit</th>
-                  <th className="text-right px-4 py-3 font-medium">Days</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-3 py-3 w-20"></th>
+                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Code</th>
+                  <th className="text-left px-3 py-3 font-medium">Name</th>
+                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Type</th>
+                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">GSTIN</th>
+                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Phone</th>
+                  <th className="text-left px-3 py-3 font-medium">City / State</th>
+                  <th className="text-right px-3 py-3 font-medium whitespace-nowrap">Opening Bal.</th>
+                  <th className="text-right px-3 py-3 font-medium whitespace-nowrap">Credit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {parties.map(p => (
-                  <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                    <td className="px-4 py-3">
+                  <tr key={p.id} className="hover:bg-gray-50 align-top">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => del(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5">
                       <div className="flex flex-col gap-0.5">
-                        {p.customerCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded w-fit">{p.customerCode}</span>}
-                        {p.supplierCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded w-fit">{p.supplierCode}</span>}
+                        {p.customerCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded whitespace-nowrap">{p.customerCode}</span>}
+                        {p.supplierCode && <span className="font-mono text-xs px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded whitespace-nowrap">{p.supplierCode}</span>}
                         {!p.customerCode && !p.supplierCode && <span className="text-gray-300 text-xs">—</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.gstin || "-"}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{p.state ? `${p.state}${p.stateCode ? ` (${p.stateCode})` : ""}` : "-"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${p.type === "customer" ? "bg-blue-100 text-blue-700" : p.type === "supplier" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-700"}`}>{p.type}</span>
+                    <td className="px-3 py-2.5 font-medium text-gray-900 break-words min-w-[140px]">{p.name}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize whitespace-nowrap ${p.type === "customer" ? "bg-blue-100 text-blue-700" : p.type === "supplier" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-700"}`}>{p.type}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{p.phone || "-"}</td>
-                    <td className="px-4 py-3 text-gray-600">{p.city || "-"}</td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-500 whitespace-nowrap">{p.gstin || "-"}</td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{p.phone || "-"}</td>
+                    <td className="px-3 py-2.5 text-xs text-gray-500 break-words min-w-[100px]">
+                      {p.city && <div>{p.city}</div>}
+                      {p.state && <div className="text-gray-400">{p.state}{p.stateCode ? ` (${p.stateCode})` : ""}</div>}
+                      {!p.city && !p.state && "-"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
                       {Number(p.openingBalance) !== 0
                         ? <span className={p.openingBalanceType === "credit" ? "text-green-700 font-medium" : "text-red-700 font-medium"}>
                             {fmt.currency(Math.abs(Number(p.openingBalance)))}
                             <span className="text-[10px] ml-1 opacity-70">{p.openingBalanceType === "credit" ? "Cr" : "Dr"}</span>
                           </span>
-                        : <span className="text-gray-300">-</span>
-                      }
+                        : <span className="text-gray-300">-</span>}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
                       {Number(p.creditLimit) > 0
-                        ? <span className="text-amber-700 font-medium">{fmt.currency(Number(p.creditLimit))}</span>
-                        : <span className="text-gray-300">-</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-500">{p.creditDays > 0 ? `${p.creditDays}d` : "-"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(p)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => del(p.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                      </div>
+                        ? <div>
+                            <span className="text-amber-700 font-medium">{fmt.currency(Number(p.creditLimit))}</span>
+                            {p.creditDays > 0 && <div className="text-[11px] text-gray-400">{p.creditDays}d</div>}
+                          </div>
+                        : <span className="text-gray-300">-</span>}
                     </td>
                   </tr>
                 ))}
