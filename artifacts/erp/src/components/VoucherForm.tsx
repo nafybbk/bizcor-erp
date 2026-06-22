@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { api, fmt, isOfflineError, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -310,6 +310,23 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const isSales = voucherType.startsWith("sales");
+  const partyTypeMemo = isSales ? "customer" : "supplier";
+
+  const handlePartySearch = useCallback(async (q: string) => {
+    if (q.trim().length < 2) return;
+    try {
+      const res = await api.get<any>(`/parties?type=${partyTypeMemo}&search=${encodeURIComponent(q.trim())}&limit=30`);
+      const found: any[] = res.data || [];
+      if (found.length > 0) {
+        setParties(prev => {
+          const existingIds = new Set(prev.map((p: any) => p.id));
+          const newOnes = found.filter((p: any) => !existingIds.has(p.id));
+          return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
+        });
+      }
+    } catch { /* silent */ }
+  }, [partyTypeMemo]);
+
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [savedInfo, setSavedInfo] = useState<{ id: number; number: string }>({ id: 0, number: "" });
 
@@ -485,14 +502,22 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       }
     }).catch(() => {/* silent — synthetic fallback stays */});
 
+    // Load parties independently — so any other call failing won't block party list
+    api.get<any>(`/parties?type=${partyType}&limit=9999`).then((p: any) => {
+      const list = p.data || [];
+      if (list.length > 0) {
+        setParties(list);
+        cacheParties(partyType, list);
+      }
+    }).catch(() => {/* offline — cached parties already set above */});
+
     Promise.all([
-      api.get<any>(`/parties?type=${partyType}&limit=9999`),
       api.get<any>("/items?limit=9999"),
       api.get<any>("/masters/tax-rates"),
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-    ]).then(([p, it, t, u, biz, nextNumRes]) => {
+    ]).then(([it, t, u, biz, nextNumRes]) => {
       // Synthetic fallback for cash-bank if no accounts loaded yet
       setCashBankAccounts(prev => {
         if (prev.length > 0) return prev; // already loaded
@@ -503,11 +528,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         setPaymentForm(f => ({ ...f, accountId: "" }));
         return fallback;
       });
-      setParties(p.data || []);
       setItems(it.data || []);
       setTaxRates(t.data || []);
       setUnits(u.data || []);
-      cacheParties(partyType, p.data || []);
       cacheItems(it.data || []);
       cacheTaxRates(t.data || []);
       cacheUnits(u.data || []);
@@ -1394,6 +1417,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                 setQuickAddForm(f => ({ ...f, name })); setShowQuickAdd(true);
               }}
               addNewLabel={`Add as new ${isSales ? "Customer" : "Supplier"}`}
+              onSearch={handlePartySearch}
             />
             {/* Credit limit indicator */}
             {creditInfo && creditInfo.creditLimit > 0 && (
