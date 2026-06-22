@@ -37,8 +37,10 @@ export default function PartySelect({
 }: PartySelectProps) {
   const [search, setSearch] = useState(value);
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -49,11 +51,21 @@ export default function PartySelect({
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setHighlightedIndex(-1);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex >= 0 && listRef.current) {
+      const items = listRef.current.querySelectorAll("[data-party-item]");
+      const el = items[highlightedIndex] as HTMLElement;
+      if (el) el.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedIndex]);
 
   const triggerSearch = useCallback((q: string) => {
     if (!onSearch) return;
@@ -75,11 +87,14 @@ export default function PartySelect({
     onSelect(p);
     setSearch(p.name);
     setOpen(false);
+    setHighlightedIndex(-1);
   };
 
   const inputClass =
     className ||
     "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+
+  const totalItems = filtered.length + (isNew ? 1 : 0);
 
   return (
     <div ref={containerRef} className="relative">
@@ -98,7 +113,7 @@ export default function PartySelect({
             setSearch(val);
             setShowAll(false);
             setOpen(true);
-            // Only call server search when local has no matches (avoids unnecessary API calls)
+            setHighlightedIndex(-1);
             const localMatch = parties.filter(p =>
               !val.trim() || p.name?.toLowerCase().includes(val.toLowerCase())
             );
@@ -106,19 +121,48 @@ export default function PartySelect({
               triggerSearch(val);
             }
           }}
-          onFocus={() => { setOpen(true); setShowAll(true); }}
+          onFocus={() => { setOpen(true); setShowAll(true); setHighlightedIndex(-1); }}
           onKeyDown={e => {
-            if (e.key === "Enter" && filtered.length > 0) {
+            if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+              setOpen(true);
+              setShowAll(true);
+              setHighlightedIndex(0);
               e.preventDefault();
-              handleSelect(filtered[0]);
+              return;
             }
-            if (e.key === "Escape") setOpen(false);
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHighlightedIndex(i => (i + 1) % Math.max(1, totalItems));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlightedIndex(i => (i - 1 + Math.max(1, totalItems)) % Math.max(1, totalItems));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              if (open && highlightedIndex >= 0 && highlightedIndex < filtered.length) {
+                handleSelect(filtered[highlightedIndex]);
+              } else if (open && filtered.length > 0) {
+                handleSelect(filtered[0]);
+              }
+            } else if (e.key === "Tab") {
+              // Tab: select highlighted/first item if dropdown open, then let Tab move to next field
+              if (open && filtered.length > 0) {
+                const idx = highlightedIndex >= 0 ? highlightedIndex : 0;
+                if (idx < filtered.length) {
+                  handleSelect(filtered[idx]);
+                }
+              }
+              setOpen(false);
+              setHighlightedIndex(-1);
+            } else if (e.key === "Escape") {
+              setOpen(false);
+              setHighlightedIndex(-1);
+            }
           }}
         />
       </div>
 
       {open && (filtered.length > 0 || isNew || parties.length === 0) && (
-        <div className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+        <div ref={listRef} className="absolute z-30 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
           {parties.length === 0 ? (
             <div className="px-3 py-4 text-sm text-gray-400 text-center flex items-center justify-center gap-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading parties...
@@ -131,12 +175,14 @@ export default function PartySelect({
             </div>
           )}
 
-          {filtered.map(p => (
+          {filtered.map((p, idx) => (
             <div
               key={p.id}
+              data-party-item
               onMouseDown={e => e.preventDefault()}
+              onMouseEnter={() => setHighlightedIndex(idx)}
               onClick={() => handleSelect(p)}
-              className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-50 last:border-0"
+              className={`px-3 py-2.5 cursor-pointer text-sm border-b border-gray-50 last:border-0 ${highlightedIndex === idx ? "bg-blue-50" : "hover:bg-blue-50"}`}
             >
               <div className="font-medium text-gray-800">{p.name}</div>
               {showDetails && (
@@ -159,12 +205,15 @@ export default function PartySelect({
 
           {isNew && onAddNew && (
             <div
+              data-party-item
               onMouseDown={e => e.preventDefault()}
+              onMouseEnter={() => setHighlightedIndex(filtered.length)}
               onClick={() => {
                 onAddNew(search.trim());
                 setOpen(false);
+                setHighlightedIndex(-1);
               }}
-              className="px-3 py-2.5 border-t border-dashed border-green-300 bg-green-50 hover:bg-green-100 cursor-pointer text-sm flex items-center gap-2 text-green-700 font-medium"
+              className={`px-3 py-2.5 border-t border-dashed border-green-300 bg-green-50 cursor-pointer text-sm flex items-center gap-2 text-green-700 font-medium ${highlightedIndex === filtered.length ? "bg-green-100" : "hover:bg-green-100"}`}
             >
               <Plus className="w-3.5 h-3.5 flex-shrink-0" />
               <span>"{search.trim()}" — {addNewLabel}</span>
