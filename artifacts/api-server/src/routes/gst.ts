@@ -249,17 +249,49 @@ router.get("/gstr1", async (req, res) => {
     const hsnSummaryB2C = buildHsnSummary(b2cInvoices);
 
     // ── Section 13: Documents Issued ─────────────────────────────────────────
+    function extractNum(v: string): number {
+      const m = v.match(/(\d+)$/);
+      return m ? parseInt(m[1], 10) : NaN;
+    }
+
     function docsSummary(type: string) {
       const docs = docsAll.filter(d => d.voucherType === type);
       if (docs.length === 0) return null;
-      const sorted = [...docs].sort((a, b) => a.voucherNumber.localeCompare(b.voucherNumber));
-      const cancelled = docs.filter(d => d.deletedAt !== null).length;
+
+      const sorted = [...docs].sort((a, b) => {
+        const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        return a.voucherNumber.localeCompare(b.voucherNumber);
+      });
+
+      // Group into consecutive ranges
+      type Range = { srFrom: string; srTo: string; totalIssued: number; cancelled: number; netIssued: number };
+      const ranges: Range[] = [];
+      let rStart = sorted[0], rEnd = sorted[0], rDocs = [sorted[0]];
+
+      for (let i = 1; i < sorted.length; i++) {
+        const cur = sorted[i];
+        const prevNum = extractNum(rEnd.voucherNumber);
+        const curNum = extractNum(cur.voucherNumber);
+        if (!isNaN(prevNum) && !isNaN(curNum) && curNum === prevNum + 1) {
+          rEnd = cur; rDocs.push(cur);
+        } else {
+          const c = rDocs.filter(d => d.deletedAt !== null).length;
+          ranges.push({ srFrom: rStart.voucherNumber, srTo: rEnd.voucherNumber, totalIssued: rDocs.length, cancelled: c, netIssued: rDocs.length - c });
+          rStart = cur; rEnd = cur; rDocs = [cur];
+        }
+      }
+      const c = rDocs.filter(d => d.deletedAt !== null).length;
+      ranges.push({ srFrom: rStart.voucherNumber, srTo: rEnd.voucherNumber, totalIssued: rDocs.length, cancelled: c, netIssued: rDocs.length - c });
+
+      const totalCancelled = docs.filter(d => d.deletedAt !== null).length;
       return {
+        ranges,
         srFrom: sorted[0].voucherNumber,
         srTo: sorted[sorted.length - 1].voucherNumber,
         totalIssued: docs.length,
-        cancelled,
-        netIssued: docs.length - cancelled,
+        cancelled: totalCancelled,
+        netIssued: docs.length - totalCancelled,
       };
     }
 
