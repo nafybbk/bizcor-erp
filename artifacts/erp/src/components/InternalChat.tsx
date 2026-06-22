@@ -198,6 +198,7 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
   const [chatSize, setChatSize] = useState({ w: 340, h: 480 });
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; previewUrl?: string }[]>([]);
 
   const resizeDragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
   const moveDragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
@@ -305,7 +306,10 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
 
   const sendText = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !pendingFiles.length) || sending) return;
+    // Send files first, then text
+    if (pendingFiles.length) { await sendPendingFiles(); }
+    if (!text.trim()) return;
     setSending(true); setSendError(null);
     try {
       const row = await chatFetch<ChatMsg>("/chat/messages", {
@@ -328,30 +332,56 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
     } finally { setSending(false); }
   };
 
-  const sendFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSending(true);
-    setUploadProgress(`${file.name} — ${humanSize(file.size)} uploading...`);
+  const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const newEntries = files.map(file => ({
+      file,
+      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+    }));
+    setPendingFiles(prev => [...prev, ...newEntries]);
+    e.target.value = "";
+  };
 
+  const removePending = (idx: number) => {
+    setPendingFiles(prev => {
+      const entry = prev[idx];
+      if (entry?.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const uploadSingleFile = async (file: File, abort: AbortController): Promise<ChatMsg> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${BASE}/chat/messages/file`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      signal: abort.signal,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<ChatMsg>;
+  };
+
+  const sendPendingFiles = async () => {
+    if (!pendingFiles.length) return;
+    setSending(true);
     const abort = new AbortController();
     uploadAbortRef.current = abort;
-
+    const toSend = [...pendingFiles];
+    setPendingFiles([]);
     try {
-      const token = getToken();
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${BASE}/chat/messages/file`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-        signal: abort.signal,
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const row: ChatMsg = await res.json();
-      setMessages(prev => [...prev, row]);
-      lastIdRef.current = row.id;
-      scrollToBottom();
+      for (let i = 0; i < toSend.length; i++) {
+        const entry = toSend[i];
+        setUploadProgress(`${i + 1}/${toSend.length} — ${entry.file.name} uploading...`);
+        if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+        const row = await uploadSingleFile(entry.file, abort);
+        setMessages(prev => [...prev, row]);
+        lastIdRef.current = row.id;
+        scrollToBottom();
+      }
     } catch (err: unknown) {
       const name = err instanceof Error ? err.name : "";
       if (name !== "AbortError") {
@@ -363,7 +393,6 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
       setSending(false);
       setUploadProgress(null);
     }
-    e.target.value = "";
   };
 
   const cancelUpload = () => {
@@ -515,20 +544,51 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
             </div>
           )}
 
+          {/* Pending files preview strip */}
+          {pendingFiles.length > 0 && (
+            <div className="px-3 pt-2 pb-1 bg-slate-800 border-t border-slate-700 flex-shrink-0">
+              <div className="flex flex-wrap gap-2">
+                {pendingFiles.map((entry, idx) => (
+                  <div key={idx} className="relative group flex-shrink-0">
+                    {entry.previewUrl ? (
+                      <img
+                        src={entry.previewUrl}
+                        alt={entry.file.name}
+                        className="w-14 h-14 object-cover rounded-lg border border-slate-600"
+                        title={entry.file.name}
+                      />
+                    ) : (
+                      <div className="w-14 h-14 flex flex-col items-center justify-center bg-slate-700 rounded-lg border border-slate-600 gap-1" title={entry.file.name}>
+                        <FileTypeIcon mime={entry.file.type} className="w-6 h-6 text-slate-300" />
+                        <span className="text-[9px] text-slate-400 truncate max-w-[52px] px-0.5">{entry.file.name.split(".").pop()?.toUpperCase()}</span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePending(idx)}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] shadow"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">{pendingFiles.length} file{pendingFiles.length > 1 ? "s" : ""} selected — Send button dabao</div>
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t border-slate-700 p-3 bg-slate-800 flex-shrink-0">
             <form onSubmit={sendText} className="flex items-end gap-2">
-              {isDesktop && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={sending}
-                  className="text-slate-400 hover:text-emerald-400 transition-colors flex-shrink-0 pb-1 disabled:opacity-50"
-                  title="Koi bhi file attach karo"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                className="text-slate-400 hover:text-emerald-400 transition-colors flex-shrink-0 pb-1 disabled:opacity-50"
+                title="Files attach karo (multiple select supported)"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -541,7 +601,7 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
               />
               <button
                 type="submit"
-                disabled={!text.trim() || sending}
+                disabled={(!text.trim() && !pendingFiles.length) || sending}
                 className="w-9 h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center justify-center disabled:opacity-40 transition-colors flex-shrink-0"
               >
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -562,7 +622,7 @@ export default function InternalChat({ open, onToggle, onUnreadChange }: {
         </div>
       )}
 
-      <input ref={fileInputRef} type="file" className="hidden" onChange={sendFile} />
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFilesSelected} />
     </>
   );
 }
