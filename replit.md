@@ -147,6 +147,27 @@ both roles via one login.
 - **Suggested build order**: Connections+Permissions → Gallery → Orders+Invoice link
   → mobile app (Expo) → order placing → LAN↔Cloud sync bridge
 
+### Infra decision (2026-07-04): self-hosted home server for ALL production
+Owner is moving production (not just dev) fully to a self-hosted home server —
+Gitea (git), central DB, and the sync backbone for all businesses' BizCor + this
+Customer Network App — replacing GitHub/Supabase/Vercel.
+- Hardware: HP Tiny PC, i7 9th gen, 16GB RAM (→32GB planned), 512GB NVMe (+1TB SSD
+  planned)
+- Power: solar + 3.5kV inverter + 2×150Ah batteries (outage risk mitigated)
+- Internet: 300mbps Excitel (shared 3 homes → individual later) + 5G mobile data as
+  standby failover
+- Backup: auto-save to external docking drive
+- Sync tolerance: architecture is offline-first/eventual-sync by design, so home
+  server downtime just delays sync (same as any LAN business's own outage) rather
+  than breaking the system — blast radius is bigger (affects all businesses at once)
+  but acceptable given the power/internet redundancy above
+- Still recommended before going live: Cloudflare Tunnel (avoid exposing ports
+  directly, no static IP needed, gets DDoS protection) + disk redundancy (RAID-1 or
+  tested fast-restore) since a drive failure alone (not just power/internet) would
+  still cause a shared outage across all businesses
+- When ready to build: need a migration plan (Supabase→self-hosted Postgres,
+  GitHub→Gitea, Vercel→self-hosted deploy pipeline) — not started yet
+
 ## WorkKar SSO (Future Reference)
 - Endpoint: `GET https://work.naewtgroup.com/sso?token=<HMAC_TOKEN>`
 - Payload: `{ mobile, name, exp }` — exp = Date.now() + 5min
