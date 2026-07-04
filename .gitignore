@@ -54,3 +54,13 @@ attached_assets/*.mp4
 attached_assets/generated_videos/
 tools/**/*.zip
 *.mp4
+
+# Uploaded screenshots/images used only for chat debugging — not needed in the repo
+attached_assets/*.jpg
+attached_assets/*.jpeg
+attached_assets/*.png
+attached_assets/Pasted-*.txt
+
+# Manual backup exports — not source code, shouldn't live in git
+bizcor-erp-backup.zip
+*-backup.zip
