@@ -120,9 +120,32 @@ Vouchers (SI/CN/PB/DN), Payments (REC/PAY), Masters (Parties/Items/Units/HSN/Tax
 3. **Two-Key Licensing** — Installer Key + Plan Key, gap analysis (design ready, implement later)
 4. **WorkKar SSO** — future mein, HMAC token, `WORKKAR_SSO_SECRET=bizcor_workkar_secret_2026`
 5. **Referral System** — backend ready, bug fix needed (see bugs #13)
+6. **Customer Network App** — customer-facing mobile app, planning stage *(see below)*
 
 ### 🗑️ DROPPED / NOT NEEDED
 - Local DB as separate feature — LAN version ke andar hi cover ho jaata hai
+
+## Customer Network App (Future Reference — planning stage, 2026-07-04)
+
+Concept: customer-facing mobile app connected to BizCor. Any business can be both a
+supplier (to its customers) and a customer (of its own suppliers) — same app serves
+both roles via one login.
+
+- **Connections/Permissions**: supplier connects a customer (by mobile number) and
+  toggles per-connection permissions: Invoice, Payment, Statement/Ledger, Gallery
+- **Global Customer Identity**: single mobile-number login maps to multiple
+  per-business Party records (1 customer → N supplier connections)
+- **Gallery module**: supplier uploads item images, tags each "Ready Now" / "Ready in
+  X days"; visible only to customers with Gallery permission
+- **Order flow**: customer picks gallery images + qty → order goes to that one
+  supplier → supplier accepts → auto-fills Sales Invoice from order → invoice shows
+  "Order #" link back to the attached gallery images
+- **LAN + Sync**: customer app always talks to Cloud API, never directly to a
+  supplier's LAN server. Connections/Gallery/Orders live in shared cloud tables; LAN
+  server background-syncs (push new gallery/invoice data, pull new orders) using the
+  same Offline-First/Sync foundation above — do not build a separate sync mechanism
+- **Suggested build order**: Connections+Permissions → Gallery → Orders+Invoice link
+  → mobile app (Expo) → order placing → LAN↔Cloud sync bridge
 
 ## WorkKar SSO (Future Reference)
 - Endpoint: `GET https://work.naewtgroup.com/sso?token=<HMAC_TOKEN>`
