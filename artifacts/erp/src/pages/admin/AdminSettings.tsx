@@ -31,12 +31,15 @@ export default function AdminSettings() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [fpLoading, setFpLoading] = useState(false);
   const [fpMsg, setFpMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [dbInfo, setDbInfo] = useState<any>(null);
+  const [dbInfoLoading, setDbInfoLoading] = useState(true);
 
   useEffect(() => {
     api.get<any>("/super-admin/settings").then(s => {
       setForm(f => ({ ...f, ...s }));
     }).catch(console.error).finally(() => setLoading(false));
     api.get<any>("/super-admin/my-profile").then(p => setProfile({ phone: p.phone || "", name: p.name || "", avatar: p.avatar || "" })).catch(() => {});
+    api.get<any>("/super-admin/db-info").then(setDbInfo).catch(() => setDbInfo(null)).finally(() => setDbInfoLoading(false));
   }, []);
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,28 +397,60 @@ export default function AdminSettings() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2"><Globe className="w-4 h-4" /> Deployment Info</h3>
-        <div className="space-y-2 text-sm text-gray-600">
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <span className="font-medium">Database</span>
-            <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">PostgreSQL (Drizzle ORM)</span>
+        <h3 className="font-semibold text-gray-700 text-sm border-b pb-2 flex items-center gap-2"><Globe className="w-4 h-4" /> Connected Database (Live)</h3>
+        {dbInfoLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400 py-4"><Loader2 className="w-4 h-4 animate-spin" /> Checking connection...</div>
+        ) : !dbInfo ? (
+          <div className="bg-red-50 border border-red-100 rounded-lg p-3 text-xs text-red-700">
+            Database info fetch nahi ho saka — server error ho sakta hai.
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <span className="font-medium">Backend</span>
-            <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">Express.js (Node 24)</span>
-          </div>
-          <div className="flex items-center justify-between py-2 border-b border-gray-50">
-            <span className="font-medium">Frontend</span>
-            <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">React + Vite</span>
-          </div>
-          <div className="flex items-center justify-between py-2">
-            <span className="font-medium">Version</span>
-            <span className="font-mono text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">v1.0.0</span>
-          </div>
-        </div>
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
-          <strong>Migration tip:</strong> To migrate to Vercel + Supabase, set DATABASE_URL to Supabase PostgreSQL URL, SESSION_SECRET to a random string, deploy frontend to Vercel, and backend as a Vercel serverless function. See DEPLOYMENT.md for full guide.
-        </div>
+        ) : (
+          <>
+            <div className="space-y-2 text-sm text-gray-600">
+              <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                <span className="font-medium">Mode</span>
+                <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{dbInfo.mode === "sqlite" ? "SQLite (Local/LAN)" : "Cloud PostgreSQL"}</span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                <span className="font-medium">Provider</span>
+                <span className="font-mono text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{dbInfo.provider}</span>
+              </div>
+              {dbInfo.mode !== "sqlite" && (
+                <>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                    <span className="font-medium">Env Var Used</span>
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{dbInfo.source}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50 gap-2">
+                    <span className="font-medium shrink-0">Host</span>
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded break-all text-right">{dbInfo.host}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                    <span className="font-medium">Database Name</span>
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{dbInfo.databaseName}</span>
+                  </div>
+                  {dbInfo.projectRef && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                      <span className="font-medium">Project Ref</span>
+                      <span className="font-mono text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">{dbInfo.projectRef}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                    <span className="font-medium">Environment</span>
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{dbInfo.nodeEnv}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center justify-between py-2">
+                <span className="font-medium">Total Businesses (in this DB)</span>
+                <span className="font-mono text-xs bg-green-100 text-green-700 px-2 py-1 rounded">{dbInfo.businessCount}</span>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800">
+              <strong>Yaad rakhein:</strong> Ye info us server ki hai jispe abhi ye app run ho rahi hai. Agar Vercel/Railway pe deployed production app check karni ho, to us project ke apne environment variables alag ho sakte hain — wahan bhi yahi "Connected Database" panel dikhega jab wahan open karoge.
+            </div>
+          </>
+        )}
       </div>
     </form>
   );

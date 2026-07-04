@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, sqlite } from "@workspace/db";
+import { db, sqlite, pool } from "@workspace/db";
 import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable } from "@workspace/db";
 import { eq, count, sql, like, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
@@ -1112,6 +1112,68 @@ router.post("/import-data", async (req, res) => {
     }
 
     res.json({ customers: custResult, suppliers: supResult, items: itemResult });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Database Info (which DB is this server actually connected to?) ─────────
+
+router.get("/db-info", async (req, res) => {
+  try {
+    if (sqlite) {
+      const bizCount = await db.select({ count: count() }).from(businessesTable).then((r: any[]) => Number(r[0]?.count || 0));
+      res.json({
+        mode: "sqlite",
+        provider: "SQLite (Local/LAN/Desktop)",
+        source: "SQLITE_PATH",
+        businessCount: bizCount,
+      });
+      return;
+    }
+
+    const raw = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL || "";
+    const source = process.env.SUPABASE_DATABASE_URL ? "SUPABASE_DATABASE_URL" : "DATABASE_URL";
+    let host = "unknown";
+    let databaseName = "unknown";
+    let username = "unknown";
+    let projectRef = null as string | null;
+    try {
+      const u = new URL(raw);
+      host = u.hostname;
+      databaseName = u.pathname.replace(/^\//, "") || "unknown";
+      username = u.username || "unknown";
+      // Supabase pooler connections use username like "postgres.<project-ref>"
+      const poolerMatch = username.match(/^postgres\.([a-z0-9]+)$/i);
+      if (poolerMatch) projectRef = poolerMatch[1];
+      // Direct Supabase connections use host like "db.<project-ref>.supabase.co"
+      const directMatch = host.match(/^db\.([a-z0-9]+)\.supabase\.co$/i);
+      if (!projectRef && directMatch) projectRef = directMatch[1];
+    } catch { /* malformed URL — leave defaults */ }
+
+    let provider = "PostgreSQL (Other)";
+    if (/supabase\.(com|co)/.test(raw) || raw.includes("pooler.supabase")) provider = "Supabase";
+    else if (raw.includes("neon.tech")) provider = "Neon";
+
+    let dbHostVerified = true;
+    let liveDbHost: string | null = null;
+    try {
+      const result = pool ? await pool.query("SELECT inet_server_addr() as addr, current_database() as db") : null;
+      liveDbHost = result?.rows?.[0]?.db || null;
+    } catch { dbHostVerified = false; }
+
+    const [bizCount] = await db.select({ count: count() }).from(businessesTable);
+
+    res.json({
+      mode: "postgres",
+      provider,
+      source,
+      host,
+      databaseName,
+      projectRef,
+      liveDbHost,
+      dbHostVerified,
+      businessCount: Number(bizCount?.count || 0),
+      nodeEnv: process.env.NODE_ENV || "development",
+    });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
