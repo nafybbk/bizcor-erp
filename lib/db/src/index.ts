@@ -114,6 +114,56 @@ if (sqlitePath) {
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS referral_rewarded_at TIMESTAMPTZ",
     "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS plan_start_date TIMESTAMPTZ",
     "ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config TEXT",
+    "ALTER TABLE parties ADD COLUMN IF NOT EXISTS customer_code TEXT",
+    "ALTER TABLE parties ADD COLUMN IF NOT EXISTS supplier_code TEXT",
+    `DO $$ BEGIN
+      CREATE TYPE account_type AS ENUM ('cash', 'bank');
+    EXCEPTION WHEN duplicate_object THEN null; END $$`,
+    `CREATE TABLE IF NOT EXISTS cash_bank_accounts (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      name TEXT NOT NULL,
+      type account_type NOT NULL DEFAULT 'cash',
+      bank_name TEXT,
+      account_number TEXT,
+      ifsc_code TEXT,
+      opening_balance NUMERIC(15,2) NOT NULL DEFAULT 0,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS expense_heads (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      name TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS expense_vouchers (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      expense_number TEXT NOT NULL,
+      date TEXT NOT NULL,
+      expense_head_id INTEGER REFERENCES expense_heads(id),
+      account_id INTEGER REFERENCES cash_bank_accounts(id),
+      amount NUMERIC(15,2) NOT NULL,
+      payment_mode TEXT NOT NULL DEFAULT 'cash',
+      reference_number TEXT,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS contra_entries (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      contra_number TEXT NOT NULL,
+      date TEXT NOT NULL,
+      from_account_id INTEGER NOT NULL REFERENCES cash_bank_accounts(id),
+      to_account_id INTEGER NOT NULL REFERENCES cash_bank_accounts(id),
+      amount NUMERIC(15,2) NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    "ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES cash_bank_accounts(id)",
     `CREATE TABLE IF NOT EXISTS activation_requests (
       id SERIAL PRIMARY KEY,
       code TEXT NOT NULL,
