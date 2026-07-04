@@ -129,3 +129,5 @@ Vouchers (SI/CN/PB/DN), Payments (REC/PAY), Masters (Parties/Items/Units/HSN/Tax
 - Payload: `{ mobile, name, exp }` — exp = Date.now() + 5min
 - Secret: `WORKKAR_SSO_SECRET=bizcor_workkar_secret_2026`
 - Token: `base64url(payload).HMAC-SHA256(payload, secret)`
+
+<!-- git-author-convention: taby.bbk@gmail.com -->
