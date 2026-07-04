@@ -3,6 +3,7 @@
 ## User Preferences
 
 - **EXE Release Rule**: Har kaam ke baad jo EXE mein jaana chahiye — bina puche automatically `artifacts/desktop/package.json` version bump karo, GitHub push karo, aur naya `vX.X.X` tag create karo. Tag se GitHub Actions auto-trigger hota hai. Ye step kabhi skip nahi karna.
+- **Git commit author email**: GitHub account (`nafybbk`) par verified email hai `taby.bbk@gmail.com`. Har git commit isi email se hona chahiye (`git config user.email taby.bbk@gmail.com`), warna Vercel deployment "commit email could not be matched to a GitHub account" error se block ho jata hai. Kabhi bhi `bizcor@naewtgroup.com` ya koi aur unverified email commit author ke roop mein use na karo.
 
 ## Overview
 
