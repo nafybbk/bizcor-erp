@@ -131,6 +131,19 @@ export default function PaymentsList({ type }: Props) {
           </table>
           </div>
         )}
+
+        {!loading && payments.length > 0 && (
+          <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-600">
+            <span>{total} {total === 1 ? "record" : "records"}</span>
+            {total > limit && (
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Prev</button>
+                <span className="px-2 py-1.5">Page {page} of {Math.ceil(total / limit)}</span>
+                <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Next</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
