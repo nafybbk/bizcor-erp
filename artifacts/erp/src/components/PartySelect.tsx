@@ -114,6 +114,7 @@ export default function PartySelect({
             setShowAll(false);
             setOpen(true);
             setHighlightedIndex(-1);
+            // Only call server search when local has no matches (avoids unnecessary API calls)
             const localMatch = parties.filter(p =>
               !val.trim() || p.name?.toLowerCase().includes(val.toLowerCase())
             );
