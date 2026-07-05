@@ -131,10 +131,33 @@ Concept: customer-facing mobile app connected to BizCor. Any business can be bot
 supplier (to its customers) and a customer (of its own suppliers) — same app serves
 both roles via one login.
 
-- **Connections/Permissions**: supplier connects a customer (by mobile number) and
-  toggles per-connection permissions: Invoice, Payment, Statement/Ledger, Gallery
+- **Connections/Permissions**: once connected, supplier toggles per-connection
+  permissions: Invoice, Payment, Statement/Ledger, Gallery
 - **Global Customer Identity**: single mobile-number login maps to multiple
   per-business Party records (1 customer → N supplier connections)
+
+### Mini app login + supplier connection flow (decided 2026-07-05)
+- **Login**: mobile number + PIN, no OTP, no separate registration screen.
+  First-time mobile number auto-creates the account. Default account PIN is
+  `1234`, shown as a hint on the login screen; customer can change it inside
+  the app afterward.
+- **Connecting to a supplier**: in the supplier's own BizCor, the
+  Customer/Party master gets a new **PIN** field (auto-generated or manually
+  set by the supplier), with a mask/unmask (eye icon) toggle — same UX as a
+  password field. This PIN is persistent per customer (not one-time/expiring)
+  so it's easy for the supplier to read aloud or write down and share.
+  - Supplier shares their existing **businessCode** (the same code they log
+    in with) + this **customer-specific PIN** with that customer directly
+    (in person, WhatsApp, etc.) — nothing auto-sent, no phone-number lookup.
+  - In the mini app: "Connect Supplier" screen → enter businessCode → enter
+    PIN → Connected. List refreshes and shows the supplier's name; tapping it
+    opens everything shared per the permissions granted (Invoice/Payment/
+    Statement/Gallery).
+- Rationale: avoids using phone number as the public connection identifier
+  (privacy — supplier never types a customer's phone number to connect them),
+  and avoids the "customer digs through their own settings to find a code"
+  friction — the supplier-shared code+PIN pair is the only thing the customer
+  needs to enter.
 - **Gallery module**: supplier uploads item images, tags each "Ready Now" / "Ready in
   X days"; visible only to customers with Gallery permission
 - **Order flow**: customer picks gallery images + qty → order goes to that one
