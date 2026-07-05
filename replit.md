@@ -129,6 +129,16 @@ Vouchers (SI/CN/PB/DN), Payments (REC/PAY), Masters (Parties/Items/Units/HSN/Tax
 
 ## Customer Network App (Future Reference — planning stage, 2026-07-04)
 
+- **TODO (branding, requested 2026-07-05, do later)**: rename the app's display
+  name from "BizCor Customer Network" to **"BizCor Conect"** — update
+  `artifacts/customer-network/app.json` (`expo.name`), and any in-app header/left
+  side branding text that currently reads "BizCor Customer Network" or the Tech
+  Panel `softwareName` default used on the login screen.
+- **Not yet built (as of 2026-07-05)**: production install path (EAS build +
+  Play Store/App Store, or standalone APK) and the LAN↔Cloud sync bridge. Currently
+  the app only runs as an Expo dev/preview build talking to the dev Cloud API — see
+  "Suggested build order" below, last two items are still pending.
+
 Concept: customer-facing mobile app connected to BizCor. Any business can be both a
 supplier (to its customers) and a customer (of its own suppliers) — same app serves
 both roles via one login.
