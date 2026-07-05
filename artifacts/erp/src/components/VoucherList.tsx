@@ -70,6 +70,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     if (status) params.set("status", status);
     if (fromDate) params.set("fromDate", fromDate);
     if (toDate) params.set("toDate", toDate);
+    if (search) params.set("search", search);
     api.get<any>(`/${voucherType}?${params}`).then(r => {
       setVouchers(r.data);
       setTotal(r.total);
@@ -77,7 +78,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     }).catch(console.error).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [page, status, fromDate, toDate]);
+  useEffect(() => { load(); }, [page, status, fromDate, toDate, search]);
 
   const del = async (id: number) => {
     if (!confirm("Delete this record?")) return;
@@ -90,7 +91,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
   };
 
   const exportCSV = () => {
-    const rows = filtered.map(v => ({
+    const rows = vouchers.map(v => ({
       "Voucher No": v.voucherNumber,
       "Date": fmt.date(v.date),
       "Party": v.partyName,
@@ -103,11 +104,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     downloadCSV(rows, `${title.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  const filtered = vouchers.filter(v =>
-    !search || v.voucherNumber?.toLowerCase().includes(search.toLowerCase()) || v.partyName?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(vouchers);
 
   return (
     <div className="space-y-4 max-w-6xl">
@@ -134,7 +131,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
         <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-48">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by number or party..."
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search by number or party..."
               className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <select value={status} onChange={e => setStatus(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -151,7 +148,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
 
         {loading ? (
           <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
-        ) : filtered.length === 0 ? (
+        ) : vouchers.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <div className="text-4xl mb-3">📄</div>
             <div className="font-medium">No records found</div>

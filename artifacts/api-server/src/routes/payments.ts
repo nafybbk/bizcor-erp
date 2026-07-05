@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte, isNull, isNotNull, asc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, isNotNull, asc, inArray, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -9,13 +9,14 @@ router.use(requireBusiness);
 
 router.get("/", async (req, res) => {
   try {
-    const { type, partyId, fromDate, toDate, page = "1", limit = "20" } = req.query;
+    const { type, partyId, fromDate, toDate, page = "1", limit = "20", search } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: any[] = [eq(paymentsTable.businessId, businessId), isNull(paymentsTable.deletedAt)];
     if (type) conditions.push(eq(paymentsTable.type, type as "receipt" | "payment"));
     if (partyId) conditions.push(eq(paymentsTable.partyId, Number(partyId)));
     if (fromDate) conditions.push(gte(paymentsTable.date, String(fromDate)));
     if (toDate) conditions.push(lte(paymentsTable.date, String(toDate)));
+    if (search) conditions.push(or(like(paymentsTable.paymentNumber, `%${search}%`), like(partiesTable.name, `%${search}%`))!);
     const payments = await db.select({
       id: paymentsTable.id, paymentNumber: paymentsTable.paymentNumber, type: paymentsTable.type,
       date: paymentsTable.date, partyId: paymentsTable.partyId, partyName: partiesTable.name,
@@ -23,8 +24,10 @@ router.get("/", async (req, res) => {
       isOnAccount: paymentsTable.isOnAccount, notes: paymentsTable.notes, createdAt: paymentsTable.createdAt,
     }).from(paymentsTable).leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id))
       .where(and(...conditions)).orderBy(desc(paymentsTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
-    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(paymentsTable).where(and(...conditions));
-    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${paymentsTable.amount}), 0)` }).from(paymentsTable).where(and(...conditions));
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(paymentsTable)
+      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id)).where(and(...conditions));
+    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${paymentsTable.amount}), 0)` }).from(paymentsTable)
+      .leftJoin(partiesTable, eq(paymentsTable.partyId, partiesTable.id)).where(and(...conditions));
     const data = payments.map(p => ({ ...p, amount: Number(p.amount) }));
     res.json({ data, total: Number(total), page: Number(page), limit: Number(limit), totalAmount: Number(totalAmount) });
   } catch (err) {

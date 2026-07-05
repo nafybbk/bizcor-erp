@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable, itemsTable, taxRatesTable, businessesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, isNotNull, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 const router = Router();
@@ -38,7 +38,7 @@ function calcVoucher(items: Array<{
 
 async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
   try {
-    const { page = "1", limit = "20", partyId, fromDate, toDate, status } = req.query;
+    const { page = "1", limit = "20", partyId, fromDate, toDate, status, search } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: any[] = [
       eq(vouchersTable.businessId, businessId),
@@ -49,6 +49,7 @@ async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
     if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
     if (status) conditions.push(eq(vouchersTable.status, status as any));
+    if (search) conditions.push(or(like(vouchersTable.voucherNumber, `%${search}%`), like(partiesTable.name, `%${search}%`))!);
     const vouchers = await db.select({
       id: vouchersTable.id, voucherType: vouchersTable.voucherType, voucherNumber: vouchersTable.voucherNumber,
       date: vouchersTable.date, partyId: vouchersTable.partyId, partyName: partiesTable.name,
@@ -57,8 +58,10 @@ async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
       totalTax: vouchersTable.totalTax, taxableAmount: vouchersTable.taxableAmount,
     }).from(vouchersTable).leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id))
       .where(and(...conditions)).orderBy(desc(vouchersTable.date)).limit(Number(limit)).offset((Number(page) - 1) * Number(limit));
-    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(vouchersTable).where(and(...conditions));
-    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${vouchersTable.grandTotal}), 0)` }).from(vouchersTable).where(and(...conditions));
+    const [{ total }] = await db.select({ total: sql<number>`count(*)` }).from(vouchersTable)
+      .leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(...conditions));
+    const [{ totalAmount }] = await db.select({ totalAmount: sql<number>`coalesce(sum(${vouchersTable.grandTotal}), 0)` }).from(vouchersTable)
+      .leftJoin(partiesTable, eq(vouchersTable.partyId, partiesTable.id)).where(and(...conditions));
     const data = vouchers.map((v: any) => ({
       ...v, grandTotal: Number(v.grandTotal), paidAmount: Number(v.paidAmount || 0),
       balanceDue: Number(v.grandTotal) - Number(v.paidAmount || 0),

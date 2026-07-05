@@ -23,12 +23,14 @@ export default function PaymentsList({ type }: Props) {
 
   const load = () => {
     setLoading(true);
-    api.get<any>(`/payments?type=${type}&page=${page}&limit=${limit}`)
+    const params = new URLSearchParams({ type, page: String(page), limit: String(limit) });
+    if (search) params.set("search", search);
+    api.get<any>(`/payments?${params}`)
       .then(r => { setPayments(r.data); setTotal(r.total); setTotalAmount(r.totalAmount || 0); })
       .catch(console.error).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [page, type]);
+  useEffect(() => { load(); }, [page, type, search]);
 
   const del = async (id: number) => {
     if (!confirm("Delete payment?")) return;
@@ -40,12 +42,10 @@ export default function PaymentsList({ type }: Props) {
     }
   };
 
-  const filtered = payments.filter(p => !search || p.partyName?.toLowerCase().includes(search.toLowerCase()) || p.paymentNumber?.toLowerCase().includes(search.toLowerCase()));
-
-  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(payments);
 
   const exportCSV = () => {
-    const rows = filtered.map(p => ({
+    const rows = payments.map(p => ({
       "Payment No": p.paymentNumber,
       "Date": fmt.date(p.date),
       "Party": p.partyName,
@@ -82,14 +82,14 @@ export default function PaymentsList({ type }: Props) {
         <div className="p-4 border-b border-gray-100">
           <div className="relative max-w-sm">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
+            <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search..."
               className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center h-48"><Loader2 className="w-5 h-5 animate-spin text-blue-500" /></div>
-        ) : filtered.length === 0 ? (
+        ) : payments.length === 0 ? (
           <div className="text-center py-16 text-gray-400">No {title.toLowerCase()} found</div>
         ) : (
           <div className="overflow-x-auto">
