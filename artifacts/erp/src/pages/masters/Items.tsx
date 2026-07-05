@@ -4,6 +4,8 @@ import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheItems } from "@/lib/masterCache";
 import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 const emptyForm = { name: "", description: "", type: "goods" as "goods"|"service", hsnCode: "", unitId: "", taxRateId: "", salePrice: "", purchasePrice: "", openingStock: "", lowStockAlert: "" };
 
 export default function Items() {
@@ -96,6 +98,8 @@ export default function Items() {
     downloadCSV(rows, `Items_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(items);
+
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   return (
@@ -135,18 +139,18 @@ export default function Items() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <th className="text-left px-4 py-3 font-medium">Item</th>
-                <th className="text-left px-4 py-3 font-medium">Type</th>
-                <th className="text-left px-4 py-3 font-medium">HSN</th>
-                <th className="text-right px-4 py-3 font-medium">Sale Price</th>
-                <th className="text-right px-4 py-3 font-medium">Purchase Price</th>
-                <th className="text-right px-4 py-3 font-medium">Stock</th>
-                <th className="text-right px-4 py-3 font-medium">Tax Rate</th>
+                <SortableTh label="Item" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Type" sortKey="type" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="HSN" sortKey="hsnCode" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Sale Price" sortKey="salePrice" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortableTh label="Purchase Price" sortKey="purchasePrice" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortableTh label="Stock" sortKey="currentStock" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortableTh label="Tax Rate" sortKey="taxRate" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {items.map(it => (
+              {sorted.map(it => (
                 <tr key={it.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{it.name}</div>

@@ -5,6 +5,8 @@ import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties } from "@/lib/masterCache";
 import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
 import { useStates } from "@/lib/useStates";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 
 const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "" };
 
@@ -106,6 +108,8 @@ export default function Parties({ defaultType }: Props) {
     downloadCSV(rows, `${pageTitle}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(parties);
+
   const inputCls = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 
   // Tabs
@@ -174,18 +178,18 @@ export default function Parties({ defaultType }: Props) {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="px-3 py-3 w-20"></th>
-                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Code</th>
-                  <th className="text-left px-3 py-3 font-medium">Name</th>
-                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Type</th>
-                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">GSTIN</th>
-                  <th className="text-left px-3 py-3 font-medium whitespace-nowrap">Phone</th>
-                  <th className="text-left px-3 py-3 font-medium">City / State</th>
-                  <th className="text-right px-3 py-3 font-medium whitespace-nowrap">Opening Bal.</th>
-                  <th className="text-right px-3 py-3 font-medium whitespace-nowrap">Credit</th>
+                  <SortableTh label="Code" sortKey="customerCode" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="whitespace-nowrap" />
+                  <SortableTh label="Name" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Type" sortKey="type" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="whitespace-nowrap" />
+                  <SortableTh label="GSTIN" sortKey="gstin" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="whitespace-nowrap" />
+                  <SortableTh label="Phone" sortKey="phone" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="whitespace-nowrap" />
+                  <SortableTh label="City / State" sortKey="city" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortableTh label="Opening Bal." sortKey="openingBalance" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" className="whitespace-nowrap" />
+                  <SortableTh label="Credit" sortKey="creditLimit" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" className="whitespace-nowrap" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {parties.map(p => (
+                {sorted.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50 align-top">
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1">

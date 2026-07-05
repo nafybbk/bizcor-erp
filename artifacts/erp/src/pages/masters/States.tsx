@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Trash2, Loader2, Edit2, X, Check, Globe } from "lucide-react";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 
 export default function States() {
   const [states, setStates] = useState<any[]>([]);
@@ -51,6 +53,7 @@ export default function States() {
   };
 
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(states);
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -94,14 +97,14 @@ export default function States() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="text-left px-4 py-3 font-medium w-10">#</th>
-                <th className="text-left px-4 py-3 font-medium w-20">Code</th>
-                <th className="text-left px-4 py-3 font-medium">State Name</th>
-                <th className="text-left px-4 py-3 font-medium w-20">Abbr</th>
+                <SortableTh label="Code" sortKey="stateCode" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="w-20" />
+                <SortableTh label="State Name" sortKey="stateName" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Abbr" sortKey="stateAbbr" currentKey={sortKey} dir={sortDir} onSort={toggleSort} className="w-20" />
                 <th className="px-4 py-3 w-24"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {states.map((s, idx) => (
+              {sorted.map((s, idx) => (
                 <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                   {editId === s.id ? (
