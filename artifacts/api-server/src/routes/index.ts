@@ -158,12 +158,32 @@ router.post("/activate-offline", async (req, res) => {
     }
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
     const nowStr = now.toISOString();
+
+    // Reuse/reactivation must NOT reset the validity timer — preserve the
+    // remaining period from the voucher's original (first) activation date.
+    // Fresh full validityDays is only granted the very first time a voucher
+    // is activated.
+    let firstActivatedAt: string | null = null;
+    if (voucher.status === "used") {
+      try {
+        const prevNotes = JSON.parse(voucher.notes || "{}");
+        firstActivatedAt = prevNotes.firstActivatedAt || prevNotes.activatedAt || null;
+      } catch { /* ignore */ }
+      if (!firstActivatedAt && voucher.redeemedAt) {
+        firstActivatedAt = new Date(voucher.redeemedAt).toISOString();
+      }
+    }
+    const isReactivation = !!firstActivatedAt;
+    if (!firstActivatedAt) firstActivatedAt = nowStr;
+
+    const baseDate = isReactivation ? new Date(firstActivatedAt) : now;
+    const expiresAt = new Date(baseDate.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
 
     // Save activation log in notes field
     const activationLog = JSON.stringify({
       activatedAt: nowStr,
+      firstActivatedAt,
       businessCode: businessCode.trim().toUpperCase(),
       businessName: businessName || null,
       businessEmail: businessEmail || null,
