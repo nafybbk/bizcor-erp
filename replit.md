@@ -162,11 +162,16 @@ When a mini-app customer later installs full BizCor ERP (LAN desktop or cloud):
   - Reference field = link back to the supplier's invoice.
   - GST 3B: the supplier's invoice date is the date counted for GST 3B
     purposes on the customer's side (matches ITC timing rules).
-- Open design questions (not yet decided): is the "tick to share" a per-invoice
-  manual toggle by the supplier or a per-connection default (share all)? Does
-  the customer need to accept/confirm the incoming bill before it posts to
-  their books, or does it auto-post? What happens on supplier-side
-  amendment/cancellation — does it update or remove the customer's synced bill?
+- **Decided (2026-07-05)**: sharing is per-customer, not per-invoice — supplier
+  ticks a given connected customer (mini-app or full BizCor) once, and every
+  future invoice for that customer auto-syncs whenever internet/sync is
+  available (no per-invoice toggle).
+- **Decided (2026-07-05)**: bill auto-posts directly into the customer's
+  Purchase Bill list, no accept/confirm step. Customer gets a yellow
+  notification/badge that deep-links to the already-imported bill so they can
+  review/complete anything needed (e.g. item mapping) after the fact.
+- Still open: what happens on supplier-side amendment/cancellation — does it
+  update or remove the customer's already-synced bill?
 
 ### Infra decision (2026-07-04): self-hosted home server for ALL production
 Owner is moving production (not just dev) fully to a self-hosted home server —
