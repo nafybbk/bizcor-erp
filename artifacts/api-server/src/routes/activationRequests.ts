@@ -84,7 +84,33 @@ router.post("/activation-requests/:id/approve", requireSuperAdmin, async (req, r
     const [biz] = await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode)).limit(1);
 
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString();
+
+    // Approving a "new device" activation request is still a reuse of an
+    // already-activated voucher — must NOT reset the validity timer.
+    // Preserve the remaining period from the voucher's original activation.
+    let firstActivatedAt: string | null = null;
+    try {
+      const prevNotes = JSON.parse(voucher.notes || "{}");
+      firstActivatedAt = prevNotes.firstActivatedAt || prevNotes.activatedAt || null;
+    } catch { /* ignore */ }
+    if (!firstActivatedAt && voucher.redeemedAt) {
+      firstActivatedAt = new Date(voucher.redeemedAt).toISOString();
+    }
+    if (!firstActivatedAt) firstActivatedAt = nowStr;
+
+    const baseDate = new Date(firstActivatedAt);
+    const expiresAt = new Date(baseDate.getTime() + voucher.validityDays * 24 * 60 * 60 * 1000);
+
+    const activationLog = JSON.stringify({
+      activatedAt: nowStr,
+      firstActivatedAt,
+      businessCode,
+      hardware: reqRow.hardware_fingerprint || reqRow.hardwareFingerprint || null,
+      ip: reqRow.ip || null,
+      exeVersion: reqRow.exe_version || reqRow.exeVersion || null,
+      approvedByTech: true,
+    });
 
     if (biz) {
       await db.update(businessesTable).set({
@@ -100,6 +126,7 @@ router.post("/activation-requests/:id/approve", requireSuperAdmin, async (req, r
       status: "used",
       redeemedByBusinessId: biz?.id || voucher.redeemedByBusinessId,
       redeemedAt: now,
+      notes: activationLog,
     }).where(eq(licenseVouchersTable.id, voucher.id));
 
     const reviewedAt = now.toISOString();
