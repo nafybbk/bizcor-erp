@@ -170,8 +170,10 @@ When a mini-app customer later installs full BizCor ERP (LAN desktop or cloud):
   Purchase Bill list, no accept/confirm step. Customer gets a yellow
   notification/badge that deep-links to the already-imported bill so they can
   review/complete anything needed (e.g. item mapping) after the fact.
-- Still open: what happens on supplier-side amendment/cancellation — does it
-  update or remove the customer's already-synced bill?
+- **Decided (2026-07-05)**: on supplier-side edit or delete of a synced
+  invoice, the connected customer gets notified, and the customer's current
+  (already-synced) bill record is saved/versioned before the update/delete is
+  approved and applied — so nothing is silently overwritten or lost.
 
 ### Infra decision (2026-07-04): self-hosted home server for ALL production
 Owner is moving production (not just dev) fully to a self-hosted home server —
