@@ -1,6 +1,7 @@
 - [Activation Logs Feature](activation-logs.md) — PC-wise + voucher-wise activation history for cloud & LAN, pending implementation
 - [Maintenance Plan Feature](maintenance-plan.md) — Yearly maintenance fee on top of lifetime plans, with alerts and feature locks, pending implementation
 - [Supabase DB identity verification](supabase-db-verification.md) — always verify project ref + row-level data before trusting a DB connection; SUPABASE_DATABASE_URL pointed to a wrong DB before
+- [SUPABASE_DATABASE_URL priority over DATABASE_URL](supabase-db-priority.md) — executeSql only reaches Replit's own DB; DDL for the app's real (Supabase) DB needs a raw pg client
 - [drizzle-kit push interactive drift](drizzle-kit-push-interactive.md) — unrelated pre-existing drift can hijack the TUI prompt; hand-write raw SQL for small additive changes instead
 - [Expo SecureStore fails on web](expo-securestore-web.md) — auth storage must branch web vs native or preview screenshots show a broken login screen
 - [Git release divergence](git-release-divergence.md) — main vs origin/main keeps diverging on release pushes; fetch+merge (not force-push) before tagging
