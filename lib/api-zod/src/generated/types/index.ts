@@ -111,6 +111,7 @@ export * from "./miniAppLoginBody";
 export * from "./miniAppLoginResponse";
 export * from "./miniAppPollMessagesParams";
 export * from "./miniAppSendMessageBody";
+export * from "./miniAppSettingsResponse";
 export * from "./outstandingBill";
 export * from "./outstandingResponse";
 export * from "./outstandingSummaryEntry";

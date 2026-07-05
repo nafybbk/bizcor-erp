@@ -2369,6 +2369,15 @@ export const GetGstDashboardSummaryResponse = zod.object({
 });
 
 /**
+ * @summary Public branding info for the mini-app login screen (no auth)
+ */
+export const MiniAppSettingsResponse = zod.object({
+  softwareName: zod.string(),
+  supportEmail: zod.string(),
+  supportPhone: zod.string(),
+});
+
+/**
  * @summary Customer mini-app login (mobile + PIN, auto-creates on first login)
  */
 export const MiniAppLoginBody = zod.object({

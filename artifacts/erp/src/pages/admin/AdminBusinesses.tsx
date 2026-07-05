@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle, MessageCircle, Clock, Info, Monitor, Cloud, Calendar, MapPin, Phone, Mail, Key } from "lucide-react";
+import { Search, Loader2, Edit2, Download, X, CreditCard, Users, CheckCircle2, XCircle, Shield, Gift, Copy, Check, Trash2, AlertTriangle, MessageCircle, Clock, Info, Monitor, Cloud, Calendar, MapPin, Phone, Mail, Key, Puzzle, Ban } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
 
@@ -34,6 +34,16 @@ export default function AdminBusinesses() {
   const [topupDays, setTopupDays] = useState("30");
   const [topupSaving, setTopupSaving] = useState(false);
   const [topupDone, setTopupDone] = useState(false);
+
+  // Module Patches modal
+  const [patchBiz, setPatchBiz] = useState<any>(null);
+  const [patchesList, setPatchesList] = useState<any[]>([]);
+  const [patchesLoading, setPatchesLoading] = useState(false);
+  const [newPatchModule, setNewPatchModule] = useState("chat");
+  const [newPatchDeviceLimit, setNewPatchDeviceLimit] = useState("1");
+  const [newPatchValidityDays, setNewPatchValidityDays] = useState("30");
+  const [newPatchNotes, setNewPatchNotes] = useState("");
+  const [patchSaving, setPatchSaving] = useState(false);
 
   // Users modal state
   const [usersBiz, setUsersBiz] = useState<any>(null);
@@ -172,6 +182,45 @@ export default function AdminBusinesses() {
       setTopupDone(true);
       load();
     } finally { setTopupSaving(false); }
+  };
+
+  const openPatches = (b: any) => {
+    setPatchBiz(b);
+    setNewPatchModule("chat");
+    setNewPatchDeviceLimit("1");
+    setNewPatchValidityDays("30");
+    setNewPatchNotes("");
+    loadPatches(b.id);
+  };
+
+  const loadPatches = async (businessId: number) => {
+    setPatchesLoading(true);
+    try {
+      const data = await api.get<any[]>(`/super-admin/businesses/${businessId}/patches`);
+      setPatchesList(Array.isArray(data) ? data : []);
+    } catch { setPatchesList([]); }
+    finally { setPatchesLoading(false); }
+  };
+
+  const addPatch = async () => {
+    if (!patchBiz) return;
+    setPatchSaving(true);
+    try {
+      await api.post(`/super-admin/businesses/${patchBiz.id}/patches`, {
+        module: newPatchModule,
+        deviceLimit: Number(newPatchDeviceLimit) || 1,
+        validityDays: Number(newPatchValidityDays) || 30,
+        notes: newPatchNotes || undefined,
+      });
+      setNewPatchNotes("");
+      await loadPatches(patchBiz.id);
+    } finally { setPatchSaving(false); }
+  };
+
+  const revokePatch = async (patchId: number) => {
+    if (!patchBiz) return;
+    await api.patch(`/super-admin/patches/${patchId}/revoke`, {});
+    await loadPatches(patchBiz.id);
   };
 
   const copyRef = (code: string) => {
@@ -470,6 +519,7 @@ export default function AdminBusinesses() {
                         <button onClick={() => openUsers(b)} className="p-1.5 text-purple-500 hover:bg-purple-50 rounded-lg" title="Manage Users"><Users className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit Business"><Edit2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openTopup(b)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Top-up Free Days"><Gift className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openPatches(b)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg" title="Module Patches — extra add-ons"><Puzzle className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openCleanup(b)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg" title="Data Cleanup — Delete Vouchers/Payments"><Trash2 className="w-3.5 h-3.5" /></button>
                         <button onClick={() => downloadBackup(b.id, b.businessCode)} className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg" title="Download backup"><Download className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openDelete(b)} className="p-1.5 text-red-700 hover:bg-red-100 rounded-lg" title="Permanently delete business"><XCircle className="w-3.5 h-3.5" /></button>
@@ -557,6 +607,90 @@ export default function AdminBusinesses() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Module Patches Modal */}
+      {patchBiz && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={e => e.target === e.currentTarget && setPatchBiz(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+              <h2 className="text-lg font-semibold flex items-center gap-2"><Puzzle className="w-5 h-5 text-amber-500" /> Module Patches — {patchBiz.name}</h2>
+              <button onClick={() => setPatchBiz(null)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              <p className="text-xs text-gray-500">
+                Business ke plan se alag ek paid add-on module grant karein — poore business ke liye (sab PCs), ek device limit aur validity ke saath. Patch "pending" ban ke create hota hai, aur business ki app jab agli baar server se baat karegi (login/sync) tab validity count shuru hogi.
+              </p>
+
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Module</label>
+                    <select value={newPatchModule} onChange={e => setNewPatchModule(e.target.value)} className={inputCls}>
+                      <option value="chat">Chat</option>
+                      <option value="gallery">Gallery</option>
+                      <option value="customer_network">Customer Network</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Device Limit</label>
+                    <input type="number" min="1" className={inputCls} value={newPatchDeviceLimit} onChange={e => setNewPatchDeviceLimit(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Validity (days)</label>
+                    <input type="number" min="1" className={inputCls} value={newPatchValidityDays} onChange={e => setNewPatchValidityDays(e.target.value)} />
+                  </div>
+                </div>
+                <input
+                  className={inputCls}
+                  placeholder="Notes (optional) — e.g. payment ref"
+                  value={newPatchNotes}
+                  onChange={e => setNewPatchNotes(e.target.value)}
+                />
+                <button onClick={addPatch} disabled={patchSaving}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
+                  {patchSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Grant Patch
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Existing Patches</h3>
+                {patchesLoading ? (
+                  <div className="text-center py-6 text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+                ) : patchesList.length === 0 ? (
+                  <div className="text-center py-6 text-gray-400 text-sm">Koi patch nahi hai abhi</div>
+                ) : (
+                  <div className="space-y-2">
+                    {patchesList.map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-sm">
+                        <div>
+                          <div className="font-medium text-gray-800 capitalize">{p.module.replace("_", " ")}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {p.deviceLimit} device{p.deviceLimit > 1 ? "s" : ""} · {p.validityDays} din
+                            {p.status === "active" && p.expiresAt && ` · expires ${new Date(p.expiresAt).toLocaleDateString("en-IN")}`}
+                            {p.notes && ` · ${p.notes}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            p.status === "active" ? "bg-green-100 text-green-700"
+                            : p.status === "pending" ? "bg-amber-100 text-amber-700"
+                            : p.status === "expired" ? "bg-gray-100 text-gray-500"
+                            : "bg-red-100 text-red-600"
+                          }`}>{p.status}</span>
+                          {(p.status === "active" || p.status === "pending") && (
+                            <button onClick={() => revokePatch(p.id)} className="p-1 text-red-400 hover:bg-red-50 rounded" title="Revoke"><Ban className="w-3.5 h-3.5" /></button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

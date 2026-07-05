@@ -1587,6 +1587,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/GstDashboardSummary"
 
+  /mini-app/settings:
+    get:
+      operationId: miniAppSettings
+      tags: [mini-app]
+      summary: Public branding info for the mini-app login screen (no auth)
+      responses:
+        "200":
+          description: Branding settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppSettingsResponse"
+
   /mini-app/login:
     post:
       operationId: miniAppLogin
@@ -3154,6 +3167,17 @@ components:
           type: string
           nullable: true
       required: [customerId, mobile]
+
+    MiniAppSettingsResponse:
+      type: object
+      properties:
+        softwareName:
+          type: string
+        supportEmail:
+          type: string
+        supportPhone:
+          type: string
+      required: [softwareName, supportEmail, supportPhone]
 
     MiniAppLoginResponse:
       type: object

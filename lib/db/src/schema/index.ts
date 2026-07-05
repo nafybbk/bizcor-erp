@@ -8,3 +8,4 @@ export * from "./supportMessages";
 export * from "./chat";
 export * from "./reportTemplates";
 export * from "./miniApp";
+export * from "./modulePatches";

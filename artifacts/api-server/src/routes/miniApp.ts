@@ -8,8 +8,10 @@ import {
   businessesTable,
   partiesTable,
   vouchersTable,
+  appSettingsTable,
 } from "@workspace/db";
 import { eq, and, gt, asc, desc } from "drizzle-orm";
+import { hasActiveModule } from "../lib/modulePatches";
 
 const router = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
@@ -64,6 +66,28 @@ function requireCustomerAuth(req: Request, res: Response, next: NextFunction): v
     res.status(401).json({ error: "Unauthorized", message: "Invalid or expired token" });
   }
 }
+
+// GET /mini-app/settings — public branding info for the login screen (no auth).
+// Phone is only returned if the tech panel has explicitly turned it on
+// (supportPhoneVisible) — showing the platform owner's own number by default
+// could put off suppliers whose customers would see it instead of the
+// supplier's own contact details.
+router.get("/mini-app/settings", async (req, res) => {
+  try {
+    const rows = await db.select().from(appSettingsTable);
+    const settings: Record<string, string> = {};
+    for (const row of rows) settings[row.key] = row.value || "";
+    const showPhone = settings.supportPhoneVisible === "true";
+    res.json({
+      softwareName: settings.softwareName || "BizCor",
+      supportEmail: settings.supportEmail || "info@naewtgroup.com",
+      supportPhone: showPhone ? settings.supportPhone || "" : "",
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.json({ softwareName: "BizCor", supportEmail: "info@naewtgroup.com", supportPhone: "" });
+  }
+});
 
 // POST /mini-app/login — mobile + PIN. Auto-creates account on first login (default PIN 1234).
 router.post("/mini-app/login", async (req, res) => {
@@ -131,6 +155,11 @@ router.post("/mini-app/connect", async (req, res) => {
     const [business] = await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode.trim().toUpperCase())).limit(1);
     if (!business) {
       res.status(404).json({ error: "Business code nahi mila" });
+      return;
+    }
+
+    if (!(await hasActiveModule(business.id, "customer_network"))) {
+      res.status(403).json({ error: "Yeh business abhi Customer Network module use nahi kar raha" });
       return;
     }
 

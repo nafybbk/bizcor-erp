@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useMiniAppLogin } from "@workspace/api-client-react";
+import { useMiniAppLogin, useMiniAppSettings } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -28,6 +28,10 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const loginMutation = useMiniAppLogin();
+  const { data: settings } = useMiniAppSettings();
+  const appName = settings?.softwareName || "BizCor";
+  const supportEmail = settings?.supportEmail || "info@naewtgroup.com";
+  const supportPhone = settings?.supportPhone;
 
   const canSubmit = mobile.trim().length >= 6 && pin.trim().length >= 4;
 
@@ -68,12 +72,13 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Logo placeholder — swap with the real BizCor logo image when ready */}
         <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
           <Feather name="link-2" size={30} color={colors.primaryForeground} />
         </View>
 
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Customer Network
+          {appName}
         </Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Sign in with your mobile number to view your suppliers, invoices,
@@ -178,6 +183,21 @@ export default function LoginScreen() {
               </Text>
             )}
           </Pressable>
+
+          <View style={styles.supportRow}>
+            <Feather name="mail" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.supportText, { color: colors.mutedForeground }]}>
+              {supportEmail}
+            </Text>
+          </View>
+          {supportPhone ? (
+            <View style={styles.supportRow}>
+              <Feather name="phone" size={13} color={colors.mutedForeground} />
+              <Text style={[styles.supportText, { color: colors.mutedForeground }]}>
+                {supportPhone}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </KeyboardAwareScrollViewCompat>
     </View>
@@ -232,4 +252,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   submitText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  supportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  supportText: { fontSize: 12, fontFamily: "Inter_400Regular" },
 });

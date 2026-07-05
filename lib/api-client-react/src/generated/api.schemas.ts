@@ -934,6 +934,12 @@ export interface MiniAppCustomer {
   name?: string | null;
 }
 
+export interface MiniAppSettingsResponse {
+  softwareName: string;
+  supportEmail: string;
+  supportPhone: string;
+}
+
 export interface MiniAppLoginResponse {
   token: string;
   customer: MiniAppCustomer;

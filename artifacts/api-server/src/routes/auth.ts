@@ -161,6 +161,16 @@ router.post("/login", async (req, res) => {
         }
       }
 
+      // ── ACTIVATE PENDING MODULE PATCHES ───────────────────────────────────
+      // This login is the first moment this business's app has actually
+      // reached the server since a tech-panel patch (Chat/Gallery/Customer
+      // Network add-on) may have been granted — activate now so validity
+      // counts from real first-contact, not from whenever it was granted.
+      try {
+        const { activatePendingPatches } = await import("../lib/modulePatches");
+        await activatePendingPatches(business.id);
+      } catch { /* non-critical — don't block login */ }
+
       // ── SAVE SESSION TOKEN ────────────────────────────────────────────────
       const newSessionToken = crypto.randomUUID();
       const ipAddr = getIp(req);

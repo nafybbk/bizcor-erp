@@ -79,6 +79,7 @@ import type {
   MiniAppLoginResponse,
   MiniAppPollMessagesParams,
   MiniAppSendMessageBody,
+  MiniAppSettingsResponse,
   OutstandingResponse,
   OutstandingSummaryResponse,
   Party,
@@ -6460,6 +6461,81 @@ export function useGetGstDashboardSummary<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGstDashboardSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public branding info for the mini-app login screen (no auth)
+ */
+export const getMiniAppSettingsUrl = () => {
+  return `/api/mini-app/settings`;
+};
+
+export const miniAppSettings = async (
+  options?: RequestInit,
+): Promise<MiniAppSettingsResponse> => {
+  return customFetch<MiniAppSettingsResponse>(getMiniAppSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppSettingsQueryKey = () => {
+  return [`/api/mini-app/settings`] as const;
+};
+
+export const getMiniAppSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppSettingsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof miniAppSettings>>> = ({
+    signal,
+  }) => miniAppSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppSettings>>
+>;
+export type MiniAppSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Public branding info for the mini-app login screen (no auth)
+ */
+
+export function useMiniAppSettings<
+  TData = Awaited<ReturnType<typeof miniAppSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppSettingsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

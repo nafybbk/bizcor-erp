@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, sqlite, pool } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable } from "@workspace/db";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable, modulePatchesTable } from "@workspace/db";
 import { eq, count, sql, like, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
@@ -29,14 +29,14 @@ router.get("/settings", async (req, res) => {
     const rows = await db.select().from(appSettingsTable);
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value || "";
-    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" };
+    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", supportPhoneVisible: "false", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" };
     res.json({ ...defaults, ...settings });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.post("/settings", async (req, res) => {
   try {
-    const allowed = ["softwareName", "supportEmail", "supportPhone", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo", "whatsappVerification", "adminWhatsappNumber"];
+    const allowed = ["softwareName", "supportEmail", "supportPhone", "supportPhoneVisible", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo", "whatsappVerification", "adminWhatsappNumber"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) })
@@ -713,6 +713,56 @@ router.post("/businesses/:id/topup", async (req, res) => {
       status: "active",
     }).where(eq(businessesTable.id, Number(req.params.id))).returning();
     res.json(updated);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Module Patches (Tech Panel add-on grants: Chat / Gallery / Customer Network) ─
+// Grants a business a module not included in its plan, as a paid patch —
+// scoped to the whole business (all its PCs), with a device limit + validity
+// period. Created "pending"; activates (validity starts) the next time this
+// business logs in (see activatePendingPatches in ../lib/modulePatches).
+
+router.get("/businesses/:id/patches", async (req, res) => {
+  try {
+    const rows = await db.select().from(modulePatchesTable)
+      .where(eq(modulePatchesTable.businessId, Number(req.params.id)))
+      .orderBy(desc(modulePatchesTable.createdAt));
+    const now = new Date();
+    const withComputedStatus = rows.map((p) => ({
+      ...p,
+      status: p.status === "active" && p.expiresAt && new Date(p.expiresAt) < now ? "expired" : p.status,
+    }));
+    res.json(withComputedStatus);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.post("/businesses/:id/patches", async (req, res) => {
+  try {
+    const { module, deviceLimit, validityDays, notes } = req.body || {};
+    const allowedModules = ["chat", "gallery", "customer_network"];
+    if (!allowedModules.includes(module)) { res.status(400).json({ error: "Invalid module" }); return; }
+    const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, Number(req.params.id)) });
+    if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+
+    const [patch] = await db.insert(modulePatchesTable).values({
+      businessId: Number(req.params.id),
+      module,
+      deviceLimit: deviceLimit ? Number(deviceLimit) : 1,
+      validityDays: validityDays ? Number(validityDays) : 30,
+      status: "pending",
+      notes: notes || null,
+      createdBy: req.user!.id,
+    }).returning();
+    res.json(patch);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.patch("/patches/:id/revoke", async (req, res) => {
+  try {
+    const [patch] = await db.update(modulePatchesTable).set({ status: "revoked" })
+      .where(eq(modulePatchesTable.id, Number(req.params.id))).returning();
+    if (!patch) { res.status(404).json({ error: "Patch not found" }); return; }
+    res.json(patch);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

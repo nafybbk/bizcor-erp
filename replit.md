@@ -77,6 +77,8 @@ Vouchers (SI/CN/PB/DN), Payments (REC/PAY), Masters (Parties/Items/Units/HSN/Tax
 14. LAN Server Version — ✅ ho gaya
 15. Local Chat / Internal Messaging — ✅ ho gaya
 16. Bin Recall/Reuse system — ✅ ho gaya
+17. Module Patch system — Tech Panel se kisi business ko extra module (Chat/Gallery/Customer Network) paid add-on ke roop mein grant karna, device limit + validity days ke saath, per-business scope (sab PCs), patch "pending" ban ke create hota hai aur business ke agle login/sync pe activate hota hai
+18. Mini-app (Customer Network) login screen branding — app name + support email Tech Panel settings se aata hai, support phone number ka dikhna/na-dikhna bhi Tech Panel se control hota hai (default off)
 
 ### 🔴 BUG FIXES — PRIORITY
 1. Zero clear — input tap/click pe 0 hat jaaye
