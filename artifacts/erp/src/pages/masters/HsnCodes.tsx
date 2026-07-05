@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Plus, Loader2, Edit2, Trash2, X, Check, Upload, FileSpreadsheet, AlertCircle, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 
 // ── Column auto-detection — handles multiple GST portal export formats ─────────
 const COL_ALIASES: Record<string, string[]> = {
@@ -144,6 +146,7 @@ export default function HsnCodes() {
 
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const filtered = search ? codes.filter(c => c.code.toLowerCase().includes(search.toLowerCase()) || (c.description || "").toLowerCase().includes(search.toLowerCase())) : codes;
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -317,14 +320,14 @@ export default function HsnCodes() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="text-left px-4 py-3 font-medium">#</th>
-                <th className="text-left px-4 py-3 font-medium">Code</th>
-                <th className="text-left px-4 py-3 font-medium">Description</th>
-                <th className="text-right px-4 py-3 font-medium">Tax Rate</th>
+                <SortableTh label="Code" sortKey="code" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Description" sortKey="description" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Tax Rate" sortKey="taxRate" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((c, idx) => (
+              {sorted.map((c, idx) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                   {editId === c.id ? (

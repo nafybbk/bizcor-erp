@@ -4,6 +4,8 @@ import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 import { Plus, Search, Eye, Trash2, Loader2, Download, Printer, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -105,6 +107,8 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     !search || v.voucherNumber?.toLowerCase().includes(search.toLowerCase()) || v.partyName?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
@@ -158,18 +162,18 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
-                  {show("number") && <th className="text-left px-4 py-3 font-medium">#</th>}
-                  {show("date") && <th className="text-left px-4 py-3 font-medium">Date</th>}
-                  {show("party") && <th className="text-left px-4 py-3 font-medium">Party</th>}
-                  {show("amount") && <th className="text-right px-4 py-3 font-medium">Amount</th>}
-                  {show("paid") && <th className="text-right px-4 py-3 font-medium">Paid</th>}
-                  {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance</th>}
-                  {show("status") && <th className="text-center px-4 py-3 font-medium">Status</th>}
+                  {show("number") && <SortableTh label="#" sortKey="voucherNumber" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />}
+                  {show("date") && <SortableTh label="Date" sortKey="date" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />}
+                  {show("party") && <SortableTh label="Party" sortKey="partyName" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />}
+                  {show("amount") && <SortableTh label="Amount" sortKey="grandTotal" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />}
+                  {show("paid") && <SortableTh label="Paid" sortKey="paidAmount" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />}
+                  {show("balance") && <SortableTh label="Balance" sortKey="balanceDue" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />}
+                  {show("status") && <SortableTh label="Status" sortKey="status" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="center" />}
                   {show("actions") && <th className="px-4 py-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.map(v => (
+                {sorted.map(v => (
                   <tr key={v.id} className="hover:bg-gray-50 transition-colors">
                     {show("number") && <td className="px-4 py-3 font-mono text-blue-600 font-medium">{v.voucherNumber}</td>}
                     {show("date") && <td className="px-4 py-3 text-gray-600">{fmt.date(v.date)}</td>}

@@ -4,6 +4,8 @@ import { api, fmt } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { Plus, Search, Loader2, Trash2, Eye, Download, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import SortableTh from "@/components/SortableTh";
+import { useSort } from "@/lib/useSort";
 
 interface Props { type: "receipt" | "payment" }
 
@@ -39,6 +41,8 @@ export default function PaymentsList({ type }: Props) {
   };
 
   const filtered = payments.filter(p => !search || p.partyName?.toLowerCase().includes(search.toLowerCase()) || p.paymentNumber?.toLowerCase().includes(search.toLowerCase()));
+
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
 
   const exportCSV = () => {
     const rows = filtered.map(p => ({
@@ -92,17 +96,17 @@ export default function PaymentsList({ type }: Props) {
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
-                <th className="text-left px-4 py-3 font-medium">#</th>
-                <th className="text-left px-4 py-3 font-medium">Date</th>
-                <th className="text-left px-4 py-3 font-medium">Party</th>
-                <th className="text-left px-4 py-3 font-medium">Mode</th>
-                <th className="text-right px-4 py-3 font-medium">Amount</th>
-                <th className="text-left px-4 py-3 font-medium">Type</th>
+                <SortableTh label="#" sortKey="paymentNumber" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Date" sortKey="date" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Party" sortKey="partyName" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Mode" sortKey="paymentMode" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableTh label="Amount" sortKey="amount" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortableTh label="Type" sortKey="isOnAccount" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map(p => (
+              {sorted.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-blue-600 font-medium">{p.paymentNumber}</td>
                   <td className="px-4 py-3 text-gray-600">{fmt.date(p.date)}</td>
