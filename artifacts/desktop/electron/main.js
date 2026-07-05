@@ -602,7 +602,9 @@ if (!gotTheLock) {
         }, 60000);
         // Start weekly heartbeat 10s after server is ready
         setTimeout(() => startHeartbeat().catch(() => {}), 10000);
-        setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 8000);
+        setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 8000);
+        // Re-check periodically (covers long-running LAN server + internet coming back online)
+        setInterval(() => { autoUpdater.checkForUpdates().catch(() => {}); }, 6 * 60 * 60 * 1000);
         // Auto backup: check every hour if today's backup is pending
         setTimeout(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 30000);
         setInterval(() => { try { backup.autoBackupIfNeeded(); } catch (_) {} }, 60 * 60 * 1000);
@@ -623,6 +625,21 @@ if (!gotTheLock) {
 }
 
 // ─── Auto Updater ─────────────────────────────────────────────────────────────
+
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on("update-available", (info) => {
+  dialog.showMessageBox({
+    type: "info",
+    title: "Update Available — BizCor ERP",
+    message: `Naya version v${info.version} available hai.`,
+    detail: "Update karna hai? Download hone ke baad restart karke apply hoga.",
+    buttons: ["Yes, Update Karo", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  }).then(r => { if (r.response === 0) autoUpdater.downloadUpdate().catch(() => {}); });
+});
 
 autoUpdater.on("update-downloaded", () => {
   dialog.showMessageBox({
