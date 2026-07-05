@@ -197,6 +197,37 @@ When a mini-app customer later installs full BizCor ERP (LAN desktop or cloud):
   invoice, the connected customer gets notified, and the customer's current
   (already-synced) bill record is saved/versioned before the update/delete is
   approved and applied — so nothing is silently overwritten or lost.
+- **Decided (2026-07-05)**: the auto-generated customer Purchase Bill has NO
+  due date (it's a passive import, not a bill the customer is negotiating
+  payment terms on).
+
+### Infra + architecture notes for this app (decided 2026-07-05)
+- **Database**: build on the existing Supabase Postgres (`SUPABASE_DATABASE_URL`)
+  for now; migrate to the self-hosted home server later (see infra decision
+  below). This is low-risk because the stack only uses plain Postgres via
+  Drizzle ORM — no Supabase-native features (Auth/Storage/RLS/Realtime) are
+  used anywhere in the project, so migration later is just a `pg_dump`/
+  restore + swapping the connection string, no code changes needed. Keep it
+  that way — don't introduce Supabase-specific features for this app either.
+- **Offline-first**: the mini app must work fully with no internet (view
+  previously-synced invoices/statements/gallery from local storage); it only
+  talks to the server to sync when connectivity is available. Reuses the same
+  Offline-First/Sync foundation already planned for LAN businesses — not a
+  separate mechanism. Actions taken while offline (e.g. placing a gallery
+  order) must go into a local sync queue and flush when back online — needs
+  an idempotency key per queued action so a retried sync can't double-submit
+  the same order.
+- **Gallery**: not built in the first pass, but keep provisions for it now —
+  the "Gallery" permission toggle already exists in the Connections model
+  (just inactive/no-op until the Gallery module ships), and image storage
+  will use Cloudinary (already configured) when it's built.
+- **Security note to keep in mind when building**: both the login PIN
+  (mobile + PIN, default `1234`) and the connect PIN are short and persistent,
+  so add attempt rate-limiting/lockout on both endpoints — otherwise they're
+  brute-forceable. The PIN itself should still be stored in a way the
+  supplier can view/re-share (matches the mask/unmask requirement), so it's
+  not a one-way password hash like a login password — rate-limiting is the
+  main defense here, not hashing.
 
 ### Infra decision (2026-07-04): self-hosted home server for ALL production
 Owner is moving production (not just dev) fully to a self-hosted home server —
