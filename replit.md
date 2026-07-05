@@ -133,8 +133,13 @@ both roles via one login.
 
 - **Connections/Permissions**: once connected, supplier toggles per-connection
   permissions: Invoice, Payment, Statement/Ledger, Gallery
-- **Global Customer Identity**: single mobile-number login maps to multiple
-  per-business Party records (1 customer → N supplier connections)
+- **Customer Identity (corrected 2026-07-05)**: mobile number is NOT the
+  identity key — it's just a field stored on the customer record (used to log
+  in). The actual **customer ID** is a separate system-generated ID (created
+  by the app/cloud server at first login), and that ID is what all
+  connections/gallery/orders/bills reference. One customer ID → N supplier
+  connections. This avoids mobile number ever being used as a lookup/identity
+  key elsewhere in the system.
 
 ### Mini app login + supplier connection flow (decided 2026-07-05)
 - **Login**: mobile number + PIN, no OTP, no separate registration screen.
