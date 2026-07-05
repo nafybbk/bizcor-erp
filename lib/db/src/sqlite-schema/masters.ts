@@ -75,6 +75,7 @@ export const partiesTable = sqliteTable("parties", {
   customFields: text("custom_fields", { mode: "json" }),
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
+  pin: text("pin"),
   createdAt: text("created_at").notNull().default(NOW),
 });
 

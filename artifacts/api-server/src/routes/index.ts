@@ -24,6 +24,7 @@ import reportTemplatesRouter from "./reportTemplates";
 import templateFilesRouter from "./templateFiles";
 import printServerRouter from "./print-server";
 import activationRequestsRouter from "./activationRequests";
+import miniAppRouter from "./miniApp";
 
 const router: IRouter = Router();
 
@@ -343,6 +344,7 @@ router.use("/auth", authRouter);
 router.use("/auth/webauthn", webauthnRouter);
 router.use(supportChatRouter);
 router.use(activationRequestsRouter);
+router.use(miniAppRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 

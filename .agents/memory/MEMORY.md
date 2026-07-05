@@ -1,3 +1,4 @@
 - [Activation Logs Feature](activation-logs.md) — PC-wise + voucher-wise activation history for cloud & LAN, pending implementation
 - [Maintenance Plan Feature](maintenance-plan.md) — Yearly maintenance fee on top of lifetime plans, with alerts and feature locks, pending implementation
 - [Supabase DB identity verification](supabase-db-verification.md) — always verify project ref + row-level data before trusting a DB connection; SUPABASE_DATABASE_URL pointed to a wrong DB before
+- [Expo SecureStore fails on web](expo-securestore-web.md) — auth storage must branch web vs native or preview screenshots show a broken login screen

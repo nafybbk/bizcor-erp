@@ -3,12 +3,16 @@ import { api, fmt, isOfflineError } from "@/lib/api";
 import { downloadCSV } from "@/lib/export";
 import { saveDraft } from "@/lib/offlineQueue";
 import { cacheParties } from "@/lib/masterCache";
-import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Edit2, X, Download, CloudOff, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useStates } from "@/lib/useStates";
 import SortableTh from "@/components/SortableTh";
 import { useSort } from "@/lib/useSort";
 
-const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "" };
+const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "", pin: "" };
+
+function generatePin(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
 
 interface Props { defaultType?: "customer" | "supplier" | "both" }
 
@@ -26,6 +30,7 @@ export default function Parties({ defaultType }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editCodes, setEditCodes] = useState<{ customerCode?: string; supplierCode?: string }>({});
+  const [showPin, setShowPin] = useState(false);
   const limit = 50;
 
   const pageTitle = defaultType === "customer" ? "Customers" : defaultType === "supplier" ? "Suppliers" : "Parties";
@@ -57,12 +62,14 @@ export default function Parties({ defaultType }: Props) {
     setEditId(null);
     setEditCodes({});
     setForm({ ...emptyForm, type: (defaultType || "customer") as any });
+    setShowPin(false);
     setError(""); setShowModal(true);
   };
   const openEdit = (p: any) => {
     setEditId(p.id);
     setEditCodes({ customerCode: p.customerCode || undefined, supplierCode: p.supplierCode || undefined });
-    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0) });
+    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0), pin: p.pin||"" });
+    setShowPin(false);
     setError(""); setShowModal(true);
   };
 
@@ -304,6 +311,31 @@ export default function Parties({ defaultType }: Props) {
                   </div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Limit (₹)</label><input type="number" className={inputCls} value={form.creditLimit} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, creditLimit: e.target.value }))} placeholder="0 = No limit" /></div>
                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Credit Days</label><input type="number" className={inputCls} value={form.creditDays} onFocus={e => e.target.select()} onChange={e => setForm(f => ({ ...f, creditDays: e.target.value }))} placeholder="e.g. 30" /></div>
+                </div>
+              </div>
+
+              {/* Customer Network App connect PIN */}
+              <div className="col-span-2 border-t pt-4">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Customer App PIN</div>
+                <div className="text-xs text-gray-400 mb-3">Business code + yeh PIN customer ko do — mini app mein "Connect Supplier" ke liye use hoga.</div>
+                <div className="flex gap-2 max-w-xs">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPin ? "text" : "password"}
+                      className={inputCls + " pr-9"}
+                      value={form.pin}
+                      onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                      placeholder="e.g. 4821"
+                      maxLength={6}
+                    />
+                    <button type="button" onClick={() => setShowPin(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" title={showPin ? "Hide" : "Show"}>
+                      {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => { setForm(f => ({ ...f, pin: generatePin() })); setShowPin(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50" title="Generate random PIN">
+                    <RefreshCw className="w-3.5 h-3.5" /> Generate
+                  </button>
                 </div>
               </div>
 

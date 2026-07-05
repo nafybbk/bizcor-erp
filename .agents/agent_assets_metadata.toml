@@ -90,6 +90,12 @@ uri = "file://artifacts/bizcor-reels/public/bg-texture-2.png"
 type = "image"
 title = "Navy bg with faint orange light trails"
 
+[[generated]]
+id = "KaQG51CNvTX8BdKfF9ns2"
+uri = "file://assets/images/icon.png"
+type = "image"
+title = "customer network app icon"
+
 [[outputs]]
 id = "zAHhzwifTSPwZP4yZAY2J"
 uri = "file://DEPLOY.md"

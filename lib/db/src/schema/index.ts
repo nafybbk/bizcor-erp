@@ -7,3 +7,4 @@ export * from "./cashBank";
 export * from "./supportMessages";
 export * from "./chat";
 export * from "./reportTemplates";
+export * from "./miniApp";

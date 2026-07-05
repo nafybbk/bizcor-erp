@@ -1,0 +1,295 @@
+import { Router, Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { db } from "@workspace/db";
+import {
+  customersTable,
+  connectionsTable,
+  customerChatMessagesTable,
+  businessesTable,
+  partiesTable,
+  vouchersTable,
+} from "@workspace/db";
+import { eq, and, gt, asc, desc } from "drizzle-orm";
+
+const router = Router();
+const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
+
+// ─── Simple in-memory rate limiter (per key, sliding window) ─────────────────
+// Test-pass scope: PINs (login + connect) are short & persistent, so throttle
+// brute-force attempts. Not distributed-safe — fine for single-instance API.
+const attemptLog = new Map<string, number[]>();
+function isRateLimited(key: string, maxAttempts: number, windowMs: number): boolean {
+  const now = Date.now();
+  const hits = (attemptLog.get(key) || []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  attemptLog.set(key, hits);
+  return hits.length > maxAttempts;
+}
+
+function generateCustomerId(): string {
+  return "CN" + Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+interface CustomerAuthPayload {
+  type: "customer";
+  customerDbId: number;
+  customerId: string;
+  mobile: string;
+}
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      customer?: CustomerAuthPayload;
+    }
+  }
+}
+
+function requireCustomerAuth(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized", message: "Missing token" });
+    return;
+  }
+  try {
+    const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET) as CustomerAuthPayload;
+    if (decoded.type !== "customer") {
+      res.status(401).json({ error: "Unauthorized", message: "Invalid token type" });
+      return;
+    }
+    req.customer = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: "Unauthorized", message: "Invalid or expired token" });
+  }
+}
+
+// POST /mini-app/login — mobile + PIN. Auto-creates account on first login (default PIN 1234).
+router.post("/mini-app/login", async (req, res) => {
+  try {
+    const { mobile, pin } = req.body || {};
+    if (!mobile?.trim() || !pin?.trim()) {
+      res.status(400).json({ error: "Mobile number aur PIN dono zaroori hain" });
+      return;
+    }
+    const mobileNorm = mobile.trim();
+
+    if (isRateLimited(`login:${mobileNorm}`, 8, 15 * 60 * 1000)) {
+      res.status(429).json({ error: "Bahut zyada attempts. Kuch der baad try karein." });
+      return;
+    }
+
+    let [customer] = await db.select().from(customersTable).where(eq(customersTable.mobile, mobileNorm)).limit(1);
+
+    if (!customer) {
+      let customerId = generateCustomerId();
+      const existing = await db.select({ id: customersTable.id }).from(customersTable).where(eq(customersTable.customerId, customerId)).limit(1);
+      if (existing.length > 0) customerId = generateCustomerId();
+      [customer] = await db.insert(customersTable).values({
+        customerId,
+        mobile: mobileNorm,
+        pin: "1234",
+      }).returning();
+    }
+
+    if (customer.pin !== pin.trim()) {
+      res.status(401).json({ error: "Galat PIN" });
+      return;
+    }
+
+    const token = jwt.sign(
+      { type: "customer", customerDbId: customer.id, customerId: customer.customerId, mobile: customer.mobile } satisfies CustomerAuthPayload,
+      JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    res.json({ token, customer: { customerId: customer.customerId, mobile: customer.mobile, name: customer.name } });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.use("/mini-app", requireCustomerAuth);
+
+// POST /mini-app/connect — businessCode + per-customer PIN (from supplier's Party master)
+router.post("/mini-app/connect", async (req, res) => {
+  try {
+    const { businessCode, pin } = req.body || {};
+    if (!businessCode?.trim() || !pin?.trim()) {
+      res.status(400).json({ error: "Business code aur PIN dono zaroori hain" });
+      return;
+    }
+    const customerDbId = req.customer!.customerDbId;
+
+    if (isRateLimited(`connect:${customerDbId}`, 10, 15 * 60 * 1000)) {
+      res.status(429).json({ error: "Bahut zyada attempts. Kuch der baad try karein." });
+      return;
+    }
+
+    const [business] = await db.select().from(businessesTable).where(eq(businessesTable.businessCode, businessCode.trim().toUpperCase())).limit(1);
+    if (!business) {
+      res.status(404).json({ error: "Business code nahi mila" });
+      return;
+    }
+
+    const [party] = await db.select().from(partiesTable).where(and(
+      eq(partiesTable.businessId, business.id),
+      eq(partiesTable.pin, pin.trim())
+    )).limit(1);
+    if (!party) {
+      res.status(401).json({ error: "Galat PIN" });
+      return;
+    }
+
+    const [existing] = await db.select().from(connectionsTable).where(and(
+      eq(connectionsTable.customerId, customerDbId),
+      eq(connectionsTable.businessId, business.id),
+      eq(connectionsTable.partyId, party.id)
+    )).limit(1);
+
+    const connection = existing || (await db.insert(connectionsTable).values({
+      customerId: customerDbId,
+      businessId: business.id,
+      partyId: party.id,
+    }).returning())[0];
+
+    res.json({
+      connection: {
+        id: connection.id,
+        businessName: business.name,
+        businessLogo: business.logo,
+        permissions: connection.permissions,
+        status: connection.status,
+      },
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections — list all connected suppliers
+router.get("/mini-app/connections", async (req, res) => {
+  try {
+    const customerDbId = req.customer!.customerDbId;
+    const rows = await db.select({
+      id: connectionsTable.id,
+      permissions: connectionsTable.permissions,
+      status: connectionsTable.status,
+      businessName: businessesTable.name,
+      businessLogo: businessesTable.logo,
+      createdAt: connectionsTable.createdAt,
+    }).from(connectionsTable)
+      .innerJoin(businessesTable, eq(connectionsTable.businessId, businessesTable.id))
+      .where(eq(connectionsTable.customerId, customerDbId))
+      .orderBy(desc(connectionsTable.createdAt));
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+async function getOwnedConnection(customerDbId: number, connectionId: number) {
+  const [connection] = await db.select().from(connectionsTable).where(and(
+    eq(connectionsTable.id, connectionId),
+    eq(connectionsTable.customerId, customerDbId)
+  )).limit(1);
+  return connection;
+}
+
+// GET /mini-app/connections/:id/messages/recent — last 50 (initial load)
+router.get("/mini-app/connections/:id/messages/recent", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const rows = await db.select().from(customerChatMessagesTable)
+      .where(eq(customerChatMessagesTable.connectionId, connection.id))
+      .orderBy(desc(customerChatMessagesTable.id))
+      .limit(50);
+    res.json(rows.reverse());
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/messages?since=<id> — poll for new messages
+router.get("/mini-app/connections/:id/messages", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+    const sinceId = parseInt(req.query.since as string) || 0;
+
+    const rows = await db.select().from(customerChatMessagesTable)
+      .where(sinceId > 0
+        ? and(eq(customerChatMessagesTable.connectionId, connection.id), gt(customerChatMessagesTable.id, sinceId))
+        : eq(customerChatMessagesTable.connectionId, connection.id)
+      )
+      .orderBy(asc(customerChatMessagesTable.id))
+      .limit(100);
+    res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /mini-app/connections/:id/messages — send text message (test chat)
+router.post("/mini-app/connections/:id/messages", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+    const { message } = req.body || {};
+    if (!message?.trim()) { res.status(400).json({ error: "Message zaroori hai" }); return; }
+
+    const [row] = await db.insert(customerChatMessagesTable).values({
+      connectionId: connection.id,
+      senderType: "customer",
+      senderName: req.customer!.mobile,
+      message: message.trim(),
+    }).returning();
+    res.json(row);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/invoices — read-only sales invoices from the connected supplier
+router.get("/mini-app/connections/:id/invoices", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { invoice?: boolean } | null) || {};
+    if (permissions.invoice === false) {
+      res.status(403).json({ error: "Invoice dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const rows = await db.select({
+      id: vouchersTable.id,
+      voucherNumber: vouchersTable.voucherNumber,
+      date: vouchersTable.date,
+      grandTotal: vouchersTable.grandTotal,
+    }).from(vouchersTable)
+      .where(and(
+        eq(vouchersTable.businessId, connection.businessId),
+        eq(vouchersTable.partyId, connection.partyId),
+        eq(vouchersTable.voucherType, "sales_invoice")
+      ))
+      .orderBy(desc(vouchersTable.date));
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+export default router;

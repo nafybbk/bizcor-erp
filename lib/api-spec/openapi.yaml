@@ -44,6 +44,8 @@ tags:
     description: GST reports
   - name: dashboard
     description: Dashboard and analytics
+  - name: mini-app
+    description: Customer Network App (mobile customer-facing mini app)
 
 paths:
   /healthz:
@@ -1585,6 +1587,222 @@ paths:
               schema:
                 $ref: "#/components/schemas/GstDashboardSummary"
 
+  /mini-app/login:
+    post:
+      operationId: miniAppLogin
+      tags: [mini-app]
+      summary: Customer mini-app login (mobile + PIN, auto-creates on first login)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MiniAppLoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppLoginResponse"
+        "400":
+          description: Missing fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connect:
+    post:
+      operationId: miniAppConnect
+      tags: [mini-app]
+      summary: Connect to a supplier using businessCode + party PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MiniAppConnectBody"
+      responses:
+        "200":
+          description: Connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppConnectResponse"
+        "400":
+          description: Missing fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Business code not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections:
+    get:
+      operationId: miniAppListConnections
+      tags: [mini-app]
+      summary: List all connected suppliers for the logged-in customer
+      responses:
+        "200":
+          description: Connections list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppConnection"
+
+  /mini-app/connections/{id}/messages/recent:
+    get:
+      operationId: miniAppRecentMessages
+      tags: [mini-app]
+      summary: Get the last 50 chat messages for a connection (initial load)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recent messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppChatMessage"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections/{id}/messages:
+    get:
+      operationId: miniAppPollMessages
+      tags: [mini-app]
+      summary: Poll for new chat messages since a given message id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppChatMessage"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: miniAppSendMessage
+      tags: [mini-app]
+      summary: Send a chat message to a connected supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MiniAppSendMessageBody"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppChatMessage"
+        "400":
+          description: Missing message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections/{id}/invoices:
+    get:
+      operationId: miniAppListInvoices
+      tags: [mini-app]
+      summary: List read-only sales invoices from the connected supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invoices list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppInvoice"
+        "403":
+          description: No invoice permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -2915,3 +3133,134 @@ components:
         igst:
           type: number
       required: [outputTax, inputTax, netPayable]
+
+    MiniAppLoginBody:
+      type: object
+      properties:
+        mobile:
+          type: string
+        pin:
+          type: string
+      required: [mobile, pin]
+
+    MiniAppCustomer:
+      type: object
+      properties:
+        customerId:
+          type: string
+        mobile:
+          type: string
+        name:
+          type: string
+          nullable: true
+      required: [customerId, mobile]
+
+    MiniAppLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        customer:
+          $ref: "#/components/schemas/MiniAppCustomer"
+      required: [token, customer]
+
+    MiniAppConnectBody:
+      type: object
+      properties:
+        businessCode:
+          type: string
+        pin:
+          type: string
+      required: [businessCode, pin]
+
+    MiniAppConnectionPermissions:
+      type: object
+      properties:
+        invoice:
+          type: boolean
+        payment:
+          type: boolean
+        statement:
+          type: boolean
+        gallery:
+          type: boolean
+
+    MiniAppConnect:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessName:
+          type: string
+        businessLogo:
+          type: string
+          nullable: true
+        permissions:
+          $ref: "#/components/schemas/MiniAppConnectionPermissions"
+        status:
+          type: string
+      required: [id, businessName, status]
+
+    MiniAppConnectResponse:
+      type: object
+      properties:
+        connection:
+          $ref: "#/components/schemas/MiniAppConnect"
+      required: [connection]
+
+    MiniAppConnection:
+      type: object
+      properties:
+        id:
+          type: integer
+        permissions:
+          $ref: "#/components/schemas/MiniAppConnectionPermissions"
+        status:
+          type: string
+        businessName:
+          type: string
+        businessLogo:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, status, businessName, createdAt]
+
+    MiniAppChatMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+        connectionId:
+          type: integer
+        senderType:
+          type: string
+          enum: [customer, business]
+        senderName:
+          type: string
+          nullable: true
+        message:
+          type: string
+        createdAt:
+          type: string
+      required: [id, connectionId, senderType, message, createdAt]
+
+    MiniAppSendMessageBody:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    MiniAppInvoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        voucherNumber:
+          type: string
+        date:
+          type: string
+        grandTotal:
+          type: string
+      required: [id, voucherNumber, date, grandTotal]

@@ -923,6 +923,83 @@ export interface GstDashboardSummary {
   igst?: number;
 }
 
+export interface MiniAppLoginBody {
+  mobile: string;
+  pin: string;
+}
+
+export interface MiniAppCustomer {
+  customerId: string;
+  mobile: string;
+  name?: string | null;
+}
+
+export interface MiniAppLoginResponse {
+  token: string;
+  customer: MiniAppCustomer;
+}
+
+export interface MiniAppConnectBody {
+  businessCode: string;
+  pin: string;
+}
+
+export interface MiniAppConnectionPermissions {
+  invoice?: boolean;
+  payment?: boolean;
+  statement?: boolean;
+  gallery?: boolean;
+}
+
+export interface MiniAppConnect {
+  id: number;
+  businessName: string;
+  businessLogo?: string | null;
+  permissions?: MiniAppConnectionPermissions;
+  status: string;
+}
+
+export interface MiniAppConnectResponse {
+  connection: MiniAppConnect;
+}
+
+export interface MiniAppConnection {
+  id: number;
+  permissions?: MiniAppConnectionPermissions;
+  status: string;
+  businessName: string;
+  businessLogo?: string | null;
+  createdAt: string;
+}
+
+export type MiniAppChatMessageSenderType =
+  (typeof MiniAppChatMessageSenderType)[keyof typeof MiniAppChatMessageSenderType];
+
+export const MiniAppChatMessageSenderType = {
+  customer: "customer",
+  business: "business",
+} as const;
+
+export interface MiniAppChatMessage {
+  id: number;
+  connectionId: number;
+  senderType: MiniAppChatMessageSenderType;
+  senderName?: string | null;
+  message: string;
+  createdAt: string;
+}
+
+export interface MiniAppSendMessageBody {
+  message: string;
+}
+
+export interface MiniAppInvoice {
+  id: number;
+  voucherNumber: string;
+  date: string;
+  grandTotal: string;
+}
+
 export type ListAllBusinessesParams = {
   page?: number;
   limit?: number;
@@ -1149,3 +1226,7 @@ export const GetTopPartiesType = {
   customer: "customer",
   supplier: "supplier",
 } as const;
+
+export type MiniAppPollMessagesParams = {
+  since?: number;
+};

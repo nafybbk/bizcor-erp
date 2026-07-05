@@ -53,6 +53,7 @@ if (sqlitePath) {
     // parties — unique codes per type
     "ALTER TABLE parties ADD COLUMN customer_code TEXT",
     "ALTER TABLE parties ADD COLUMN supplier_code TEXT",
+    "ALTER TABLE parties ADD COLUMN pin TEXT",
     `CREATE TABLE IF NOT EXISTS activation_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL,
@@ -116,6 +117,38 @@ if (sqlitePath) {
     "ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config TEXT",
     "ALTER TABLE parties ADD COLUMN IF NOT EXISTS customer_code TEXT",
     "ALTER TABLE parties ADD COLUMN IF NOT EXISTS supplier_code TEXT",
+    "ALTER TABLE parties ADD COLUMN IF NOT EXISTS pin TEXT",
+    `DO $$ BEGIN
+      CREATE TYPE connection_status AS ENUM ('active', 'blocked');
+    EXCEPTION WHEN duplicate_object THEN null; END $$`,
+    `DO $$ BEGIN
+      CREATE TYPE chat_sender_type AS ENUM ('customer', 'business');
+    EXCEPTION WHEN duplicate_object THEN null; END $$`,
+    `CREATE TABLE IF NOT EXISTS mini_app_customers (
+      id SERIAL PRIMARY KEY,
+      customer_id TEXT NOT NULL UNIQUE,
+      mobile TEXT NOT NULL UNIQUE,
+      pin TEXT NOT NULL DEFAULT '1234',
+      name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS mini_app_connections (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER NOT NULL REFERENCES mini_app_customers(id),
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      party_id INTEGER NOT NULL REFERENCES parties(id),
+      permissions JSONB NOT NULL DEFAULT '{"invoice":true,"payment":true,"statement":true,"gallery":false}',
+      status connection_status NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS mini_app_chat_messages (
+      id SERIAL PRIMARY KEY,
+      connection_id INTEGER NOT NULL REFERENCES mini_app_connections(id),
+      sender_type chat_sender_type NOT NULL,
+      sender_name TEXT,
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
     `DO $$ BEGIN
       CREATE TYPE account_type AS ENUM ('cash', 'bank');
     EXCEPTION WHEN duplicate_object THEN null; END $$`,
@@ -219,6 +252,9 @@ export const contraEntriesTable = s.contraEntriesTable;
 export const supportMessagesTable = s.supportMessagesTable;
 export const chatMessagesTable = s.chatMessagesTable;
 export const reportTemplatesTable = s.reportTemplatesTable;
+export const customersTable = s.customersTable;
+export const connectionsTable = s.connectionsTable;
+export const customerChatMessagesTable = s.customerChatMessagesTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)
 export type * from "./schema";

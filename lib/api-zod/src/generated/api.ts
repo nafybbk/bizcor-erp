@@ -12,7 +12,6 @@ import * as zod from "zod";
  */
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
-  mode: zod.enum(["desktop", "cloud"]).optional(),
 });
 
 /**
@@ -2368,3 +2367,146 @@ export const GetGstDashboardSummaryResponse = zod.object({
   sgst: zod.number().optional(),
   igst: zod.number().optional(),
 });
+
+/**
+ * @summary Customer mini-app login (mobile + PIN, auto-creates on first login)
+ */
+export const MiniAppLoginBody = zod.object({
+  mobile: zod.string(),
+  pin: zod.string(),
+});
+
+export const MiniAppLoginResponse = zod.object({
+  token: zod.string(),
+  customer: zod.object({
+    customerId: zod.string(),
+    mobile: zod.string(),
+    name: zod.string().nullish(),
+  }),
+});
+
+/**
+ * @summary Connect to a supplier using businessCode + party PIN
+ */
+export const MiniAppConnectBody = zod.object({
+  businessCode: zod.string(),
+  pin: zod.string(),
+});
+
+export const MiniAppConnectResponse = zod.object({
+  connection: zod.object({
+    id: zod.number(),
+    businessName: zod.string(),
+    businessLogo: zod.string().nullish(),
+    permissions: zod
+      .object({
+        invoice: zod.boolean().optional(),
+        payment: zod.boolean().optional(),
+        statement: zod.boolean().optional(),
+        gallery: zod.boolean().optional(),
+      })
+      .optional(),
+    status: zod.string(),
+  }),
+});
+
+/**
+ * @summary List all connected suppliers for the logged-in customer
+ */
+export const MiniAppListConnectionsResponseItem = zod.object({
+  id: zod.number(),
+  permissions: zod
+    .object({
+      invoice: zod.boolean().optional(),
+      payment: zod.boolean().optional(),
+      statement: zod.boolean().optional(),
+      gallery: zod.boolean().optional(),
+    })
+    .optional(),
+  status: zod.string(),
+  businessName: zod.string(),
+  businessLogo: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const MiniAppListConnectionsResponse = zod.array(
+  MiniAppListConnectionsResponseItem,
+);
+
+/**
+ * @summary Get the last 50 chat messages for a connection (initial load)
+ */
+export const MiniAppRecentMessagesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppRecentMessagesResponseItem = zod.object({
+  id: zod.number(),
+  connectionId: zod.number(),
+  senderType: zod.enum(["customer", "business"]),
+  senderName: zod.string().nullish(),
+  message: zod.string(),
+  createdAt: zod.string(),
+});
+export const MiniAppRecentMessagesResponse = zod.array(
+  MiniAppRecentMessagesResponseItem,
+);
+
+/**
+ * @summary Poll for new chat messages since a given message id
+ */
+export const MiniAppPollMessagesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppPollMessagesQueryParams = zod.object({
+  since: zod.coerce.number().optional(),
+});
+
+export const MiniAppPollMessagesResponseItem = zod.object({
+  id: zod.number(),
+  connectionId: zod.number(),
+  senderType: zod.enum(["customer", "business"]),
+  senderName: zod.string().nullish(),
+  message: zod.string(),
+  createdAt: zod.string(),
+});
+export const MiniAppPollMessagesResponse = zod.array(
+  MiniAppPollMessagesResponseItem,
+);
+
+/**
+ * @summary Send a chat message to a connected supplier
+ */
+export const MiniAppSendMessageParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppSendMessageBody = zod.object({
+  message: zod.string(),
+});
+
+export const MiniAppSendMessageResponse = zod.object({
+  id: zod.number(),
+  connectionId: zod.number(),
+  senderType: zod.enum(["customer", "business"]),
+  senderName: zod.string().nullish(),
+  message: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List read-only sales invoices from the connected supplier
+ */
+export const MiniAppListInvoicesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppListInvoicesResponseItem = zod.object({
+  id: zod.number(),
+  voucherNumber: zod.string(),
+  date: zod.string(),
+  grandTotal: zod.string(),
+});
+export const MiniAppListInvoicesResponse = zod.array(
+  MiniAppListInvoicesResponseItem,
+);

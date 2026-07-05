@@ -70,6 +70,15 @@ import type {
   ListUsers200,
   LoginBody,
   LoginResponse,
+  MiniAppChatMessage,
+  MiniAppConnectBody,
+  MiniAppConnectResponse,
+  MiniAppConnection,
+  MiniAppInvoice,
+  MiniAppLoginBody,
+  MiniAppLoginResponse,
+  MiniAppPollMessagesParams,
+  MiniAppSendMessageBody,
   OutstandingResponse,
   OutstandingSummaryResponse,
   Party,
@@ -6451,6 +6460,632 @@ export function useGetGstDashboardSummary<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetGstDashboardSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Customer mini-app login (mobile + PIN, auto-creates on first login)
+ */
+export const getMiniAppLoginUrl = () => {
+  return `/api/mini-app/login`;
+};
+
+export const miniAppLogin = async (
+  miniAppLoginBody: MiniAppLoginBody,
+  options?: RequestInit,
+): Promise<MiniAppLoginResponse> => {
+  return customFetch<MiniAppLoginResponse>(getMiniAppLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(miniAppLoginBody),
+  });
+};
+
+export const getMiniAppLoginMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppLogin>>,
+    TError,
+    { data: BodyType<MiniAppLoginBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof miniAppLogin>>,
+  TError,
+  { data: BodyType<MiniAppLoginBody> },
+  TContext
+> => {
+  const mutationKey = ["miniAppLogin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof miniAppLogin>>,
+    { data: BodyType<MiniAppLoginBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return miniAppLogin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MiniAppLoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppLogin>>
+>;
+export type MiniAppLoginMutationBody = BodyType<MiniAppLoginBody>;
+export type MiniAppLoginMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Customer mini-app login (mobile + PIN, auto-creates on first login)
+ */
+export const useMiniAppLogin = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppLogin>>,
+    TError,
+    { data: BodyType<MiniAppLoginBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof miniAppLogin>>,
+  TError,
+  { data: BodyType<MiniAppLoginBody> },
+  TContext
+> => {
+  return useMutation(getMiniAppLoginMutationOptions(options));
+};
+
+/**
+ * @summary Connect to a supplier using businessCode + party PIN
+ */
+export const getMiniAppConnectUrl = () => {
+  return `/api/mini-app/connect`;
+};
+
+export const miniAppConnect = async (
+  miniAppConnectBody: MiniAppConnectBody,
+  options?: RequestInit,
+): Promise<MiniAppConnectResponse> => {
+  return customFetch<MiniAppConnectResponse>(getMiniAppConnectUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(miniAppConnectBody),
+  });
+};
+
+export const getMiniAppConnectMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppConnect>>,
+    TError,
+    { data: BodyType<MiniAppConnectBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof miniAppConnect>>,
+  TError,
+  { data: BodyType<MiniAppConnectBody> },
+  TContext
+> => {
+  const mutationKey = ["miniAppConnect"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof miniAppConnect>>,
+    { data: BodyType<MiniAppConnectBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return miniAppConnect(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MiniAppConnectMutationResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppConnect>>
+>;
+export type MiniAppConnectMutationBody = BodyType<MiniAppConnectBody>;
+export type MiniAppConnectMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Connect to a supplier using businessCode + party PIN
+ */
+export const useMiniAppConnect = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppConnect>>,
+    TError,
+    { data: BodyType<MiniAppConnectBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof miniAppConnect>>,
+  TError,
+  { data: BodyType<MiniAppConnectBody> },
+  TContext
+> => {
+  return useMutation(getMiniAppConnectMutationOptions(options));
+};
+
+/**
+ * @summary List all connected suppliers for the logged-in customer
+ */
+export const getMiniAppListConnectionsUrl = () => {
+  return `/api/mini-app/connections`;
+};
+
+export const miniAppListConnections = async (
+  options?: RequestInit,
+): Promise<MiniAppConnection[]> => {
+  return customFetch<MiniAppConnection[]>(getMiniAppListConnectionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppListConnectionsQueryKey = () => {
+  return [`/api/mini-app/connections`] as const;
+};
+
+export const getMiniAppListConnectionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppListConnections>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListConnections>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getMiniAppListConnectionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppListConnections>>
+  > = ({ signal }) => miniAppListConnections({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListConnections>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppListConnectionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppListConnections>>
+>;
+export type MiniAppListConnectionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all connected suppliers for the logged-in customer
+ */
+
+export function useMiniAppListConnections<
+  TData = Awaited<ReturnType<typeof miniAppListConnections>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListConnections>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppListConnectionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the last 50 chat messages for a connection (initial load)
+ */
+export const getMiniAppRecentMessagesUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/messages/recent`;
+};
+
+export const miniAppRecentMessages = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppChatMessage[]> => {
+  return customFetch<MiniAppChatMessage[]>(getMiniAppRecentMessagesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppRecentMessagesQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/messages/recent`] as const;
+};
+
+export const getMiniAppRecentMessagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppRecentMessages>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppRecentMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getMiniAppRecentMessagesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppRecentMessages>>
+  > = ({ signal }) => miniAppRecentMessages(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppRecentMessages>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppRecentMessagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppRecentMessages>>
+>;
+export type MiniAppRecentMessagesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get the last 50 chat messages for a connection (initial load)
+ */
+
+export function useMiniAppRecentMessages<
+  TData = Awaited<ReturnType<typeof miniAppRecentMessages>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppRecentMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppRecentMessagesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Poll for new chat messages since a given message id
+ */
+export const getMiniAppPollMessagesUrl = (
+  id: number,
+  params?: MiniAppPollMessagesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/mini-app/connections/${id}/messages?${stringifiedParams}`
+    : `/api/mini-app/connections/${id}/messages`;
+};
+
+export const miniAppPollMessages = async (
+  id: number,
+  params?: MiniAppPollMessagesParams,
+  options?: RequestInit,
+): Promise<MiniAppChatMessage[]> => {
+  return customFetch<MiniAppChatMessage[]>(
+    getMiniAppPollMessagesUrl(id, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getMiniAppPollMessagesQueryKey = (
+  id: number,
+  params?: MiniAppPollMessagesParams,
+) => {
+  return [
+    `/api/mini-app/connections/${id}/messages`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getMiniAppPollMessagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppPollMessages>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  params?: MiniAppPollMessagesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppPollMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getMiniAppPollMessagesQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppPollMessages>>
+  > = ({ signal }) =>
+    miniAppPollMessages(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppPollMessages>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppPollMessagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppPollMessages>>
+>;
+export type MiniAppPollMessagesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Poll for new chat messages since a given message id
+ */
+
+export function useMiniAppPollMessages<
+  TData = Awaited<ReturnType<typeof miniAppPollMessages>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  params?: MiniAppPollMessagesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppPollMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppPollMessagesQueryOptions(id, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Send a chat message to a connected supplier
+ */
+export const getMiniAppSendMessageUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/messages`;
+};
+
+export const miniAppSendMessage = async (
+  id: number,
+  miniAppSendMessageBody: MiniAppSendMessageBody,
+  options?: RequestInit,
+): Promise<MiniAppChatMessage> => {
+  return customFetch<MiniAppChatMessage>(getMiniAppSendMessageUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(miniAppSendMessageBody),
+  });
+};
+
+export const getMiniAppSendMessageMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppSendMessage>>,
+    TError,
+    { id: number; data: BodyType<MiniAppSendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof miniAppSendMessage>>,
+  TError,
+  { id: number; data: BodyType<MiniAppSendMessageBody> },
+  TContext
+> => {
+  const mutationKey = ["miniAppSendMessage"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof miniAppSendMessage>>,
+    { id: number; data: BodyType<MiniAppSendMessageBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return miniAppSendMessage(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MiniAppSendMessageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppSendMessage>>
+>;
+export type MiniAppSendMessageMutationBody = BodyType<MiniAppSendMessageBody>;
+export type MiniAppSendMessageMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Send a chat message to a connected supplier
+ */
+export const useMiniAppSendMessage = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppSendMessage>>,
+    TError,
+    { id: number; data: BodyType<MiniAppSendMessageBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof miniAppSendMessage>>,
+  TError,
+  { id: number; data: BodyType<MiniAppSendMessageBody> },
+  TContext
+> => {
+  return useMutation(getMiniAppSendMessageMutationOptions(options));
+};
+
+/**
+ * @summary List read-only sales invoices from the connected supplier
+ */
+export const getMiniAppListInvoicesUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/invoices`;
+};
+
+export const miniAppListInvoices = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppInvoice[]> => {
+  return customFetch<MiniAppInvoice[]>(getMiniAppListInvoicesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppListInvoicesQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/invoices`] as const;
+};
+
+export const getMiniAppListInvoicesQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppListInvoices>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListInvoices>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppListInvoicesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppListInvoices>>
+  > = ({ signal }) => miniAppListInvoices(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListInvoices>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppListInvoicesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppListInvoices>>
+>;
+export type MiniAppListInvoicesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List read-only sales invoices from the connected supplier
+ */
+
+export function useMiniAppListInvoices<
+  TData = Awaited<ReturnType<typeof miniAppListInvoices>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListInvoices>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppListInvoicesQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

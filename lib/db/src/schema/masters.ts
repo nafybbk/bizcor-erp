@@ -83,6 +83,7 @@ export const partiesTable = pgTable("parties", {
   customFields: jsonb("custom_fields"),
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
+  pin: text("pin"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

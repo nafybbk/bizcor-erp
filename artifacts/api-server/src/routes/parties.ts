@@ -62,7 +62,7 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
-    const { name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode, openingBalance, openingBalanceType, creditLimit, creditDays, customFields } = req.body;
+    const { name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode, openingBalance, openingBalanceType, creditLimit, creditDays, customFields, pin } = req.body;
     const { customerCode, supplierCode } = await generatePartyCodes(businessId, name, type);
     const [party] = await db.insert(partiesTable).values({
       businessId, name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode,
@@ -70,7 +70,7 @@ router.post("/", async (req, res) => {
       openingBalanceType: openingBalanceType || "debit",
       creditLimit: creditLimit ? String(creditLimit) : "0",
       creditDays: creditDays || 0, customFields,
-      customerCode, supplierCode,
+      customerCode, supplierCode, pin: pin || null,
     }).returning();
     res.status(201).json(party);
   } catch (err) {
@@ -92,7 +92,7 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const allowed = ["name","type","gstin","pan","phone","email","address","city","state","stateCode","pincode","openingBalance","openingBalanceType","creditLimit","creditDays","isActive","customFields","shippingAddresses"];
+    const allowed = ["name","type","gstin","pan","phone","email","address","city","state","stateCode","pincode","openingBalance","openingBalanceType","creditLimit","creditDays","isActive","customFields","shippingAddresses","pin"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
     // Safely coerce numeric fields — empty string from form would break integer/numeric DB columns
