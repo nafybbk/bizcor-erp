@@ -147,6 +147,27 @@ both roles via one login.
 - **Suggested build order**: Connections+Permissions → Gallery → Orders+Invoice link
   → mobile app (Expo) → order placing → LAN↔Cloud sync bridge
 
+### Mini App → Full BizCor upgrade path (added 2026-07-05)
+When a mini-app customer later installs full BizCor ERP (LAN desktop or cloud):
+- Auto-connect: all suppliers already connected in their mini app should
+  auto-carry-over as Party connections in the new full BizCor install — no
+  manual business-code re-entry.
+- Auto Purchase Bill from supplier Invoice: for supplier invoices marked/ticked
+  (in the supplier's own BizCor Sales Invoice list) as shared with this
+  customer, a new Purchase Bill record auto-generates in the customer's
+  Purchase Bill list.
+  - Bill number = fetched from the supplier's invoice number.
+  - Bill date = supplier's invoice date (NOT the date the customer's system
+    received/created the record).
+  - Reference field = link back to the supplier's invoice.
+  - GST 3B: the supplier's invoice date is the date counted for GST 3B
+    purposes on the customer's side (matches ITC timing rules).
+- Open design questions (not yet decided): is the "tick to share" a per-invoice
+  manual toggle by the supplier or a per-connection default (share all)? Does
+  the customer need to accept/confirm the incoming bill before it posts to
+  their books, or does it auto-post? What happens on supplier-side
+  amendment/cancellation — does it update or remove the customer's synced bill?
+
 ### Infra decision (2026-07-04): self-hosted home server for ALL production
 Owner is moving production (not just dev) fully to a self-hosted home server —
 Gitea (git), central DB, and the sync backbone for all businesses' BizCor + this
