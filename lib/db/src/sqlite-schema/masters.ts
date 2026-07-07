@@ -75,10 +75,7 @@ export const partiesTable = sqliteTable("parties", {
   customFields: text("custom_fields", { mode: "json" }),
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
-<<<<<<< HEAD
   pin: text("pin"),
-=======
->>>>>>> 7bd6dfb (Add customerCode and supplierCode to SQLite parties schema)
   createdAt: text("created_at").notNull().default(NOW),
 });
 

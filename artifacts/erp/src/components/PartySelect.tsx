@@ -114,7 +114,6 @@ export default function PartySelect({
             setShowAll(false);
             setOpen(true);
             setHighlightedIndex(-1);
-            }
           }}
         />
       </div>

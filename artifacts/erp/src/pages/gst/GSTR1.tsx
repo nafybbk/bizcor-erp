@@ -268,7 +268,7 @@ export default function GSTR1() {
           </button>
           <button onClick={exportJSON} disabled={!data}
             className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40">
-            <FileJson className="w-3.5 h-3.5" /> JSON
+            <FileJson className="w-3.5 h-3.5" /> GST Portal JSON
           </button>
         </div>
       </div>

@@ -53,10 +53,7 @@ if (sqlitePath) {
     // parties — unique codes per type
     "ALTER TABLE parties ADD COLUMN customer_code TEXT",
     "ALTER TABLE parties ADD COLUMN supplier_code TEXT",
-<<<<<<< HEAD
     "ALTER TABLE parties ADD COLUMN pin TEXT",
-=======
->>>>>>> 8508f77 (v2.4.61: tray trial removed, customer_code migration, busy_timeout, invoice# in title, party arrow-key nav)
     `CREATE TABLE IF NOT EXISTS activation_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL,

@@ -46,8 +46,6 @@ export default function PaymentsList({ type }: Props) {
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort(payments);
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
-
   const exportCSV = () => {
     const rows = payments.map(p => ({
       "Payment No": p.paymentNumber,
