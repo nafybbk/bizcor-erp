@@ -26,6 +26,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -35,6 +36,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useTabCache, timeAgo } from "@/hooks/useTabCache";
 
 type TabKey = "chat" | "invoices" | "payments" | "statement" | "gallery";
 
@@ -285,12 +287,22 @@ function InvoicesTab({
   permissions?: { invoice?: boolean } | null;
 }) {
   const colors = useColors();
-  const { data, isLoading, isError } = useMiniAppListInvoices(connectionId, {
+  const [refreshing, setRefreshing] = useState(false);
+  const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppInvoice[]>(`inv_${connectionId}`);
+  const { data, isLoading, isError, refetch } = useMiniAppListInvoices(connectionId, {
     query: {
       queryKey: getMiniAppListInvoicesQueryKey(connectionId),
       enabled: !!connectionId && permissions?.invoice !== false,
     },
   });
+
+  useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   if (permissions?.invoice === false) {
     return (
@@ -306,7 +318,7 @@ function InvoicesTab({
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !cachedData) {
     return (
       <View style={styles.centerFill}>
         <ActivityIndicator color={colors.primary} />
@@ -314,28 +326,31 @@ function InvoicesTab({
     );
   }
 
-  if (isError) {
-    return (
-      <View style={styles.centerFill}>
-        <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-          Couldn&apos;t load invoices
-        </Text>
-      </View>
-    );
-  }
+  const displayData = data ?? cachedData ?? [];
 
   return (
     <FlatList
-      data={data ?? []}
+      data={displayData}
       keyExtractor={(item: MiniAppInvoice) => String(item.id)}
-      scrollEnabled={!!data && data.length > 0}
+      scrollEnabled={displayData.length > 0}
       contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
+      ListHeaderComponent={
+        lastUpdated ? (
+          <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+            {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+          </Text>
+        ) : null
+      }
       ListEmptyComponent={
         <View style={styles.centerFill}>
-          <Feather name="file-text" size={30} color={colors.mutedForeground} />
+          {isError ? (
+            <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
+          ) : (
+            <Feather name="file-text" size={30} color={colors.mutedForeground} />
+          )}
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            No invoices yet
+            {isError ? "Couldn\u2019t load invoices" : "No invoices yet"}
           </Text>
         </View>
       }
@@ -374,12 +389,22 @@ function PaymentsTab({
   permissions?: { payment?: boolean } | null;
 }) {
   const colors = useColors();
-  const { data, isLoading, isError } = useMiniAppListPayments(connectionId, {
+  const [refreshing, setRefreshing] = useState(false);
+  const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppPayment[]>(`pay_${connectionId}`);
+  const { data, isLoading, isError, refetch } = useMiniAppListPayments(connectionId, {
     query: {
       queryKey: getMiniAppListPaymentsQueryKey(connectionId),
       enabled: !!connectionId && permissions?.payment !== false,
     },
   });
+
+  useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   if (permissions?.payment === false) {
     return (
@@ -393,27 +418,34 @@ function PaymentsTab({
     );
   }
 
-  if (isLoading) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
+  if (isLoading && !cachedData) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
 
-  if (isError) {
-    return (
-      <View style={styles.centerFill}>
-        <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t load payments</Text>
-      </View>
-    );
-  }
+  const displayData = data ?? cachedData ?? [];
 
   return (
     <FlatList
-      data={data ?? []}
+      data={displayData}
       keyExtractor={(item: MiniAppPayment) => String(item.id)}
-      scrollEnabled={!!data && data.length > 0}
+      scrollEnabled={displayData.length > 0}
       contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
+      ListHeaderComponent={
+        lastUpdated ? (
+          <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+            {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+          </Text>
+        ) : null
+      }
       ListEmptyComponent={
         <View style={styles.centerFill}>
-          <Feather name="credit-card" size={30} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No payments yet</Text>
+          {isError ? (
+            <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
+          ) : (
+            <Feather name="credit-card" size={30} color={colors.mutedForeground} />
+          )}
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+            {isError ? "Couldn\u2019t load payments" : "No payments yet"}
+          </Text>
         </View>
       }
       renderItem={({ item }) => (
@@ -439,6 +471,8 @@ function PaymentsTab({
   );
 }
 
+interface StatementData { entries: MiniAppStatementEntry[]; closingBalance: number }
+
 function StatementTab({
   connectionId,
   permissions,
@@ -447,12 +481,22 @@ function StatementTab({
   permissions?: { statement?: boolean } | null;
 }) {
   const colors = useColors();
-  const { data, isLoading, isError } = useMiniAppGetStatement(connectionId, {
+  const [refreshing, setRefreshing] = useState(false);
+  const { cachedData, lastUpdated, saveCache } = useTabCache<StatementData>(`stmt_${connectionId}`);
+  const { data, isLoading, isError, refetch } = useMiniAppGetStatement(connectionId, {
     query: {
       queryKey: getMiniAppGetStatementQueryKey(connectionId),
       enabled: !!connectionId && permissions?.statement !== false,
     },
   });
+
+  useEffect(() => { if (data) saveCache(data as StatementData); }, [data, saveCache]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   if (permissions?.statement === false) {
     return (
@@ -466,19 +510,11 @@ function StatementTab({
     );
   }
 
-  if (isLoading) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
+  if (isLoading && !cachedData) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
 
-  if (isError) {
-    return (
-      <View style={styles.centerFill}>
-        <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
-        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t load statement</Text>
-      </View>
-    );
-  }
-
-  const entries = data?.entries ?? [];
-  const closing = data?.closingBalance ?? 0;
+  const displayData = (data ?? cachedData) as StatementData | undefined;
+  const entries = displayData?.entries ?? [];
+  const closing = displayData?.closingBalance ?? 0;
 
   return (
     <FlatList
@@ -486,15 +522,23 @@ function StatementTab({
       keyExtractor={(item: MiniAppStatementEntry) => `${item.type}-${item.id}`}
       scrollEnabled={entries.length > 0}
       contentContainerStyle={styles.listContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       ListHeaderComponent={
-        entries.length > 0 ? (
-          <View style={[styles.statementHeader, { backgroundColor: closing > 0 ? "#fef9c3" : "#dcfce7", borderColor: closing > 0 ? "#fde047" : "#86efac" }]}>
-            <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]}>Outstanding Balance</Text>
-            <Text style={[styles.invoiceAmount, { color: closing > 0 ? "#b45309" : "#16a34a", fontSize: 18 }]}>
-              ₹{Math.abs(closing).toLocaleString("en-IN")} {closing > 0 ? "due" : closing < 0 ? "advance" : "clear"}
+        <>
+          {lastUpdated ? (
+            <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+              {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
             </Text>
-          </View>
-        ) : null
+          ) : null}
+          {entries.length > 0 ? (
+            <View style={[styles.statementHeader, { backgroundColor: closing > 0 ? "#fef9c3" : "#dcfce7", borderColor: closing > 0 ? "#fde047" : "#86efac" }]}>
+              <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]}>Outstanding Balance</Text>
+              <Text style={[styles.invoiceAmount, { color: closing > 0 ? "#b45309" : "#16a34a", fontSize: 18 }]}>
+                ₹{Math.abs(closing).toLocaleString("en-IN")} {closing > 0 ? "due" : closing < 0 ? "advance" : "clear"}
+              </Text>
+            </View>
+          ) : null}
+        </>
       }
       ListEmptyComponent={
         <View style={styles.centerFill}>
@@ -566,6 +610,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginTop: 4 },
   emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+  syncLabel: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 6, opacity: 0.7 },
   chatContent: { padding: 16, gap: 10, flexGrow: 1 },
   bubbleRow: { flexDirection: "row" },
   bubble: { maxWidth: "78%", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },

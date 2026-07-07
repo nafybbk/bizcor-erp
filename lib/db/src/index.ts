@@ -255,6 +255,8 @@ export const reportTemplatesTable = s.reportTemplatesTable;
 export const customersTable = s.customersTable;
 export const connectionsTable = s.connectionsTable;
 export const customerChatMessagesTable = s.customerChatMessagesTable;
+export const lanSyncVouchersTable = s.lanSyncVouchersTable;
+export const lanSyncPaymentsTable = s.lanSyncPaymentsTable;
 export const modulePatchesTable = s.modulePatchesTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)

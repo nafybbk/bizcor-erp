@@ -2,9 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import { useMiniAppLogin, useMiniAppSettings } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -32,6 +35,19 @@ export default function LoginScreen() {
   const appName = settings?.softwareName || "BizCor";
   const supportEmail = settings?.supportEmail || "info@naewtgroup.com";
   const supportPhone = settings?.supportPhone;
+
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateY, { toValue: -10, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(translateY, { toValue: 0, duration: 900, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [translateY]);
 
   const canSubmit = mobile.trim().length >= 6 && pin.trim().length >= 4;
 
@@ -72,13 +88,17 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Logo placeholder — swap with the real BizCor logo image when ready */}
-        <View style={[styles.logoBadge, { backgroundColor: colors.primary }]}>
-          <Feather name="link-2" size={30} color={colors.primaryForeground} />
-        </View>
+        <Animated.Image
+          source={require("../assets/images/bizcor-logo.png")}
+          style={[styles.logo, { transform: [{ translateY }] }]}
+          resizeMode="contain"
+        />
 
         <Text style={[styles.title, { color: colors.foreground }]}>
           {appName}
+        </Text>
+        <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
+          Customer Network
         </Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Sign in with your mobile number to view your suppliers, invoices,
@@ -207,15 +227,19 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, flexGrow: 1 },
-  logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+  logo: {
+    width: 88,
+    height: 88,
+    marginBottom: 12,
+  },
+  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  appTagline: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    letterSpacing: 1.8,
+    textTransform: "uppercase",
     marginBottom: 20,
   },
-  title: { fontSize: 26, fontFamily: "Inter_700Bold", marginBottom: 8 },
   subtitle: {
     fontSize: 15,
     fontFamily: "Inter_400Regular",

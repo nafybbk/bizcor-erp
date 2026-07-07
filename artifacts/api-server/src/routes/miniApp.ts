@@ -10,6 +10,8 @@ import {
   vouchersTable,
   paymentsTable,
   appSettingsTable,
+  lanSyncVouchersTable,
+  lanSyncPaymentsTable,
 } from "@workspace/db";
 import { eq, and, gt, asc, desc, isNull } from "drizzle-orm";
 import { hasActiveModule } from "../lib/modulePatches";
@@ -306,7 +308,7 @@ router.get("/mini-app/connections/:id/payments", async (req, res) => {
       return;
     }
 
-    const rows = await db.select({
+    const cloudPayRows = await db.select({
       id: paymentsTable.id,
       paymentNumber: paymentsTable.paymentNumber,
       date: paymentsTable.date,
@@ -322,7 +324,27 @@ router.get("/mini-app/connections/:id/payments", async (req, res) => {
       ))
       .orderBy(desc(paymentsTable.date));
 
-    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) })));
+    const lanPayRows = await db.select({
+      id: lanSyncPaymentsTable.id,
+      paymentNumber: lanSyncPaymentsTable.paymentNumber,
+      date: lanSyncPaymentsTable.date,
+      amount: lanSyncPaymentsTable.amount,
+      paymentMode: lanSyncPaymentsTable.paymentMode,
+      notes: lanSyncPaymentsTable.notes,
+    }).from(lanSyncPaymentsTable)
+      .where(and(
+        eq(lanSyncPaymentsTable.businessId, connection.businessId),
+        eq(lanSyncPaymentsTable.partyId, connection.partyId),
+        eq(lanSyncPaymentsTable.paymentType, "receipt"),
+      ))
+      .orderBy(desc(lanSyncPaymentsTable.date));
+
+    const mergedPay = [
+      ...cloudPayRows.map(r => ({ ...r, amount: Number(r.amount) })),
+      ...lanPayRows.map(r => ({ ...r, amount: Number(r.amount) })),
+    ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+    res.json(mergedPay);
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -354,6 +376,18 @@ router.get("/mini-app/connections/:id/statement", async (req, res) => {
         isNull(vouchersTable.deletedAt),
       ));
 
+    const lanInvoices = await db.select({
+      id: lanSyncVouchersTable.id,
+      ref: lanSyncVouchersTable.voucherNumber,
+      date: lanSyncVouchersTable.date,
+      amount: lanSyncVouchersTable.grandTotal,
+    }).from(lanSyncVouchersTable)
+      .where(and(
+        eq(lanSyncVouchersTable.businessId, connection.businessId),
+        eq(lanSyncVouchersTable.partyId, connection.partyId),
+        eq(lanSyncVouchersTable.voucherType, "sales_invoice"),
+      ));
+
     const receipts = await db.select({
       id: paymentsTable.id,
       ref: paymentsTable.paymentNumber,
@@ -367,10 +401,24 @@ router.get("/mini-app/connections/:id/statement", async (req, res) => {
         isNull(paymentsTable.deletedAt),
       ));
 
+    const lanReceipts = await db.select({
+      id: lanSyncPaymentsTable.id,
+      ref: lanSyncPaymentsTable.paymentNumber,
+      date: lanSyncPaymentsTable.date,
+      amount: lanSyncPaymentsTable.amount,
+    }).from(lanSyncPaymentsTable)
+      .where(and(
+        eq(lanSyncPaymentsTable.businessId, connection.businessId),
+        eq(lanSyncPaymentsTable.partyId, connection.partyId),
+        eq(lanSyncPaymentsTable.paymentType, "receipt"),
+      ));
+
     type RawEntry = { id: number; type: "invoice" | "payment"; ref: string; date: string; debit: number; credit: number };
     const combined: RawEntry[] = [
       ...invoices.map(v => ({ id: v.id, type: "invoice" as const, ref: v.ref, date: v.date, debit: Number(v.amount), credit: 0 })),
+      ...lanInvoices.map(v => ({ id: v.id, type: "invoice" as const, ref: v.ref, date: v.date, debit: Number(v.amount), credit: 0 })),
       ...receipts.map(p => ({ id: p.id, type: "payment" as const, ref: p.ref, date: p.date, debit: 0, credit: Number(p.amount) })),
+      ...lanReceipts.map(p => ({ id: p.id, type: "payment" as const, ref: p.ref, date: p.date, debit: 0, credit: Number(p.amount) })),
     ].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
 
     let balance = 0;
@@ -398,7 +446,7 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
       return;
     }
 
-    const rows = await db.select({
+    const cloudRows = await db.select({
       id: vouchersTable.id,
       voucherNumber: vouchersTable.voucherNumber,
       date: vouchersTable.date,
@@ -407,11 +455,128 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
       .where(and(
         eq(vouchersTable.businessId, connection.businessId),
         eq(vouchersTable.partyId, connection.partyId),
-        eq(vouchersTable.voucherType, "sales_invoice")
+        eq(vouchersTable.voucherType, "sales_invoice"),
+        isNull(vouchersTable.deletedAt),
       ))
       .orderBy(desc(vouchersTable.date));
 
-    res.json(rows);
+    const lanRows = await db.select({
+      id: lanSyncVouchersTable.id,
+      voucherNumber: lanSyncVouchersTable.voucherNumber,
+      date: lanSyncVouchersTable.date,
+      grandTotal: lanSyncVouchersTable.grandTotal,
+    }).from(lanSyncVouchersTable)
+      .where(and(
+        eq(lanSyncVouchersTable.businessId, connection.businessId),
+        eq(lanSyncVouchersTable.partyId, connection.partyId),
+        eq(lanSyncVouchersTable.voucherType, "sales_invoice"),
+      ))
+      .orderBy(desc(lanSyncVouchersTable.date));
+
+    const merged = [
+      ...cloudRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal) })),
+      ...lanRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal) })),
+    ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+    res.json(merged);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ─── LAN Sync endpoint (business JWT auth) ────────────────────────────────────
+// LAN servers call this after saving a voucher/payment for a mini-app enabled party.
+// The business JWT is verified, businessCode is used to find the cloud business,
+// and partyPin is used to find the cloud partyId, then the record is upserted.
+
+interface BusinessJwtPayload {
+  id?: number;
+  businessCode?: string;
+  role?: string;
+}
+
+function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    return jwt.verify(authHeader.slice(7), JWT_SECRET) as BusinessJwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+router.post("/mini-app/lan-sync/voucher", async (req, res) => {
+  try {
+    const payload = verifyBusinessJwt(req.headers.authorization);
+    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const [business] = await db.select({ id: businessesTable.id })
+      .from(businessesTable)
+      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
+      .limit(1);
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+    const { partyPin, partyName, externalId, voucherType, voucherNumber, date, grandTotal, status, notes } = req.body;
+
+    const [party] = await db.select({ id: partiesTable.id })
+      .from(partiesTable)
+      .where(and(eq(partiesTable.businessId, business.id), eq(partiesTable.pin, partyPin)))
+      .limit(1);
+    if (!party) { res.status(404).json({ error: "Party not found by pin" }); return; }
+
+    await db.insert(lanSyncVouchersTable).values({
+      businessId: business.id,
+      partyId: party.id,
+      externalId: Number(externalId),
+      voucherType: String(voucherType),
+      voucherNumber: String(voucherNumber),
+      date: String(date),
+      partyName: String(partyName || ""),
+      grandTotal: String(grandTotal || 0),
+      status: String(status || "posted"),
+      notes: notes ? String(notes) : null,
+    }).onConflictDoNothing();
+
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/mini-app/lan-sync/payment", async (req, res) => {
+  try {
+    const payload = verifyBusinessJwt(req.headers.authorization);
+    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const [business] = await db.select({ id: businessesTable.id })
+      .from(businessesTable)
+      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
+      .limit(1);
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+    const { partyPin, partyName, externalId, paymentType, paymentNumber, date, amount, paymentMode, notes } = req.body;
+
+    const [party] = await db.select({ id: partiesTable.id })
+      .from(partiesTable)
+      .where(and(eq(partiesTable.businessId, business.id), eq(partiesTable.pin, partyPin)))
+      .limit(1);
+    if (!party) { res.status(404).json({ error: "Party not found by pin" }); return; }
+
+    await db.insert(lanSyncPaymentsTable).values({
+      businessId: business.id,
+      partyId: party.id,
+      externalId: Number(externalId),
+      paymentType: String(paymentType),
+      paymentNumber: String(paymentNumber),
+      date: String(date),
+      partyName: String(partyName || ""),
+      amount: String(amount || 0),
+      paymentMode: String(paymentMode || "cash"),
+      notes: notes ? String(notes) : null,
+    }).onConflictDoNothing();
+
+    res.json({ ok: true });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

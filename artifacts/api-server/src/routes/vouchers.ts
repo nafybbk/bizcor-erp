@@ -245,6 +245,32 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
     return row;
   });
   await db.insert(voucherItemsTable).values(voucherItemRows);
+
+  // LAN sync — fire-and-forget push to cloud when party has mini-app enabled
+  if (process.env.SQLITE_PATH && (party as any)?.miniAppEnabled && (party as any)?.pin) {
+    void (async () => {
+      try {
+        const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
+        const token = ((req.headers.authorization as string) || "").replace("Bearer ", "");
+        await fetch(`${cloudUrl}/api/mini-app/lan-sync/voucher`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            partyPin: (party as any).pin,
+            partyName: party?.name || "",
+            externalId: voucher.id,
+            voucherType,
+            voucherNumber: voucherNum,
+            date: String(date),
+            grandTotal: String(voucher.grandTotal || 0),
+            status: status || "posted",
+            notes: notes || "",
+          }),
+        });
+      } catch { /* fire-and-forget — errors silently ignored */ }
+    })();
+  }
+
   res.status(201).json({ ...voucher, grandTotal: Number(voucher.grandTotal) });
 }
 
