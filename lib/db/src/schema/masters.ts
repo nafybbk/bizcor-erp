@@ -83,8 +83,11 @@ export const partiesTable = pgTable("parties", {
   customFields: jsonb("custom_fields"),
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
+<<<<<<< HEAD
   pin: text("pin"),
   miniAppEnabled: boolean("mini_app_enabled").notNull().default(true),
+=======
+>>>>>>> 70186b3 (Add customerCode and supplierCode to parties schema)
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

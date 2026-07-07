@@ -114,49 +114,6 @@ export default function PartySelect({
             setShowAll(false);
             setOpen(true);
             setHighlightedIndex(-1);
-            // Only call server search when local has no matches (avoids unnecessary API calls)
-            const localMatch = parties.filter(p =>
-              !val.trim() || p.name?.toLowerCase().includes(val.toLowerCase())
-            );
-            if (localMatch.length === 0 && val.trim().length >= 2) {
-              triggerSearch(val);
-            }
-          }}
-          onFocus={() => { setOpen(true); setShowAll(true); setHighlightedIndex(-1); }}
-          onKeyDown={e => {
-            if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-              setOpen(true);
-              setShowAll(true);
-              setHighlightedIndex(0);
-              e.preventDefault();
-              return;
-            }
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setHighlightedIndex(i => (i + 1) % Math.max(1, totalItems));
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setHighlightedIndex(i => (i - 1 + Math.max(1, totalItems)) % Math.max(1, totalItems));
-            } else if (e.key === "Enter") {
-              e.preventDefault();
-              if (open && highlightedIndex >= 0 && highlightedIndex < filtered.length) {
-                handleSelect(filtered[highlightedIndex]);
-              } else if (open && filtered.length > 0) {
-                handleSelect(filtered[0]);
-              }
-            } else if (e.key === "Tab") {
-              // Tab: select highlighted/first item if dropdown open, then let Tab move to next field
-              if (open && filtered.length > 0) {
-                const idx = highlightedIndex >= 0 ? highlightedIndex : 0;
-                if (idx < filtered.length) {
-                  handleSelect(filtered[idx]);
-                }
-              }
-              setOpen(false);
-              setHighlightedIndex(-1);
-            } else if (e.key === "Escape") {
-              setOpen(false);
-              setHighlightedIndex(-1);
             }
           }}
         />
