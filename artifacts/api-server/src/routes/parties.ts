@@ -92,7 +92,7 @@ router.get("/:id", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const allowed = ["name","type","gstin","pan","phone","email","address","city","state","stateCode","pincode","openingBalance","openingBalanceType","creditLimit","creditDays","isActive","customFields","shippingAddresses","pin"];
+    const allowed = ["name","type","gstin","pan","phone","email","address","city","state","stateCode","pincode","openingBalance","openingBalanceType","creditLimit","creditDays","isActive","customFields","shippingAddresses","pin","miniAppEnabled"];
     const updateData: Record<string, unknown> = {};
     for (const key of allowed) if (req.body[key] !== undefined) updateData[key] = req.body[key];
     // Safely coerce numeric fields — empty string from form would break integer/numeric DB columns

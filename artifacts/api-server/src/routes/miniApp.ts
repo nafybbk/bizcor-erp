@@ -172,6 +172,10 @@ router.post("/mini-app/connect", async (req, res) => {
       res.status(401).json({ error: "Galat PIN" });
       return;
     }
+    if (party.miniAppEnabled === false) {
+      res.status(403).json({ error: "Is customer ki app connectivity supplier ne band kar di hai" });
+      return;
+    }
 
     const [existing] = await db.select().from(connectionsTable).where(and(
       eq(connectionsTable.customerId, customerDbId),

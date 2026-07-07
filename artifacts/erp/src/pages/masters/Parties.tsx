@@ -8,7 +8,7 @@ import { useStates } from "@/lib/useStates";
 import SortableTh from "@/components/SortableTh";
 import { useSort } from "@/lib/useSort";
 
-const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "", pin: "" };
+const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "", pin: "", miniAppEnabled: true };
 
 function generatePin(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -31,7 +31,9 @@ export default function Parties({ defaultType }: Props) {
   const [error, setError] = useState("");
   const [editCodes, setEditCodes] = useState<{ customerCode?: string; supplierCode?: string }>({});
   const [showPin, setShowPin] = useState(false);
-  const limit = 50;
+  const [limit, setLimit] = useState(50);
+
+  const changeLimit = (n: number) => { setLimit(n); setPage(1); };
 
   const pageTitle = defaultType === "customer" ? "Customers" : defaultType === "supplier" ? "Suppliers" : "Parties";
 
@@ -68,7 +70,7 @@ export default function Parties({ defaultType }: Props) {
   const openEdit = (p: any) => {
     setEditId(p.id);
     setEditCodes({ customerCode: p.customerCode || undefined, supplierCode: p.supplierCode || undefined });
-    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0), pin: p.pin||"" });
+    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0), pin: p.pin||"", miniAppEnabled: p.miniAppEnabled !== false });
     setShowPin(false);
     setError(""); setShowModal(true);
   };
@@ -161,8 +163,8 @@ export default function Parties({ defaultType }: Props) {
           </div>
         )}
 
-        <div className="p-4 border-b border-gray-100 flex gap-3">
-          <div className="relative flex-1">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-48">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search by name or GSTIN..."
               className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -173,6 +175,15 @@ export default function Parties({ defaultType }: Props) {
               <option value="">All types</option>
             </select>
           )}
+          <div className="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden text-sm">
+            <span className="px-2 text-gray-400 text-xs">Show</span>
+            {([20, 50, 9999] as const).map(n => (
+              <button key={n} onClick={() => changeLimit(n)}
+                className={`px-2.5 py-2 transition-colors ${limit === n ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                {n === 9999 ? "All" : n}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -180,7 +191,7 @@ export default function Parties({ defaultType }: Props) {
         ) : parties.length === 0 ? (
           <div className="text-center py-16 text-gray-400">No {pageTitle.toLowerCase()} found. <button onClick={openCreate} className="text-blue-600">Add one →</button></div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)]">
             <table className="w-full text-sm" style={{ tableLayout: "auto" }}>
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
@@ -247,8 +258,8 @@ export default function Parties({ defaultType }: Props) {
 
         {!loading && parties.length > 0 && (
           <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-600">
-            <span>{total} {total === 1 ? "record" : "records"}</span>
-            {total > limit && (
+            <span>{limit >= 9999 ? `${total} records` : `Showing ${(page - 1) * limit + 1}–${Math.min(page * limit, total)} of ${total}`}</span>
+            {limit < 9999 && total > limit && (
               <div className="flex gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Prev</button>
                 <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Next</button>
@@ -314,30 +325,52 @@ export default function Parties({ defaultType }: Props) {
                 </div>
               </div>
 
-              {/* Customer Network App connect PIN */}
-              <div className="col-span-2 border-t pt-4">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Customer App PIN</div>
-                <div className="text-xs text-gray-400 mb-3">Business code + yeh PIN customer ko do — mini app mein "Connect Supplier" ke liye use hoga.</div>
-                <div className="flex gap-2 max-w-xs">
-                  <div className="relative flex-1">
-                    <input
-                      type={showPin ? "text" : "password"}
-                      className={inputCls + " pr-9"}
-                      value={form.pin}
-                      onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
-                      placeholder="e.g. 4821"
-                      maxLength={6}
-                    />
-                    <button type="button" onClick={() => setShowPin(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" title={showPin ? "Hide" : "Show"}>
-                      {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {/* Customer Network App connect PIN + connectivity toggle */}
+              {(form.type === "customer" || form.type === "both") && (
+                <div className="col-span-2 border-t pt-4 space-y-4">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Customer App (BizCor Conect)</div>
+
+                  {/* Connectivity toggle */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">App Connectivity</div>
+                      <div className="text-xs text-gray-400 mt-0.5">Customer mini app se connect kar sakta hai ya nahi</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, miniAppEnabled: !f.miniAppEnabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.miniAppEnabled ? "bg-green-500" : "bg-gray-300"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.miniAppEnabled ? "translate-x-6" : "translate-x-1"}`} />
                     </button>
                   </div>
-                  <button type="button" onClick={() => { setForm(f => ({ ...f, pin: generatePin() })); setShowPin(true); }}
-                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50" title="Generate random PIN">
-                    <RefreshCw className="w-3.5 h-3.5" /> Generate
-                  </button>
+
+                  {/* PIN */}
+                  <div>
+                    <div className="text-xs text-gray-400 mb-2">Business code + yeh PIN customer ko do — mini app mein "Connect Supplier" ke liye use hoga.</div>
+                    <div className="flex gap-2 max-w-xs">
+                      <div className="relative flex-1">
+                        <input
+                          type={showPin ? "text" : "password"}
+                          className={inputCls + " pr-9"}
+                          value={form.pin}
+                          onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
+                          placeholder="e.g. 4821"
+                          maxLength={6}
+                        />
+                        <button type="button" onClick={() => setShowPin(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" title={showPin ? "Hide" : "Show"}>
+                          {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <button type="button" onClick={() => { setForm(f => ({ ...f, pin: generatePin() })); setShowPin(true); }}
+                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50" title="Generate random PIN">
+                        <RefreshCw className="w-3.5 h-3.5" /> Generate
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">PIN tabhi badle jab manually change karo — toggle se nahi badlega.</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {error && <div className="col-span-2 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">{error}</div>}
             </div>

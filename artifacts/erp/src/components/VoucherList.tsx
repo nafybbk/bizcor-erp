@@ -55,7 +55,9 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
   const [visibleCols, setVisibleCols] = useState<string[]>(() =>
     getVisibleCols(REPORT_KEY, ALL_COLS.map(c => c.key))
   );
-  const limit = 20;
+  const [limit, setLimit] = useState(20);
+
+  const changeLimit = (n: number) => { setLimit(n); setPage(1); };
 
   const handleColChange = (cols: string[]) => {
     setVisibleCols(cols);
@@ -144,6 +146,15 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
           </select>
           <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden text-sm">
+            <span className="px-2 text-gray-400 text-xs">Show</span>
+            {([20, 50, 9999] as const).map(n => (
+              <button key={n} onClick={() => changeLimit(n)}
+                className={`px-2.5 py-2 transition-colors ${limit === n ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                {n === 9999 ? "All" : n}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -155,7 +166,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
             <div className="text-sm mt-1">Create your first {title.toLowerCase().replace(/s$/, "")} to get started</div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)]">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
@@ -219,13 +230,15 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
           </div>
         )}
 
-        {total > limit && (
+        {!loading && vouchers.length > 0 && (
           <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-600">
-            <span>Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Prev</button>
-              <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Next</button>
-            </div>
+            <span>{limit >= 9999 ? `${total} records` : `Showing ${(page - 1) * limit + 1}–${Math.min(page * limit, total)} of ${total}`}</span>
+            {limit < 9999 && total > limit && (
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Prev</button>
+                <button onClick={() => setPage(p => p + 1)} disabled={page * limit >= total} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Next</button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -84,6 +84,7 @@ export const partiesTable = pgTable("parties", {
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
   pin: text("pin"),
+  miniAppEnabled: boolean("mini_app_enabled").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

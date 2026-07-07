@@ -19,7 +19,9 @@ export default function PaymentsList({ type }: Props) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const limit = 20;
+  const [limit, setLimit] = useState(20);
+
+  const changeLimit = (n: number) => { setLimit(n); setPage(1); };
 
   const load = () => {
     setLoading(true);
@@ -79,11 +81,20 @@ export default function PaymentsList({ type }: Props) {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative max-w-sm">
+        <div className="p-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-48">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search..."
               className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex items-center gap-1 border border-gray-200 rounded-lg overflow-hidden text-sm">
+            <span className="px-2 text-gray-400 text-xs">Show</span>
+            {([20, 50, 9999] as const).map(n => (
+              <button key={n} onClick={() => changeLimit(n)}
+                className={`px-2.5 py-2 transition-colors ${limit === n ? "bg-blue-600 text-white" : "text-gray-600 hover:bg-gray-50"}`}>
+                {n === 9999 ? "All" : n}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -92,7 +103,7 @@ export default function PaymentsList({ type }: Props) {
         ) : payments.length === 0 ? (
           <div className="text-center py-16 text-gray-400">No {title.toLowerCase()} found</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)]">
           <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50 text-gray-600">
               <tr>
@@ -138,8 +149,8 @@ export default function PaymentsList({ type }: Props) {
 
         {!loading && payments.length > 0 && (
           <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-600">
-            <span>{total} {total === 1 ? "record" : "records"}</span>
-            {total > limit && (
+            <span>{limit >= 9999 ? `${total} records` : `Showing ${(page - 1) * limit + 1}–${Math.min(page * limit, total)} of ${total}`}</span>
+            {limit < 9999 && total > limit && (
               <div className="flex gap-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40">Prev</button>
                 <span className="px-2 py-1.5">Page {page} of {Math.ceil(total / limit)}</span>
