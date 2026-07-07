@@ -77,6 +77,35 @@ router.post("/", async (req, res) => {
         await db.update(vouchersTable).set({ paidAmount: String(totalPaid), status: newStatus }).where(eq(vouchersTable.id, alloc.voucherId));
       }
     }
+    // LAN sync — fire-and-forget push to cloud when party has mini-app enabled
+    if (process.env.SQLITE_PATH) {
+      void (async () => {
+        try {
+          const [party] = await db.select({ miniAppEnabled: partiesTable.miniAppEnabled, pin: partiesTable.pin, name: partiesTable.name })
+            .from(partiesTable).where(eq(partiesTable.id, Number(partyId))).limit(1);
+          if ((party as any)?.miniAppEnabled && (party as any)?.pin) {
+            const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
+            const token = ((req.headers.authorization as string) || "").replace("Bearer ", "");
+            await fetch(`${cloudUrl}/api/mini-app/lan-sync/payment`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+              body: JSON.stringify({
+                partyPin: (party as any).pin,
+                partyName: party?.name || "",
+                externalId: payment.id,
+                paymentType: type,
+                paymentNumber: payment.paymentNumber,
+                date: String(date),
+                amount: String(payment.amount || 0),
+                paymentMode: paymentMode || "cash",
+                notes: notes || "",
+              }),
+            });
+          }
+        } catch { /* fire-and-forget */ }
+      })();
+    }
+
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
   } catch (err) {
     req.log.error(err);

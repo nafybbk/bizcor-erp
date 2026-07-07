@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { businessesTable } from "./businesses";
@@ -53,3 +53,38 @@ export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 
 export const insertCustomerChatMessageSchema = createInsertSchema(customerChatMessagesTable).omit({ id: true, createdAt: true });
 export type InsertCustomerChatMessage = z.infer<typeof insertCustomerChatMessageSchema>;
+
+// LAN sync tables — LAN/desktop businesses push copies of their vouchers/payments here
+// so the mini app can read them via the same cloud API.
+export const lanSyncVouchersTable = pgTable("mini_app_lan_vouchers", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").notNull().references(() => businessesTable.id),
+  partyId: integer("party_id").references(() => partiesTable.id),
+  externalId: integer("external_id").notNull(),
+  voucherType: text("voucher_type").notNull(),
+  voucherNumber: text("voucher_number").notNull(),
+  date: text("date").notNull(),
+  partyName: text("party_name"),
+  grandTotal: numeric("grand_total", { precision: 15, scale: 2 }).notNull().default("0"),
+  status: text("status").default("posted"),
+  notes: text("notes"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+});
+
+export const lanSyncPaymentsTable = pgTable("mini_app_lan_payments", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").notNull().references(() => businessesTable.id),
+  partyId: integer("party_id").references(() => partiesTable.id),
+  externalId: integer("external_id").notNull(),
+  paymentType: text("payment_type").notNull(),
+  paymentNumber: text("payment_number").notNull(),
+  date: text("date").notNull(),
+  partyName: text("party_name"),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull().default("0"),
+  paymentMode: text("payment_mode").default("cash"),
+  notes: text("notes"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+});
+
+export type LanSyncVoucher = typeof lanSyncVouchersTable.$inferSelect;
+export type LanSyncPayment = typeof lanSyncPaymentsTable.$inferSelect;
