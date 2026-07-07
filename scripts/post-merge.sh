@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 pnpm install --frozen-lockfile
-pnpm --filter db push-force
+yes n | pnpm --filter db push-force
 
 git config user.email "taby.bbk@gmail.com"
 git config user.name "nafybbk"
