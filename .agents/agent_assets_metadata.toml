@@ -269,3 +269,15 @@ id = "XBufSROrc8HNgolvwzyEy"
 uri = "file://bizcor-erp-backup.zip"
 type = "unspecified"
 title = "BizCor ERP — Full Project Backup (211 MB)"
+
+[[outputs]]
+id = "gFMFAzlus3d5guBRt0Erp"
+uri = "file://attached_assets/gst_portal_ready/GSTR1_062026_09AZHPJ8502G1ZB_portal.json"
+type = "unspecified"
+title = "GSTR-1 Jun 2026 — 09AZHPJ8502G1ZB"
+
+[[outputs]]
+id = "TR3LxizN_fpNU5I2G6yJp"
+uri = "file://attached_assets/gst_portal_ready/GSTR1_052026_09AYBPV7048N1ZL_portal.json"
+type = "unspecified"
+title = "GSTR-1 May 2026 — 09AYBPV7048N1ZL"
