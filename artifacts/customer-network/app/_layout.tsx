@@ -17,6 +17,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useGitHubUpdate } from "@/hooks/useGitHubUpdate";
+import { useOTAUpdate } from "@/hooks/useOTAUpdate";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -27,6 +29,9 @@ setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 function RootLayoutNav() {
   const colors = useColors();
   const { getToken } = useAuth();
+
+  useOTAUpdate();
+  useGitHubUpdate();
 
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
