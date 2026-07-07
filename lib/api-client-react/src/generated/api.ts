@@ -74,9 +74,11 @@ import type {
   MiniAppConnectBody,
   MiniAppConnectResponse,
   MiniAppConnection,
+  MiniAppGetStatement200,
   MiniAppInvoice,
   MiniAppLoginBody,
   MiniAppLoginResponse,
+  MiniAppPayment,
   MiniAppPollMessagesParams,
   MiniAppSendMessageBody,
   MiniAppSettingsResponse,
@@ -7162,6 +7164,180 @@ export function useMiniAppListInvoices<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getMiniAppListInvoicesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List receipts (payments received) from the connected supplier for this party
+ */
+export const getMiniAppListPaymentsUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/payments`;
+};
+
+export const miniAppListPayments = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppPayment[]> => {
+  return customFetch<MiniAppPayment[]>(getMiniAppListPaymentsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppListPaymentsQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/payments`] as const;
+};
+
+export const getMiniAppListPaymentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppListPayments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListPayments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppListPaymentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppListPayments>>
+  > = ({ signal }) => miniAppListPayments(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListPayments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppListPaymentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppListPayments>>
+>;
+export type MiniAppListPaymentsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List receipts (payments received) from the connected supplier for this party
+ */
+
+export function useMiniAppListPayments<
+  TData = Awaited<ReturnType<typeof miniAppListPayments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListPayments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppListPaymentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Party ledger statement with running balance (invoices + receipts)
+ */
+export const getMiniAppGetStatementUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/statement`;
+};
+
+export const miniAppGetStatement = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppGetStatement200> => {
+  return customFetch<MiniAppGetStatement200>(getMiniAppGetStatementUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppGetStatementQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/statement`] as const;
+};
+
+export const getMiniAppGetStatementQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppGetStatement>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetStatement>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppGetStatementQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppGetStatement>>
+  > = ({ signal }) => miniAppGetStatement(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetStatement>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppGetStatementQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppGetStatement>>
+>;
+export type MiniAppGetStatementQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Party ledger statement with running balance (invoices + receipts)
+ */
+
+export function useMiniAppGetStatement<
+  TData = Awaited<ReturnType<typeof miniAppGetStatement>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetStatement>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppGetStatementQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

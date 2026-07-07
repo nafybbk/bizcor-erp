@@ -2519,3 +2519,44 @@ export const MiniAppListInvoicesResponseItem = zod.object({
 export const MiniAppListInvoicesResponse = zod.array(
   MiniAppListInvoicesResponseItem,
 );
+
+/**
+ * @summary List receipts (payments received) from the connected supplier for this party
+ */
+export const MiniAppListPaymentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppListPaymentsResponseItem = zod.object({
+  id: zod.number(),
+  paymentNumber: zod.string(),
+  date: zod.string(),
+  amount: zod.number(),
+  paymentMode: zod.string(),
+  notes: zod.string().nullish(),
+});
+export const MiniAppListPaymentsResponse = zod.array(
+  MiniAppListPaymentsResponseItem,
+);
+
+/**
+ * @summary Party ledger statement with running balance (invoices + receipts)
+ */
+export const MiniAppGetStatementParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MiniAppGetStatementResponse = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.enum(["invoice", "payment"]),
+      ref: zod.string(),
+      date: zod.string(),
+      debit: zod.number(),
+      credit: zod.number(),
+      balance: zod.number(),
+    }),
+  ),
+  closingBalance: zod.number(),
+});

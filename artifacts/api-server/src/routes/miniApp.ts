@@ -8,9 +8,10 @@ import {
   businessesTable,
   partiesTable,
   vouchersTable,
+  paymentsTable,
   appSettingsTable,
 } from "@workspace/db";
-import { eq, and, gt, asc, desc } from "drizzle-orm";
+import { eq, and, gt, asc, desc, isNull } from "drizzle-orm";
 import { hasActiveModule } from "../lib/modulePatches";
 
 const router = Router();
@@ -283,6 +284,98 @@ router.post("/mini-app/connections/:id/messages", async (req, res) => {
       message: message.trim(),
     }).returning();
     res.json(row);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/payments — receipts from the supplier for this party
+router.get("/mini-app/connections/:id/payments", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { payment?: boolean } | null) || {};
+    if (permissions.payment === false) {
+      res.status(403).json({ error: "Payment dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const rows = await db.select({
+      id: paymentsTable.id,
+      paymentNumber: paymentsTable.paymentNumber,
+      date: paymentsTable.date,
+      amount: paymentsTable.amount,
+      paymentMode: paymentsTable.paymentMode,
+      notes: paymentsTable.notes,
+    }).from(paymentsTable)
+      .where(and(
+        eq(paymentsTable.businessId, connection.businessId),
+        eq(paymentsTable.partyId, connection.partyId),
+        eq(paymentsTable.type, "receipt"),
+        isNull(paymentsTable.deletedAt),
+      ))
+      .orderBy(desc(paymentsTable.date));
+
+    res.json(rows.map(r => ({ ...r, amount: Number(r.amount) })));
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/statement — running balance ledger (invoices + receipts)
+router.get("/mini-app/connections/:id/statement", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { statement?: boolean } | null) || {};
+    if (permissions.statement === false) {
+      res.status(403).json({ error: "Statement dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const invoices = await db.select({
+      id: vouchersTable.id,
+      ref: vouchersTable.voucherNumber,
+      date: vouchersTable.date,
+      amount: vouchersTable.grandTotal,
+    }).from(vouchersTable)
+      .where(and(
+        eq(vouchersTable.businessId, connection.businessId),
+        eq(vouchersTable.partyId, connection.partyId),
+        eq(vouchersTable.voucherType, "sales_invoice"),
+        isNull(vouchersTable.deletedAt),
+      ));
+
+    const receipts = await db.select({
+      id: paymentsTable.id,
+      ref: paymentsTable.paymentNumber,
+      date: paymentsTable.date,
+      amount: paymentsTable.amount,
+    }).from(paymentsTable)
+      .where(and(
+        eq(paymentsTable.businessId, connection.businessId),
+        eq(paymentsTable.partyId, connection.partyId),
+        eq(paymentsTable.type, "receipt"),
+        isNull(paymentsTable.deletedAt),
+      ));
+
+    type RawEntry = { id: number; type: "invoice" | "payment"; ref: string; date: string; debit: number; credit: number };
+    const combined: RawEntry[] = [
+      ...invoices.map(v => ({ id: v.id, type: "invoice" as const, ref: v.ref, date: v.date, debit: Number(v.amount), credit: 0 })),
+      ...receipts.map(p => ({ id: p.id, type: "payment" as const, ref: p.ref, date: p.date, debit: 0, credit: Number(p.amount) })),
+    ].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+    let balance = 0;
+    const entries = combined.map(e => {
+      balance += e.debit - e.credit;
+      return { ...e, balance };
+    });
+
+    res.json({ entries, closingBalance: balance });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

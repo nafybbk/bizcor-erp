@@ -1816,6 +1816,78 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /mini-app/connections/{id}/payments:
+    get:
+      operationId: miniAppListPayments
+      tags: [mini-app]
+      summary: List receipts (payments received) from the connected supplier for this party
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppPayment"
+        "403":
+          description: No payment permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections/{id}/statement:
+    get:
+      operationId: miniAppGetStatement
+      tags: [mini-app]
+      summary: Party ledger statement with running balance (invoices + receipts)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Statement entries with running balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MiniAppStatementEntry"
+                  closingBalance:
+                    type: number
+                required: [entries, closingBalance]
+        "403":
+          description: No statement permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -3288,3 +3360,41 @@ components:
         grandTotal:
           type: string
       required: [id, voucherNumber, date, grandTotal]
+
+    MiniAppPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        paymentNumber:
+          type: string
+        date:
+          type: string
+        amount:
+          type: number
+        paymentMode:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [id, paymentNumber, date, amount, paymentMode]
+
+    MiniAppStatementEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [invoice, payment]
+        ref:
+          type: string
+        date:
+          type: string
+        debit:
+          type: number
+        credit:
+          type: number
+        balance:
+          type: number
+      required: [id, type, ref, date, debit, credit, balance]

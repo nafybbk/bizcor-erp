@@ -1006,6 +1006,33 @@ export interface MiniAppInvoice {
   grandTotal: string;
 }
 
+export interface MiniAppPayment {
+  id: number;
+  paymentNumber: string;
+  date: string;
+  amount: number;
+  paymentMode: string;
+  notes?: string | null;
+}
+
+export type MiniAppStatementEntryType =
+  (typeof MiniAppStatementEntryType)[keyof typeof MiniAppStatementEntryType];
+
+export const MiniAppStatementEntryType = {
+  invoice: "invoice",
+  payment: "payment",
+} as const;
+
+export interface MiniAppStatementEntry {
+  id: number;
+  type: MiniAppStatementEntryType;
+  ref: string;
+  date: string;
+  debit: number;
+  credit: number;
+  balance: number;
+}
+
 export type ListAllBusinessesParams = {
   page?: number;
   limit?: number;
@@ -1235,4 +1262,9 @@ export const GetTopPartiesType = {
 
 export type MiniAppPollMessagesParams = {
   since?: number;
+};
+
+export type MiniAppGetStatement200 = {
+  entries: MiniAppStatementEntry[];
+  closingBalance: number;
 };

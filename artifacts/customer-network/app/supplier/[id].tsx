@@ -1,12 +1,18 @@
 import { Feather } from "@expo/vector-icons";
 import {
   getMiniAppListInvoicesQueryKey,
+  getMiniAppListPaymentsQueryKey,
+  getMiniAppGetStatementQueryKey,
   getMiniAppPollMessagesQueryKey,
   getMiniAppRecentMessagesQueryKey,
   MiniAppChatMessage,
   MiniAppInvoice,
+  MiniAppPayment,
+  MiniAppStatementEntry,
   useMiniAppListConnections,
   useMiniAppListInvoices,
+  useMiniAppListPayments,
+  useMiniAppGetStatement,
   useMiniAppPollMessages,
   useMiniAppRecentMessages,
   useMiniAppSendMessage,
@@ -30,11 +36,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 
-type TabKey = "chat" | "invoices" | "gallery";
+type TabKey = "chat" | "invoices" | "payments" | "statement" | "gallery";
 
 const TABS: { key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }[] = [
   { key: "chat", label: "Chat", icon: "message-circle" },
   { key: "invoices", label: "Invoices", icon: "file-text" },
+  { key: "payments", label: "Payments", icon: "credit-card" },
+  { key: "statement", label: "Statement", icon: "bar-chart-2" },
   { key: "gallery", label: "Gallery", icon: "image" },
 ];
 
@@ -88,6 +96,12 @@ export default function SupplierDetailScreen() {
       {tab === "chat" && <ChatTab connectionId={connectionId} />}
       {tab === "invoices" && (
         <InvoicesTab connectionId={connectionId} permissions={connection?.permissions} />
+      )}
+      {tab === "payments" && (
+        <PaymentsTab connectionId={connectionId} permissions={connection?.permissions} />
+      )}
+      {tab === "statement" && (
+        <StatementTab connectionId={connectionId} permissions={connection?.permissions} />
       )}
       {tab === "gallery" && <GalleryTab />}
     </View>
@@ -352,6 +366,170 @@ function InvoicesTab({
   );
 }
 
+function PaymentsTab({
+  connectionId,
+  permissions,
+}: {
+  connectionId: number;
+  permissions?: { payment?: boolean } | null;
+}) {
+  const colors = useColors();
+  const { data, isLoading, isError } = useMiniAppListPayments(connectionId, {
+    query: {
+      queryKey: getMiniAppListPaymentsQueryKey(connectionId),
+      enabled: !!connectionId && permissions?.payment !== false,
+    },
+  });
+
+  if (permissions?.payment === false) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="lock" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Not shared with you</Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          This supplier hasn&apos;t enabled payment sharing.
+        </Text>
+      </View>
+    );
+  }
+
+  if (isLoading) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
+
+  if (isError) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t load payments</Text>
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      data={data ?? []}
+      keyExtractor={(item: MiniAppPayment) => String(item.id)}
+      scrollEnabled={!!data && data.length > 0}
+      contentContainerStyle={styles.listContent}
+      ListEmptyComponent={
+        <View style={styles.centerFill}>
+          <Feather name="credit-card" size={30} color={colors.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No payments yet</Text>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <View style={[styles.invoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.invoiceIcon, { backgroundColor: "#dcfce7" }]}>
+            <Feather name="credit-card" size={18} color="#16a34a" />
+          </View>
+          <View style={styles.invoiceBody}>
+            <Text style={[styles.invoiceNumber, { color: colors.foreground }]}>{item.paymentNumber}</Text>
+            <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]}>
+              {new Date(item.date).toLocaleDateString()} · {item.paymentMode}
+            </Text>
+            {item.notes ? (
+              <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]} numberOfLines={1}>{item.notes}</Text>
+            ) : null}
+          </View>
+          <Text style={[styles.invoiceAmount, { color: "#16a34a" }]}>
+            ₹{Number(item.amount).toLocaleString("en-IN")}
+          </Text>
+        </View>
+      )}
+    />
+  );
+}
+
+function StatementTab({
+  connectionId,
+  permissions,
+}: {
+  connectionId: number;
+  permissions?: { statement?: boolean } | null;
+}) {
+  const colors = useColors();
+  const { data, isLoading, isError } = useMiniAppGetStatement(connectionId, {
+    query: {
+      queryKey: getMiniAppGetStatementQueryKey(connectionId),
+      enabled: !!connectionId && permissions?.statement !== false,
+    },
+  });
+
+  if (permissions?.statement === false) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="lock" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Not shared with you</Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          This supplier hasn&apos;t enabled statement sharing.
+        </Text>
+      </View>
+    );
+  }
+
+  if (isLoading) return <View style={styles.centerFill}><ActivityIndicator color={colors.primary} /></View>;
+
+  if (isError) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Couldn&apos;t load statement</Text>
+      </View>
+    );
+  }
+
+  const entries = data?.entries ?? [];
+  const closing = data?.closingBalance ?? 0;
+
+  return (
+    <FlatList
+      data={entries}
+      keyExtractor={(item: MiniAppStatementEntry) => `${item.type}-${item.id}`}
+      scrollEnabled={entries.length > 0}
+      contentContainerStyle={styles.listContent}
+      ListHeaderComponent={
+        entries.length > 0 ? (
+          <View style={[styles.statementHeader, { backgroundColor: closing > 0 ? "#fef9c3" : "#dcfce7", borderColor: closing > 0 ? "#fde047" : "#86efac" }]}>
+            <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]}>Outstanding Balance</Text>
+            <Text style={[styles.invoiceAmount, { color: closing > 0 ? "#b45309" : "#16a34a", fontSize: 18 }]}>
+              ₹{Math.abs(closing).toLocaleString("en-IN")} {closing > 0 ? "due" : closing < 0 ? "advance" : "clear"}
+            </Text>
+          </View>
+        ) : null
+      }
+      ListEmptyComponent={
+        <View style={styles.centerFill}>
+          <Feather name="bar-chart-2" size={30} color={colors.mutedForeground} />
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No transactions yet</Text>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <View style={[styles.statementRow, { borderColor: colors.border }]}>
+          <View style={styles.invoiceBody}>
+            <Text style={[styles.invoiceNumber, { color: colors.foreground }]}>{item.ref}</Text>
+            <Text style={[styles.invoiceDate, { color: colors.mutedForeground }]}>
+              {new Date(item.date).toLocaleDateString()} · {item.type === "invoice" ? "Invoice" : "Receipt"}
+            </Text>
+          </View>
+          <View style={styles.statementAmounts}>
+            {item.debit > 0 ? (
+              <Text style={[styles.invoiceDate, { color: "#dc2626", textAlign: "right" }]}>
+                Dr ₹{item.debit.toLocaleString("en-IN")}
+              </Text>
+            ) : (
+              <Text style={[styles.invoiceDate, { color: "#16a34a", textAlign: "right" }]}>
+                Cr ₹{item.credit.toLocaleString("en-IN")}
+              </Text>
+            )}
+            <Text style={[styles.invoiceDate, { color: colors.mutedForeground, textAlign: "right" }]}>
+              Bal ₹{Math.abs(item.balance).toLocaleString("en-IN")}{item.balance > 0 ? " Dr" : item.balance < 0 ? " Cr" : ""}
+            </Text>
+          </View>
+        </View>
+      )}
+    />
+  );
+}
+
 function GalleryTab() {
   const colors = useColors();
   return (
@@ -437,4 +615,20 @@ const styles = StyleSheet.create({
   invoiceNumber: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   invoiceDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
   invoiceAmount: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  statementHeader: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    alignItems: "center",
+    gap: 4,
+  },
+  statementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  statementAmounts: { alignItems: "flex-end", gap: 3 },
 });
