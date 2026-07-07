@@ -23,14 +23,15 @@ git stash pop 2>/dev/null || true
 git push origin main
 
 # Auto-create and push version tag from desktop/package.json
+# Only runs if the tag does not already exist on remote (idempotent)
 VERSION=$(node -e "console.log(require('./artifacts/desktop/package.json').version)" 2>/dev/null || true)
 if [ -n "$VERSION" ]; then
   TAG="v${VERSION}"
-  # Only push tag if it doesn't already exist on remote
-  if ! git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
-    git tag "$TAG" 2>/dev/null || true
-    git push origin "$TAG" && echo "Tagged and pushed $TAG" || echo "Tag push failed (may already exist)"
-  else
+  if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
     echo "Tag $TAG already exists on remote — skipping"
+  else
+    git tag "$TAG"
+    git push origin "$TAG"
+    echo "Tagged and pushed $TAG — GitHub Actions EXE build triggered"
   fi
 fi
