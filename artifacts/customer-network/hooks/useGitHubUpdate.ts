@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform } from "react-native";
 
 const GITHUB_REPO = "nafybbk/bizcor-erp";
-const APK_NAME_PATTERN = /bizcor-connect.*\.apk$/i;
+// APK must be named: bizcor-connect-X.X.X.apk  (version extracted from filename)
+const APK_NAME_PATTERN = /bizcor-connect[- ]([\d.]+)\.apk$/i;
 
 function parseVersion(v: string): number[] {
   return v
@@ -77,19 +78,21 @@ export function useGitHubUpdate() {
       if (!res.ok) return;
 
       const release = await res.json();
-      const latestTag: string = release.tag_name ?? "";
       const currentVersion = Constants.expoConfig?.version ?? "1.0.0";
 
-      if (!isNewer(latestTag, currentVersion)) return;
-
+      // Find APK asset and extract its version from the filename
       const apkAsset = (
         release.assets as { name: string; browser_download_url: string }[]
       ).find((a) => APK_NAME_PATTERN.test(a.name));
-      if (!apkAsset) return;
+      if (!apkAsset) return; // No CN APK in this release — skip
+
+      const match = apkAsset.name.match(APK_NAME_PATTERN);
+      const apkVersion = match?.[1] ?? "";
+      if (!apkVersion || !isNewer(apkVersion, currentVersion)) return;
 
       Alert.alert(
         "Update Available",
-        `BizCor Connect ${latestTag} is ready.\n\nCurrent: v${currentVersion}`,
+        `BizCor Connect v${apkVersion} is ready.\n\nCurrent: v${currentVersion}`,
         [
           { text: "Later", style: "cancel" },
           {
