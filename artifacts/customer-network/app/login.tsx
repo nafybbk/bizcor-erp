@@ -98,7 +98,7 @@ export default function LoginScreen() {
           {appName}
         </Text>
         <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
-          Customer Network
+          Connect
         </Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Sign in with your mobile number to view your suppliers, invoices,
