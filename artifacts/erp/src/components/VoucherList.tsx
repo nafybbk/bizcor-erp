@@ -110,6 +110,8 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
 
   const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
 
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
