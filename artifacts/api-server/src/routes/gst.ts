@@ -442,9 +442,17 @@ router.get("/gstr1/export", async (req, res) => {
             rateMap.set(rt, { txval: round2(Number(it.taxableAmount)), camt: round2(Number(it.cgst)), samt: round2(Number(it.sgst)), iamt: round2(Number(it.igst)) });
           }
         }
-        return Array.from(rateMap.entries()).map(([rt, d], idx) => ({ num: idx + 1, itm_det: { rt, txval: d.txval, camt: d.camt, samt: d.samt, iamt: d.iamt, csamt: 0 } }));
+        return Array.from(rateMap.entries()).map(([rt, d]) => {
+          const det: Record<string, number> = { rt, txval: d.txval, csamt: 0 };
+          if (d.iamt) det.iamt = d.iamt;
+          if (d.camt) { det.camt = d.camt; det.samt = d.samt; }
+          return { num: 501, itm_det: det };
+        });
       }
-      return [{ num: 1, itm_det: { rt: 0, txval: round2(Number(fallback.taxableAmount)), camt: round2(Number(fallback.totalCgst)), samt: round2(Number(fallback.totalSgst)), iamt: round2(Number(fallback.totalIgst)), csamt: 0 } }];
+      const fb = { rt: 0, txval: round2(Number(fallback.taxableAmount)), csamt: 0 } as Record<string, number>;
+      const fi = round2(Number(fallback.totalIgst)); const fc = round2(Number(fallback.totalCgst)); const fs = round2(Number(fallback.totalSgst));
+      if (fi) fb.iamt = fi; if (fc) { fb.camt = fc; fb.samt = fs; }
+      return [{ num: 501, itm_det: fb }];
     };
 
     // ── B2B ──────────────────────────────────────────────────────────────────
@@ -508,12 +516,15 @@ router.get("/gstr1/export", async (req, res) => {
         else b2csMap.set(key, { sply_ty, pos, rt: round2(rt), txval: vals.txval, camt: vals.camt, samt: vals.samt, iamt: vals.iamt, csamt: 0 });
       }
     }
-    // Portal: b2cs requires typ="OE" (Others Eligible); iamt for INTER, camt+samt for INTRA
-    const b2cs = Array.from(b2csMap.values()).map(e =>
-      e.sply_ty === "INTRA"
-        ? { typ: "OE", sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, camt: e.camt, samt: e.samt, csamt: e.csamt }
-        : { typ: "OE", sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, iamt: e.iamt, csamt: e.csamt }
-    );
+    // Portal b2cs: typ="OE", include all tax fields (portal expects camt/samt even if 0 for INTER)
+    const b2cs = Array.from(b2csMap.values()).map(e => ({
+      sply_ty: e.sply_ty, pos: e.pos, typ: "OE",
+      txval: e.txval, rt: e.rt,
+      iamt: e.sply_ty === "INTER" ? e.iamt : 0,
+      camt: e.sply_ty === "INTRA" ? e.camt : 0,
+      samt: e.sply_ty === "INTRA" ? e.samt : 0,
+      csamt: e.csamt,
+    }));
 
     // ── CDNR (Section 9B — registered) ───────────────────────────────────────
     const cdnrNotes = notesRaw.filter(n => isValidGSTIN(n.partyGstin));
@@ -549,7 +560,7 @@ router.get("/gstr1/export", async (req, res) => {
     }));
 
     // ── HSN Summary (Section 12) — May 2025+ rule: B2B and B2C separate ────────
-    type HsnRow = { hsn_sc: string; desc: string; uqc: string; rt: number; qty: number; val: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
+    type HsnRow = { hsn_sc: string; desc: string; user_desc: string; uqc: string; rt: number; qty: number; val: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
     function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean) {
       const items = itemsByVoucher.get(v.id) || [];
       for (const it of items) {
@@ -569,7 +580,7 @@ router.get("/gstr1/export", async (req, res) => {
           e.txval = round2(e.txval + txval); e.iamt = round2(e.iamt + iamt);
           e.camt = round2(e.camt + camt); e.samt = round2(e.samt + samt);
         } else {
-          map.set(key, { hsn_sc, desc: it.itemName || "", uqc, rt, qty, val, txval, iamt, camt, samt, csamt: 0 });
+          map.set(key, { hsn_sc, desc: it.itemName || "", user_desc: it.itemName || "", uqc, rt, qty, val, txval, iamt, camt, samt, csamt: 0 });
         }
       }
     }
@@ -593,7 +604,8 @@ router.get("/gstr1/export", async (req, res) => {
       if (!docs.length) return null;
       const sorted = [...docs].sort((a, b) => { const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber); return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.voucherNumber.localeCompare(b.voucherNumber); });
       const cancelled = docs.filter(d => d.deletedAt !== null).length;
-      return { doc_num: docNum, docs: [{ num: 1, from: sorted[0].voucherNumber, to: sorted[sorted.length - 1].voucherNumber, totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
+      const docTypMap: Record<string, string> = { sales_invoice: "Invoices for outward supply", credit_note: "Debit Note", debit_note: "Debit Note", purchase_bill: "Invoices for inward supply" };
+      return { doc_num: docNum, doc_typ: docTypMap[type] || "Invoices for outward supply", docs: [{ num: 1, from: sorted[0].voucherNumber, to: sorted[sorted.length - 1].voucherNumber, totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
     }
     const docDetItems = [
       buildDocIssue("sales_invoice", 1),
@@ -616,8 +628,8 @@ router.get("/gstr1/export", async (req, res) => {
     if (cdnur.length)    gstrJson.cdnur    = cdnur;
     if (hsnB2bData.length || hsnB2cData.length) {
       const hsnObj: Record<string, unknown> = {};
-      if (hsnB2bData.length) hsnObj.data     = hsnB2bData;
-      if (hsnB2cData.length) hsnObj.b2c_data = hsnB2cData;
+      if (hsnB2bData.length) hsnObj.hsn_b2b = hsnB2bData;
+      if (hsnB2cData.length) hsnObj.hsn_b2c = hsnB2cData;
       gstrJson.hsn = hsnObj;
     }
     if (docDetItems.length) gstrJson.doc_issue = { doc_det: docDetItems };
