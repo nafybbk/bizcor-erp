@@ -508,11 +508,11 @@ router.get("/gstr1/export", async (req, res) => {
         else b2csMap.set(key, { sply_ty, pos, rt: round2(rt), txval: vals.txval, camt: vals.camt, samt: vals.samt, iamt: vals.iamt, csamt: 0 });
       }
     }
-    // Portal: b2cs keeps iamt for INTER, removes for INTRA (only CGST+SGST)
+    // Portal: b2cs requires typ="OE" (Others Eligible); iamt for INTER, camt+samt for INTRA
     const b2cs = Array.from(b2csMap.values()).map(e =>
       e.sply_ty === "INTRA"
-        ? { sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, camt: e.camt, samt: e.samt, csamt: e.csamt }
-        : { sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, iamt: e.iamt, csamt: e.csamt }
+        ? { typ: "OE", sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, camt: e.camt, samt: e.samt, csamt: e.csamt }
+        : { typ: "OE", sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, iamt: e.iamt, csamt: e.csamt }
     );
 
     // ── CDNR (Section 9B — registered) ───────────────────────────────────────
@@ -556,7 +556,8 @@ router.get("/gstr1/export", async (req, res) => {
         for (const it of items) {
           const hsn_sc = it.hsnCode || "";
           const uqc = (it.unit || "OTH").toUpperCase().substring(0, 3);
-          const key = `${hsn_sc}|${uqc}`;
+          const rt = round2(Number(it.taxRate ?? 0));
+          const key = `${hsn_sc}|${uqc}|${rt}`;
           const txval = round2(Number(it.taxableAmount));
           const iamt = round2(Number(it.igst));
           const camt = round2(Number(it.cgst));
