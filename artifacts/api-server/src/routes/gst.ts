@@ -468,12 +468,34 @@ router.get("/gstr1/export", async (req, res) => {
       })),
     }));
 
-    // ── B2CS (Section 7 — B2C, state+rate wise) ──────────────────────────────
+    // ── B2CL (Section 5 — B2C Large: inter-state unregistered > ₹2.5L) ────────
+    const B2CL_THRESHOLD = 250000;
     const b2cInvoices = invoices.filter(i => !isValidGSTIN(i.partyGstin));
-    const b2csMap = new Map<string, { sply_ty: string; pos: string; rt: number; txval: number; camt: number; samt: number; iamt: number; csamt: number }>();
-    for (const inv of b2cInvoices) {
+    const b2clInvoices = b2cInvoices.filter(i => Number(i.totalIgst) > 0 && Number(i.grandTotal) > B2CL_THRESHOLD);
+    const b2clMap = new Map<string, typeof b2clInvoices>();
+    for (const inv of b2clInvoices) {
       const pos = String(inv.placeOfSupply || "00").padStart(2, "0");
-      const isInter = inv.totalIgst && Number(inv.totalIgst) > 0;
+      if (!b2clMap.has(pos)) b2clMap.set(pos, []);
+      b2clMap.get(pos)!.push(inv);
+    }
+    const b2cl = Array.from(b2clMap.entries()).map(([pos, invs]) => ({
+      pos,
+      inv: invs.map(i => ({
+        inum: formatPrintNumber(i.voucherNumber, biz),
+        idt:  toGSTDate(i.date),
+        val:  round2(Number(i.grandTotal)),
+        pos,
+        rchrg: "N",
+        itms:  buildItms(i.id, i),
+      })),
+    }));
+
+    // ── B2CS (Section 7 — B2C small: intra OR inter-state ≤ ₹2.5L, state+rate wise)
+    const b2csInvoices = b2cInvoices.filter(i => !(Number(i.totalIgst) > 0 && Number(i.grandTotal) > B2CL_THRESHOLD));
+    const b2csMap = new Map<string, { sply_ty: string; pos: string; rt: number; txval: number; camt: number; samt: number; iamt: number; csamt: number }>();
+    for (const inv of b2csInvoices) {
+      const pos = String(inv.placeOfSupply || "00").padStart(2, "0");
+      const isInter = Number(inv.totalIgst) > 0;
       const sply_ty = isInter ? "INTER" : "INTRA";
       const items = itemsByVoucher.get(inv.id);
       const rateEntries = items && items.length > 0
@@ -482,11 +504,16 @@ router.get("/gstr1/export", async (req, res) => {
       for (const [rt, vals] of rateEntries) {
         const key = `${sply_ty}|${pos}|${rt}`;
         const e = b2csMap.get(key);
-        if (e) { e.txval = round2(e.txval + vals.txval); e.camt = round2(e.camt + vals.camt); e.samt = round2(e.samt + vals.samt); e.iamt = round2((e.iamt ?? 0) + vals.iamt); }
+        if (e) { e.txval = round2(e.txval + vals.txval); e.camt = round2(e.camt + vals.camt); e.samt = round2(e.samt + vals.samt); e.iamt = round2(e.iamt + vals.iamt); }
         else b2csMap.set(key, { sply_ty, pos, rt: round2(rt), txval: vals.txval, camt: vals.camt, samt: vals.samt, iamt: vals.iamt, csamt: 0 });
       }
     }
-    const b2cs = Array.from(b2csMap.values()).map(({ iamt: _iamt, ...rest }) => rest); // portal b2cs doesn't use iamt at top level
+    // Portal: b2cs keeps iamt for INTER, removes for INTRA (only CGST+SGST)
+    const b2cs = Array.from(b2csMap.values()).map(e =>
+      e.sply_ty === "INTRA"
+        ? { sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, camt: e.camt, samt: e.samt, csamt: e.csamt }
+        : { sply_ty: e.sply_ty, pos: e.pos, rt: e.rt, txval: e.txval, iamt: e.iamt, csamt: e.csamt }
+    );
 
     // ── CDNR (Section 9B — registered) ───────────────────────────────────────
     const cdnrNotes = notesRaw.filter(n => isValidGSTIN(n.partyGstin));
@@ -515,7 +542,7 @@ router.get("/gstr1/export", async (req, res) => {
       ntty: n.voucherType === "credit_note" ? "C" : "D",
       nt_num: formatPrintNumber(n.voucherNumber, biz),
       nt_dt: toGSTDate(n.date),
-      typ: "B2CL",
+      typ: (Number(n.totalIgst) > 0 && Number(n.grandTotal) > B2CL_THRESHOLD) ? "B2CL" : "B2CS",
       val: round2(Number(n.grandTotal)),
       pos: String(n.placeOfSupply || "00").padStart(2, "0"),
       itms: buildItms(n.id, n),
@@ -576,6 +603,7 @@ router.get("/gstr1/export", async (req, res) => {
       hash:    "hash",
     };
     if (b2b.length)      gstrJson.b2b      = b2b;
+    if (b2cl.length)     gstrJson.b2cl     = b2cl;
     if (b2cs.length)     gstrJson.b2cs     = b2cs;
     if (cdnr.length)     gstrJson.cdnr     = cdnr;
     if (cdnur.length)    gstrJson.cdnur    = cdnur;
