@@ -605,7 +605,7 @@ router.get("/gstr1/export", async (req, res) => {
       const sorted = [...docs].sort((a, b) => { const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber); return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.voucherNumber.localeCompare(b.voucherNumber); });
       const cancelled = docs.filter(d => d.deletedAt !== null).length;
       const docTypMap: Record<string, string> = { sales_invoice: "Invoices for outward supply", credit_note: "Debit Note", debit_note: "Debit Note", purchase_bill: "Invoices for inward supply" };
-      return { doc_num: docNum, doc_typ: docTypMap[type] || "Invoices for outward supply", docs: [{ num: 1, from: sorted[0].voucherNumber, to: sorted[sorted.length - 1].voucherNumber, totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
+      return { doc_num: docNum, doc_typ: docTypMap[type] || "Invoices for outward supply", docs: [{ num: 1, from: formatPrintNumber(sorted[0].voucherNumber, biz), to: formatPrintNumber(sorted[sorted.length - 1].voucherNumber, biz), totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
     }
     const docDetItems = [
       buildDocIssue("sales_invoice", 1),
