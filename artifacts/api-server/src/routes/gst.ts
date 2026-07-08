@@ -548,37 +548,43 @@ router.get("/gstr1/export", async (req, res) => {
       itms: buildItms(n.id, n),
     }));
 
-    // ── HSN Summary (Section 12) ──────────────────────────────────────────────
-    const hsnMap = new Map<string, { hsn_sc: string; desc: string; uqc: string; qty: number; val: number; txval: number; iamt: number; camt: number; samt: number; csamt: number }>();
-    for (const voucherList of [invoices, notesRaw]) {
-      for (const v of voucherList) {
-        const items = itemsByVoucher.get(v.id) || [];
-        for (const it of items) {
-          const hsn_sc = it.hsnCode || "";
-          const uqc = (it.unit || "OTH").toUpperCase().substring(0, 3);
-          const rt = round2(Number(it.taxRate ?? 0));
-          const key = `${hsn_sc}|${uqc}|${rt}`;
-          const txval = round2(Number(it.taxableAmount));
-          const iamt = round2(Number(it.igst));
-          const camt = round2(Number(it.cgst));
-          const samt = round2(Number(it.sgst));
-          const val = round2(txval + iamt + camt + samt);
-          const qty = round2(Number(it.quantity));
-          const existing = hsnMap.get(key);
-          if (existing) {
-            existing.qty   = round2(existing.qty   + qty);
-            existing.val   = round2(existing.val   + val);
-            existing.txval = round2(existing.txval + txval);
-            existing.iamt  = round2(existing.iamt  + iamt);
-            existing.camt  = round2(existing.camt  + camt);
-            existing.samt  = round2(existing.samt  + samt);
-          } else {
-            hsnMap.set(key, { hsn_sc, desc: it.itemName || "", uqc, qty, val, txval, iamt, camt, samt, csamt: 0 });
-          }
+    // ── HSN Summary (Section 12) — May 2025+ rule: B2B and B2C separate ────────
+    type HsnRow = { hsn_sc: string; desc: string; uqc: string; rt: number; qty: number; val: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
+    function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean) {
+      const items = itemsByVoucher.get(v.id) || [];
+      for (const it of items) {
+        const hsn_sc = it.hsnCode || "";
+        const uqc = (it.unit || "OTH").toUpperCase().substring(0, 3);
+        const rt = round2(Number(it.taxRate ?? 0));
+        const key = `${hsn_sc}|${uqc}|${rt}`;
+        const txval = round2(Number(it.taxableAmount));
+        const iamt = round2(Number(it.igst));
+        const camt = round2(Number(it.cgst));
+        const samt = round2(Number(it.sgst));
+        const val = round2(txval + iamt + camt + samt);
+        const qty = round2(Number(it.quantity));
+        const e = map.get(key);
+        if (e) {
+          e.qty = round2(e.qty + qty); e.val = round2(e.val + val);
+          e.txval = round2(e.txval + txval); e.iamt = round2(e.iamt + iamt);
+          e.camt = round2(e.camt + camt); e.samt = round2(e.samt + samt);
+        } else {
+          map.set(key, { hsn_sc, desc: it.itemName || "", uqc, rt, qty, val, txval, iamt, camt, samt, csamt: 0 });
         }
       }
     }
-    const hsnData = Array.from(hsnMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
+    const hsnB2bMap = new Map<string, HsnRow>();
+    const hsnB2cMap = new Map<string, HsnRow>();
+    for (const v of invoices) {
+      if (isValidGSTIN(v.partyGstin)) addToHsnMap(hsnB2bMap, v, true);
+      else addToHsnMap(hsnB2cMap, v, false);
+    }
+    for (const v of notesRaw) {
+      if (isValidGSTIN(v.partyGstin)) addToHsnMap(hsnB2bMap, v, true);
+      else addToHsnMap(hsnB2cMap, v, false);
+    }
+    const hsnB2bData = Array.from(hsnB2bMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
+    const hsnB2cData = Array.from(hsnB2cMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
 
     // ── Doc Issue (Section 13) ────────────────────────────────────────────────
     function extractNum(v: string) { const m = v.match(/(\d+)$/); return m ? parseInt(m[1], 10) : NaN; }
@@ -608,7 +614,12 @@ router.get("/gstr1/export", async (req, res) => {
     if (b2cs.length)     gstrJson.b2cs     = b2cs;
     if (cdnr.length)     gstrJson.cdnr     = cdnr;
     if (cdnur.length)    gstrJson.cdnur    = cdnur;
-    if (hsnData.length)  gstrJson.hsn      = { data: hsnData };
+    if (hsnB2bData.length || hsnB2cData.length) {
+      const hsnObj: Record<string, unknown> = {};
+      if (hsnB2bData.length) hsnObj.data     = hsnB2bData;
+      if (hsnB2cData.length) hsnObj.b2c_data = hsnB2cData;
+      gstrJson.hsn = hsnObj;
+    }
     if (docDetItems.length) gstrJson.doc_issue = { doc_det: docDetItems };
 
     const mm = String(month).padStart(2, "0");
