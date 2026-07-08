@@ -106,7 +106,7 @@ export default function VoucherList({ voucherType, title, createHref, viewHref, 
     downloadCSV(rows, `${title.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+  const { sorted, sortKey, sortDir, toggleSort } = useSort(vouchers);
 
   return (
     <div className="space-y-4 max-w-6xl">
