@@ -320,8 +320,10 @@ router.delete("/:id", async (req, res) => {
     const businessId = req.user!.businessId!;
     const paymentId = Number(req.params.id);
     await reverseAllocations(paymentId);
+    // sql`` template — works for SQLite (text column) AND PostgreSQL (timestamp column);
+    // a plain ISO string crashes drizzle's PG timestamp mapper (value.toISOString)
     const [deleted] = await db.update(paymentsTable)
-      .set({ deletedAt: new Date().toISOString() })
+      .set({ deletedAt: sql`${new Date().toISOString()}` as unknown as Date })
       .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)))
       .returning();
 
