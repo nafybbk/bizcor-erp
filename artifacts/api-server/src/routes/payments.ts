@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } from "@workspace/db";
 import { eq, and, sql, desc, gte, lte, isNull, isNotNull, asc, inArray, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { pushLanSyncPayment } from "../lib/lanSync";
 
 const router = Router();
 router.use(requireBusiness);
@@ -78,33 +79,11 @@ router.post("/", async (req, res) => {
       }
     }
     // LAN sync — fire-and-forget push to cloud when party has mini-app enabled
-    if (process.env.SQLITE_PATH) {
-      void (async () => {
-        try {
-          const [party] = await db.select({ miniAppEnabled: partiesTable.miniAppEnabled, pin: partiesTable.pin, name: partiesTable.name })
-            .from(partiesTable).where(eq(partiesTable.id, Number(partyId))).limit(1);
-          if ((party as any)?.miniAppEnabled && (party as any)?.pin) {
-            const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
-            const token = ((req.headers.authorization as string) || "").replace("Bearer ", "");
-            await fetch(`${cloudUrl}/api/mini-app/lan-sync/payment`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-              body: JSON.stringify({
-                partyPin: (party as any).pin,
-                partyName: party?.name || "",
-                externalId: payment.id,
-                paymentType: type,
-                paymentNumber: payment.paymentNumber,
-                date: String(date),
-                amount: String(payment.amount || 0),
-                paymentMode: paymentMode || "cash",
-                notes: notes || "",
-              }),
-            });
-          }
-        } catch { /* fire-and-forget */ }
-      })();
-    }
+    pushLanSyncPayment(req, {
+      partyId: Number(partyId), externalId: payment.id, paymentType: type,
+      paymentNumber: payment.paymentNumber, date: String(date),
+      amount: payment.amount || 0, paymentMode, status: "posted", notes,
+    });
 
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
   } catch (err) {
@@ -178,9 +157,19 @@ router.post("/bin/:id/restore", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
-    await db.update(paymentsTable)
+    const [restored] = await db.update(paymentsTable)
       .set({ deletedAt: null })
-      .where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)));
+      .where(and(eq(paymentsTable.id, id), eq(paymentsTable.businessId, businessId)))
+      .returning();
+
+    // LAN sync — restore the customer's copy (was marked deleted)
+    if (restored) {
+      pushLanSyncPayment(req, {
+        partyId: restored.partyId, externalId: restored.id, paymentType: restored.type,
+        paymentNumber: restored.paymentNumber, date: String(restored.date),
+        amount: restored.amount || 0, paymentMode: restored.paymentMode, status: "posted", notes: restored.notes,
+      });
+    }
     res.json({ success: true, id });
   } catch (err: any) {
     req.log.error(err);
@@ -270,6 +259,15 @@ router.patch("/:id", async (req, res) => {
     }
 
     const [updated] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, paymentId));
+
+    // LAN sync — re-push so the customer's copy reflects the edit
+    if (updated) {
+      pushLanSyncPayment(req, {
+        partyId: updated.partyId, externalId: updated.id, paymentType: updated.type,
+        paymentNumber: updated.paymentNumber, date: String(updated.date),
+        amount: updated.amount || 0, paymentMode: updated.paymentMode, status: "posted", notes: updated.notes,
+      });
+    }
     res.json({ ...updated, amount: Number(updated!.amount) });
   } catch (err) {
     req.log.error(err);
@@ -303,9 +301,19 @@ router.delete("/:id", async (req, res) => {
     const businessId = req.user!.businessId!;
     const paymentId = Number(req.params.id);
     await reverseAllocations(paymentId);
-    await db.update(paymentsTable)
+    const [deleted] = await db.update(paymentsTable)
       .set({ deletedAt: new Date().toISOString() })
-      .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)));
+      .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.businessId, businessId)))
+      .returning();
+
+    // LAN sync — mark deleted so the customer's app stops showing it
+    if (deleted) {
+      pushLanSyncPayment(req, {
+        partyId: deleted.partyId, externalId: deleted.id, paymentType: deleted.type,
+        paymentNumber: deleted.paymentNumber, date: String(deleted.date),
+        amount: deleted.amount || 0, paymentMode: deleted.paymentMode, status: "deleted", notes: deleted.notes,
+      });
+    }
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);

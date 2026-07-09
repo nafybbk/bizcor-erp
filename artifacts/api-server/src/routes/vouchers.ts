@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable, itemsTable, taxRatesTable, businessesTable } from "@workspace/db";
 import { eq, and, sql, desc, gte, lte, isNull, isNotNull, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { pushLanSyncVoucher } from "../lib/lanSync";
 
 const router = Router();
 router.use(requireBusiness);
@@ -247,29 +248,11 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   await db.insert(voucherItemsTable).values(voucherItemRows);
 
   // LAN sync — fire-and-forget push to cloud when party has mini-app enabled
-  if (process.env.SQLITE_PATH && (party as any)?.miniAppEnabled && (party as any)?.pin) {
-    void (async () => {
-      try {
-        const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
-        const token = ((req.headers.authorization as string) || "").replace("Bearer ", "");
-        await fetch(`${cloudUrl}/api/mini-app/lan-sync/voucher`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({
-            partyPin: (party as any).pin,
-            partyName: party?.name || "",
-            externalId: voucher.id,
-            voucherType,
-            voucherNumber: voucherNum,
-            date: String(date),
-            grandTotal: String(voucher.grandTotal || 0),
-            status: status || "posted",
-            notes: notes || "",
-          }),
-        });
-      } catch { /* fire-and-forget — errors silently ignored */ }
-    })();
-  }
+  pushLanSyncVoucher(req, {
+    partyId: parsedPartyId, externalId: voucher.id, voucherType,
+    voucherNumber: voucherNum, date: String(date),
+    grandTotal: voucher.grandTotal || 0, status: status || "posted", notes,
+  });
 
   res.status(201).json({ ...voucher, grandTotal: Number(voucher.grandTotal) });
 }
@@ -359,6 +342,14 @@ async function updateVoucher(req: any, res: any) {
     return row;
   });
   await db.insert(voucherItemsTable).values(voucherItemRows);
+
+  // LAN sync — re-push so the customer's copy reflects the edit
+  pushLanSyncVoucher(req, {
+    partyId: parsedPartyId, externalId: updated.id, voucherType: updated.voucherType,
+    voucherNumber: updated.voucherNumber, date: String(updated.date),
+    grandTotal: updated.grandTotal || 0, status: updated.status || "posted", notes,
+  });
+
   res.json({ ...updated, grandTotal: Number(updated.grandTotal) });
 }
 
@@ -367,9 +358,19 @@ async function deleteVoucher(req: any, res: any) {
   const id = Number(req.params.id);
   // Use sql`` template — works for SQLite (text column) AND PostgreSQL (timestamp column)
   // Passing new Date() directly fails in SQLite because better-sqlite3 cannot bind Date objects
-  await db.update(vouchersTable)
+  const [deleted] = await db.update(vouchersTable)
     .set({ deletedAt: sql`${new Date().toISOString()}` as unknown as Date })
-    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
+    .returning();
+
+  // LAN sync — mark deleted so the customer's app stops showing it
+  if (deleted) {
+    pushLanSyncVoucher(req, {
+      partyId: deleted.partyId, externalId: deleted.id, voucherType: deleted.voucherType,
+      voucherNumber: deleted.voucherNumber, date: String(deleted.date),
+      grandTotal: deleted.grandTotal || 0, status: "deleted", notes: deleted.notes,
+    });
+  }
   res.json({ success: true });
 }
 
@@ -443,9 +444,19 @@ router.post("/bin/:id/restore", async (req, res) => {
     const businessId = req.user!.businessId!;
     const id = Number(req.params.id);
     // Drizzle ORM update — works on both SQLite + PostgreSQL
-    await db.update(vouchersTable)
+    const [restored] = await db.update(vouchersTable)
       .set({ deletedAt: null })
-      .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+      .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
+      .returning();
+
+    // LAN sync — restore the customer's copy (was marked deleted)
+    if (restored) {
+      pushLanSyncVoucher(req, {
+        partyId: restored.partyId, externalId: restored.id, voucherType: restored.voucherType,
+        voucherNumber: restored.voucherNumber, date: String(restored.date),
+        grandTotal: restored.grandTotal || 0, status: restored.status || "posted", notes: restored.notes,
+      });
+    }
     res.json({ success: true, id });
   } catch (err: any) {
     req.log.error(err);

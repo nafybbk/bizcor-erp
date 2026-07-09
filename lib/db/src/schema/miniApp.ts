@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { businessesTable } from "./businesses";
@@ -69,7 +69,10 @@ export const lanSyncVouchersTable = pgTable("mini_app_lan_vouchers", {
   status: text("status").default("posted"),
   notes: text("notes"),
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
-});
+}, (t) => [
+  // Upsert key — a re-pushed voucher replaces its previous copy instead of duplicating
+  uniqueIndex("mini_app_lan_vouchers_biz_ext_type_idx").on(t.businessId, t.externalId, t.voucherType),
+]);
 
 export const lanSyncPaymentsTable = pgTable("mini_app_lan_payments", {
   id: serial("id").primaryKey(),
@@ -82,9 +85,12 @@ export const lanSyncPaymentsTable = pgTable("mini_app_lan_payments", {
   partyName: text("party_name"),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull().default("0"),
   paymentMode: text("payment_mode").default("cash"),
+  status: text("status").default("posted"),
   notes: text("notes"),
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("mini_app_lan_payments_biz_ext_type_idx").on(t.businessId, t.externalId, t.paymentType),
+]);
 
 export type LanSyncVoucher = typeof lanSyncVouchersTable.$inferSelect;
 export type LanSyncPayment = typeof lanSyncPaymentsTable.$inferSelect;

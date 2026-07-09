@@ -13,7 +13,7 @@ import {
   lanSyncVouchersTable,
   lanSyncPaymentsTable,
 } from "@workspace/db";
-import { eq, and, gt, asc, desc, isNull } from "drizzle-orm";
+import { eq, and, gt, asc, desc, isNull, sql } from "drizzle-orm";
 import { hasActiveModule } from "../lib/modulePatches";
 
 const router = Router();
@@ -336,6 +336,7 @@ router.get("/mini-app/connections/:id/payments", async (req, res) => {
         eq(lanSyncPaymentsTable.businessId, connection.businessId),
         eq(lanSyncPaymentsTable.partyId, connection.partyId),
         eq(lanSyncPaymentsTable.paymentType, "receipt"),
+        sql`${lanSyncPaymentsTable.status} IS DISTINCT FROM 'deleted'`,
       ))
       .orderBy(desc(lanSyncPaymentsTable.date));
 
@@ -386,6 +387,7 @@ router.get("/mini-app/connections/:id/statement", async (req, res) => {
         eq(lanSyncVouchersTable.businessId, connection.businessId),
         eq(lanSyncVouchersTable.partyId, connection.partyId),
         eq(lanSyncVouchersTable.voucherType, "sales_invoice"),
+        sql`${lanSyncVouchersTable.status} IS DISTINCT FROM 'deleted'`,
       ));
 
     const receipts = await db.select({
@@ -470,6 +472,7 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
         eq(lanSyncVouchersTable.businessId, connection.businessId),
         eq(lanSyncVouchersTable.partyId, connection.partyId),
         eq(lanSyncVouchersTable.voucherType, "sales_invoice"),
+        sql`${lanSyncVouchersTable.status} IS DISTINCT FROM 'deleted'`,
       ))
       .orderBy(desc(lanSyncVouchersTable.date));
 
@@ -524,6 +527,7 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
       .limit(1);
     if (!party) { res.status(404).json({ error: "Party not found by pin" }); return; }
 
+    // Upsert — a re-push (edit/cancel/delete in the LAN ERP) replaces the previous copy
     await db.insert(lanSyncVouchersTable).values({
       businessId: business.id,
       partyId: party.id,
@@ -535,7 +539,19 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
       grandTotal: String(grandTotal || 0),
       status: String(status || "posted"),
       notes: notes ? String(notes) : null,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [lanSyncVouchersTable.businessId, lanSyncVouchersTable.externalId, lanSyncVouchersTable.voucherType],
+      set: {
+        partyId: party.id,
+        voucherNumber: String(voucherNumber),
+        date: String(date),
+        partyName: String(partyName || ""),
+        grandTotal: String(grandTotal || 0),
+        status: String(status || "posted"),
+        notes: notes ? String(notes) : null,
+        syncedAt: new Date(),
+      },
+    });
 
     res.json({ ok: true });
   } catch (err) {
@@ -563,6 +579,7 @@ router.post("/mini-app/lan-sync/payment", async (req, res) => {
       .limit(1);
     if (!party) { res.status(404).json({ error: "Party not found by pin" }); return; }
 
+    const payStatus = String((req.body.status as string) || "posted");
     await db.insert(lanSyncPaymentsTable).values({
       businessId: business.id,
       partyId: party.id,
@@ -573,8 +590,22 @@ router.post("/mini-app/lan-sync/payment", async (req, res) => {
       partyName: String(partyName || ""),
       amount: String(amount || 0),
       paymentMode: String(paymentMode || "cash"),
+      status: payStatus,
       notes: notes ? String(notes) : null,
-    }).onConflictDoNothing();
+    }).onConflictDoUpdate({
+      target: [lanSyncPaymentsTable.businessId, lanSyncPaymentsTable.externalId, lanSyncPaymentsTable.paymentType],
+      set: {
+        partyId: party.id,
+        paymentNumber: String(paymentNumber),
+        date: String(date),
+        partyName: String(partyName || ""),
+        amount: String(amount || 0),
+        paymentMode: String(paymentMode || "cash"),
+        status: payStatus,
+        notes: notes ? String(notes) : null,
+        syncedAt: new Date(),
+      },
+    });
 
     res.json({ ok: true });
   } catch (err) {
