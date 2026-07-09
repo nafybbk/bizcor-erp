@@ -234,6 +234,8 @@ async function getOwnedConnection(customerDbId: number, connectionId: number) {
     eq(connectionsTable.id, connectionId),
     eq(connectionsTable.customerId, customerDbId)
   )).limit(1);
+  // Blocked by the supplier → behave as if the connection doesn't exist
+  if (connection?.status === "blocked") return undefined;
   return connection;
 }
 

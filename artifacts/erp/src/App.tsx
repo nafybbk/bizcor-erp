@@ -49,6 +49,8 @@ import States from "@/pages/masters/States";
 import BusinessSettings from "@/pages/settings/BusinessSettings";
 import Subscription from "@/pages/settings/Subscription";
 import Users from "@/pages/settings/Users";
+import ActivityLog from "@/pages/settings/ActivityLog";
+import ConnectCustomers from "@/pages/settings/ConnectCustomers";
 import ImportData from "@/pages/settings/ImportData";
 import BackupSettings from "@/pages/settings/BackupSettings";
 import FirmProfile from "@/pages/FirmProfile";
@@ -332,6 +334,12 @@ function AppRoutes() {
       </Route>
       <Route path="/settings/users">
         <ProtectedRoute><Users /></ProtectedRoute>
+      </Route>
+      <Route path="/settings/activity">
+        <ProtectedRoute><ActivityLog /></ProtectedRoute>
+      </Route>
+      <Route path="/settings/connect">
+        <ProtectedRoute><ConnectCustomers /></ProtectedRoute>
       </Route>
       <Route path="/settings/import">
         <ProtectedRoute><ImportData /></ProtectedRoute>

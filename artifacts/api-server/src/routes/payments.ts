@@ -4,6 +4,7 @@ import { paymentsTable, paymentAllocationsTable, vouchersTable, partiesTable } f
 import { eq, and, sql, desc, gte, lte, isNull, isNotNull, asc, inArray, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { pushLanSyncPayment } from "../lib/lanSync";
+import { logActivity } from "../lib/activityLog";
 
 const router = Router();
 router.use(requireBusiness);
@@ -83,6 +84,11 @@ router.post("/", async (req, res) => {
       partyId: Number(partyId), externalId: payment.id, paymentType: type,
       paymentNumber: payment.paymentNumber, date: String(date),
       amount: payment.amount || 0, paymentMode, status: "posted", notes,
+    });
+
+    logActivity(req, {
+      action: "created", entityType: "payment", entityId: payment.id, entityLabel: payment.paymentNumber,
+      summary: `${type === "receipt" ? "Receipt" : "Payment"} ${payment.paymentNumber} banaya — ₹${Number(payment.amount).toLocaleString("en-IN")} (${paymentMode || "cash"})`,
     });
 
     res.status(201).json({ ...payment, amount: Number(payment.amount) });
@@ -168,6 +174,11 @@ router.post("/bin/:id/restore", async (req, res) => {
         partyId: restored.partyId, externalId: restored.id, paymentType: restored.type,
         paymentNumber: restored.paymentNumber, date: String(restored.date),
         amount: restored.amount || 0, paymentMode: restored.paymentMode, status: "posted", notes: restored.notes,
+      });
+
+      logActivity(req, {
+        action: "restored", entityType: "payment", entityId: restored.id, entityLabel: restored.paymentNumber,
+        summary: `${restored.type === "receipt" ? "Receipt" : "Payment"} ${restored.paymentNumber} bin se wapas laya`,
       });
     }
     res.json({ success: true, id });
@@ -267,6 +278,14 @@ router.patch("/:id", async (req, res) => {
         paymentNumber: updated.paymentNumber, date: String(updated.date),
         amount: updated.amount || 0, paymentMode: updated.paymentMode, status: "posted", notes: updated.notes,
       });
+
+      const oldAmt = Number(existing.amount);
+      const newAmt = Number(updated.amount);
+      logActivity(req, {
+        action: "edited", entityType: "payment", entityId: updated.id, entityLabel: updated.paymentNumber,
+        summary: `${updated.type === "receipt" ? "Receipt" : "Payment"} ${updated.paymentNumber} edit kiya${oldAmt !== newAmt ? ` — ₹${oldAmt.toLocaleString("en-IN")} → ₹${newAmt.toLocaleString("en-IN")}` : ""}`,
+        details: { before: { ...existing, allocations: oldAllocs } },
+      });
     }
     res.json({ ...updated, amount: Number(updated!.amount) });
   } catch (err) {
@@ -312,6 +331,12 @@ router.delete("/:id", async (req, res) => {
         partyId: deleted.partyId, externalId: deleted.id, paymentType: deleted.type,
         paymentNumber: deleted.paymentNumber, date: String(deleted.date),
         amount: deleted.amount || 0, paymentMode: deleted.paymentMode, status: "deleted", notes: deleted.notes,
+      });
+
+      logActivity(req, {
+        action: "deleted", entityType: "payment", entityId: deleted.id, entityLabel: deleted.paymentNumber,
+        summary: `${deleted.type === "receipt" ? "Receipt" : "Payment"} ${deleted.paymentNumber} delete kiya (bin mein gaya) — ₹${Number(deleted.amount).toLocaleString("en-IN")}`,
+        details: { before: deleted },
       });
     }
     res.json({ success: true });

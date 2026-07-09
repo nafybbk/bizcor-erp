@@ -4,6 +4,7 @@ import { db, sqlite } from "@workspace/db";
 import { usersTable, plansTable, businessesTable } from "@workspace/db";
 import { eq, and, sql, count } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { logActivity } from "../lib/activityLog";
 
 // Helper: get plan-based user limit for a business
 async function getPlanLimit(businessId: number): Promise<{ maxUsers: number; label: string }> {
@@ -196,6 +197,10 @@ router.post("/", async (req, res) => {
       }
     } catch { /* non-fatal */ }
 
+    logActivity(req, {
+      action: "created", entityType: "user", entityLabel: name,
+      summary: `User "${name}" (${role || "staff"}) add kiya`,
+    });
     res.status(201).json({ success: true });
   } catch (err: any) {
     req.log.error(err);
@@ -263,6 +268,10 @@ router.patch("/:id", async (req, res) => {
       } catch { /* non-fatal */ }
     }
 
+    logActivity(req, {
+      action: "edited", entityType: "user", entityId: id, entityLabel: name || String(id),
+      summary: `User "${name || id}" ki settings badli — ${[...Object.keys(updateData), ...(password ? ["password"] : []), ...(loginPin !== undefined ? ["loginPin"] : [])].join(", ")}`,
+    });
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);
@@ -272,7 +281,13 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(usersTable).where(and(eq(usersTable.id, Number(req.params.id)), eq(usersTable.businessId, req.user!.businessId!)));
+    const [deleted] = await db.delete(usersTable).where(and(eq(usersTable.id, Number(req.params.id)), eq(usersTable.businessId, req.user!.businessId!))).returning();
+    if (deleted) {
+      logActivity(req, {
+        action: "deleted", entityType: "user", entityId: deleted.id, entityLabel: deleted.name,
+        summary: `User "${deleted.name}" delete kiya`,
+      });
+    }
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);

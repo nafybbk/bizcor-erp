@@ -4,6 +4,7 @@ import { db, sqlite } from "@workspace/db";
 import { superAdminsTable, businessesTable, usersTable, loginLogsTable, plansTable } from "@workspace/db";
 import { eq, and, inArray, count, sql } from "drizzle-orm";
 import { signToken, requireAuth, TRIAL_DAYS } from "../middlewares/auth";
+import { logActivity } from "../lib/activityLog";
 
 const router = Router();
 
@@ -216,6 +217,10 @@ router.post("/login", async (req, res) => {
         userAgent: req.headers["user-agent"],
         latitude: latitude ? String(latitude) : undefined,
         longitude: longitude ? String(longitude) : undefined,
+      });
+      logActivity({ user: { id: fullUser.id, name: fullUser.name, businessId: business.id } }, {
+        action: "login", entityType: "auth", entityLabel: fullUser.name,
+        summary: `${fullUser.name} login hua (${fullUser.role === "business_admin" ? "Admin" : "Staff"})`,
       });
       return {
         token,

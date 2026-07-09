@@ -85,6 +85,7 @@ export const businessesTable = pgTable("businesses", {
   printShowZeros: boolean("print_show_zeros").default(true),
   pendingToken: text("pending_token"),
   invoiceTemplate: text("invoice_template").default("classic"),
+  activityRetentionDays: integer("activity_retention_days"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

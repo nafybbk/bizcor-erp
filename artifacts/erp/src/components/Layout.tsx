@@ -12,6 +12,7 @@ import {
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
   UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive, LayoutTemplate,
+  History as HistoryIcon, Smartphone,
 } from "lucide-react";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
@@ -545,6 +546,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/users" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
                     <Users className="w-3.5 h-3.5 flex-shrink-0" />
                     <span>{L.users}</span>
+                  </a>
+                </Link>
+              )}
+              {user?.role === "business_admin" && (
+                <Link href="/settings/activity">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/activity" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <HistoryIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Activity</span>
+                  </a>
+                </Link>
+              )}
+              {user?.role === "business_admin" && (
+                <Link href="/settings/connect">
+                  <a className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${location === "/settings/connect" ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white hover:bg-slate-700"}`}>
+                    <Smartphone className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>BizCor Connect</span>
                   </a>
                 </Link>
               )}

@@ -3,6 +3,7 @@ import { db, sqlite } from "@workspace/db";
 import { itemsTable, unitsTable, taxRatesTable, voucherItemsTable, vouchersTable } from "@workspace/db";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { logActivity } from "../lib/activityLog";
 
 const router = Router();
 router.use(requireBusiness);
@@ -91,6 +92,10 @@ router.post("/", async (req, res) => {
       );
       const newId = result.lastInsertRowid;
       const item = sqlite.prepare("SELECT * FROM items WHERE id = ?").get(newId);
+      logActivity(req, {
+        action: "created", entityType: "item", entityId: Number(newId), entityLabel: name.trim(),
+        summary: `Item "${name.trim()}" banaya`,
+      });
       res.status(201).json(item);
     } else {
       // PostgreSQL: use Drizzle with .returning()
@@ -102,6 +107,10 @@ router.post("/", async (req, res) => {
         lowStockAlert: lowStockAlert ? String(lowStockAlert) : "0",
         customFields,
       }).returning();
+      logActivity(req, {
+        action: "created", entityType: "item", entityId: item.id, entityLabel: item.name,
+        summary: `Item "${item.name}" banaya`,
+      });
       res.status(201).json(item);
     }
   } catch (err: any) {
@@ -158,10 +167,23 @@ router.patch("/:id", async (req, res) => {
         sqlite.prepare(`UPDATE items SET ${setClauses.join(", ")} WHERE id = ? AND business_id = ?`).run(...vals);
       }
       const item = sqlite.prepare("SELECT * FROM items WHERE id = ? AND business_id = ?").get(id, businessId);
+      logActivity(req, {
+        action: "edited", entityType: "item", entityId: id, entityLabel: (item as any)?.name || String(id),
+        summary: `Item "${(item as any)?.name || id}" edit kiya — ${Object.keys(updateData).join(", ")}`,
+      });
       res.json(item);
     } else {
+      const [before] = await db.select().from(itemsTable)
+        .where(and(eq(itemsTable.id, id), eq(itemsTable.businessId, businessId)));
       const [updated] = await db.update(itemsTable).set(updateData)
         .where(and(eq(itemsTable.id, id), eq(itemsTable.businessId, businessId))).returning();
+      if (updated) {
+        logActivity(req, {
+          action: "edited", entityType: "item", entityId: updated.id, entityLabel: updated.name,
+          summary: `Item "${updated.name}" edit kiya — ${Object.keys(updateData).join(", ")}`,
+          details: before ? { before } : null,
+        });
+      }
       res.json(updated);
     }
   } catch (err) {
@@ -172,7 +194,14 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(itemsTable).where(and(eq(itemsTable.id, Number(req.params.id)), eq(itemsTable.businessId, req.user!.businessId!)));
+    const [deleted] = await db.delete(itemsTable).where(and(eq(itemsTable.id, Number(req.params.id)), eq(itemsTable.businessId, req.user!.businessId!))).returning();
+    if (deleted) {
+      logActivity(req, {
+        action: "deleted", entityType: "item", entityId: deleted.id, entityLabel: deleted.name,
+        summary: `Item "${deleted.name}" delete kiya`,
+        details: { before: deleted },
+      });
+    }
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);

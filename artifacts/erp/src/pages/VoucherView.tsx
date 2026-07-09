@@ -3,10 +3,11 @@ import { useLocation, useParams, useSearch } from "wouter";
 import { api, fmt } from "@/lib/api";
 import { shareWhatsApp } from "@/lib/export";
 import { formatPrintNumber } from "@/lib/numberFormat";
-import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2, Type } from "lucide-react";
+import { Loader2, ArrowLeft, Share2, FileDown, Pencil, Trash2, Type, History } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import PrintPreviewModal from "@/components/PrintPreviewModal";
 import TemplatePrintModal from "@/components/TemplatePrintModal";
+import VoucherHistoryModal from "@/components/VoucherHistoryModal";
 
 interface Props {
   voucherType: "sales/invoices" | "sales/credit-notes" | "purchases/bills" | "purchases/debit-notes";
@@ -92,6 +93,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [serverPrinting, setServerPrinting] = useState(false);
   const [showFontPanel, setShowFontPanel] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [fontSizes, setFontSizes] = useState<FontSizes>(() => {
     try { return { ...DEFAULT_FS, ...JSON.parse(localStorage.getItem(FS_KEY) || "{}") }; }
     catch { return DEFAULT_FS; }
@@ -283,6 +285,9 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
     return (
       <>
+        {showHistory && voucher && (
+          <VoucherHistoryModal voucherId={Number(params.id)} onClose={() => setShowHistory(false)} />
+        )}
         {false && (
           <TemplatePrintModal
             voucherType={voucherType}
@@ -348,6 +353,12 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 className="flex items-center gap-1.5 px-3 py-2 border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-medium">
                 <Share2 className="w-4 h-4" /> <span className="hidden sm:inline">WhatsApp</span>
               </button>
+              {user?.role === "business_admin" && (
+                <button onClick={() => setShowHistory(true)} title="Document history — kisne kya badla"
+                  className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-600 bg-white hover:bg-slate-50 rounded-lg text-sm font-medium">
+                  <History className="w-4 h-4" /> <span className="hidden sm:inline">History</span>
+                </button>
+              )}
               <button onClick={() => setShowFontPanel(p => !p)}
                 className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium ${showFontPanel ? "border-indigo-400 text-indigo-700 bg-indigo-100" : "border-gray-300 text-gray-600 bg-white hover:bg-gray-50"}`}>
                 <Type className="w-4 h-4" /> <span className="hidden sm:inline">Fonts</span>

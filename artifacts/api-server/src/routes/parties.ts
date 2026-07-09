@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
 import { eq, and, like, or, sql, desc, isNotNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { logActivity } from "../lib/activityLog";
 
 // Generate AC0001 / AS0001 style unique codes per business per first-letter group
 async function generatePartyCodes(businessId: number, name: string, type: string) {
@@ -72,6 +73,11 @@ router.post("/", async (req, res) => {
       creditDays: creditDays || 0, customFields,
       customerCode, supplierCode, pin: pin || null,
     }).returning();
+
+    logActivity(req, {
+      action: "created", entityType: "party", entityId: party.id, entityLabel: party.name,
+      summary: `Party "${party.name}" (${type}) banayi`,
+    });
     res.status(201).json(party);
   } catch (err) {
     req.log.error(err);
@@ -101,7 +107,17 @@ router.patch("/:id", async (req, res) => {
     if (updateData.creditDays !== undefined) updateData.creditDays = updateData.creditDays === "" ? 0 : (Number(updateData.creditDays) || 0);
     // shippingAddresses is not a DB column — remove it from updateData to avoid Drizzle errors
     delete updateData.shippingAddresses;
+    const [before] = await db.select().from(partiesTable)
+      .where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!)));
     const [updated] = await db.update(partiesTable).set(updateData).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!))).returning();
+
+    if (updated) {
+      logActivity(req, {
+        action: "edited", entityType: "party", entityId: updated.id, entityLabel: updated.name,
+        summary: `Party "${updated.name}" edit kiya — ${Object.keys(updateData).join(", ")}`,
+        details: before ? { before } : null,
+      });
+    }
     res.json(updated);
   } catch (err) {
     req.log.error(err);
@@ -111,7 +127,14 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(partiesTable).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!)));
+    const [deleted] = await db.delete(partiesTable).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!))).returning();
+    if (deleted) {
+      logActivity(req, {
+        action: "deleted", entityType: "party", entityId: deleted.id, entityLabel: deleted.name,
+        summary: `Party "${deleted.name}" delete ki`,
+        details: { before: deleted },
+      });
+    }
     res.json({ success: true });
   } catch (err) {
     req.log.error(err);

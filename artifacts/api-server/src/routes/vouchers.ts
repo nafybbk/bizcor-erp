@@ -4,6 +4,12 @@ import { vouchersTable, voucherItemsTable, partiesTable, itemsTable, taxRatesTab
 import { eq, and, sql, desc, gte, lte, isNull, isNotNull, like, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { pushLanSyncVoucher } from "../lib/lanSync";
+import { logActivity } from "../lib/activityLog";
+
+const VOUCHER_TYPE_LABEL: Record<string, string> = {
+  sales_invoice: "Sales Invoice", credit_note: "Credit Note",
+  purchase_bill: "Purchase Bill", debit_note: "Debit Note",
+};
 
 const router = Router();
 router.use(requireBusiness);
@@ -254,6 +260,11 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
     grandTotal: voucher.grandTotal || 0, status: status || "posted", notes,
   });
 
+  logActivity(req, {
+    action: "created", entityType: "voucher", entityId: voucher.id, entityLabel: voucherNum,
+    summary: `${VOUCHER_TYPE_LABEL[voucherType] || voucherType} ${voucherNum} banaya — ${party?.name || ""} — ₹${Number(voucher.grandTotal).toLocaleString("en-IN")}`,
+  });
+
   res.status(201).json({ ...voucher, grandTotal: Number(voucher.grandTotal) });
 }
 
@@ -315,6 +326,13 @@ async function updateVoucher(req: any, res: any) {
     updateData.customFields = customFields;
   }
 
+  // Snapshot the document as it is BEFORE the edit — for the activity log
+  const [beforeVoucher] = await db.select().from(vouchersTable)
+    .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)));
+  const beforeItems = beforeVoucher
+    ? await db.select().from(voucherItemsTable).where(eq(voucherItemsTable.voucherId, id))
+    : [];
+
   const [updated] = await db.update(vouchersTable).set(updateData)
     .where(and(eq(vouchersTable.id, id), eq(vouchersTable.businessId, businessId)))
     .returning();
@@ -350,6 +368,14 @@ async function updateVoucher(req: any, res: any) {
     grandTotal: updated.grandTotal || 0, status: updated.status || "posted", notes,
   });
 
+  const oldTotal = Number(beforeVoucher?.grandTotal || 0);
+  const newTotal = Number(updated.grandTotal);
+  logActivity(req, {
+    action: "edited", entityType: "voucher", entityId: updated.id, entityLabel: updated.voucherNumber,
+    summary: `${VOUCHER_TYPE_LABEL[updated.voucherType] || updated.voucherType} ${updated.voucherNumber} edit kiya${oldTotal !== newTotal ? ` — ₹${oldTotal.toLocaleString("en-IN")} → ₹${newTotal.toLocaleString("en-IN")}` : ""}`,
+    details: beforeVoucher ? { before: { ...beforeVoucher, items: beforeItems } } : null,
+  });
+
   res.json({ ...updated, grandTotal: Number(updated.grandTotal) });
 }
 
@@ -369,6 +395,13 @@ async function deleteVoucher(req: any, res: any) {
       partyId: deleted.partyId, externalId: deleted.id, voucherType: deleted.voucherType,
       voucherNumber: deleted.voucherNumber, date: String(deleted.date),
       grandTotal: deleted.grandTotal || 0, status: "deleted", notes: deleted.notes,
+    });
+
+    const delItems = await db.select().from(voucherItemsTable).where(eq(voucherItemsTable.voucherId, deleted.id));
+    logActivity(req, {
+      action: "deleted", entityType: "voucher", entityId: deleted.id, entityLabel: deleted.voucherNumber,
+      summary: `${VOUCHER_TYPE_LABEL[deleted.voucherType] || deleted.voucherType} ${deleted.voucherNumber} delete kiya (bin mein gaya) — ₹${Number(deleted.grandTotal).toLocaleString("en-IN")}`,
+      details: { before: { ...deleted, items: delItems } },
     });
   }
   res.json({ success: true });
@@ -455,6 +488,11 @@ router.post("/bin/:id/restore", async (req, res) => {
         partyId: restored.partyId, externalId: restored.id, voucherType: restored.voucherType,
         voucherNumber: restored.voucherNumber, date: String(restored.date),
         grandTotal: restored.grandTotal || 0, status: restored.status || "posted", notes: restored.notes,
+      });
+
+      logActivity(req, {
+        action: "restored", entityType: "voucher", entityId: restored.id, entityLabel: restored.voucherNumber,
+        summary: `${VOUCHER_TYPE_LABEL[restored.voucherType] || restored.voucherType} ${restored.voucherNumber} bin se wapas laya`,
       });
     }
     res.json({ success: true, id });

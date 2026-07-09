@@ -258,6 +258,7 @@ export const customerChatMessagesTable = s.customerChatMessagesTable;
 export const lanSyncVouchersTable = s.lanSyncVouchersTable;
 export const lanSyncPaymentsTable = s.lanSyncPaymentsTable;
 export const modulePatchesTable = s.modulePatchesTable;
+export const activityLogsTable = s.activityLogsTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)
 export type * from "./schema";

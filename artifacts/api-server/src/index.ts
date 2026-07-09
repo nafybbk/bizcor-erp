@@ -403,6 +403,23 @@ function runSqliteInit() {
     );
 
     CREATE INDEX IF NOT EXISTS chat_messages_business_idx ON chat_messages(business_id, id);
+
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER NOT NULL,
+      user_id INTEGER,
+      user_name TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      entity_label TEXT,
+      summary TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS activity_logs_biz_created_idx ON activity_logs(business_id, created_at);
+    CREATE INDEX IF NOT EXISTS activity_logs_biz_entity_idx ON activity_logs(business_id, entity_type, entity_id);
   `);
 
   logger.info("SQLite schema initialized — all tables ready");
@@ -481,6 +498,8 @@ function runSqliteMigrations() {
     "ALTER TABLE vouchers ADD COLUMN template_id INTEGER",
     "ALTER TABLE vouchers ADD COLUMN template_version INTEGER",
     "ALTER TABLE vouchers ADD COLUMN rendered_snapshot TEXT",
+    // activity log — optional auto-cleanup retention
+    "ALTER TABLE businesses ADD COLUMN activity_retention_days INTEGER",
   ];
   let applied = 0;
   for (const stmt of migrations) {
@@ -539,6 +558,28 @@ async function runPgMigrations() {
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_id INTEGER`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS template_version INTEGER`);
     await db.execute(sql`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS rendered_snapshot JSONB`);
+    // Activity log (admin-only per-business trail) + optional retention
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS activity_logs (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL REFERENCES businesses(id),
+        user_id INTEGER,
+        user_name TEXT,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        entity_label TEXT,
+        summary TEXT NOT NULL,
+        details JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS activity_logs_biz_created_idx ON activity_logs (business_id, created_at)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS activity_logs_biz_entity_idx ON activity_logs (business_id, entity_type, entity_id)`);
+    await db.execute(sql`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS activity_retention_days INTEGER`);
+    // LAN sync upsert keys + payment status (mini app stale-data fix)
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS mini_app_lan_vouchers_biz_ext_type_idx ON mini_app_lan_vouchers (business_id, external_id, voucher_type)`);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS mini_app_lan_payments_biz_ext_type_idx ON mini_app_lan_payments (business_id, external_id, payment_type)`);
+    await db.execute(sql`ALTER TABLE mini_app_lan_payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'posted'`);
     // Report templates table
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS report_templates (

@@ -6,3 +6,4 @@ export * from "./payments";
 export * from "./cashBank";
 export * from "./chat";
 export * from "./reportTemplates";
+export * from "./activityLog";

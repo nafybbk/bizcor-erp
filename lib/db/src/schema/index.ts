@@ -9,3 +9,4 @@ export * from "./chat";
 export * from "./reportTemplates";
 export * from "./miniApp";
 export * from "./modulePatches";
+export * from "./activityLog";
