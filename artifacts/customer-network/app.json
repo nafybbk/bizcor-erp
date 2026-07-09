@@ -23,8 +23,10 @@
     },
     "android": {
       "package": "com.naewtgroup.bizcorconect",
-      "versionCode": 1,
-      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"],
+      "versionCode": 2,
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
@@ -41,7 +43,9 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      "./plugins/withReleaseSigning.js"
     ],
     "experiments": {
       "typedRoutes": true,
