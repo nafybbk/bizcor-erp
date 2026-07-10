@@ -76,7 +76,7 @@ if (!fs.existsSync(ANDROID_DIR)) {
 
 log("Building release APK with Gradle …");
 const isWindows = os.platform() === "win32";
-const gradlew = isWindows ? "gradlew.bat" : "./gradlew";
+const gradlew = isWindows ? ".\\gradlew.bat" : "./gradlew";
 
 run(`${gradlew} assembleRelease`, ANDROID_DIR);
 

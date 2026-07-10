@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.naewtgroup.bizcorconect",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
