@@ -112,7 +112,8 @@ jobs:
       - name: Build Windows EXE
         working-directory: artifacts/desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with contents:write on nafybbk/bizcor-releases — default GITHUB_TOKEN cannot publish to another repo
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
         shell: pwsh
         run: |

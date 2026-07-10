@@ -8,7 +8,7 @@ echo.
 echo  GitHub se latest version check ho raha hai...
 echo.
 
-set "REPO=nafybbk/bizcor-erp"
+set "REPO=nafybbk/bizcor-releases"
 set "API_URL=https://api.github.com/repos/%REPO%/releases/latest"
 set "TEMP_JSON=%TEMP%\bizcor_release.json"
 set "DOWNLOAD_DIR=%USERPROFILE%\Downloads"
@@ -37,7 +37,8 @@ if "%VERSION%"=="" (
 echo  Latest version: %VERSION%
 echo.
 
-set "EXE_NAME=BizCor-ERP-Setup-%VERSION%.exe"
+set "VERSION_NUM=%VERSION:v=%"
+set "EXE_NAME=BizCor-ERP-Setup-%VERSION_NUM%.exe"
 set "DOWNLOAD_URL=https://github.com/%REPO%/releases/download/%VERSION%/%EXE_NAME%"
 set "SAVE_PATH=%DOWNLOAD_DIR%\%EXE_NAME%"
 

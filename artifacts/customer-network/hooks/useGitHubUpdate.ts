@@ -4,7 +4,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform } from "react-native";
 
-const GITHUB_REPO = "nafybbk/bizcor-erp";
+const GITHUB_REPO = "nafybbk/bizcor-releases";
 // APK must be named: bizcor-connect-X.X.X.apk  (version extracted from filename)
 const APK_NAME_PATTERN = /bizcor-connect[- ]([\d.]+)\.apk$/i;
 

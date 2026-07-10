@@ -103,7 +103,7 @@ console.log(`   File : ${outPath}`);
 console.log(`   Size : ${(fs.statSync(outPath).size / 1024 / 1024).toFixed(1)} MB`);
 console.log("");
 console.log("📦  Upload to GitHub release:");
-console.log(`   1. Go to github.com/nafybbk/bizcor-erp/releases`);
+console.log(`   1. Go to github.com/nafybbk/bizcor-releases/releases`);
 console.log(`   2. Create or edit a release`);
 console.log(`   3. Attach:  releases/${outName}`);
 console.log("   4. Publish — users get the update popup automatically ✓");

@@ -1,6 +1,6 @@
 {
   "name": "bizcor-erp",
-  "version": "2.4.75",
+  "version": "2.4.76",
   "description": "BizCor ERP - LAN Server for Indian Businesses",
   "main": "electron/main.js",
   "scripts": {
@@ -53,6 +53,7 @@
       "requestedExecutionLevel": "requireAdministrator"
     },
     "nsis": {
+      "artifactName": "BizCor-ERP-Setup-${version}.exe",
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
@@ -65,7 +66,7 @@
     "publish": {
       "provider": "github",
       "owner": "nafybbk",
-      "repo": "bizcor-erp",
+      "repo": "bizcor-releases",
       "releaseType": "release"
     }
   }
