@@ -14,7 +14,7 @@ import {
   lanSyncPaymentsTable,
 } from "@workspace/db";
 import { eq, and, gt, asc, desc, isNull, sql } from "drizzle-orm";
-import { hasActiveModule } from "../lib/modulePatches";
+import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
 
 const router = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
@@ -160,6 +160,13 @@ router.post("/mini-app/connect", async (req, res) => {
       res.status(404).json({ error: "Business code nahi mila" });
       return;
     }
+
+    // LAN-only businesses log into their local EXE, never the cloud, so a
+    // tech-panel patch can sit "pending" forever — a customer connecting is
+    // this module's real first use, so activate here too.
+    try {
+      await activatePendingPatches(business.id);
+    } catch { /* non-critical */ }
 
     if (!(await hasActiveModule(business.id, "customer_network"))) {
       res.status(403).json({ error: "Yeh business abhi Customer Network module use nahi kar raha" });
