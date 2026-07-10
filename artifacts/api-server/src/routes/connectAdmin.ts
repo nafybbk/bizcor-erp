@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { connectionsTable, customersTable, partiesTable, customerChatMessagesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull, ne } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
 
@@ -31,6 +31,37 @@ router.get("/connections", async (req, res) => {
       .where(eq(connectionsTable.businessId, businessId))
       .orderBy(desc(connectionsTable.createdAt));
     res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /connect/invited — parties the supplier gave a PIN to (mini-app access
+// granted), each flagged with whether they've actually connected yet. Without
+// this the supplier can only see who connected, not who they invited.
+router.get("/invited", async (req, res) => {
+  try {
+    const businessId = req.user!.businessId!;
+    const parties = await db.select({
+      partyId: partiesTable.id,
+      name: partiesTable.name,
+      phone: partiesTable.phone,
+      pin: partiesTable.pin,
+      miniAppEnabled: partiesTable.miniAppEnabled,
+    }).from(partiesTable)
+      .where(and(
+        eq(partiesTable.businessId, businessId),
+        isNotNull(partiesTable.pin),
+        ne(partiesTable.pin, "")
+      ))
+      .orderBy(partiesTable.name);
+
+    const conns = await db.select({ partyId: connectionsTable.partyId }).from(connectionsTable)
+      .where(eq(connectionsTable.businessId, businessId));
+    const connectedIds = new Set(conns.map((c) => c.partyId));
+
+    res.json(parties.map((p) => ({ ...p, connected: connectedIds.has(p.partyId) })));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Internal Server Error" });

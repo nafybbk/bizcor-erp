@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { Loader2, Smartphone, ShieldAlert, Unplug, Ban, CheckCircle2 } from "lucide-react";
+import { Loader2, Smartphone, ShieldAlert, Unplug, Ban, CheckCircle2, KeyRound } from "lucide-react";
 
 // BizCor Connect — supplier's view of which customers' apps are linked to his
 // business. Deliberately quiet: this page is the ONLY place sharing is visible.
@@ -14,6 +14,11 @@ type Conn = {
   status: "active" | "blocked"; createdAt: string;
 };
 
+type Invited = {
+  partyId: number; name: string; phone: string | null;
+  pin: string | null; miniAppEnabled: boolean; connected: boolean;
+};
+
 const PERMS = [
   ["invoice", "Invoices"],
   ["payment", "Payments"],
@@ -24,12 +29,14 @@ const PERMS = [
 export default function ConnectCustomers() {
   const { user } = useAuth();
   const [rows, setRows] = useState<Conn[] | null>(null);
+  const [invited, setInvited] = useState<Invited[] | null>(null);
   const [saving, setSaving] = useState<number | null>(null);
 
   const isAdmin = user?.role === "business_admin" || user?.role === "super_admin";
 
   const load = () => {
     api.get<Conn[]>("/connect/connections").then(setRows).catch(() => setRows([]));
+    api.get<Invited[]>("/connect/invited").then(setInvited).catch(() => setInvited([]));
   };
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
 
@@ -133,6 +140,31 @@ export default function ConnectCustomers() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Parties given a PIN but not yet connected — so the supplier can see
+          who they've granted access to, not just who showed up. */}
+      {invited && invited.some(i => !i.connected) && (
+        <div className="pt-2">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-2">
+            <KeyRound className="w-4 h-4 text-slate-400" /> PIN diya hua — abhi connect nahi hue
+          </h2>
+          <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+            {invited.filter(i => !i.connected).map(i => (
+              <div key={i.partyId} className="flex items-center justify-between gap-3 px-4 py-2.5 flex-wrap">
+                <div>
+                  <span className="text-sm font-medium text-gray-800">{i.name}</span>
+                  {!i.miniAppEnabled && (
+                    <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">App band</span>
+                  )}
+                  <div className="text-xs text-gray-400">📱 {i.phone || "—"}</div>
+                </div>
+                <span className="text-xs text-gray-500 font-mono bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">PIN: {i.pin}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">In customers ko business code + unka PIN dein — app mein daalte hi yahan upar aa jayenge.</p>
         </div>
       )}
     </div>
