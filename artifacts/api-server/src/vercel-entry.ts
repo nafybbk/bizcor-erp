@@ -87,6 +87,7 @@ async function runMigrations() {
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP`);
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
+  await q(`ALTER TABLE mini_app_connections ADD COLUMN IF NOT EXISTS customer_paused BOOLEAN NOT NULL DEFAULT FALSE`);
   await q(`ALTER TABLE payments ALTER COLUMN from_user_id DROP NOT NULL`);
   await q(`ALTER TABLE payments ALTER COLUMN to_user_id DROP NOT NULL`);
   await q(`ALTER TABLE payments ALTER COLUMN connection_id DROP NOT NULL`);

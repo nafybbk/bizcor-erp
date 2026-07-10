@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb, pgEnum, numeric, uniqueIndex, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { businessesTable } from "./businesses";
@@ -29,6 +29,8 @@ export const connectionsTable = pgTable("mini_app_connections", {
   partyId: integer("party_id").notNull().references(() => partiesTable.id),
   permissions: jsonb("permissions").notNull().default({ invoice: true, payment: true, statement: true, gallery: false }),
   status: connectionStatusEnum("status").notNull().default("active"),
+  // Customer-side pause (supplier-side blocking uses `status`)
+  customerPaused: boolean("customer_paused").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

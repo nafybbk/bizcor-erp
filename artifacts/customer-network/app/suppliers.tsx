@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import { useMiniAppListConnections, MiniAppConnection } from "@workspace/api-client-react";
+import { useMiniAppListConnections, MiniAppConnection, customFetch } from "@workspace/api-client-react";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -16,20 +17,83 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-function SupplierCard({ item }: { item: MiniAppConnection }) {
+type Conn = MiniAppConnection & { customerPaused?: boolean };
+
+function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }) {
   const colors = useColors();
   const initial = item.businessName?.charAt(0)?.toUpperCase() ?? "?";
+  const paused = item.customerPaused === true;
+
+  const setPaused = async (value: boolean) => {
+    try {
+      await customFetch(`/api/mini-app/connections/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ paused: value }),
+      });
+      onChanged();
+    } catch {
+      Alert.alert("Error", "Save nahi hua. Internet check karke dobara try karein.");
+    }
+  };
+
+  const remove = () => {
+    Alert.alert(
+      "Remove supplier?",
+      `${item.businessName} aapki app se hat jayega (chat bhi delete hogi). Wapas judne ke liye business code + PIN dobara daalna hoga.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await customFetch(`/api/mini-app/connections/${item.id}`, { method: "DELETE" });
+              onChanged();
+            } catch {
+              Alert.alert("Error", "Remove nahi hua. Dobara try karein.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openMenu = () => {
+    Alert.alert(item.businessName ?? "Supplier", undefined, [
+      paused
+        ? { text: "▶  Resume", onPress: () => setPaused(false) }
+        : { text: "⏸  Pause", onPress: () => setPaused(true) },
+      { text: "🗑  Remove", style: "destructive", onPress: remove },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const handlePress = () => {
+    if (paused) {
+      Alert.alert(
+        "Paused hai",
+        `${item.businessName} paused hai — data dekhne ke liye resume karein.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Resume", onPress: () => setPaused(false) },
+        ]
+      );
+      return;
+    }
+    router.push(`/supplier/${item.id}`);
+  };
 
   return (
     <Pressable
-      onPress={() => router.push(`/supplier/${item.id}`)}
+      onPress={handlePress}
+      onLongPress={openMenu}
       testID={`supplier-card-${item.id}`}
       style={({ pressed }) => [
         styles.card,
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
-          opacity: pressed ? 0.85 : 1,
+          opacity: pressed ? 0.85 : paused ? 0.6 : 1,
         },
       ]}
     >
@@ -47,10 +111,12 @@ function SupplierCard({ item }: { item: MiniAppConnection }) {
           {item.businessName}
         </Text>
         <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
-          {item.status === "blocked" ? "Blocked" : "Connected"}
+          {item.status === "blocked" ? "Blocked" : paused ? "Paused" : "Connected"}
         </Text>
       </View>
-      <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+      <Pressable onPress={openMenu} hitSlop={10} testID={`supplier-menu-${item.id}`}>
+        <Feather name="more-vertical" size={20} color={colors.mutedForeground} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -127,7 +193,7 @@ export default function SuppliersScreen() {
         <FlatList
           data={data ?? []}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <SupplierCard item={item} />}
+          renderItem={({ item }) => <SupplierCard item={item as Conn} onChanged={() => refetch()} />}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 24) + 90 },

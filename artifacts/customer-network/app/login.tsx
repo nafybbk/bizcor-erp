@@ -15,11 +15,23 @@ import {
   TextInput,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+
+const SAVED_MOBILE_KEY = "cn_saved_mobile";
+const SAVED_PIN_KEY = "cn_saved_pin";
+
+const credStore = {
+  get: (key: string) =>
+    Platform.OS === "web" ? AsyncStorage.getItem(key) : SecureStore.getItemAsync(key),
+  set: (key: string, value: string) =>
+    Platform.OS === "web" ? AsyncStorage.setItem(key, value) : SecureStore.setItemAsync(key, value),
+};
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -37,6 +49,7 @@ export default function LoginScreen() {
   const supportPhone = settings?.supportPhone;
 
   const translateY = useRef(new Animated.Value(0)).current;
+  const colorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -46,8 +59,32 @@ export default function LoginScreen() {
       ])
     );
     anim.start();
-    return () => anim.stop();
-  }, [translateY]);
+    // Brand color cycle — color interpolation can't use the native driver
+    const colorLoop = Animated.loop(
+      Animated.timing(colorAnim, { toValue: 1, duration: 6000, useNativeDriver: false, easing: Easing.linear })
+    );
+    colorLoop.start();
+    return () => { anim.stop(); colorLoop.stop(); };
+  }, [translateY, colorAnim]);
+
+  const titleColor = colorAnim.interpolate({
+    inputRange: [0, 0.25, 0.5, 0.75, 1],
+    outputRange: ["#2563EB", "#7C3AED", "#DB2777", "#F59E0B", "#2563EB"],
+  });
+
+  // Prefill last used credentials (remember login)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedMobile, savedPin] = await Promise.all([
+          credStore.get(SAVED_MOBILE_KEY),
+          credStore.get(SAVED_PIN_KEY),
+        ]);
+        if (savedMobile) setMobile(savedMobile);
+        if (savedPin) setPin(savedPin);
+      } catch { /* first run / storage unavailable */ }
+    })();
+  }, []);
 
   const canSubmit = mobile.trim().length >= 6 && pin.trim().length >= 4;
 
@@ -59,6 +96,13 @@ export default function LoginScreen() {
         data: { mobile: mobile.trim(), pin: pin.trim() },
       });
       await setSession(res.token, res.customer);
+      // Remember for next login
+      try {
+        await Promise.all([
+          credStore.set(SAVED_MOBILE_KEY, mobile.trim()),
+          credStore.set(SAVED_PIN_KEY, pin.trim()),
+        ]);
+      } catch { /* non-critical */ }
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -88,18 +132,20 @@ export default function LoginScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Animated.Image
-          source={require("../assets/images/bizcor-logo.png")}
-          style={[styles.logo, { transform: [{ translateY }] }]}
-          resizeMode="contain"
-        />
+        <View style={styles.brandBlock}>
+          <Animated.Image
+            source={require("../assets/images/bizcor-logo.png")}
+            style={[styles.logo, { transform: [{ translateY }] }]}
+            resizeMode="contain"
+          />
 
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          {appName}
-        </Text>
-        <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
-          Connect
-        </Text>
+          <Animated.Text style={[styles.title, { color: titleColor }]}>
+            {appName}
+          </Animated.Text>
+          <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
+            Connect
+          </Text>
+        </View>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
           Sign in with your mobile number to view your suppliers, invoices,
           and chat.
@@ -227,18 +273,20 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, flexGrow: 1 },
+  brandBlock: { alignItems: "center", alignSelf: "stretch" },
   logo: {
     width: 88,
     height: 88,
     marginBottom: 12,
   },
-  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 2 },
+  title: { fontSize: 28, fontFamily: "Inter_700Bold", marginBottom: 2, textAlign: "center" },
   appTagline: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
     letterSpacing: 1.8,
     textTransform: "uppercase",
     marginBottom: 20,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 15,

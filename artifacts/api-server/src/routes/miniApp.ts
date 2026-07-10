@@ -221,6 +221,7 @@ router.get("/mini-app/connections", async (req, res) => {
       id: connectionsTable.id,
       permissions: connectionsTable.permissions,
       status: connectionsTable.status,
+      customerPaused: connectionsTable.customerPaused,
       businessName: businessesTable.name,
       businessLogo: businessesTable.logo,
       createdAt: connectionsTable.createdAt,
@@ -230,6 +231,50 @@ router.get("/mini-app/connections", async (req, res) => {
       .orderBy(desc(connectionsTable.createdAt));
 
     res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /mini-app/connections/:id — customer-side pause/resume
+router.patch("/mini-app/connections/:id", async (req, res) => {
+  try {
+    const customerDbId = req.customer!.customerDbId;
+    const { paused } = req.body || {};
+    if (typeof paused !== "boolean") {
+      res.status(400).json({ error: "paused (true/false) zaroori hai" });
+      return;
+    }
+    const [updated] = await db.update(connectionsTable)
+      .set({ customerPaused: paused })
+      .where(and(
+        eq(connectionsTable.id, Number(req.params.id)),
+        eq(connectionsTable.customerId, customerDbId)
+      )).returning();
+    if (!updated) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+    res.json({ success: true, customerPaused: updated.customerPaused });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /mini-app/connections/:id — customer removes the supplier from their
+// app (chat bhi delete). Works even if the supplier blocked the connection —
+// removing is always the customer's right.
+router.delete("/mini-app/connections/:id", async (req, res) => {
+  try {
+    const customerDbId = req.customer!.customerDbId;
+    const [connection] = await db.select().from(connectionsTable).where(and(
+      eq(connectionsTable.id, Number(req.params.id)),
+      eq(connectionsTable.customerId, customerDbId)
+    )).limit(1);
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    await db.delete(customerChatMessagesTable).where(eq(customerChatMessagesTable.connectionId, connection.id));
+    await db.delete(connectionsTable).where(eq(connectionsTable.id, connection.id));
+    res.json({ success: true });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

@@ -693,7 +693,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.78</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.79</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
