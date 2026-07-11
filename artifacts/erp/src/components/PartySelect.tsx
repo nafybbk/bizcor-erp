@@ -115,6 +115,33 @@ export default function PartySelect({
             setOpen(true);
             setHighlightedIndex(-1);
           }}
+          onKeyDown={e => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              if (!open) { setOpen(true); setHighlightedIndex(0); return; }
+              setHighlightedIndex(i => Math.min(i + 1, totalItems - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlightedIndex(i => Math.max(i - 1, 0));
+            } else if (e.key === "Enter") {
+              if (open && totalItems > 0) {
+                e.preventDefault();
+                const idx = highlightedIndex >= 0 ? highlightedIndex : 0;
+                if (idx < filtered.length) handleSelect(filtered[idx]);
+                else if (isNew && onAddNew) { onAddNew(search.trim()); setOpen(false); setHighlightedIndex(-1); }
+              }
+            } else if (e.key === "Tab") {
+              // Tab commits the highlighted (or single-match) party, then moves on
+              if (open) {
+                const idx = highlightedIndex >= 0 ? highlightedIndex : (filtered.length === 1 ? 0 : -1);
+                if (idx >= 0 && idx < filtered.length) handleSelect(filtered[idx]);
+                else { setOpen(false); setHighlightedIndex(-1); }
+              }
+            } else if (e.key === "Escape") {
+              setOpen(false);
+              setHighlightedIndex(-1);
+            }
+          }}
         />
       </div>
 
