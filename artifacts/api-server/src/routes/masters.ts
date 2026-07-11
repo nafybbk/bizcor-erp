@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, pool, sqlite } from "@workspace/db";
 import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable, statesTable } from "@workspace/db";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and, like, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
 let statesMigrated = false;
@@ -233,28 +233,48 @@ router.post("/hsn/import", async (req, res) => {
       .from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
     const existingMap = new Map(existing.map(e => [e.code.trim(), e.id]));
 
-    let inserted = 0, updated = 0, skipped = 0;
-
+    // The GST portal's full HSN directory runs to thousands of rows — per-row
+    // queries blew the 30s serverless limit, so everything is bulk now:
+    // dedupe, one chunked delete for overwrites, chunked multi-row inserts.
+    const incoming = new Map<string, { description: string | null; taxRate: string | null }>();
     for (const row of rows) {
       const code = String(row.code).trim();
       if (!code) continue;
-      const description = row.description?.trim() || null;
-      const taxRate = row.taxRate != null && String(row.taxRate).trim() !== ""
-        ? String(parseFloat(String(row.taxRate))) : null;
+      incoming.set(code, {
+        description: row.description?.trim() || null,
+        taxRate: row.taxRate != null && String(row.taxRate).trim() !== ""
+          ? String(parseFloat(String(row.taxRate))) : null,
+      });
+    }
 
+    let inserted = 0, updated = 0, skipped = 0;
+    const toInsert: { businessId: number; code: string; description: string | null; taxRate: string | null }[] = [];
+    const toOverwrite: string[] = [];
+
+    for (const [code, data] of incoming) {
       if (existingMap.has(code)) {
         if (mode === "overwrite") {
-          await db.update(hsnCodesTable)
-            .set({ description, taxRate })
-            .where(and(eq(hsnCodesTable.businessId, businessId), eq(hsnCodesTable.code, code)));
+          toOverwrite.push(code);
+          toInsert.push({ businessId, code, ...data });
           updated++;
         } else {
           skipped++;
         }
       } else {
-        await db.insert(hsnCodesTable).values({ businessId, code, description, taxRate });
+        toInsert.push({ businessId, code, ...data });
         inserted++;
       }
+    }
+
+    const CHUNK = 500;
+    for (let i = 0; i < toOverwrite.length; i += CHUNK) {
+      await db.delete(hsnCodesTable).where(and(
+        eq(hsnCodesTable.businessId, businessId),
+        inArray(hsnCodesTable.code, toOverwrite.slice(i, i + CHUNK))
+      ));
+    }
+    for (let i = 0; i < toInsert.length; i += CHUNK) {
+      await db.insert(hsnCodesTable).values(toInsert.slice(i, i + CHUNK));
     }
 
     res.json({ success: true, inserted, updated, skipped, total: rows.length });

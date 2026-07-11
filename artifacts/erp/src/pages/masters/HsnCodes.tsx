@@ -41,8 +41,15 @@ function parseFile(file: File): Promise<{ headers: string[]; rows: string[][] }>
         // Skip empty leading rows
         const firstNonEmpty = raw.findIndex(r => r.some(c => String(c).trim()));
         const trimmed = raw.slice(firstNonEmpty);
-        const headers = (trimmed[0] || []).map(h => String(h).trim());
-        const rows = trimmed.slice(1).filter(r => r.some(c => String(c).trim()));
+        // GST portal exports often have title/banner rows above the real
+        // header — scan the first few rows for the one with an HSN column
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(trimmed.length, 10); i++) {
+          const candidate = (trimmed[i] || []).map(h => String(h).trim());
+          if (detectCol(candidate, "code") >= 0) { headerIdx = i; break; }
+        }
+        const headers = (trimmed[headerIdx] || []).map(h => String(h).trim());
+        const rows = trimmed.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim()));
         resolve({ headers, rows: rows.map(r => r.map(c => String(c).trim())) });
       } catch (err) { reject(err); }
     };
@@ -69,6 +76,7 @@ export default function HsnCodes() {
   const [colMap, setColMap] = useState<ColMap>({ code: -1, description: -1, taxRate: -1 });
   const [importMode, setImportMode] = useState<"skip" | "overwrite">("skip");
   const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skipped: number; total: number } | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
 
@@ -129,17 +137,29 @@ export default function HsnCodes() {
   const doImport = async () => {
     if (parsedRows.length === 0) return;
     setUploading(true);
+    setImportProgress(0);
     try {
-      const result = await api.post<any>("/masters/hsn/import", {
-        rows: parsedRows.map(r => ({ code: r.code.trim(), description: r.description.trim() || undefined, taxRate: r.taxRate ? r.taxRate.replace(/[^0-9.]/g, "") : null })),
-        mode: importMode,
-      });
-      setImportResult(result);
+      const payload = parsedRows.map(r => ({ code: r.code.trim(), description: r.description.trim() || undefined, taxRate: r.taxRate ? r.taxRate.replace(/[^0-9.]/g, "") : null }));
+      // GST portal's full directory = thousands of rows; one giant request
+      // used to hit the serverless time/size limits, so send in chunks
+      const CHUNK = 1000;
+      const totals = { inserted: 0, updated: 0, skipped: 0, total: payload.length };
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        const result = await api.post<any>("/masters/hsn/import", {
+          rows: payload.slice(i, i + CHUNK),
+          mode: importMode,
+        });
+        totals.inserted += result.inserted || 0;
+        totals.updated += result.updated || 0;
+        totals.skipped += result.skipped || 0;
+        setImportProgress(Math.min(i + CHUNK, payload.length));
+      }
+      setImportResult(totals);
       setUploadStep("done");
       load();
     } catch (err: any) {
       setParseError(err?.message || "Import nahi ho saka");
-    } finally { setUploading(false); }
+    } finally { setUploading(false); setImportProgress(0); }
   };
 
   const resetUpload = () => { setUploadStep("idle"); setHeaders([]); setRawRows([]); setImportResult(null); setParseError(null); setFileName(""); };
@@ -281,7 +301,7 @@ export default function HsnCodes() {
                     disabled={uploading || colMap.code < 0 || parsedRows.length === 0}
                     className="flex items-center gap-2 px-5 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg disabled:opacity-60">
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    Import {parsedRows.length} Codes
+                    {uploading ? `Importing… ${importProgress}/${parsedRows.length}` : `Import ${parsedRows.length} Codes`}
                   </button>
                 </div>
               </div>
