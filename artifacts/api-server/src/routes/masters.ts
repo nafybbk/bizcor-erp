@@ -281,6 +281,23 @@ router.post("/hsn/import", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// GET /masters/hsn/directory — the global (government) HSN list, read-only.
+// Shown merged into the HSN master screen so users can SEE which official
+// description their GSTR-1 will carry; a business's own hsn_codes row with
+// the same code overrides it.
+router.get("/hsn/directory", async (req, res) => {
+  try {
+    const rows = await db.select({
+      code: hsnDirectoryTable.code,
+      description: hsnDirectoryTable.description,
+      taxRate: hsnDirectoryTable.taxRate,
+    }).from(hsnDirectoryTable);
+    res.json({ data: rows });
+  } catch {
+    res.json({ data: [] }); // directory table missing (older EXE DB)
+  }
+});
+
 // POST /masters/hsn/sync-directory — EXE-only: refresh the local copy of the
 // global HSN directory from the cloud. One button press = whole government
 // list, so a directory update on the cloud reaches every offline install.

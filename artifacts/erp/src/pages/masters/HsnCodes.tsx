@@ -98,7 +98,18 @@ export default function HsnCodes() {
 
   const load = () => {
     setLoading(true);
-    api.get<any>("/masters/hsn").then(r => setCodes(r.data)).catch(console.error).finally(() => setLoading(false));
+    Promise.all([
+      api.get<any>("/masters/hsn").then(r => r.data).catch(() => []),
+      api.get<any>("/masters/hsn/directory").then(r => r.data).catch(() => []),
+    ]).then(([mine, dir]) => {
+      // Merge: own codes first (they override), then directory rows not
+      // overridden — so the list shows exactly what GSTR-1 will use
+      const mineCodes = new Set((mine as any[]).map((c: any) => String(c.code).trim()));
+      const dirRows = (dir as any[])
+        .filter((d: any) => !mineCodes.has(String(d.code).trim()))
+        .map((d: any, i: number) => ({ id: `dir-${i}`, code: d.code, description: d.description, taxRate: d.taxRate, _dir: true }));
+      setCodes([...(mine as any[]), ...dirRows]);
+    }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
 
@@ -404,10 +415,19 @@ export default function HsnCodes() {
                       <td className="px-4 py-3 text-gray-700">{c.description || "-"}</td>
                       <td className="px-4 py-3 text-right text-gray-500">{c.taxRate ? `${c.taxRate}%` : "-"}</td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => startEdit(c)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                          <button onClick={() => del(c.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                        </div>
+                        {c._dir ? (
+                          <div className="flex justify-end">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" title="Sarkari directory se — GSTR-1 isi description ko use karega. Apna alag chahiye to same code Add New se banayein.">
+                              Directory
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-600" title="Aapka apna code — directory pe override karta hai">Mine</span>
+                            <button onClick={() => startEdit(c)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                            <button onClick={() => del(c.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        )}
                       </td>
                     </>
                   )}
