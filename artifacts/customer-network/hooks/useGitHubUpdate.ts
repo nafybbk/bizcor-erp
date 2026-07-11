@@ -1,5 +1,8 @@
 import Constants from "expo-constants";
-import { Directory, DownloadTask, File, Paths } from "expo-file-system";
+// Legacy API — the new expo-file-system@19 exports no DownloadTask, so the
+// previous implementation threw on construction and every in-app update
+// failed with "Download Failed" regardless of connectivity.
+import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform } from "react-native";
@@ -37,20 +40,20 @@ export function useGitHubUpdate() {
         setDownloading(true);
         setProgress(0);
 
-        const dest = new File(Paths.cache as Directory, filename);
-        const task = new DownloadTask(url, dest, {
-          onProgress: (snap) => {
-            if (snap.totalBytes > 0) {
-              setProgress(snap.bytesWritten / snap.totalBytes);
-            }
-          },
+        const dest = `${FileSystem.cacheDirectory}${filename}`;
+        const task = FileSystem.createDownloadResumable(url, dest, {}, (p) => {
+          if (p.totalBytesExpectedToWrite > 0) {
+            setProgress(p.totalBytesWritten / p.totalBytesExpectedToWrite);
+          }
         });
 
         const downloaded = await task.downloadAsync();
-        if (!downloaded) throw new Error("Download cancelled");
+        if (!downloaded?.uri) throw new Error("Download cancelled");
 
+        // Android 7+ blocks file:// in intents — must hand over a content:// URI
+        const contentUri = await FileSystem.getContentUriAsync(downloaded.uri);
         await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-          data: downloaded.uri,
+          data: contentUri,
           flags: 1,
           type: "application/vnd.android.package-archive",
         });
