@@ -5,6 +5,25 @@ import bcrypt from "bcryptjs";
 
 let migrated = false;
 
+// Bump this whenever a new statement is added to runMigrations() below.
+// Cold starts check schema_meta.version first — if it matches, the whole
+// migration pass (50+ ALTERs, 20-60s on a cold Neon connection) is skipped,
+// so the first request after a cold start responds fast instead of hanging
+// the mini-app login spinner.
+const MIGRATION_VERSION = 1;
+
+async function migrationsAlreadyApplied(): Promise<boolean> {
+  try {
+    const client = pool as any;
+    if (!client) return false;
+    await client.query(`CREATE TABLE IF NOT EXISTS schema_meta (id INTEGER PRIMARY KEY, version INTEGER NOT NULL DEFAULT 0)`);
+    const r = await client.query(`SELECT version FROM schema_meta WHERE id = 1`);
+    return (r.rows?.[0]?.version ?? 0) >= MIGRATION_VERSION;
+  } catch {
+    return false;
+  }
+}
+
 // Raw pg query — works directly with the pool (same as routes use)
 async function q(text: string) {
   try {
@@ -107,6 +126,9 @@ async function runMigrations() {
   await q(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
   await q(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS package_config JSONB`);
 
+  await q(`INSERT INTO schema_meta (id, version) VALUES (1, ${MIGRATION_VERSION})
+    ON CONFLICT (id) DO UPDATE SET version = ${MIGRATION_VERSION}`);
+
   // ── SEED super admin password ─────────────────────────────────────────────
   try {
     const hash = await bcrypt.hash("031975", 10);
@@ -137,7 +159,9 @@ async function seedSuperAdmin() {
   }
 }
 
-await runMigrations();
-await seedSuperAdmin();
+if (!(await migrationsAlreadyApplied())) {
+  await runMigrations();
+  await seedSuperAdmin();
+}
 
 export default app;

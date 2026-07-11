@@ -41,11 +41,17 @@ export default function LoginScreen() {
   const [pin, setPin] = useState("");
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Local flag (not loginMutation.isPending) so a timed-out attempt frees the
+  // button for retry even while the stale request is still in flight.
+  const [submitting, setSubmitting] = useState(false);
 
   const loginMutation = useMiniAppLogin();
   const { data: settings } = useMiniAppSettings();
-  const appName = settings?.softwareName || "BizCor";
-  const supportEmail = settings?.supportEmail || "info@naewtgroup.com";
+  // App's own brand is fixed — settings only drive the support contact rows,
+  // and those render only once actually loaded (a fallback here briefly
+  // showed the wrong email on cold starts and looked like a second screen).
+  const appName = "BizCor";
+  const supportEmail = settings?.supportEmail;
   const supportPhone = settings?.supportPhone;
 
   const translateY = useRef(new Animated.Value(0)).current;
@@ -89,12 +95,19 @@ export default function LoginScreen() {
   const canSubmit = mobile.trim().length >= 6 && pin.trim().length >= 4;
 
   const handleLogin = async () => {
-    if (!canSubmit || loginMutation.isPending) return;
+    if (!canSubmit || submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
-      const res = await loginMutation.mutateAsync({
-        data: { mobile: mobile.trim(), pin: pin.trim() },
-      });
+      // Cold cloud servers can take a while — never spin forever
+      const res = await Promise.race([
+        loginMutation.mutateAsync({
+          data: { mobile: mobile.trim(), pin: pin.trim() },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Server se jawab nahi aa raha. Kuch second baad dobara try karein.")), 30000)
+        ),
+      ]);
       await setSession(res.token, res.customer);
       // Remember for next login
       try {
@@ -116,6 +129,8 @@ export default function LoginScreen() {
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -231,17 +246,17 @@ export default function LoginScreen() {
 
           <Pressable
             onPress={handleLogin}
-            disabled={!canSubmit || loginMutation.isPending}
+            disabled={!canSubmit || submitting}
             testID="login-button"
             style={({ pressed }) => [
               styles.submitButton,
               {
                 backgroundColor: colors.primary,
-                opacity: !canSubmit || loginMutation.isPending ? 0.6 : pressed ? 0.85 : 1,
+                opacity: !canSubmit || submitting ? 0.6 : pressed ? 0.85 : 1,
               },
             ]}
           >
-            {loginMutation.isPending ? (
+            {submitting ? (
               <ActivityIndicator color={colors.primaryForeground} />
             ) : (
               <Text style={[styles.submitText, { color: colors.primaryForeground }]}>
@@ -250,12 +265,14 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          <View style={styles.supportRow}>
-            <Feather name="mail" size={13} color={colors.mutedForeground} />
-            <Text style={[styles.supportText, { color: colors.mutedForeground }]}>
-              {supportEmail}
-            </Text>
-          </View>
+          {supportEmail ? (
+            <View style={styles.supportRow}>
+              <Feather name="mail" size={13} color={colors.mutedForeground} />
+              <Text style={[styles.supportText, { color: colors.mutedForeground }]}>
+                {supportEmail}
+              </Text>
+            </View>
+          ) : null}
           {supportPhone ? (
             <View style={styles.supportRow}>
               <Feather name="phone" size={13} color={colors.mutedForeground} />
