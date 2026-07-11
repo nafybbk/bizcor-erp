@@ -8,6 +8,7 @@ import {
   businessesTable,
   partiesTable,
   vouchersTable,
+  voucherItemsTable,
   paymentsTable,
   appSettingsTable,
   lanSyncVouchersTable,
@@ -203,6 +204,7 @@ router.post("/mini-app/connect", async (req, res) => {
         id: connection.id,
         businessName: business.name,
         businessLogo: business.logo,
+        partyName: party.name,
         permissions: connection.permissions,
         status: connection.status,
       },
@@ -224,9 +226,13 @@ router.get("/mini-app/connections", async (req, res) => {
       customerPaused: connectionsTable.customerPaused,
       businessName: businessesTable.name,
       businessLogo: businessesTable.logo,
+      // Supplier's own name for this customer (their Party master entry) —
+      // tells a 2-business customer WHICH of their accounts this card is
+      partyName: partiesTable.name,
       createdAt: connectionsTable.createdAt,
     }).from(connectionsTable)
       .innerJoin(businessesTable, eq(connectionsTable.businessId, businessesTable.id))
+      .leftJoin(partiesTable, eq(connectionsTable.partyId, partiesTable.id))
       .where(eq(connectionsTable.customerId, customerDbId))
       .orderBy(desc(connectionsTable.createdAt));
 
@@ -395,8 +401,8 @@ router.get("/mini-app/connections/:id/payments", async (req, res) => {
       .orderBy(desc(lanSyncPaymentsTable.date));
 
     const mergedPay = [
-      ...cloudPayRows.map(r => ({ ...r, amount: Number(r.amount) })),
-      ...lanPayRows.map(r => ({ ...r, amount: Number(r.amount) })),
+      ...cloudPayRows.map(r => ({ ...r, amount: Number(r.amount), source: "cloud" as const })),
+      ...lanPayRows.map(r => ({ ...r, amount: Number(r.amount), source: "lan" as const })),
     ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
     res.json(mergedPay);
@@ -531,11 +537,85 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
       .orderBy(desc(lanSyncVouchersTable.date));
 
     const merged = [
-      ...cloudRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal) })),
-      ...lanRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal) })),
+      ...cloudRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal), source: "cloud" as const })),
+      ...lanRows.map(r => ({ ...r, grandTotal: Number(r.grandTotal), source: "lan" as const })),
     ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
     res.json(merged);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/invoices/:source/:invoiceId — full invoice
+// with line items. `source` says which table the row came from (cloud ERP
+// vouchers vs LAN-synced copies) because their ids are separate sequences.
+router.get("/mini-app/connections/:id/invoices/:source/:invoiceId", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { invoice?: boolean } | null) || {};
+    if (permissions.invoice === false) {
+      res.status(403).json({ error: "Invoice dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const invoiceId = Number(req.params.invoiceId);
+    const source = req.params.source;
+
+    if (source === "cloud") {
+      const [voucher] = await db.select().from(vouchersTable).where(and(
+        eq(vouchersTable.id, invoiceId),
+        eq(vouchersTable.businessId, connection.businessId),
+        eq(vouchersTable.partyId, connection.partyId),
+        eq(vouchersTable.voucherType, "sales_invoice"),
+        isNull(vouchersTable.deletedAt),
+      )).limit(1);
+      if (!voucher) { res.status(404).json({ error: "Invoice nahi mili" }); return; }
+
+      const itemRows = await db.select().from(voucherItemsTable)
+        .where(eq(voucherItemsTable.voucherId, voucher.id));
+      res.json({
+        voucherNumber: voucher.voucherNumber,
+        date: voucher.date,
+        status: voucher.status,
+        notes: voucher.notes,
+        grandTotal: Number(voucher.grandTotal),
+        items: itemRows.map((r) => ({
+          name: r.itemName,
+          qty: Number(r.quantity || 0),
+          unit: r.unit || "",
+          rate: Number(r.rate || 0),
+          amount: Number(r.total || 0),
+        })),
+      });
+      return;
+    }
+
+    if (source === "lan") {
+      const [voucher] = await db.select().from(lanSyncVouchersTable).where(and(
+        eq(lanSyncVouchersTable.id, invoiceId),
+        eq(lanSyncVouchersTable.businessId, connection.businessId),
+        eq(lanSyncVouchersTable.partyId, connection.partyId),
+        sql`${lanSyncVouchersTable.status} IS DISTINCT FROM 'deleted'`,
+      )).limit(1);
+      if (!voucher) { res.status(404).json({ error: "Invoice nahi mili" }); return; }
+
+      res.json({
+        voucherNumber: voucher.voucherNumber,
+        date: voucher.date,
+        status: voucher.status,
+        notes: voucher.notes,
+        grandTotal: Number(voucher.grandTotal),
+        // null = pushed by an older EXE before items rode along
+        items: Array.isArray(voucher.items) ? voucher.items : null,
+      });
+      return;
+    }
+
+    res.status(400).json({ error: "Invalid source" });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -553,13 +633,21 @@ interface BusinessJwtPayload {
   role?: string;
 }
 
+// Desktop EXEs sign their JWTs with a baked-in secret (server-manager.js sets
+// SESSION_SECRET) which differs from the cloud's SESSION_SECRET — so lan-sync
+// pushes from every fielded EXE were 401ing. Accept both secrets here.
+// TODO: replace with per-business sync tokens issued by the cloud.
+const LAN_DESKTOP_SECRET = "BizCorDesktop2025!SecretKey#LAN";
+
 function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
-  try {
-    return jwt.verify(authHeader.slice(7), JWT_SECRET) as BusinessJwtPayload;
-  } catch {
-    return null;
+  const token = authHeader.slice(7);
+  for (const secret of [JWT_SECRET, LAN_DESKTOP_SECRET]) {
+    try {
+      return jwt.verify(token, secret) as BusinessJwtPayload;
+    } catch { /* try next secret */ }
   }
+  return null;
 }
 
 router.post("/mini-app/lan-sync/voucher", async (req, res) => {
@@ -573,7 +661,8 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
       .limit(1);
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
-    const { partyPin, partyName, externalId, voucherType, voucherNumber, date, grandTotal, status, notes } = req.body;
+    const { partyPin, partyName, externalId, voucherType, voucherNumber, date, grandTotal, status, notes, items } = req.body;
+    const safeItems = Array.isArray(items) ? items.slice(0, 500) : null;
 
     const [party] = await db.select({ id: partiesTable.id })
       .from(partiesTable)
@@ -593,6 +682,7 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
       grandTotal: String(grandTotal || 0),
       status: String(status || "posted"),
       notes: notes ? String(notes) : null,
+      items: safeItems,
     }).onConflictDoUpdate({
       target: [lanSyncVouchersTable.businessId, lanSyncVouchersTable.externalId, lanSyncVouchersTable.voucherType],
       set: {
@@ -603,6 +693,7 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
         grandTotal: String(grandTotal || 0),
         status: String(status || "posted"),
         notes: notes ? String(notes) : null,
+        ...(safeItems ? { items: safeItems } : {}),
         syncedAt: new Date(),
       },
     });

@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-type Conn = MiniAppConnection & { customerPaused?: boolean };
+type Conn = MiniAppConnection & { customerPaused?: boolean; partyName?: string | null };
 
 function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }) {
   const colors = useColors();
@@ -88,6 +88,7 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
       onPress={handlePress}
       onLongPress={openMenu}
       testID={`supplier-card-${item.id}`}
+      android_ripple={{ color: colors.border }}
       style={({ pressed }) => [
         styles.card,
         {
@@ -110,11 +111,17 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
         <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
           {item.businessName}
         </Text>
-        <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]}>
+        <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+          {item.partyName ? `${item.partyName} · ` : ""}
           {item.status === "blocked" ? "Blocked" : paused ? "Paused" : "Connected"}
         </Text>
       </View>
-      <Pressable onPress={openMenu} hitSlop={10} testID={`supplier-menu-${item.id}`}>
+      <Pressable
+        onPress={openMenu}
+        hitSlop={10}
+        testID={`supplier-menu-${item.id}`}
+        android_ripple={{ color: colors.border, borderless: true, radius: 22 }}
+      >
         <Feather name="more-vertical" size={20} color={colors.mutedForeground} />
       </Pressable>
     </Pressable>
@@ -164,6 +171,7 @@ export default function SuppliersScreen() {
           onPress={handleLogout}
           hitSlop={10}
           testID="logout-button"
+          android_ripple={{ color: colors.border, borderless: true, radius: 24 }}
           style={[styles.iconButton, { backgroundColor: colors.secondary }]}
         >
           <Feather name="log-out" size={18} color={colors.foreground} />
@@ -182,6 +190,7 @@ export default function SuppliersScreen() {
           </Text>
           <Pressable
             onPress={() => refetch()}
+            android_ripple={{ color: colors.primaryForeground + "33" }}
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
           >
             <Text style={[styles.retryText, { color: colors.primaryForeground }]}>
@@ -219,6 +228,7 @@ export default function SuppliersScreen() {
       <Pressable
         onPress={() => router.push("/connect")}
         testID="add-supplier-fab"
+        android_ripple={{ color: colors.primaryForeground + "33", borderless: false }}
         style={[
           styles.fab,
           {
@@ -278,6 +288,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
+    elevation: 1,
+    overflow: "hidden",
   },
   avatar: {
     width: 46,
@@ -306,6 +318,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
+    overflow: "hidden",
   },
   retryText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   fab: {
@@ -320,6 +333,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6,
+    overflow: "hidden",
   },
 });

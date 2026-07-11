@@ -217,6 +217,7 @@ export default function LoginScreen() {
                 onPress={() => setShowPin((v) => !v)}
                 hitSlop={10}
                 testID="toggle-pin-visibility"
+                android_ripple={{ color: "#88888833", borderless: true, radius: 20 }}
               >
                 <Feather
                   name={showPin ? "eye-off" : "eye"}
@@ -248,6 +249,7 @@ export default function LoginScreen() {
             onPress={handleLogin}
             disabled={!canSubmit || submitting}
             testID="login-button"
+            android_ripple={{ color: "#ffffff33" }}
             style={({ pressed }) => [
               styles.submitButton,
               {
@@ -339,6 +341,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 6,
+    overflow: "hidden",
+    elevation: 2,
   },
   submitText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   supportRow: {

@@ -70,6 +70,9 @@ export const lanSyncVouchersTable = pgTable("mini_app_lan_vouchers", {
   grandTotal: numeric("grand_total", { precision: 15, scale: 2 }).notNull().default("0"),
   status: text("status").default("posted"),
   notes: text("notes"),
+  // Line items [{name, qty, unit, rate, amount}] — lets the mini app open the
+  // invoice; null for vouchers pushed by pre-1.0.3-era EXEs
+  items: jsonb("items"),
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
 }, (t) => [
   // Upsert key — a re-pushed voucher replaces its previous copy instead of duplicating

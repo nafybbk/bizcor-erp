@@ -10,7 +10,7 @@
 // retries every couple of minutes — the customer's app catches up silently as
 // soon as connectivity returns. Rows are deleted once delivered.
 import { db, sqlite } from "@workspace/db";
-import { partiesTable } from "@workspace/db";
+import { partiesTable, voucherItemsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const CLOUD_URL = () => process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
@@ -81,6 +81,12 @@ function enqueue(kind: "voucher" | "payment", payload: Record<string, unknown>, 
     sqlite.prepare(`INSERT INTO lan_sync_outbox (kind, payload) VALUES (?, ?)`).run(kind, JSON.stringify(payload));
     if (!flusherStarted) {
       flusherStarted = true;
+      // Second chance for rows that exhausted their retries — the cloud
+      // rejected every push with 401 until the dual-secret fix, so old rows
+      // hold real vouchers that deserve a fresh run now.
+      try {
+        sqlite.prepare(`UPDATE lan_sync_outbox SET attempts = 0 WHERE attempts >= ?`).run(MAX_ATTEMPTS);
+      } catch { /* non-critical */ }
       setInterval(() => { void flushOutbox(); }, FLUSH_INTERVAL_MS).unref?.();
     }
     void flushOutbox(); // try immediately — instant sync when online
@@ -114,6 +120,29 @@ export function pushLanSyncVoucher(req: any, v: {
     try {
       const party = await miniAppParty(v.partyId);
       if (!party) return;
+
+      // Line items ride along so the customer's app can open the invoice.
+      // Fetched here (not passed by callers) — voucher routes stay untouched.
+      let items: { name: string; qty: number; unit: string; rate: number; amount: number }[] = [];
+      if (v.status !== "deleted") {
+        try {
+          const rows = await db.select({
+            name: voucherItemsTable.itemName,
+            qty: voucherItemsTable.quantity,
+            unit: voucherItemsTable.unit,
+            rate: voucherItemsTable.rate,
+            amount: voucherItemsTable.total,
+          }).from(voucherItemsTable).where(eq(voucherItemsTable.voucherId, v.externalId));
+          items = rows.map((r) => ({
+            name: r.name,
+            qty: Number(r.qty || 0),
+            unit: r.unit || "",
+            rate: Number(r.rate || 0),
+            amount: Number(r.amount || 0),
+          }));
+        } catch { /* items are best-effort — header still syncs */ }
+      }
+
       enqueue("voucher", {
         partyPin: party.pin,
         partyName: party.name || "",
@@ -124,6 +153,7 @@ export function pushLanSyncVoucher(req: any, v: {
         grandTotal: String(v.grandTotal || 0),
         status: v.status,
         notes: v.notes || "",
+        items,
       }, bearerToken(req));
     } catch { /* fire-and-forget — errors silently ignored */ }
   })();

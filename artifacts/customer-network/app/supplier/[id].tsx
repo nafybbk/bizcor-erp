@@ -19,10 +19,11 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -72,6 +73,7 @@ export default function SupplierDetailScreen() {
               key={t.key}
               onPress={() => setTab(t.key)}
               testID={`tab-${t.key}`}
+              android_ripple={{ color: colors.border }}
               style={[
                 styles.tabItem,
                 active && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
@@ -264,6 +266,7 @@ function ChatTab({ connectionId }: { connectionId: number }) {
           onPress={handleSend}
           disabled={!text.trim() || sendMutation.isPending}
           testID="chat-send-button"
+          android_ripple={{ color: "#ffffff33", borderless: true, radius: 21 }}
           style={[
             styles.sendButton,
             {
@@ -326,12 +329,12 @@ function InvoicesTab({
     );
   }
 
-  const displayData = data ?? cachedData ?? [];
+  const displayData = (data ?? cachedData ?? []) as (MiniAppInvoice & { source?: string })[];
 
   return (
     <FlatList
       data={displayData}
-      keyExtractor={(item: MiniAppInvoice) => String(item.id)}
+      keyExtractor={(item) => `${item.source ?? "cloud"}-${item.id}`}
       scrollEnabled={displayData.length > 0}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
@@ -355,10 +358,25 @@ function InvoicesTab({
         </View>
       }
       renderItem={({ item }) => (
-        <View
-          style={[
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/invoice-detail",
+              params: {
+                connectionId: String(connectionId),
+                source: item.source ?? "cloud",
+                invoiceId: String(item.id),
+              },
+            })
+          }
+          android_ripple={{ color: colors.border }}
+          style={({ pressed }) => [
             styles.invoiceCard,
-            { backgroundColor: colors.card, borderColor: colors.border },
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.85 : 1,
+            },
           ]}
         >
           <View style={[styles.invoiceIcon, { backgroundColor: colors.accent }]}>
@@ -375,7 +393,8 @@ function InvoicesTab({
           <Text style={[styles.invoiceAmount, { color: colors.foreground }]}>
             ₹{Number(item.grandTotal).toLocaleString("en-IN")}
           </Text>
-        </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </Pressable>
       )}
     />
   );
@@ -425,7 +444,7 @@ function PaymentsTab({
   return (
     <FlatList
       data={displayData}
-      keyExtractor={(item: MiniAppPayment) => String(item.id)}
+      keyExtractor={(item: MiniAppPayment & { source?: string }) => `${item.source ?? "cloud"}-${item.id}`}
       scrollEnabled={displayData.length > 0}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
@@ -449,7 +468,24 @@ function PaymentsTab({
         </View>
       }
       renderItem={({ item }) => (
-        <View style={[styles.invoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Pressable
+          onPress={() =>
+            Alert.alert(
+              `Receipt ${item.paymentNumber}`,
+              [
+                `Date: ${new Date(item.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`,
+                `Amount: ₹${Number(item.amount).toLocaleString("en-IN")}`,
+                `Mode: ${item.paymentMode}`,
+                item.notes ? `Notes: ${item.notes}` : null,
+              ].filter(Boolean).join("\n"),
+            )
+          }
+          android_ripple={{ color: colors.border }}
+          style={({ pressed }) => [
+            styles.invoiceCard,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
           <View style={[styles.invoiceIcon, { backgroundColor: "#dcfce7" }]}>
             <Feather name="credit-card" size={18} color="#16a34a" />
           </View>
@@ -465,7 +501,7 @@ function PaymentsTab({
           <Text style={[styles.invoiceAmount, { color: "#16a34a" }]}>
             ₹{Number(item.amount).toLocaleString("en-IN")}
           </Text>
-        </View>
+        </Pressable>
       )}
     />
   );
@@ -648,6 +684,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
+    elevation: 1,
+    overflow: "hidden",
   },
   invoiceIcon: {
     width: 40,

@@ -54,6 +54,7 @@ function RootLayoutNav() {
         options={{ title: "Connect Supplier", presentation: "formSheet" }}
       />
       <Stack.Screen name="supplier/[id]" options={{ title: "" }} />
+      <Stack.Screen name="invoice-detail" options={{ title: "Invoice" }} />
     </Stack>
   );
 }

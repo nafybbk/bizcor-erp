@@ -117,7 +117,11 @@ export default function ConnectSupplierScreen() {
                 maxLength={10}
                 testID="connect-pin-input"
               />
-              <Pressable onPress={() => setShowPin((v) => !v)} hitSlop={10}>
+              <Pressable
+                onPress={() => setShowPin((v) => !v)}
+                hitSlop={10}
+                android_ripple={{ color: "#88888833", borderless: true, radius: 20 }}
+              >
                 <Feather
                   name={showPin ? "eye-off" : "eye"}
                   size={18}
@@ -138,6 +142,7 @@ export default function ConnectSupplierScreen() {
             onPress={handleConnect}
             disabled={!canSubmit || connectMutation.isPending}
             testID="connect-submit-button"
+            android_ripple={{ color: "#ffffff33" }}
             style={({ pressed }) => [
               styles.submitButton,
               {
