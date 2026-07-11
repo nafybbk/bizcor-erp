@@ -442,11 +442,13 @@ router.get("/gstr1/export", async (req, res) => {
             rateMap.set(rt, { txval: round2(Number(it.taxableAmount)), camt: round2(Number(it.cgst)), samt: round2(Number(it.sgst)), iamt: round2(Number(it.igst)) });
           }
         }
-        return Array.from(rateMap.entries()).map(([rt, d]) => {
+        // num must be unique per rate line — 501, 502, … (duplicate 501s on
+        // multi-rate invoices get rejected by the portal)
+        return Array.from(rateMap.entries()).map(([rt, d], i) => {
           const det: Record<string, number> = { rt, txval: d.txval, csamt: 0 };
           if (d.iamt) det.iamt = d.iamt;
           if (d.camt) { det.camt = d.camt; det.samt = d.samt; }
-          return { num: 501, itm_det: det };
+          return { num: 501 + i, itm_det: det };
         });
       }
       const fb = { rt: 0, txval: round2(Number(fallback.taxableAmount)), csamt: 0 } as Record<string, number>;
