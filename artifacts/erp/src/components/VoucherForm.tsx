@@ -867,8 +867,25 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       const updatedItems = [...(payload.items || [])];
       const newlyCreated: any[] = [];
       const itemSaveErrors: string[] = [];
+      // If the user changed a known item's HSN on the line, carry the new HSN
+      // back into the item master (old vouchers keep whatever they were saved
+      // with — voucher lines are frozen copies).
+      const syncMasterHsn = async (masterItem: any, lineHsn?: string) => {
+        const newHsn = lineHsn?.trim();
+        if (!newHsn || newHsn === (masterItem.hsnCode || "")) return;
+        try {
+          await api.patch(`/items/${masterItem.id}`, { hsnCode: newHsn });
+          setItems(prev => prev.map((mi: any) => mi.id === masterItem.id ? { ...mi, hsnCode: newHsn } : mi));
+        } catch { /* non-fatal — voucher still saves */ }
+      };
+
       for (let i = 0; i < updatedItems.length; i++) {
         const it = updatedItems[i];
+        if (it.itemId) {
+          const master = items.find((mi: any) => mi.id === it.itemId);
+          if (master) await syncMasterHsn(master, it.hsnCode);
+          continue;
+        }
         if (!it.itemId && it.itemName?.trim()) {
           // If item with same name already exists in master — reuse it, don't create duplicate
           const existingMaster = items.find((mi: any) =>
@@ -876,6 +893,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
           );
           if (existingMaster) {
             updatedItems[i] = { ...it, itemId: existingMaster.id };
+            await syncMasterHsn(existingMaster, it.hsnCode);
             continue;
           }
           try {
