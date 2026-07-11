@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, pool, sqlite } from "@workspace/db";
-import { unitsTable, hsnCodesTable, taxRatesTable, customFieldsTable, statesTable } from "@workspace/db";
+import { unitsTable, hsnCodesTable, hsnDirectoryTable, taxRatesTable, customFieldsTable, statesTable } from "@workspace/db";
 import { eq, and, like, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
@@ -278,6 +278,37 @@ router.post("/hsn/import", async (req, res) => {
     }
 
     res.json({ success: true, inserted, updated, skipped, total: rows.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// POST /masters/hsn/sync-directory — EXE-only: refresh the local copy of the
+// global HSN directory from the cloud. One button press = whole government
+// list, so a directory update on the cloud reaches every offline install.
+router.post("/hsn/sync-directory", async (req, res) => {
+  try {
+    if (!process.env.SQLITE_PATH) {
+      res.status(400).json({ error: "Cloud version directory ko seedha use karta hai — sync sirf desktop EXE ke liye hai" });
+      return;
+    }
+    const cloudUrl = process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
+    const resp = await fetch(`${cloudUrl}/api/hsn-directory`);
+    if (!resp.ok) { res.status(502).json({ error: "Cloud se HSN directory nahi mili. Internet check karein." }); return; }
+    const rows = await resp.json() as { code: string; description?: string | null; taxRate?: string | null }[];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(502).json({ error: "Cloud par HSN directory abhi khali hai — pehle tech panel se import karein" });
+      return;
+    }
+
+    await db.delete(hsnDirectoryTable);
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      await db.insert(hsnDirectoryTable).values(rows.slice(i, i + CHUNK).map(r => ({
+        code: String(r.code).trim(),
+        description: r.description || null,
+        taxRate: r.taxRate != null ? String(r.taxRate) : null,
+      })));
+    }
+    res.json({ success: true, count: rows.length });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

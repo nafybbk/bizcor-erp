@@ -10,7 +10,7 @@ let migrated = false;
 // migration pass (50+ ALTERs, 20-60s on a cold Neon connection) is skipped,
 // so the first request after a cold start responds fast instead of hanging
 // the mini-app login spinner.
-const MIGRATION_VERSION = 2;
+const MIGRATION_VERSION = 3;
 
 async function migrationsAlreadyApplied(): Promise<boolean> {
   try {
@@ -108,6 +108,13 @@ async function runMigrations() {
   await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip TEXT`);
   await q(`ALTER TABLE mini_app_connections ADD COLUMN IF NOT EXISTS customer_paused BOOLEAN NOT NULL DEFAULT FALSE`);
   await q(`ALTER TABLE mini_app_lan_vouchers ADD COLUMN IF NOT EXISTS items JSONB`);
+  await q(`CREATE TABLE IF NOT EXISTS hsn_directory (
+    id SERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    description TEXT,
+    tax_rate NUMERIC(5,2),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  )`);
   await q(`ALTER TABLE payments ALTER COLUMN from_user_id DROP NOT NULL`);
   await q(`ALTER TABLE payments ALTER COLUMN to_user_id DROP NOT NULL`);
   await q(`ALTER TABLE payments ALTER COLUMN connection_id DROP NOT NULL`);

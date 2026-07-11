@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
-import { pool } from "@workspace/db";
+import { pool, db, hsnDirectoryTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -8,6 +8,21 @@ router.get("/healthz", (_req, res) => {
   const mode = process.env.SQLITE_PATH ? "desktop" : "cloud";
   const data = HealthCheckResponse.parse({ status: "ok", mode });
   res.json(data);
+});
+
+// Global HSN directory — public read-only (government data). EXEs pull this
+// to refresh their local copy; no auth so a fresh EXE can sync before login.
+router.get("/hsn-directory", async (_req, res) => {
+  try {
+    const rows = await db.select({
+      code: hsnDirectoryTable.code,
+      description: hsnDirectoryTable.description,
+      taxRate: hsnDirectoryTable.taxRate,
+    }).from(hsnDirectoryTable);
+    res.json(rows);
+  } catch {
+    res.json([]);
+  }
 });
 
 // One-time setup: creates missing tables directly via pool

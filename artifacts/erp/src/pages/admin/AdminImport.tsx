@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
 import { Upload, FileSpreadsheet, Users, ShoppingCart, Package, CheckCircle2, AlertTriangle, Loader2, ChevronDown, Info, Download, Shield } from "lucide-react";
 
@@ -42,6 +42,95 @@ function ResultRow({ label, created, skipped, errors }: { label: string; created
       <span className="text-green-600 font-semibold w-20">✓ {created} imported</span>
       <span className="text-amber-500 w-20">⟳ {skipped} skipped</span>
       <span className="text-red-500 w-20">✗ {errors} errors</span>
+    </div>
+  );
+}
+
+// ── Global HSN Directory import (platform-wide — serves every business) ──────
+function HsnDirectoryCard() {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [dirCount, setDirCount] = useState<number | null>(null);
+
+  const loadCount = async () => {
+    try { const r = await api.get<any>("/super-admin/hsn-directory/count"); setDirCount(r.count); } catch { /* ignore */ }
+  };
+  useEffect(() => { loadCount(); }, []);
+
+  const ALIASES = {
+    code: ["hsn code", "hsn/sac", "hsn", "sac code", "sac", "hsncode", "hsn_code", "code", "commodity code"],
+    description: ["description", "goods and service", "goods/service", "goods & service", "commodity", "item description", "desc"],
+    taxRate: ["igst rate", "gst rate", "igst%", "gst%", "tax rate", "rate", "igst", "gst"],
+  };
+  const findKey = (keys: string[], aliases: string[]) => {
+    for (const a of aliases) { const k = keys.find(h => h.toLowerCase().trim() === a); if (k) return k; }
+    for (const a of aliases) { const k = keys.find(h => h.toLowerCase().trim().includes(a)); if (k) return k; }
+    return null;
+  };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMsg(null); setBusy(true); setProgress("File parse ho rahi hai…");
+    try {
+      const sheets = await parseExcel(file);
+      const rows = Object.values(sheets).find(s => s.length > 0) || [];
+      if (rows.length === 0) throw new Error("File mein koi data nahi mila");
+      const keys = Object.keys(rows[0]);
+      const codeKey = findKey(keys, ALIASES.code);
+      if (!codeKey) throw new Error("HSN code wala column nahi mila");
+      const descKey = findKey(keys, ALIASES.description);
+      const rateKey = findKey(keys, ALIASES.taxRate);
+
+      const payload = rows
+        .map(r => ({
+          code: String(r[codeKey] ?? "").trim(),
+          description: descKey ? String(r[descKey] ?? "").trim() || undefined : undefined,
+          taxRate: rateKey ? String(r[rateKey] ?? "").replace(/[^0-9.]/g, "") || null : null,
+        }))
+        .filter(r => r.code);
+
+      const CHUNK = 1000;
+      const totals = { inserted: 0, updated: 0 };
+      for (let i = 0; i < payload.length; i += CHUNK) {
+        setProgress(`Import ho raha hai… ${Math.min(i + CHUNK, payload.length).toLocaleString("en-IN")}/${payload.length.toLocaleString("en-IN")}`);
+        const r = await api.post<any>("/super-admin/hsn-directory/import", { rows: payload.slice(i, i + CHUNK), mode: "overwrite" });
+        totals.inserted += r.inserted || 0; totals.updated += r.updated || 0;
+      }
+      setMsg(`✓ ${totals.inserted.toLocaleString("en-IN")} naye + ${totals.updated.toLocaleString("en-IN")} update — sabhi businesses ke liye live`);
+      loadCount();
+    } catch (err: any) {
+      setMsg(`✗ ${err?.message || "Import fail hua"}`);
+    } finally {
+      setBusy(false); setProgress("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold text-gray-700">Global HSN Directory</div>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Sarkari HSN list — ek baar yahan upload karo, har business ke GSTR-1 mein official descriptions khud lag jayengi.
+            {dirCount != null && <span className="ml-1 font-medium text-gray-600">Abhi: {dirCount.toLocaleString("en-IN")} codes</span>}
+          </p>
+        </div>
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-60 shrink-0">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          {busy ? progress || "…" : "Upload HSN List"}
+        </button>
+        <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFile} />
+      </div>
+      {msg && (
+        <div className={`px-3 py-2 rounded-lg text-xs ${msg.startsWith("✓") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{msg}</div>
+      )}
     </div>
   );
 }
@@ -145,6 +234,8 @@ export default function AdminImport() {
         <h1 className="text-xl font-bold text-gray-800">Data Import</h1>
         <p className="text-sm text-gray-500 mt-0.5">Purane ERP ka data BizCor mein import karein</p>
       </div>
+
+      <HsnDirectoryCard />
 
       {/* Step 1: ERP Type */}
       <div className="bg-white rounded-xl border p-4 space-y-3">

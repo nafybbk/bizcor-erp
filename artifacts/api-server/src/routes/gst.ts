@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vouchersTable, voucherItemsTable, partiesTable, businessesTable, hsnCodesTable } from "@workspace/db";
+import { vouchersTable, voucherItemsTable, partiesTable, businessesTable, hsnCodesTable, hsnDirectoryTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, isNull, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
@@ -570,6 +570,18 @@ router.get("/gstr1/export", async (req, res) => {
         .from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
       hsnDescByCode = new Map(hsnMasterRows.filter(h => h.description).map(h => [h.code.trim(), String(h.description).toUpperCase()]));
     } catch { /* HSN master table missing (older EXE DB) — fall back to item names */ }
+    // Fallback: the global directory (government list) — covers every business
+    // without each one importing its own copy
+    try {
+      const usedCodes = [...new Set(allItems.map(i => (i.hsnCode || "").trim()).filter(c => c && !hsnDescByCode.has(c)))];
+      if (usedCodes.length > 0) {
+        const dirRows = await db.select({ code: hsnDirectoryTable.code, description: hsnDirectoryTable.description })
+          .from(hsnDirectoryTable).where(inArray(hsnDirectoryTable.code, usedCodes));
+        for (const d of dirRows) {
+          if (d.description) hsnDescByCode.set(d.code.trim(), String(d.description).toUpperCase());
+        }
+      }
+    } catch { /* directory table missing (older EXE DB) — non-fatal */ }
 
     type HsnRow = { hsn_sc: string; desc: string; user_desc: string; uqc: string; rt: number; qty: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
     function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean) {

@@ -236,6 +236,7 @@ export const usersTable = s.usersTable;
 export const loginLogsTable = s.loginLogsTable;
 export const unitsTable = s.unitsTable;
 export const hsnCodesTable = s.hsnCodesTable;
+export const hsnDirectoryTable = s.hsnDirectoryTable;
 export const taxRatesTable = s.taxRatesTable;
 export const statesTable = s.statesTable;
 export const customFieldsTable = s.customFieldsTable;

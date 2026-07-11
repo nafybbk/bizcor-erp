@@ -1,12 +1,65 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, sqlite, pool } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable, modulePatchesTable } from "@workspace/db";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable, modulePatchesTable, hsnDirectoryTable } from "@workspace/db";
 import { eq, count, sql, like, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 
 const router = Router();
 router.use(requireSuperAdmin);
+
+// ─── Global HSN Directory (platform-wide, serves every business) ──────────────
+router.get("/hsn-directory/count", async (_req, res) => {
+  try {
+    const [row] = await db.select({ n: count() }).from(hsnDirectoryTable);
+    res.json({ count: Number(row?.n || 0) });
+  } catch (err) { res.json({ count: 0 }); }
+});
+
+router.post("/hsn-directory/import", async (req, res) => {
+  try {
+    const { rows, mode = "overwrite" } = req.body as {
+      rows: { code: string; description?: string; taxRate?: string | null }[];
+      mode?: "skip" | "overwrite";
+    };
+    if (!Array.isArray(rows) || rows.length === 0) {
+      res.status(400).json({ error: "Rows array required" }); return;
+    }
+
+    const existing = await db.select({ code: hsnDirectoryTable.code }).from(hsnDirectoryTable);
+    const existingSet = new Set(existing.map(e => e.code.trim()));
+
+    const incoming = new Map<string, { description: string | null; taxRate: string | null }>();
+    for (const row of rows) {
+      const code = String(row.code).trim();
+      if (!code) continue;
+      incoming.set(code, {
+        description: row.description?.trim() || null,
+        taxRate: row.taxRate != null && String(row.taxRate).trim() !== "" ? String(parseFloat(String(row.taxRate))) : null,
+      });
+    }
+
+    let inserted = 0, updated = 0, skipped = 0;
+    const toInsert: { code: string; description: string | null; taxRate: string | null }[] = [];
+    const toReplace: string[] = [];
+    for (const [code, data] of incoming) {
+      if (existingSet.has(code)) {
+        if (mode === "overwrite") { toReplace.push(code); toInsert.push({ code, ...data }); updated++; }
+        else skipped++;
+      } else { toInsert.push({ code, ...data }); inserted++; }
+    }
+
+    const CHUNK = 500;
+    for (let i = 0; i < toReplace.length; i += CHUNK) {
+      await db.delete(hsnDirectoryTable).where(inArray(hsnDirectoryTable.code, toReplace.slice(i, i + CHUNK)));
+    }
+    for (let i = 0; i < toInsert.length; i += CHUNK) {
+      await db.insert(hsnDirectoryTable).values(toInsert.slice(i, i + CHUNK));
+    }
+
+    res.json({ success: true, inserted, updated, skipped, total: rows.length });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
 
 // ─── SQLite migration: add package_config column to plans if missing ──────────
 let plansMigrated = false;

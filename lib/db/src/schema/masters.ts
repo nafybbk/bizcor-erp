@@ -27,6 +27,17 @@ export const hsnCodesTable = pgTable("hsn_codes", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Global HSN directory — the government's list, shared by ALL businesses
+// (a business's own hsn_codes rows act as overrides). The EXE keeps a local
+// copy refreshed on demand from the cloud.
+export const hsnDirectoryTable = pgTable("hsn_directory", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  description: text("description"),
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const taxRatesTable = pgTable("tax_rates", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").notNull().references(() => businessesTable.id),

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Plus, Loader2, Edit2, Trash2, X, Check, Upload, FileSpreadsheet, AlertCircle, ChevronDown } from "lucide-react";
+import { Plus, Loader2, Edit2, Trash2, X, Check, Upload, FileSpreadsheet, AlertCircle, ChevronDown, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 import SortableTh from "@/components/SortableTh";
 import { useSort } from "@/lib/useSort";
@@ -79,6 +79,20 @@ export default function HsnCodes() {
   const [importMode, setImportMode] = useState<"skip" | "overwrite">("skip");
   const [importResult, setImportResult] = useState<{ inserted: number; updated: number; skipped: number; total: number } | null>(null);
   const [importProgress, setImportProgress] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const isDesktopApp = localStorage.getItem("erp_app_mode") === "desktop";
+
+  const syncDirectory = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await api.post<any>("/masters/hsn/sync-directory", {});
+      setSyncMsg(`✓ ${Number(r.count).toLocaleString("en-IN")} HSN codes cloud se sync ho gaye`);
+    } catch (err: any) {
+      setSyncMsg(`✗ ${err?.message || "Sync nahi ho saka"}`);
+    } finally { setSyncing(false); }
+  };
   const [parseError, setParseError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
 
@@ -182,6 +196,16 @@ export default function HsnCodes() {
         <div className="flex items-center gap-2">
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search code or description..."
             className={inputCls + " w-56"} />
+          {isDesktopApp && (
+            <button
+              onClick={syncDirectory}
+              disabled={syncing}
+              title="Cloud se sarkari HSN directory ki taaza copy le aao"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg disabled:opacity-60">
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Sync from Cloud
+            </button>
+          )}
           <button
             onClick={() => { resetUpload(); fileRef.current?.click(); }}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">
@@ -190,6 +214,11 @@ export default function HsnCodes() {
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
         </div>
       </div>
+      {syncMsg && (
+        <div className={`px-3 py-2 rounded-lg text-sm ${syncMsg.startsWith("✓") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* Add form */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
