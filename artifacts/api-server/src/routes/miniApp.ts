@@ -139,7 +139,14 @@ router.post("/mini-app/login", async (req, res) => {
   }
 });
 
-router.use("/mini-app", requireCustomerAuth);
+// Everything under /mini-app needs a customer token — EXCEPT /mini-app/lan-sync,
+// which EXEs call with a business JWT and which does its own verification.
+// Without this exemption every lan-sync push died here with 401 before ever
+// reaching verifyBusinessJwt.
+router.use("/mini-app", (req, res, next) => {
+  if (req.path.startsWith("/lan-sync")) { next(); return; }
+  requireCustomerAuth(req, res, next);
+});
 
 // POST /mini-app/connect — businessCode + per-customer PIN (from supplier's Party master)
 router.post("/mini-app/connect", async (req, res) => {
