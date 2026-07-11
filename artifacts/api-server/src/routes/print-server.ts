@@ -6,6 +6,12 @@ import path from "path";
 const router = Router();
 
 function getDataDir(sqlitePath: string) {
+  // SQLITE_PATH is actually the bizcor-db DIRECTORY (server-manager.js) —
+  // dirname() on it walked one level too high, so the queue file landed
+  // where Electron's poller never looks and Server Print silently did nothing.
+  try {
+    if (fs.statSync(sqlitePath).isDirectory()) return sqlitePath;
+  } catch { /* fall through */ }
   return path.dirname(sqlitePath);
 }
 
