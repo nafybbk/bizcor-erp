@@ -66,6 +66,8 @@ export default function HsnCodes() {
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ code: "", description: "", taxRate: "" });
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Upload state
   const fileRef = useRef<HTMLInputElement>(null);
@@ -167,13 +169,18 @@ export default function HsnCodes() {
   const inputCls = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
   const filtered = search ? codes.filter(c => c.code.toLowerCase().includes(search.toLowerCase()) || (c.description || "").toLowerCase().includes(search.toLowerCase())) : codes;
   const { sorted, sortKey, sortDir, toggleSort } = useSort(filtered);
+  // Full portal directory = thousands of rows — render one page at a time
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const onSortReset = (k: string) => { toggleSort(k); setPage(1); };
 
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">HSN / SAC Codes</h1>
         <div className="flex items-center gap-2">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search code or description..."
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search code or description..."
             className={inputCls + " w-56"} />
           <button
             onClick={() => { resetUpload(); fileRef.current?.click(); }}
@@ -340,16 +347,16 @@ export default function HsnCodes() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="text-left px-4 py-3 font-medium">#</th>
-                <SortableTh label="Code" sortKey="code" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <SortableTh label="Description" sortKey="description" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <SortableTh label="Tax Rate" sortKey="taxRate" currentKey={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                <SortableTh label="Code" sortKey="code" currentKey={sortKey} dir={sortDir} onSort={onSortReset} />
+                <SortableTh label="Description" sortKey="description" currentKey={sortKey} dir={sortDir} onSort={onSortReset} />
+                <SortableTh label="Tax Rate" sortKey="taxRate" currentKey={sortKey} dir={sortDir} onSort={onSortReset} align="right" />
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sorted.map((c, idx) => (
+              {pageRows.map((c, idx) => (
                 <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{(safePage - 1) * PAGE_SIZE + idx + 1}</td>
                   {editId === c.id ? (
                     <>
                       <td className="px-2 py-2"><input value={editForm.code} onChange={e => setEditForm(f => ({ ...f, code: e.target.value }))} className={inputCls + " w-32"} /></td>
@@ -386,8 +393,20 @@ export default function HsnCodes() {
           </table>
         )}
         {codes.length > 0 && (
-          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 text-right">
-            Total: {codes.length} codes
+          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+            <span>
+              Showing {sorted.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, sorted.length)} of {sorted.length}
+              {search ? ` (filtered from ${codes.length})` : ""}
+            </span>
+            {sorted.length > PAGE_SIZE && (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40">Prev</button>
+                <span className="text-gray-400">Page {safePage} / {totalPages}</span>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40">Next</button>
+              </div>
+            )}
           </div>
         )}
       </div>
