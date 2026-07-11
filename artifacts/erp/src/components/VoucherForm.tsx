@@ -263,6 +263,9 @@ interface VoucherItem {
   itemId?: number;
   itemName: string;
   hsnCode: string;
+  // true = hsnCode was auto-filled from an exact item-master name match, so
+  // it may be safely replaced/cleared as the typed name keeps changing
+  _autoHsn?: boolean;
   description: string;
   quantity: number;
   unit: string;
@@ -686,6 +689,21 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       } else {
         updated.itemId   = undefined;
         updated.itemName = sel.itemName;
+        // Typed name exactly matches a master item (e.g. "Shawl" saved with
+        // 5516) → pull its HSN + tax rate even without a dropdown selection
+        const match = items.find(i => i.name?.toLowerCase() === sel.itemName.trim().toLowerCase());
+        if (match && (!updated.hsnCode || updated._autoHsn)) {
+          updated.hsnCode = match.hsnCode || "";
+          updated._autoHsn = true;
+          if (match.taxRateId) {
+            updated.taxRateId = match.taxRateId;
+            const tr = taxRates.find((t: any) => t.id === match.taxRateId);
+            if (tr) updated.taxRate = Number(tr.rate);
+          }
+        } else if (!match && updated._autoHsn) {
+          updated.hsnCode = "";
+          updated._autoHsn = false;
+        }
       }
       next[idx] = calcItem(updated, isInterState);
       return next;
@@ -696,6 +714,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     setLineItems(prev => {
       const next = [...prev];
       const updated = { ...next[idx], [field]: value };
+      // A hand-typed HSN is the user's own — never auto-clear it afterwards
+      if (field === "hsnCode") updated._autoHsn = false;
       if (field === "itemId") {
         const found = items.find(i => i.id === Number(value));
         if (found) {
