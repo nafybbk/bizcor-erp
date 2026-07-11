@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vouchersTable, voucherItemsTable, partiesTable, businessesTable } from "@workspace/db";
+import { vouchersTable, voucherItemsTable, partiesTable, businessesTable, hsnCodesTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, isNull, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
@@ -560,7 +560,18 @@ router.get("/gstr1/export", async (req, res) => {
     }));
 
     // ── HSN Summary (Section 12) — May 2025+ rule: B2B and B2C separate ────────
-    type HsnRow = { hsn_sc: string; desc: string; user_desc: string; uqc: string; rt: number; qty: number; val: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
+    // Portal schema (verified against a portal-generated offline download):
+    // no `val` field, and `desc` must be the official HSN-directory
+    // description — the portal rejects files where desc doesn't match.
+    // We take it from the business's HSN master; user_desc stays the item name.
+    let hsnDescByCode = new Map<string, string>();
+    try {
+      const hsnMasterRows = await db.select({ code: hsnCodesTable.code, description: hsnCodesTable.description })
+        .from(hsnCodesTable).where(eq(hsnCodesTable.businessId, businessId));
+      hsnDescByCode = new Map(hsnMasterRows.filter(h => h.description).map(h => [h.code.trim(), String(h.description).toUpperCase()]));
+    } catch { /* HSN master table missing (older EXE DB) — fall back to item names */ }
+
+    type HsnRow = { hsn_sc: string; desc: string; user_desc: string; uqc: string; rt: number; qty: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
     function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean) {
       const items = itemsByVoucher.get(v.id) || [];
       for (const it of items) {
@@ -572,15 +583,19 @@ router.get("/gstr1/export", async (req, res) => {
         const iamt = round2(Number(it.igst));
         const camt = round2(Number(it.cgst));
         const samt = round2(Number(it.sgst));
-        const val = round2(txval + iamt + camt + samt);
         const qty = round2(Number(it.quantity));
         const e = map.get(key);
         if (e) {
-          e.qty = round2(e.qty + qty); e.val = round2(e.val + val);
+          e.qty = round2(e.qty + qty);
           e.txval = round2(e.txval + txval); e.iamt = round2(e.iamt + iamt);
           e.camt = round2(e.camt + camt); e.samt = round2(e.samt + samt);
         } else {
-          map.set(key, { hsn_sc, desc: it.itemName || "", user_desc: it.itemName || "", uqc, rt, qty, val, txval, iamt, camt, samt, csamt: 0 });
+          map.set(key, {
+            hsn_sc,
+            desc: hsnDescByCode.get(hsn_sc.trim()) || it.itemName || "",
+            user_desc: it.itemName || "",
+            uqc, rt, qty, txval, iamt, camt, samt, csamt: 0,
+          });
         }
       }
     }
@@ -604,14 +619,16 @@ router.get("/gstr1/export", async (req, res) => {
       if (!docs.length) return null;
       const sorted = [...docs].sort((a, b) => { const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber); return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.voucherNumber.localeCompare(b.voucherNumber); });
       const cancelled = docs.filter(d => d.deletedAt !== null).length;
-      const docTypMap: Record<string, string> = { sales_invoice: "Invoices for outward supply", credit_note: "Debit Note", debit_note: "Debit Note", purchase_bill: "Invoices for inward supply" };
+      // GSTN doc_num list: 1=Invoices for outward supply, 4=Debit Note, 5=Credit Note.
+      // Purchase bills are NOT documents issued by this taxpayer — the portal's
+      // own generated file lists only outward docs, so we no longer send them.
+      const docTypMap: Record<string, string> = { sales_invoice: "Invoices for outward supply", debit_note: "Debit Note", credit_note: "Credit Note" };
       return { doc_num: docNum, doc_typ: docTypMap[type] || "Invoices for outward supply", docs: [{ num: 1, from: formatPrintNumber(sorted[0].voucherNumber, biz), to: formatPrintNumber(sorted[sorted.length - 1].voucherNumber, biz), totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
     }
     const docDetItems = [
       buildDocIssue("sales_invoice", 1),
-      buildDocIssue("credit_note", 4),
-      buildDocIssue("debit_note", 5),
-      buildDocIssue("purchase_bill", 7),
+      buildDocIssue("debit_note", 4),
+      buildDocIssue("credit_note", 5),
     ].filter(Boolean);
 
     // ── Assemble portal JSON ──────────────────────────────────────────────────
