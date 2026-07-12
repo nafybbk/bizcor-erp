@@ -1,8 +1,9 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useMiniAppListConnections, MiniAppConnection, customFetch } from "@workspace/api-client-react";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -18,7 +19,26 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
-type Conn = MiniAppConnection & { customerPaused?: boolean; partyName?: string | null };
+type Conn = MiniAppConnection & {
+  customerPaused?: boolean;
+  partyName?: string | null;
+  invoiceCount?: number;
+  paymentCount?: number;
+  lastDocDate?: string | null;
+};
+
+// Last doc-date the user has SEEN per connection — new activity gets a badge
+const SEEN_KEY = "cn_seen_docs";
+async function loadSeenMap(): Promise<Record<string, string>> {
+  try { return JSON.parse((await AsyncStorage.getItem(SEEN_KEY)) || "{}"); } catch { return {}; }
+}
+async function markSeen(connId: number, lastDocDate?: string | null) {
+  try {
+    const map = await loadSeenMap();
+    map[String(connId)] = lastDocDate || new Date().toISOString();
+    await AsyncStorage.setItem(SEEN_KEY, JSON.stringify(map));
+  } catch { /* non-critical */ }
+}
 
 // Vibrant avatar colors picked by name hash — kills the "doctor's parchi" white
 const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0d9488", "#4f46e5"];
@@ -42,10 +62,11 @@ function StatusChip({ status, paused }: { status?: string; paused: boolean }) {
   );
 }
 
-function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }) {
+function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () => void; hasNew: boolean }) {
   const colors = useColors();
   const initial = item.businessName?.charAt(0)?.toUpperCase() ?? "?";
   const paused = item.customerPaused === true;
+  const docCount = (item.invoiceCount || 0) + (item.paymentCount || 0);
 
   const setPaused = async (value: boolean) => {
     try {
@@ -92,6 +113,7 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
   };
 
   const handlePress = () => {
+    markSeen(item.id, item.lastDocDate);
     if (paused) {
       Alert.alert(
         "Paused hai",
@@ -116,7 +138,8 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
         styles.card,
         {
           backgroundColor: colors.card,
-          borderColor: colors.border,
+          borderColor: hasNew ? colors.primary : colors.border,
+          borderWidth: hasNew ? 1.5 : 1,
           opacity: pressed ? 0.85 : paused ? 0.6 : 1,
         },
       ]}
@@ -139,7 +162,19 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
             {item.partyName}
           </Text>
         ) : null}
-        <StatusChip status={item.status} paused={paused} />
+        <Text style={[styles.docLine, { color: docCount > 0 ? colors.mutedForeground : "#cbd5e1" }]} numberOfLines={1}>
+          {docCount > 0
+            ? `${item.invoiceCount || 0} invoices · ${item.paymentCount || 0} receipts`
+            : "Abhi koi document nahi"}
+        </Text>
+        <View style={styles.chipRow}>
+          <StatusChip status={item.status} paused={paused} />
+          {hasNew && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
+            </View>
+          )}
+        </View>
       </View>
       <Pressable
         onPress={openMenu}
@@ -160,6 +195,13 @@ export default function SuppliersScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, isLoading, isError, refetch } = useMiniAppListConnections();
+  const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+
+  // Reload on focus so badges clear right after visiting a supplier
+  useFocusEffect(useCallback(() => {
+    loadSeenMap().then(setSeenMap);
+    refetch();
+  }, [refetch]));
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -226,7 +268,11 @@ export default function SuppliersScreen() {
         <FlatList
           data={data ?? []}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <SupplierCard item={item as Conn} onChanged={() => refetch()} />}
+          renderItem={({ item }) => {
+            const c = item as Conn;
+            const hasNew = !!(c.lastDocDate && c.lastDocDate > (seenMap[String(c.id)] || "")) && c.status !== "blocked";
+            return <SupplierCard item={c} onChanged={() => refetch()} hasNew={hasNew} />;
+          }}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 24) + 90 },
@@ -311,6 +357,16 @@ const styles = StyleSheet.create({
   },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   chipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  docLine: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 3 },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  newBadge: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  newBadgeText: { color: "#ffffff", fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.5 },
   iconButton: {
     width: 38,
     height: 38,

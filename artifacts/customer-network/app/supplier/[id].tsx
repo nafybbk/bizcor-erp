@@ -91,13 +91,13 @@ export default function SupplierDetailScreen() {
                 <Feather
                   name={t.icon}
                   size={15}
-                  color={active ? colors.primaryForeground : colors.mutedForeground}
+                  color={active ? "#ffffff" : "#64748b"}
                 />
                 <Text
                   numberOfLines={1}
                   style={[
                     styles.tabLabel,
-                    { color: active ? colors.primaryForeground : colors.mutedForeground },
+                    { color: active ? "#ffffff" : "#64748b" },
                   ]}
                 >
                   {t.label}

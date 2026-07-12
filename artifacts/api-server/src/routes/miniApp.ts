@@ -14,7 +14,7 @@ import {
   lanSyncVouchersTable,
   lanSyncPaymentsTable,
 } from "@workspace/db";
-import { eq, and, gt, asc, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, gt, asc, desc, isNull, sql, inArray } from "drizzle-orm";
 import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
 
 const router = Router();
@@ -228,6 +228,8 @@ router.get("/mini-app/connections", async (req, res) => {
     const customerDbId = req.customer!.customerDbId;
     const rows = await db.select({
       id: connectionsTable.id,
+      businessId: connectionsTable.businessId,
+      partyId: connectionsTable.partyId,
       permissions: connectionsTable.permissions,
       status: connectionsTable.status,
       customerPaused: connectionsTable.customerPaused,
@@ -243,7 +245,54 @@ router.get("/mini-app/connections", async (req, res) => {
       .where(eq(connectionsTable.customerId, customerDbId))
       .orderBy(desc(connectionsTable.createdAt));
 
-    res.json(rows);
+    // Per-card document counts + latest doc date, so the app can show
+    // "12 invoices · 5 receipts", flag empty cards, and badge new activity.
+    // 4 grouped queries total, regardless of how many connections.
+    const bizIds = [...new Set(rows.map(r => r.businessId))];
+    const partyIds = [...new Set(rows.map(r => r.partyId))];
+    const statMaps = { inv: new Map<string, { n: number; last: string }>(), pay: new Map<string, { n: number; last: string }>() };
+    if (rows.length > 0) {
+      const key = (b: number, p: number | null) => `${b}|${p}`;
+      const addStats = (map: Map<string, { n: number; last: string }>, list: { businessId: number; partyId: number | null; n: number; last: string | null }[]) => {
+        for (const s of list) {
+          const k = key(s.businessId, s.partyId);
+          const e = map.get(k) || { n: 0, last: "" };
+          e.n += Number(s.n);
+          if (s.last && s.last > e.last) e.last = s.last;
+          map.set(k, e);
+        }
+      };
+      const [cloudInv, lanInv, cloudPay, lanPay] = await Promise.all([
+        db.select({ businessId: vouchersTable.businessId, partyId: vouchersTable.partyId, n: sql<number>`count(*)`, last: sql<string | null>`max(${vouchersTable.date})` })
+          .from(vouchersTable)
+          .where(and(inArray(vouchersTable.businessId, bizIds), inArray(vouchersTable.partyId, partyIds), eq(vouchersTable.voucherType, "sales_invoice"), isNull(vouchersTable.deletedAt)))
+          .groupBy(vouchersTable.businessId, vouchersTable.partyId),
+        db.select({ businessId: lanSyncVouchersTable.businessId, partyId: lanSyncVouchersTable.partyId, n: sql<number>`count(*)`, last: sql<string | null>`max(${lanSyncVouchersTable.date})` })
+          .from(lanSyncVouchersTable)
+          .where(and(inArray(lanSyncVouchersTable.businessId, bizIds), inArray(lanSyncVouchersTable.partyId, partyIds), eq(lanSyncVouchersTable.voucherType, "sales_invoice"), sql`${lanSyncVouchersTable.status} IS DISTINCT FROM 'deleted'`))
+          .groupBy(lanSyncVouchersTable.businessId, lanSyncVouchersTable.partyId),
+        db.select({ businessId: paymentsTable.businessId, partyId: paymentsTable.partyId, n: sql<number>`count(*)`, last: sql<string | null>`max(${paymentsTable.date})` })
+          .from(paymentsTable)
+          .where(and(inArray(paymentsTable.businessId, bizIds), inArray(paymentsTable.partyId, partyIds), eq(paymentsTable.type, "receipt"), isNull(paymentsTable.deletedAt)))
+          .groupBy(paymentsTable.businessId, paymentsTable.partyId),
+        db.select({ businessId: lanSyncPaymentsTable.businessId, partyId: lanSyncPaymentsTable.partyId, n: sql<number>`count(*)`, last: sql<string | null>`max(${lanSyncPaymentsTable.date})` })
+          .from(lanSyncPaymentsTable)
+          .where(and(inArray(lanSyncPaymentsTable.businessId, bizIds), inArray(lanSyncPaymentsTable.partyId, partyIds), eq(lanSyncPaymentsTable.paymentType, "receipt"), sql`${lanSyncPaymentsTable.status} IS DISTINCT FROM 'deleted'`))
+          .groupBy(lanSyncPaymentsTable.businessId, lanSyncPaymentsTable.partyId),
+      ]);
+      addStats(statMaps.inv, cloudInv as any);
+      addStats(statMaps.inv, lanInv as any);
+      addStats(statMaps.pay, cloudPay as any);
+      addStats(statMaps.pay, lanPay as any);
+    }
+
+    res.json(rows.map(r => {
+      const k = `${r.businessId}|${r.partyId}`;
+      const inv = statMaps.inv.get(k);
+      const pay = statMaps.pay.get(k);
+      const lastDocDate = [inv?.last, pay?.last].filter(Boolean).sort().pop() || null;
+      return { ...r, invoiceCount: inv?.n || 0, paymentCount: pay?.n || 0, lastDocDate };
+    }));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

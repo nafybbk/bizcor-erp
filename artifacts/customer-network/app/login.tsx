@@ -26,6 +26,7 @@ import { useColors } from "@/hooks/useColors";
 
 const SAVED_MOBILE_KEY = "cn_saved_mobile";
 const SAVED_PIN_KEY = "cn_saved_pin";
+const SAVED_NAME_KEY = "cn_saved_name";
 
 const credStore = {
   get: (key: string) =>
@@ -79,16 +80,19 @@ export default function LoginScreen() {
     outputRange: ["#2563EB", "#7C3AED", "#DB2777", "#F59E0B", "#2563EB"],
   });
 
-  // Prefill last used credentials (remember login)
+  // Prefill last used credentials (remember login) + personal greeting
+  const [savedName, setSavedName] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
       try {
-        const [savedMobile, savedPin] = await Promise.all([
+        const [savedMobile, savedPin, name] = await Promise.all([
           credStore.get(SAVED_MOBILE_KEY),
           credStore.get(SAVED_PIN_KEY),
+          credStore.get(SAVED_NAME_KEY),
         ]);
         if (savedMobile) setMobile(savedMobile);
         if (savedPin) setPin(savedPin);
+        if (name) setSavedName(name);
       } catch { /* first run / storage unavailable */ }
     })();
   }, []);
@@ -110,11 +114,12 @@ export default function LoginScreen() {
         ),
       ]);
       await setSession(res.token, res.customer);
-      // Remember for next login
+      // Remember for next login (name powers the welcome-back greeting)
       try {
         await Promise.all([
           credStore.set(SAVED_MOBILE_KEY, mobile.trim()),
           credStore.set(SAVED_PIN_KEY, pin.trim()),
+          res.customer?.name ? credStore.set(SAVED_NAME_KEY, res.customer.name) : Promise.resolve(),
         ]);
       } catch { /* non-critical */ }
       if (Platform.OS !== "web") {
@@ -162,10 +167,16 @@ export default function LoginScreen() {
             Connect · v{Constants.expoConfig?.version ?? "?"}
           </Text>
         </View>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Sign in with your mobile number to view your suppliers, invoices,
-          and chat.
-        </Text>
+        {savedName ? (
+          <Text style={[styles.subtitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
+            Salaam, {savedName}! 👋 Wapas khush aamdeed.
+          </Text>
+        ) : (
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            Sign in with your mobile number to view your suppliers, invoices,
+            and chat.
+          </Text>
+        )}
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
