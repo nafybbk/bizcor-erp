@@ -78,30 +78,36 @@ export default function SupplierDetailScreen() {
           {TABS.map((t) => {
             const active = tab === t.key;
             return (
+              /* RN Android quirk: a Pressable with android_ripple caches its
+                 background drawable, so a changing backgroundColor sticks to a
+                 stale tab. The color lives on an inner View instead. */
               <Pressable
                 key={t.key}
                 onPress={() => setTab(t.key)}
                 testID={`tab-${t.key}`}
-                android_ripple={{ color: active ? "rgba(255,255,255,0.3)" : colors.border }}
-                style={[
-                  styles.tabPill,
-                  { backgroundColor: active ? colors.primary : colors.secondary },
-                ]}
+                style={styles.tabPillOuter}
               >
-                <Feather
-                  name={t.icon}
-                  size={15}
-                  color={active ? "#ffffff" : "#64748b"}
-                />
-                <Text
-                  numberOfLines={1}
+                <View
                   style={[
-                    styles.tabLabel,
-                    { color: active ? "#ffffff" : "#64748b" },
+                    styles.tabPill,
+                    { backgroundColor: active ? colors.primary : colors.secondary },
                   ]}
                 >
-                  {t.label}
-                </Text>
+                  <Feather
+                    name={t.icon}
+                    size={15}
+                    color={active ? "#ffffff" : "#64748b"}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.tabLabel,
+                      { color: active ? "#ffffff" : "#64748b" },
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -640,6 +646,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   tabBar: { borderBottomWidth: 1 },
   tabScroll: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  tabPillOuter: { borderRadius: 999 },
   tabPill: {
     flexDirection: "row",
     alignItems: "center",

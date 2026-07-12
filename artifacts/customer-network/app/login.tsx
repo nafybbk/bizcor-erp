@@ -26,7 +26,9 @@ import { useColors } from "@/hooks/useColors";
 
 const SAVED_MOBILE_KEY = "cn_saved_mobile";
 const SAVED_PIN_KEY = "cn_saved_pin";
-const SAVED_NAME_KEY = "cn_saved_name";
+// Customer's own CN code — their identity across BizCor (stickers, referrals,
+// future ERP upgrade). Saved locally at login, shown on the login screen.
+const SAVED_CODE_KEY = "cn_saved_code";
 
 const credStore = {
   get: (key: string) =>
@@ -80,19 +82,19 @@ export default function LoginScreen() {
     outputRange: ["#2563EB", "#7C3AED", "#DB2777", "#F59E0B", "#2563EB"],
   });
 
-  // Prefill last used credentials (remember login) + personal greeting
-  const [savedName, setSavedName] = useState<string | null>(null);
+  // Prefill last used credentials (remember login) + show the customer's code
+  const [savedCode, setSavedCode] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
       try {
-        const [savedMobile, savedPin, name] = await Promise.all([
+        const [savedMobile, savedPin, code] = await Promise.all([
           credStore.get(SAVED_MOBILE_KEY),
           credStore.get(SAVED_PIN_KEY),
-          credStore.get(SAVED_NAME_KEY),
+          credStore.get(SAVED_CODE_KEY),
         ]);
         if (savedMobile) setMobile(savedMobile);
         if (savedPin) setPin(savedPin);
-        if (name) setSavedName(name);
+        if (code) setSavedCode(code);
       } catch { /* first run / storage unavailable */ }
     })();
   }, []);
@@ -114,12 +116,12 @@ export default function LoginScreen() {
         ),
       ]);
       await setSession(res.token, res.customer);
-      // Remember for next login (name powers the welcome-back greeting)
+      // Remember for next login (+ the customer's own CN code)
       try {
         await Promise.all([
           credStore.set(SAVED_MOBILE_KEY, mobile.trim()),
           credStore.set(SAVED_PIN_KEY, pin.trim()),
-          res.customer?.name ? credStore.set(SAVED_NAME_KEY, res.customer.name) : Promise.resolve(),
+          res.customer?.customerId ? credStore.set(SAVED_CODE_KEY, res.customer.customerId) : Promise.resolve(),
         ]);
       } catch { /* non-critical */ }
       if (Platform.OS !== "web") {
@@ -166,17 +168,19 @@ export default function LoginScreen() {
           <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
             Connect · v{Constants.expoConfig?.version ?? "?"}
           </Text>
+          {savedCode ? (
+            <View style={[styles.codeChip, { backgroundColor: colors.accent, borderColor: colors.border }]}>
+              <Feather name="hash" size={12} color={colors.accentForeground} />
+              <Text style={[styles.codeChipText, { color: colors.accentForeground }]}>
+                Aapka code: {savedCode}
+              </Text>
+            </View>
+          ) : null}
         </View>
-        {savedName ? (
-          <Text style={[styles.subtitle, { color: colors.foreground, fontFamily: "Inter_600SemiBold" }]}>
-            Salaam, {savedName}! 👋 Wapas khush aamdeed.
-          </Text>
-        ) : (
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Sign in with your mobile number to view your suppliers, invoices,
-            and chat.
-          </Text>
-        )}
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          Sign in with your mobile number to view your suppliers, invoices,
+          and chat.
+        </Text>
 
         <View style={styles.form}>
           <View style={styles.fieldGroup}>
@@ -305,6 +309,18 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingHorizontal: 24, flexGrow: 1 },
   brandBlock: { alignItems: "center", alignSelf: "stretch" },
+  codeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 14,
+    marginTop: -8,
+  },
+  codeChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
   logo: {
     width: 88,
     height: 88,
