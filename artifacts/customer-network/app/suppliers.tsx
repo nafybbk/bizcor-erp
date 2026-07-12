@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useMiniAppListConnections, MiniAppConnection, customFetch } from "@workspace/api-client-react";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -164,7 +165,7 @@ export default function SuppliersScreen() {
             My Suppliers
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-            {customer?.mobile}
+            {customer?.mobile} · v{Constants.expoConfig?.version ?? "?"}
           </Text>
         </View>
         <Pressable

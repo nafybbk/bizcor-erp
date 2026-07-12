@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { useMiniAppLogin, useMiniAppSettings } from "@workspace/api-client-react";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -158,7 +159,7 @@ export default function LoginScreen() {
             {appName}
           </Animated.Text>
           <Text style={[styles.appTagline, { color: colors.mutedForeground }]}>
-            Connect
+            Connect · v{Constants.expoConfig?.version ?? "?"}
           </Text>
         </View>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
