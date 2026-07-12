@@ -55,7 +55,12 @@ export default function InvoiceDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: data?.voucherNumber ?? "Invoice" }} />
+      <Stack.Screen options={{
+        title: data?.voucherNumber ?? "Invoice",
+        headerStyle: { backgroundColor: colors.primary },
+        headerTintColor: "#ffffff",
+        headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
+      }} />
 
       {loading ? (
         <View style={styles.centerFill}>

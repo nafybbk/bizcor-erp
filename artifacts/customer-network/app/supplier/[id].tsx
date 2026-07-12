@@ -28,6 +28,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -63,38 +64,48 @@ export default function SupplierDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: connection?.businessName ?? "Supplier" }} />
+      <Stack.Screen options={{
+        title: connection?.businessName ?? "Supplier",
+        headerStyle: { backgroundColor: colors.primary },
+        headerTintColor: colors.primaryForeground,
+        headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
+      }} />
 
-      <View style={[styles.tabBar, { borderColor: colors.border }]}>
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
-            <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              testID={`tab-${t.key}`}
-              android_ripple={{ color: colors.border }}
-              style={[
-                styles.tabItem,
-                active && { borderBottomColor: colors.primary, borderBottomWidth: 2 },
-              ]}
-            >
-              <Feather
-                name={t.icon}
-                size={16}
-                color={active ? colors.primary : colors.mutedForeground}
-              />
-              <Text
+      {/* Material-style scrollable pill tabs — the old flex:1 row crushed
+          five labels into wrapping soup on phone widths */}
+      <View style={[styles.tabBar, { borderColor: colors.border, backgroundColor: colors.background }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setTab(t.key)}
+                testID={`tab-${t.key}`}
+                android_ripple={{ color: active ? "rgba(255,255,255,0.3)" : colors.border }}
                 style={[
-                  styles.tabLabel,
-                  { color: active ? colors.primary : colors.mutedForeground },
+                  styles.tabPill,
+                  { backgroundColor: active ? colors.primary : colors.secondary },
                 ]}
               >
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+                <Feather
+                  name={t.icon}
+                  size={15}
+                  color={active ? colors.primaryForeground : colors.mutedForeground}
+                />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.tabLabel,
+                    { color: active ? colors.primaryForeground : colors.mutedForeground },
+                  ]}
+                >
+                  {t.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {tab === "chat" && <ChatTab connectionId={connectionId} />}
@@ -627,14 +638,16 @@ function GalleryTab() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBar: { flexDirection: "row", borderBottomWidth: 1 },
-  tabItem: {
-    flex: 1,
+  tabBar: { borderBottomWidth: 1 },
+  tabScroll: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  tabPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    overflow: "hidden",
   },
   tabLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   centerFill: {

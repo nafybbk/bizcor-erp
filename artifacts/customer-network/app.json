@@ -2,7 +2,7 @@
   "expo": {
     "name": "BizCor Conect",
     "slug": "customer-network",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "customer-network",
@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.naewtgroup.bizcorconect",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ],

@@ -20,6 +20,28 @@ import { useColors } from "@/hooks/useColors";
 
 type Conn = MiniAppConnection & { customerPaused?: boolean; partyName?: string | null };
 
+// Vibrant avatar colors picked by name hash — kills the "doctor's parchi" white
+const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#db2777", "#ea580c", "#0d9488", "#4f46e5"];
+function avatarColor(name?: string | null): string {
+  let h = 0;
+  for (const ch of name || "?") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function StatusChip({ status, paused }: { status?: string; paused: boolean }) {
+  const cfg = status === "blocked"
+    ? { bg: "#fee2e2", fg: "#dc2626", label: "Blocked" }
+    : paused
+      ? { bg: "#fef3c7", fg: "#b45309", label: "Paused" }
+      : { bg: "#dcfce7", fg: "#16a34a", label: "Connected" };
+  return (
+    <View style={[styles.chip, { backgroundColor: cfg.bg }]}>
+      <View style={[styles.chipDot, { backgroundColor: cfg.fg }]} />
+      <Text style={[styles.chipText, { color: cfg.fg }]}>{cfg.label}</Text>
+    </View>
+  );
+}
+
 function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }) {
   const colors = useColors();
   const initial = item.businessName?.charAt(0)?.toUpperCase() ?? "?";
@@ -102,8 +124,8 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
       {item.businessLogo ? (
         <Image source={{ uri: item.businessLogo }} style={styles.avatarImg} />
       ) : (
-        <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.avatarText, { color: colors.accentForeground }]}>
+        <View style={[styles.avatar, { backgroundColor: avatarColor(item.businessName) }]}>
+          <Text style={[styles.avatarText, { color: "#ffffff" }]}>
             {initial}
           </Text>
         </View>
@@ -112,10 +134,12 @@ function SupplierCard({ item, onChanged }: { item: Conn; onChanged: () => void }
         <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
           {item.businessName}
         </Text>
-        <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
-          {item.partyName ? `${item.partyName} · ` : ""}
-          {item.status === "blocked" ? "Blocked" : paused ? "Paused" : "Connected"}
-        </Text>
+        {item.partyName ? (
+          <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {item.partyName}
+          </Text>
+        ) : null}
+        <StatusChip status={item.status} paused={paused} />
       </View>
       <Pressable
         onPress={openMenu}
@@ -154,17 +178,16 @@ export default function SuppliersScreen() {
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top, 20),
-            borderColor: colors.border,
-            backgroundColor: colors.background,
+            paddingTop: Math.max(insets.top, 20) + 8,
+            backgroundColor: colors.primary,
           },
         ]}
       >
         <View>
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          <Text style={[styles.headerTitle, { color: colors.primaryForeground }]}>
             My Suppliers
           </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
+          <Text style={[styles.headerSubtitle, { color: "rgba(255,255,255,0.75)" }]}>
             {customer?.mobile} · v{Constants.expoConfig?.version ?? "?"}
           </Text>
         </View>
@@ -172,10 +195,10 @@ export default function SuppliersScreen() {
           onPress={handleLogout}
           hitSlop={10}
           testID="logout-button"
-          android_ripple={{ color: colors.border, borderless: true, radius: 24 }}
-          style={[styles.iconButton, { backgroundColor: colors.secondary }]}
+          android_ripple={{ color: "rgba(255,255,255,0.3)", borderless: true, radius: 24 }}
+          style={[styles.iconButton, { backgroundColor: "rgba(255,255,255,0.18)" }]}
         >
-          <Feather name="log-out" size={18} color={colors.foreground} />
+          <Feather name="log-out" size={18} color={colors.primaryForeground} />
         </Pressable>
       </View>
 
@@ -269,11 +292,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    elevation: 4,
   },
   headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
   headerSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  chipText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   iconButton: {
     width: 38,
     height: 38,
