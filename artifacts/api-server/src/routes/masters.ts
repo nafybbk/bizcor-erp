@@ -289,6 +289,11 @@ router.post("/hsn/import", async (req, res) => {
 // the same code overrides it.
 router.get("/hsn/directory", async (req, res) => {
   try {
+    if (sqlite) {
+      const rows = sqlite.prepare("SELECT code, description, tax_rate AS taxRate FROM hsn_directory").all();
+      res.json({ data: rows });
+      return;
+    }
     const rows = await db.select({
       code: hsnDirectoryTable.code,
       description: hsnDirectoryTable.description,
@@ -318,16 +323,25 @@ router.post("/hsn/sync-directory", async (req, res) => {
       return;
     }
 
-    await db.delete(hsnDirectoryTable);
-    // SQLite: max 999 bound values per statement (3 cols × 150 = 450, safe)
-    const CHUNK = 150;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      await db.insert(hsnDirectoryTable).values(rows.slice(i, i + CHUNK).map(r => ({
-        code: String(r.code).trim(),
-        description: r.description || null,
-        taxRate: r.taxRate != null ? String(r.taxRate) : null,
-      })));
-    }
+    // Raw better-sqlite3: one transaction, one row per statement — no
+    // dialect quirks ("incomplete input") and 22k rows land in <1s
+    if (!sqlite) { res.status(400).json({ error: "Desktop mode nahi hai" }); return; }
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS hsn_directory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      description TEXT,
+      tax_rate TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+    const stmt = sqlite.prepare("INSERT OR REPLACE INTO hsn_directory (code, description, tax_rate) VALUES (?, ?, ?)");
+    const importAll = sqlite.transaction((all: { code: string; description?: string | null; taxRate?: string | null }[]) => {
+      sqlite!.exec("DELETE FROM hsn_directory");
+      for (const r of all) {
+        const code = String(r.code || "").trim();
+        if (code) stmt.run(code, r.description || null, r.taxRate != null ? String(r.taxRate) : null);
+      }
+    });
+    importAll(rows);
     res.json({ success: true, count: rows.length });
   } catch (err) {
     req.log.error(err);

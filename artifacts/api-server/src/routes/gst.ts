@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, sqlite } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable, businessesTable, hsnCodesTable, hsnDirectoryTable } from "@workspace/db";
 import { eq, and, sql, gte, lte, isNull, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
@@ -577,10 +577,18 @@ router.get("/gstr1/export", async (req, res) => {
     // earlier don't leak into the portal file; the business master only
     // covers codes the directory doesn't have.
     try {
-      const usedCodes = [...new Set(allItems.map(i => (i.hsnCode || "").trim()).filter(Boolean))];
+      // SQLite: 999-param limit, and raw prepare avoids dialect quirks
+      const usedCodes = [...new Set(allItems.map(i => (i.hsnCode || "").trim()).filter(Boolean))].slice(0, 900);
       if (usedCodes.length > 0) {
-        const dirRows = await db.select({ code: hsnDirectoryTable.code, description: hsnDirectoryTable.description })
-          .from(hsnDirectoryTable).where(inArray(hsnDirectoryTable.code, usedCodes));
+        let dirRows: { code: string; description: string | null }[];
+        if (sqlite) {
+          dirRows = sqlite.prepare(
+            `SELECT code, description FROM hsn_directory WHERE code IN (${usedCodes.map(() => "?").join(",")})`
+          ).all(...usedCodes) as { code: string; description: string | null }[];
+        } else {
+          dirRows = await db.select({ code: hsnDirectoryTable.code, description: hsnDirectoryTable.description })
+            .from(hsnDirectoryTable).where(inArray(hsnDirectoryTable.code, usedCodes));
+        }
         for (const d of dirRows) {
           if (d.description) hsnDescByCode.set(d.code.trim(), String(d.description).toUpperCase());
         }
