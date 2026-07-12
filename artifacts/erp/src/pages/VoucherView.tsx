@@ -363,19 +363,21 @@ export default function VoucherView({ voucherType, listHref }: Props) {
                 className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium ${showFontPanel ? "border-indigo-400 text-indigo-700 bg-indigo-100" : "border-gray-300 text-gray-600 bg-white hover:bg-gray-50"}`}>
                 <Type className="w-4 h-4" /> <span className="hidden sm:inline">Fonts</span>
               </button>
-              <button onClick={handlePrint}
-                className="flex items-center gap-1.5 px-3 py-2 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium">
-                <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">PDF / Print</span>
-              </button>
+              {/* LAN clients (phones / PCs without printers): "Print" goes
+                  straight to the server's printer — no browser print dialog.
+                  Browser print stays available as "PDF". Label always visible,
+                  even on mobile, so the two aren't identical icons. */}
               {isLanMode && (
                 <button onClick={handleServerPrint} disabled={serverPrinting}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg text-sm font-medium disabled:opacity-60">
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-60">
                   <FileDown className="w-4 h-4" />
-                  <span className="hidden sm:inline">
-                    {serverPrinting ? "Printing..." : "Server Print"}
-                  </span>
+                  <span>{serverPrinting ? "Printing..." : "Print"}</span>
                 </button>
               )}
+              <button onClick={handlePrint}
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm font-medium ${isLanMode ? "border-gray-300 text-gray-600 bg-white hover:bg-gray-50" : "border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100"}`}>
+                <FileDown className="w-4 h-4" /> <span className="hidden sm:inline">{isLanMode ? "PDF" : "PDF / Print"}</span>
+              </button>
             </div>
           </div>
 

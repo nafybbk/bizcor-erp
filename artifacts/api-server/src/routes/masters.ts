@@ -266,7 +266,9 @@ router.post("/hsn/import", async (req, res) => {
       }
     }
 
-    const CHUNK = 500;
+    // SQLite (EXE) allows only 999 bound values per statement — keep row
+    // chunks small enough that rows × columns stays under it
+    const CHUNK = sqlite ? 150 : 500;
     for (let i = 0; i < toOverwrite.length; i += CHUNK) {
       await db.delete(hsnCodesTable).where(and(
         eq(hsnCodesTable.businessId, businessId),
@@ -317,7 +319,8 @@ router.post("/hsn/sync-directory", async (req, res) => {
     }
 
     await db.delete(hsnDirectoryTable);
-    const CHUNK = 500;
+    // SQLite: max 999 bound values per statement (3 cols × 150 = 450, safe)
+    const CHUNK = 150;
     for (let i = 0; i < rows.length; i += CHUNK) {
       await db.insert(hsnDirectoryTable).values(rows.slice(i, i + CHUNK).map(r => ({
         code: String(r.code).trim(),
@@ -326,7 +329,10 @@ router.post("/hsn/sync-directory", async (req, res) => {
       })));
     }
     res.json({ success: true, count: rows.length });
-  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error", message: err instanceof Error ? err.message : "Sync fail hua" });
+  }
 });
 
 // TAX RATES

@@ -102,13 +102,14 @@ export default function HsnCodes() {
       api.get<any>("/masters/hsn").then(r => r.data).catch(() => []),
       api.get<any>("/masters/hsn/directory").then(r => r.data).catch(() => []),
     ]).then(([mine, dir]) => {
-      // Merge: own codes first (they override), then directory rows not
-      // overridden — so the list shows exactly what GSTR-1 will use
-      const mineCodes = new Set((mine as any[]).map((c: any) => String(c.code).trim()));
+      // Directory (official) wins — GSTR-1 uses its description, so the list
+      // shows the directory row for any code present there; own codes only
+      // appear when the directory doesn't have them
+      const dirCodes = new Set((dir as any[]).map((d: any) => String(d.code).trim()));
+      const mineRows = (mine as any[]).filter((c: any) => !dirCodes.has(String(c.code).trim()));
       const dirRows = (dir as any[])
-        .filter((d: any) => !mineCodes.has(String(d.code).trim()))
         .map((d: any, i: number) => ({ id: `dir-${i}`, code: d.code, description: d.description, taxRate: d.taxRate, _dir: true }));
-      setCodes([...(mine as any[]), ...dirRows]);
+      setCodes([...mineRows, ...dirRows]);
     }).finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, []);
