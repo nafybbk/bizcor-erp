@@ -655,67 +655,79 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       }
     }).catch(() => {/* offline — cached parties already set above */});
 
+    // Each call is caught independently — one flaky endpoint (e.g. a cold
+    // 21k-row HSN directory query) must not void items/units/taxRates from
+    // refreshing too. Promise.all previously rejected the WHOLE batch on any
+    // single failure, silently freezing everything at cache/defaults with no
+    // visible error — that's what was masking real HSN codes as "not found".
+    const tag = <T,>(label: string, p: Promise<T>) => p.then(v => ({ ok: true as const, v })).catch(err => {
+      console.error(`VoucherForm: ${label} fetch failed:`, err);
+      return { ok: false as const, label, err };
+    });
     Promise.all([
-      api.get<any>("/items?limit=9999"),
-      api.get<any>("/masters/tax-rates"),
-      api.get<any>("/masters/units"),
-      api.get<any>("/businesses/current"),
-      !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-      api.get<any>("/masters/hsn").catch(err => { console.warn("HSN master fetch failed:", err); return { data: [] }; }),
-      api.get<any>("/masters/hsn/directory").catch(err => { console.warn("HSN directory fetch failed:", err); return { data: [] }; }),
+      tag("items", api.get<any>("/items?limit=9999")),
+      tag("tax-rates", api.get<any>("/masters/tax-rates")),
+      tag("units", api.get<any>("/masters/units")),
+      tag("business", api.get<any>("/businesses/current")),
+      tag("next-number", !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null)),
+      tag("hsn-master", api.get<any>("/masters/hsn")),
+      tag("hsn-directory", api.get<any>("/masters/hsn/directory")),
     ]).then(([it, t, u, biz, nextNumRes, hsnMine, hsnDir]) => {
+      const failed = [it, t, u, biz, nextNumRes, hsnMine, hsnDir].filter(r => r && !r.ok) as { label: string; err: any }[];
+      if (failed.length) {
+        setMasterFetchError(failed.map(f => `${f.label}: ${f.err?.message || f.err}`).join(" | "));
+      }
       // Synthetic fallback for cash-bank if no accounts loaded yet
+      const bizData = biz.ok ? biz.v : null;
       setCashBankAccounts(prev => {
         if (prev.length > 0) return prev; // already loaded
         const fallback = [
           { id: "", name: "💵 Cash", type: "cash", isDefault: true },
-          { id: "", name: biz?.bankName ? `🏦 ${biz.bankName}${biz.bankAccount ? " (" + biz.bankAccount + ")" : ""}` : "🏦 Bank Account", type: "bank", isDefault: false },
+          { id: "", name: bizData?.bankName ? `🏦 ${bizData.bankName}${bizData.bankAccount ? " (" + bizData.bankAccount + ")" : ""}` : "🏦 Bank Account", type: "bank", isDefault: false },
         ];
         setPaymentForm(f => ({ ...f, accountId: "" }));
         return fallback;
       });
-      setItems(it.data || []);
-      setTaxRates(t.data || []);
-      setUnits(u.data || []);
+      // Any call that failed keeps whatever was already loaded (cache/prior
+      // state) instead of being wiped with an empty array.
+      if (it.ok) { setItems(it.v.data || []); cacheItems(it.v.data || []); }
+      if (t.ok) { setTaxRates(t.v.data || []); cacheTaxRates(t.v.data || []); }
+      if (u.ok) { setUnits(u.v.data || []); cacheUnits(u.v.data || []); }
+
       // Merge: business's own HSN codes override the global directory entry
       // with the same code (custom description/rate); directory fills the rest.
       // This is the OFFICIAL set — only these are accepted on save, since GST
       // filing rejects anything not government-approved.
       const hsnMap = new Map<string, any>();
-      for (const h of (hsnDir?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
-      for (const h of (hsnMine?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
+      for (const h of (hsnDir.ok ? hsnDir.v?.data || [] : [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
+      for (const h of (hsnMine.ok ? hsnMine.v?.data || [] : [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
       const mergedHsn = Array.from(hsnMap.values());
-      setHsnCodes(mergedHsn);
+      if (hsnMine.ok || hsnDir.ok) { setHsnCodes(mergedHsn); cacheHsn(mergedHsn); }
 
       // Search list adds codes already saved on items (leftover free-typed
       // values from before this combobox existed) so they're still visible —
       // flagged unofficial — instead of vanishing as if they never existed.
       // Fixing/clearing them is done from Masters → HSN Codes.
       const searchMap = new Map<string, any>(hsnMap);
-      for (const itm of (it.data || [])) {
+      for (const itm of (it.ok ? it.v.data || [] : [])) {
         const code = String(itm.hsnCode || "").trim();
         if (code && !searchMap.has(code)) searchMap.set(code, { code, description: itm.itemName || "", _unofficial: true });
       }
       setHsnSearchList(Array.from(searchMap.values()));
       setHsnLoading(false);
-      cacheItems(it.data || []);
-      cacheTaxRates(t.data || []);
-      cacheUnits(u.data || []);
-      cacheHsn(mergedHsn);
-      const mode = biz.serialNumberMode === "manual" ? "manual" : "auto";
-      setSerialMode(mode);
-      try { localStorage.setItem("biz_serial_mode", mode); } catch {}
-      if (biz.stateCode) setBizStateCode(biz.stateCode);
-      if (biz.businessType) setBizType(biz.businessType);
-      if (nextNumRes?.nextNumber) setNextAutoNumber(nextNumRes.nextNumber);
+
+      if (bizData) {
+        const mode = bizData.serialNumberMode === "manual" ? "manual" : "auto";
+        setSerialMode(mode);
+        try { localStorage.setItem("biz_serial_mode", mode); } catch {}
+        if (bizData.stateCode) setBizStateCode(bizData.stateCode);
+        if (bizData.businessType) setBizType(bizData.businessType);
+      }
+      if (nextNumRes.ok && nextNumRes.v?.nextNumber) setNextAutoNumber(nextNumRes.v.nextNumber);
     }).catch((err) => {
-      // Offline — already loaded from cache above. But this also fires if ANY
-      // one call in the batch (items/tax-rates/units/business/next-number)
-      // rejects — which silently stops items/units/taxRates/hsnCodes from
-      // ever refreshing from network (cache masks it for items/units/tax
-      // rates since those have prior data; HSN has no prior cache so it
-      // just stays empty forever). Surface it instead of guessing blind.
-      console.error("VoucherForm master-data batch failed:", err);
+      // Should no longer trigger now that every call is individually caught
+      // above — kept as a last-resort net.
+      console.error("VoucherForm master-data batch failed unexpectedly:", err);
       setMasterFetchError(err?.message || String(err));
       setHsnLoading(false);
     });
