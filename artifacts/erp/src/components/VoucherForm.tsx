@@ -473,6 +473,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [hsnCodes, setHsnCodes] = useState<any[]>([]);       // official only: business master + govt directory — what GST filing accepts
   const [hsnSearchList, setHsnSearchList] = useState<any[]>([]); // official + item-derived (flagged _unofficial) — for the combobox to search/surface
   const [hsnLoading, setHsnLoading] = useState(true);
+  const [masterFetchError, setMasterFetchError] = useState<string | null>(null);
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -707,8 +708,15 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       if (biz.stateCode) setBizStateCode(biz.stateCode);
       if (biz.businessType) setBizType(biz.businessType);
       if (nextNumRes?.nextNumber) setNextAutoNumber(nextNumRes.nextNumber);
-    }).catch(() => {
-      // Offline — already loaded from cache above
+    }).catch((err) => {
+      // Offline — already loaded from cache above. But this also fires if ANY
+      // one call in the batch (items/tax-rates/units/business/next-number)
+      // rejects — which silently stops items/units/taxRates/hsnCodes from
+      // ever refreshing from network (cache masks it for items/units/tax
+      // rates since those have prior data; HSN has no prior cache so it
+      // just stays empty forever). Surface it instead of guessing blind.
+      console.error("VoucherForm master-data batch failed:", err);
+      setMasterFetchError(err?.message || String(err));
       setHsnLoading(false);
     });
 
@@ -1826,6 +1834,11 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         )}
 
         {/* Items table */}
+        {masterFetchError && (
+          <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 text-sm text-red-800">
+            <strong>Master data load failed:</strong> {masterFetchError} — HSN/item/tax lists may be stale. Try reloading the page.
+          </div>
+        )}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden erp-items-table">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <h3 className="font-semibold text-gray-800 text-sm">Items</h3>
