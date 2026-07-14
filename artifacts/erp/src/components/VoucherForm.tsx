@@ -269,7 +269,12 @@ function HsnCombobox({
               onMouseDown={() => selectCode(h)}
               className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 border-b border-gray-50 last:border-0 ${fi === hilite ? "bg-blue-50 text-blue-900" : "hover:bg-blue-50"}`}
             >
-              <span className="font-medium flex-shrink-0">{h.code}</span>
+              <span className="font-medium flex-shrink-0 flex items-center gap-1.5">
+                {h.code}
+                {h._unofficial && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700" title="Used on an item but not in the official HSN list — fix it from Masters → HSN Codes">NOT OFFICIAL</span>
+                )}
+              </span>
               <span className="truncate text-xs text-gray-400 text-right">{h.description || ""}</span>
             </button>
           ))}
@@ -465,7 +470,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
   const [parties, setParties] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
-  const [hsnCodes, setHsnCodes] = useState<any[]>([]);
+  const [hsnCodes, setHsnCodes] = useState<any[]>([]);       // official only: business master + govt directory — what GST filing accepts
+  const [hsnSearchList, setHsnSearchList] = useState<any[]>([]); // official + item-derived (flagged _unofficial) — for the combobox to search/surface
   const [hsnLoading, setHsnLoading] = useState(true);
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
@@ -672,19 +678,24 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setUnits(u.data || []);
       // Merge: business's own HSN codes override the global directory entry
       // with the same code (custom description/rate); directory fills the rest.
-      // Codes already saved on items (from the old free-text HSN field, before
-      // this combobox existed) are added last so nothing already in use gets
-      // flagged as "not in master" just because no one registered it on the
-      // dedicated HSN Codes master screen.
+      // This is the OFFICIAL set — only these are accepted on save, since GST
+      // filing rejects anything not government-approved.
       const hsnMap = new Map<string, any>();
       for (const h of (hsnDir?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
       for (const h of (hsnMine?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
-      for (const itm of (it.data || [])) {
-        const code = String(itm.hsnCode || "").trim();
-        if (code && !hsnMap.has(code)) hsnMap.set(code, { code, description: itm.itemName || "" });
-      }
       const mergedHsn = Array.from(hsnMap.values());
       setHsnCodes(mergedHsn);
+
+      // Search list adds codes already saved on items (leftover free-typed
+      // values from before this combobox existed) so they're still visible —
+      // flagged unofficial — instead of vanishing as if they never existed.
+      // Fixing/clearing them is done from Masters → HSN Codes.
+      const searchMap = new Map<string, any>(hsnMap);
+      for (const itm of (it.data || [])) {
+        const code = String(itm.hsnCode || "").trim();
+        if (code && !searchMap.has(code)) searchMap.set(code, { code, description: itm.itemName || "", _unofficial: true });
+      }
+      setHsnSearchList(Array.from(searchMap.values()));
       setHsnLoading(false);
       cacheItems(it.data || []);
       cacheTaxRates(t.data || []);
@@ -1939,7 +1950,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                       </td>
                       <td className="px-2 py-1.5">
                         <HsnCombobox
-                          hsnList={hsnCodes}
+                          hsnList={hsnSearchList}
                           value={item.hsnCode}
                           rowIdx={idx}
                           loading={hsnLoading}
