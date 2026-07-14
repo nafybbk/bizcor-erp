@@ -672,9 +672,17 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setUnits(u.data || []);
       // Merge: business's own HSN codes override the global directory entry
       // with the same code (custom description/rate); directory fills the rest.
+      // Codes already saved on items (from the old free-text HSN field, before
+      // this combobox existed) are added last so nothing already in use gets
+      // flagged as "not in master" just because no one registered it on the
+      // dedicated HSN Codes master screen.
       const hsnMap = new Map<string, any>();
       for (const h of (hsnDir?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
       for (const h of (hsnMine?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
+      for (const itm of (it.data || [])) {
+        const code = String(itm.hsnCode || "").trim();
+        if (code && !hsnMap.has(code)) hsnMap.set(code, { code, description: itm.itemName || "" });
+      }
       const mergedHsn = Array.from(hsnMap.values());
       setHsnCodes(mergedHsn);
       setHsnLoading(false);
