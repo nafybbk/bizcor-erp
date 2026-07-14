@@ -596,18 +596,18 @@ router.get("/gstr1/export", async (req, res) => {
     } catch { /* directory table missing (older EXE DB) — non-fatal */ }
 
     type HsnRow = { hsn_sc: string; desc: string; user_desc: string; uqc: string; rt: number; qty: number; txval: number; iamt: number; camt: number; samt: number; csamt: number };
-    function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean) {
+    function addToHsnMap(map: Map<string, HsnRow>, v: { id: number; partyGstin?: string | null }, isB2b: boolean, sign: 1 | -1 = 1) {
       const items = itemsByVoucher.get(v.id) || [];
       for (const it of items) {
         const hsn_sc = it.hsnCode || "";
         const uqc = (it.unit || "OTH").toUpperCase().substring(0, 3);
         const rt = round2(Number(it.taxRate ?? 0));
         const key = `${hsn_sc}|${uqc}|${rt}`;
-        const txval = round2(Number(it.taxableAmount));
-        const iamt = round2(Number(it.igst));
-        const camt = round2(Number(it.cgst));
-        const samt = round2(Number(it.sgst));
-        const qty = round2(Number(it.quantity));
+        const txval = sign * round2(Number(it.taxableAmount));
+        const iamt = sign * round2(Number(it.igst));
+        const camt = sign * round2(Number(it.cgst));
+        const samt = sign * round2(Number(it.sgst));
+        const qty = sign * round2(Number(it.quantity));
         const e = map.get(key);
         if (e) {
           e.qty = round2(e.qty + qty);
@@ -630,8 +630,10 @@ router.get("/gstr1/export", async (req, res) => {
       else addToHsnMap(hsnB2cMap, v, false);
     }
     for (const v of notesRaw) {
-      if (isValidGSTIN(v.partyGstin)) addToHsnMap(hsnB2bMap, v, true);
-      else addToHsnMap(hsnB2cMap, v, false);
+      // Credit notes reduce previously reported outward supply value; debit notes increase it.
+      const sign: 1 | -1 = v.voucherType === "credit_note" ? -1 : 1;
+      if (isValidGSTIN(v.partyGstin)) addToHsnMap(hsnB2bMap, v, true, sign);
+      else addToHsnMap(hsnB2cMap, v, false, sign);
     }
     const hsnB2bData = Array.from(hsnB2bMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
     const hsnB2cData = Array.from(hsnB2cMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
@@ -642,12 +644,40 @@ router.get("/gstr1/export", async (req, res) => {
       const docs = docsAll.filter(d => d.voucherType === type);
       if (!docs.length) return null;
       const sorted = [...docs].sort((a, b) => { const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber); return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.voucherNumber.localeCompare(b.voucherNumber); });
-      const cancelled = docs.filter(d => d.deletedAt !== null).length;
+
+      // Group into consecutive-number ranges — a voucher number that's still on
+      // record (even soft-deleted, i.e. in the bin) stays inside its range and
+      // is reported via "cancel"; a number with NO record at all (permanently
+      // deleted / never created) is a true gap and starts a new range. Without
+      // this, a single range spanning a true gap silently under-reports totnum
+      // vs. its from/to span with nothing in "cancel" to explain the difference.
+      type Range = { from: string; to: string; totnum: number; cancel: number };
+      const ranges: Range[] = [];
+      let rDocs = [sorted[0]];
+      for (let i = 1; i < sorted.length; i++) {
+        const cur = sorted[i];
+        const prevNum = extractNum(rDocs[rDocs.length - 1].voucherNumber);
+        const curNum = extractNum(cur.voucherNumber);
+        if (!isNaN(prevNum) && !isNaN(curNum) && curNum === prevNum + 1) {
+          rDocs.push(cur);
+        } else {
+          const cancel = rDocs.filter(d => d.deletedAt !== null).length;
+          ranges.push({ from: formatPrintNumber(rDocs[0].voucherNumber, biz), to: formatPrintNumber(rDocs[rDocs.length - 1].voucherNumber, biz), totnum: rDocs.length, cancel });
+          rDocs = [cur];
+        }
+      }
+      const lastCancel = rDocs.filter(d => d.deletedAt !== null).length;
+      ranges.push({ from: formatPrintNumber(rDocs[0].voucherNumber, biz), to: formatPrintNumber(rDocs[rDocs.length - 1].voucherNumber, biz), totnum: rDocs.length, cancel: lastCancel });
+
       // GSTN doc_num list: 1=Invoices for outward supply, 4=Debit Note, 5=Credit Note.
       // Purchase bills are NOT documents issued by this taxpayer — the portal's
       // own generated file lists only outward docs, so we no longer send them.
       const docTypMap: Record<string, string> = { sales_invoice: "Invoices for outward supply", debit_note: "Debit Note", credit_note: "Credit Note" };
-      return { doc_num: docNum, doc_typ: docTypMap[type] || "Invoices for outward supply", docs: [{ num: 1, from: formatPrintNumber(sorted[0].voucherNumber, biz), to: formatPrintNumber(sorted[sorted.length - 1].voucherNumber, biz), totnum: docs.length, cancel: cancelled, net_issue: docs.length - cancelled }] };
+      return {
+        doc_num: docNum,
+        doc_typ: docTypMap[type] || "Invoices for outward supply",
+        docs: ranges.map((r, idx) => ({ num: idx + 1, from: r.from, to: r.to, totnum: r.totnum, cancel: r.cancel, net_issue: r.totnum - r.cancel })),
+      };
     }
     const docDetItems = [
       buildDocIssue("sales_invoice", 1),

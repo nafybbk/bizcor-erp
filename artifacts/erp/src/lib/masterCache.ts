@@ -5,6 +5,7 @@ const KEYS = {
   items: "erp_cache_items",
   units: "erp_cache_units",
   taxRates: "erp_cache_taxrates",
+  hsn: "erp_cache_hsn",
 };
 
 function save(key: string, data: any[]) {
@@ -36,6 +37,9 @@ export function getCachedUnits(): any[] { return load(KEYS.units); }
 
 export function cacheTaxRates(data: any[]) { save(KEYS.taxRates, data); }
 export function getCachedTaxRates(): any[] { return load(KEYS.taxRates); }
+
+export function cacheHsn(data: any[]) { save(KEYS.hsn, data); }
+export function getCachedHsn(): any[] { return load(KEYS.hsn); }
 
 export function getCacheInfo(): { parties: number; items: number; units: number; taxRates: number; lastUpdated: string | null } {
   try {

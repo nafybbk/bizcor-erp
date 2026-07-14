@@ -4,7 +4,7 @@ import { api, fmt, isOfflineError, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useStates } from "@/lib/useStates";
 import { saveDraft } from "@/lib/offlineQueue";
-import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates } from "@/lib/masterCache";
+import { cacheParties, getCachedParties, cacheItems, getCachedItems, cacheUnits, getCachedUnits, cacheTaxRates, getCachedTaxRates, cacheHsn, getCachedHsn } from "@/lib/masterCache";
 import { getFieldSize, saveFieldSize, type FieldSize } from "@/lib/uiPrefs";
 import { Plus, Trash2, Loader2, ToggleLeft, ToggleRight, AlertTriangle, X, CloudOff, Link2, RefreshCw, Archive, CalendarClock, CheckCircle } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
@@ -146,6 +146,132 @@ function ItemCombobox({
           {isNew && q && filtered.length > 0 && (
             <div className="px-3 py-1.5 text-[10px] text-amber-700 bg-amber-50 border-t border-amber-100">
               ✦ "{query}" — new item, will be automatically added to master on save
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── HSN Combobox — progressive-prefix search (5 → 55 → 551 → 5516) + keyboard nav ─ */
+function HsnCombobox({
+  hsnList, value, onChange, rowIdx,
+}: {
+  hsnList: any[];
+  value: string;
+  onChange: (code: string) => void;
+  rowIdx: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const [hilite, setHilite] = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector(`[data-hilite="true"]`) as HTMLElement;
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }, [hilite]);
+
+  const q = query.trim().toLowerCase();
+  // Progressive-prefix search: "5" matches everything starting with 5, "5516"
+  // narrows to that and its longer variants (e.g. 551610) — exact/shorter
+  // codes sort first so typing the full code puts it right on top.
+  const filtered = q.length === 0
+    ? hsnList.slice(0, 20)
+    : hsnList
+        .filter(h => h.code.toLowerCase().startsWith(q))
+        .sort((a, b) => a.code.length - b.code.length || a.code.localeCompare(b.code))
+        .slice(0, 30);
+
+  const exactMatch = hsnList.find(h => h.code.toLowerCase() === q);
+  const isNew = q.length > 0 && !exactMatch;
+
+  const selectCode = (h: any) => {
+    setQuery(h.code);
+    setOpen(false);
+    setHilite(0);
+    onChange(h.code);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { setOpen(true); setHilite(0); }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHilite(h => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHilite(h => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      if (filtered.length > 0) {
+        e.preventDefault();
+        selectCode(filtered[hilite] ?? filtered[0]);
+      } else {
+        setOpen(false);
+      }
+    } else if (e.key === "Tab") {
+      if (filtered.length > 0 && open) selectCode(filtered[hilite] ?? filtered[0]);
+      setOpen(false);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        data-row={rowIdx}
+        data-field="hsn"
+        className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="HSN"
+        value={query}
+        autoComplete="off"
+        onFocus={() => { setOpen(true); setHilite(0); }}
+        onKeyDown={handleKeyDown}
+        onChange={e => {
+          const v = e.target.value;
+          setQuery(v);
+          setOpen(true);
+          setHilite(0);
+          onChange(v);
+        }}
+      />
+      {open && (query.trim().length > 0 || filtered.length > 0) && (
+        <div ref={listRef} className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl overflow-y-auto" style={{ maxHeight: "16rem", minWidth: "16rem" }}>
+          {filtered.length === 0 && q && (
+            <div className="px-3 py-2 text-xs text-gray-500 bg-amber-50">
+              "<strong className="text-gray-800">{query}</strong>" — not in HSN master, will be used as typed
+            </div>
+          )}
+          {filtered.map((h, fi) => (
+            <button
+              key={h.code} type="button"
+              data-hilite={fi === hilite ? "true" : undefined}
+              onMouseDown={() => selectCode(h)}
+              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 border-b border-gray-50 last:border-0 ${fi === hilite ? "bg-blue-50 text-blue-900" : "hover:bg-blue-50"}`}
+            >
+              <span className="font-medium flex-shrink-0">{h.code}</span>
+              <span className="truncate text-xs text-gray-400 text-right">{h.description || ""}</span>
+            </button>
+          ))}
+          {isNew && q && filtered.length > 0 && (
+            <div className="px-3 py-1.5 text-[10px] text-amber-700 bg-amber-50 border-t border-amber-100">
+              ✦ "{query}" — not in HSN master, will be used as typed
             </div>
           )}
         </div>
@@ -335,6 +461,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
 
   const [parties, setParties] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
+  const [hsnCodes, setHsnCodes] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -485,10 +612,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     const cachedIt = getCachedItems();
     const cachedT = getCachedTaxRates();
     const cachedU = getCachedUnits();
+    const cachedH = getCachedHsn();
     if (cachedP.length) setParties(cachedP);
     if (cachedIt.length) setItems(cachedIt);
     if (cachedT.length) setTaxRates(cachedT);
     if (cachedU.length) setUnits(cachedU);
+    if (cachedH.length) setHsnCodes(cachedH);
 
     const nextNumType = voucherType === "sales/invoices" ? "sales_invoice"
       : voucherType === "sales/credit-notes" ? "credit_note"
@@ -520,7 +649,9 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-    ]).then(([it, t, u, biz, nextNumRes]) => {
+      api.get<any>("/masters/hsn").catch(() => ({ data: [] })),
+      api.get<any>("/masters/hsn/directory").catch(() => ({ data: [] })),
+    ]).then(([it, t, u, biz, nextNumRes, hsnMine, hsnDir]) => {
       // Synthetic fallback for cash-bank if no accounts loaded yet
       setCashBankAccounts(prev => {
         if (prev.length > 0) return prev; // already loaded
@@ -534,9 +665,17 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       setItems(it.data || []);
       setTaxRates(t.data || []);
       setUnits(u.data || []);
+      // Merge: business's own HSN codes override the global directory entry
+      // with the same code (custom description/rate); directory fills the rest.
+      const hsnMap = new Map<string, any>();
+      for (const h of (hsnDir?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
+      for (const h of (hsnMine?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
+      const mergedHsn = Array.from(hsnMap.values());
+      setHsnCodes(mergedHsn);
       cacheItems(it.data || []);
       cacheTaxRates(t.data || []);
       cacheUnits(u.data || []);
+      cacheHsn(mergedHsn);
       const mode = biz.serialNumberMode === "manual" ? "manual" : "auto";
       setSerialMode(mode);
       try { localStorage.setItem("biz_serial_mode", mode); } catch {}
@@ -1771,9 +1910,12 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                         )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <input className="border border-gray-200 rounded px-2 py-1.5 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          data-row={idx} data-field="hsn"
-                          value={item.hsnCode} onChange={e => updateItem(idx, "hsnCode", e.target.value)} placeholder="HSN" />
+                        <HsnCombobox
+                          hsnList={hsnCodes}
+                          value={item.hsnCode}
+                          rowIdx={idx}
+                          onChange={v => updateItem(idx, "hsnCode", v)}
+                        />
                       </td>
                       <td className="px-2 py-1.5">
                         <input type="number" min="0" step="0.001"
