@@ -4,6 +4,76 @@ import { vouchersTable, voucherItemsTable, partiesTable, businessesTable, hsnCod
 import { eq, and, sql, gte, lte, isNull, inArray } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 
+function extractNum(v: string): number {
+  const m = v.match(/(\d+)$/);
+  return m ? parseInt(m[1], 10) : NaN;
+}
+
+// Section 13 (Documents Issued) range-builder — shared by the preview and
+// export routes so their numbers can never drift apart again.
+//
+// A voucher number sitting in the Bin (soft-deleted) is treated as never
+// really issued — it breaks the series (new range starts after it) and is
+// NOT counted as "cancelled". A voucher number with no DB record at all
+// (fully gone, not even in the Bin) is treated as a formally cancelled GST
+// document — it stays inside the current range and IS counted as
+// "cancelled", so the series numbering itself doesn't break.
+type DocRow = { voucherNumber: string; deletedAt: unknown };
+interface DocRange { from: string; to: string; total: number; cancel: number }
+function buildDocRanges(docs: DocRow[]): DocRange[] {
+  if (!docs.length) return [];
+  const numMap = new Map<number, DocRow>();
+  const nonNumeric: DocRow[] = [];
+  for (const d of docs) {
+    const n = extractNum(d.voucherNumber);
+    if (isNaN(n)) { nonNumeric.push(d); continue; }
+    const existing = numMap.get(n);
+    // If a number appears twice (shouldn't normally), prefer the active row.
+    if (!existing || (existing.deletedAt !== null && d.deletedAt === null)) numMap.set(n, d);
+  }
+  const templateDoc = docs.find(d => !isNaN(extractNum(d.voucherNumber)));
+  const numberFromTemplate = (n: number): string => {
+    if (!templateDoc) return String(n);
+    const m = templateDoc.voucherNumber.match(/^(.*?)(\d+)$/);
+    if (!m) return String(n);
+    return `${m[1]}${String(n).padStart(m[2].length, "0")}`;
+  };
+
+  const nums = [...numMap.keys()].sort((a, b) => a - b);
+  type Acc = { fromNum: number; toNum: number; total: number; cancel: number };
+  const acc: Acc[] = [];
+  let cur: Acc | null = null;
+  if (nums.length > 0) {
+    const minNum = nums[0], maxNum = nums[nums.length - 1];
+    for (let n = minNum; n <= maxNum; n++) {
+      const entry = numMap.get(n);
+      if (entry && entry.deletedAt !== null) {
+        // In the Bin — breaks the series, doesn't count as cancelled.
+        if (cur) { acc.push(cur); cur = null; }
+        continue;
+      }
+      // Active record, or no record at all (= formally cancelled, stays in range).
+      if (!cur) cur = { fromNum: n, toNum: n, total: 0, cancel: 0 };
+      cur.toNum = n;
+      cur.total++;
+      if (!entry) cur.cancel++;
+    }
+    if (cur) acc.push(cur);
+  }
+
+  const ranges: DocRange[] = acc.map(r => ({
+    from: numberFromTemplate(r.fromNum),
+    to: numberFromTemplate(r.toNum),
+    total: r.total,
+    cancel: r.cancel,
+  }));
+  for (const d of nonNumeric) {
+    if (d.deletedAt !== null) continue; // in the Bin — not part of the reportable series
+    ranges.push({ from: d.voucherNumber, to: d.voucherNumber, total: 1, cancel: 0 });
+  }
+  return ranges;
+}
+
 function formatPrintNumber(voucherNumber: string, biz: any): string {
   const showPrefix = biz?.printShowPrefix !== false;
   const showSeries = biz?.printShowSeries !== false;
@@ -249,49 +319,20 @@ router.get("/gstr1", async (req, res) => {
     const hsnSummaryB2C = buildHsnSummary(b2cInvoices);
 
     // ── Section 13: Documents Issued ─────────────────────────────────────────
-    function extractNum(v: string): number {
-      const m = v.match(/(\d+)$/);
-      return m ? parseInt(m[1], 10) : NaN;
-    }
-
     function docsSummary(type: string) {
       const docs = docsAll.filter(d => d.voucherType === type);
       if (docs.length === 0) return null;
-
-      const sorted = [...docs].sort((a, b) => {
-        const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber);
-        if (!isNaN(na) && !isNaN(nb)) return na - nb;
-        return a.voucherNumber.localeCompare(b.voucherNumber);
-      });
-
-      // Group into consecutive ranges
-      type Range = { srFrom: string; srTo: string; totalIssued: number; cancelled: number; netIssued: number };
-      const ranges: Range[] = [];
-      let rStart = sorted[0], rEnd = sorted[0], rDocs = [sorted[0]];
-
-      for (let i = 1; i < sorted.length; i++) {
-        const cur = sorted[i];
-        const prevNum = extractNum(rEnd.voucherNumber);
-        const curNum = extractNum(cur.voucherNumber);
-        if (!isNaN(prevNum) && !isNaN(curNum) && curNum === prevNum + 1) {
-          rEnd = cur; rDocs.push(cur);
-        } else {
-          const c = rDocs.filter(d => d.deletedAt !== null).length;
-          ranges.push({ srFrom: rStart.voucherNumber, srTo: rEnd.voucherNumber, totalIssued: rDocs.length, cancelled: c, netIssued: rDocs.length - c });
-          rStart = cur; rEnd = cur; rDocs = [cur];
-        }
-      }
-      const c = rDocs.filter(d => d.deletedAt !== null).length;
-      ranges.push({ srFrom: rStart.voucherNumber, srTo: rEnd.voucherNumber, totalIssued: rDocs.length, cancelled: c, netIssued: rDocs.length - c });
-
-      const totalCancelled = docs.filter(d => d.deletedAt !== null).length;
+      const ranges = buildDocRanges(docs);
+      if (!ranges.length) return null;
+      const totalIssued = ranges.reduce((s, r) => s + r.total, 0);
+      const cancelled = ranges.reduce((s, r) => s + r.cancel, 0);
       return {
-        ranges,
-        srFrom: sorted[0].voucherNumber,
-        srTo: sorted[sorted.length - 1].voucherNumber,
-        totalIssued: docs.length,
-        cancelled: totalCancelled,
-        netIssued: docs.length - totalCancelled,
+        ranges: ranges.map(r => ({ srFrom: r.from, srTo: r.to, totalIssued: r.total, cancelled: r.cancel, netIssued: r.total - r.cancel })),
+        srFrom: ranges[0].from,
+        srTo: ranges[ranges.length - 1].to,
+        totalIssued,
+        cancelled,
+        netIssued: totalIssued - cancelled,
       };
     }
 
@@ -639,35 +680,11 @@ router.get("/gstr1/export", async (req, res) => {
     const hsnB2cData = Array.from(hsnB2cMap.values()).map((h, idx) => ({ num: idx + 1, ...h }));
 
     // ── Doc Issue (Section 13) ────────────────────────────────────────────────
-    function extractNum(v: string) { const m = v.match(/(\d+)$/); return m ? parseInt(m[1], 10) : NaN; }
     function buildDocIssue(type: string, docNum: number) {
       const docs = docsAll.filter(d => d.voucherType === type);
       if (!docs.length) return null;
-      const sorted = [...docs].sort((a, b) => { const na = extractNum(a.voucherNumber), nb = extractNum(b.voucherNumber); return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.voucherNumber.localeCompare(b.voucherNumber); });
-
-      // Group into consecutive-number ranges — a voucher number that's still on
-      // record (even soft-deleted, i.e. in the bin) stays inside its range and
-      // is reported via "cancel"; a number with NO record at all (permanently
-      // deleted / never created) is a true gap and starts a new range. Without
-      // this, a single range spanning a true gap silently under-reports totnum
-      // vs. its from/to span with nothing in "cancel" to explain the difference.
-      type Range = { from: string; to: string; totnum: number; cancel: number };
-      const ranges: Range[] = [];
-      let rDocs = [sorted[0]];
-      for (let i = 1; i < sorted.length; i++) {
-        const cur = sorted[i];
-        const prevNum = extractNum(rDocs[rDocs.length - 1].voucherNumber);
-        const curNum = extractNum(cur.voucherNumber);
-        if (!isNaN(prevNum) && !isNaN(curNum) && curNum === prevNum + 1) {
-          rDocs.push(cur);
-        } else {
-          const cancel = rDocs.filter(d => d.deletedAt !== null).length;
-          ranges.push({ from: formatPrintNumber(rDocs[0].voucherNumber, biz), to: formatPrintNumber(rDocs[rDocs.length - 1].voucherNumber, biz), totnum: rDocs.length, cancel });
-          rDocs = [cur];
-        }
-      }
-      const lastCancel = rDocs.filter(d => d.deletedAt !== null).length;
-      ranges.push({ from: formatPrintNumber(rDocs[0].voucherNumber, biz), to: formatPrintNumber(rDocs[rDocs.length - 1].voucherNumber, biz), totnum: rDocs.length, cancel: lastCancel });
+      const ranges = buildDocRanges(docs);
+      if (!ranges.length) return null;
 
       // GSTN doc_num list: 1=Invoices for outward supply, 4=Debit Note, 5=Credit Note.
       // Purchase bills are NOT documents issued by this taxpayer — the portal's
@@ -676,7 +693,14 @@ router.get("/gstr1/export", async (req, res) => {
       return {
         doc_num: docNum,
         doc_typ: docTypMap[type] || "Invoices for outward supply",
-        docs: ranges.map((r, idx) => ({ num: idx + 1, from: r.from, to: r.to, totnum: r.totnum, cancel: r.cancel, net_issue: r.totnum - r.cancel })),
+        docs: ranges.map((r, idx) => ({
+          num: idx + 1,
+          from: formatPrintNumber(r.from, biz),
+          to: formatPrintNumber(r.to, biz),
+          totnum: r.total,
+          cancel: r.cancel,
+          net_issue: r.total - r.cancel,
+        })),
       };
     }
     const docDetItems = [
