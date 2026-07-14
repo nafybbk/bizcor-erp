@@ -673,7 +673,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       tag("hsn-master", api.get<any>("/masters/hsn")),
       tag("hsn-directory", api.get<any>("/masters/hsn/directory")),
     ]).then(([it, t, u, biz, nextNumRes, hsnMine, hsnDir]) => {
-      const failed = [it, t, u, biz, nextNumRes, hsnMine, hsnDir].filter(r => r && !r.ok) as { label: string; err: any }[];
+      // next-number is a cosmetic preview only — the real number is assigned
+      // server-side at save time via the same lookup, so its failure doesn't
+      // affect correctness and isn't worth alarming the user over.
+      const failed = [it, t, u, biz, hsnMine, hsnDir].filter(r => r && !r.ok) as { label: string; err: any }[];
       if (failed.length) {
         setMasterFetchError(failed.map(f => `${f.label}: ${f.err?.message || f.err}`).join(" | "));
       }
