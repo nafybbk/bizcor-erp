@@ -156,12 +156,13 @@ function ItemCombobox({
 
 /* ── HSN Combobox — progressive-prefix search (5 → 55 → 551 → 5516) + keyboard nav ─ */
 function HsnCombobox({
-  hsnList, value, onChange, rowIdx,
+  hsnList, value, onChange, rowIdx, loading,
 }: {
   hsnList: any[];
   value: string;
   onChange: (code: string) => void;
   rowIdx: number;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
@@ -253,9 +254,12 @@ function HsnCombobox({
       />
       {open && (query.trim().length > 0 || filtered.length > 0) && (
         <div ref={listRef} className="absolute z-[200] top-full left-0 right-0 mt-0.5 bg-white border border-gray-200 rounded-lg shadow-xl overflow-y-auto" style={{ maxHeight: "16rem", minWidth: "16rem" }}>
-          {filtered.length === 0 && q && (
-            <div className="px-3 py-2 text-xs text-gray-500 bg-amber-50">
-              "<strong className="text-gray-800">{query}</strong>" — not in HSN master, will be used as typed
+          {filtered.length === 0 && q && loading && (
+            <div className="px-3 py-2 text-xs text-gray-500">Loading HSN master…</div>
+          )}
+          {filtered.length === 0 && q && !loading && (
+            <div className="px-3 py-2 text-xs text-red-600 bg-red-50">
+              "<strong>{query}</strong>" not found in HSN master — pick a code from the list
             </div>
           )}
           {filtered.map((h, fi) => (
@@ -270,8 +274,8 @@ function HsnCombobox({
             </button>
           ))}
           {isNew && q && filtered.length > 0 && (
-            <div className="px-3 py-1.5 text-[10px] text-amber-700 bg-amber-50 border-t border-amber-100">
-              ✦ "{query}" — not in HSN master, will be used as typed
+            <div className="px-3 py-1.5 text-[10px] text-red-700 bg-red-50 border-t border-red-100">
+              ✦ "{query}" not selected — pick an exact code below to save
             </div>
           )}
         </div>
@@ -462,6 +466,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const [parties, setParties] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
   const [hsnCodes, setHsnCodes] = useState<any[]>([]);
+  const [hsnLoading, setHsnLoading] = useState(true);
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -649,8 +654,8 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       api.get<any>("/masters/units"),
       api.get<any>("/businesses/current"),
       !editId ? api.get<any>(`/vouchers/next-number?type=${nextNumType}`) : Promise.resolve(null),
-      api.get<any>("/masters/hsn").catch(() => ({ data: [] })),
-      api.get<any>("/masters/hsn/directory").catch(() => ({ data: [] })),
+      api.get<any>("/masters/hsn").catch(err => { console.warn("HSN master fetch failed:", err); return { data: [] }; }),
+      api.get<any>("/masters/hsn/directory").catch(err => { console.warn("HSN directory fetch failed:", err); return { data: [] }; }),
     ]).then(([it, t, u, biz, nextNumRes, hsnMine, hsnDir]) => {
       // Synthetic fallback for cash-bank if no accounts loaded yet
       setCashBankAccounts(prev => {
@@ -672,6 +677,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       for (const h of (hsnMine?.data || [])) if (h.code) hsnMap.set(String(h.code).trim(), h);
       const mergedHsn = Array.from(hsnMap.values());
       setHsnCodes(mergedHsn);
+      setHsnLoading(false);
       cacheItems(it.data || []);
       cacheTaxRates(t.data || []);
       cacheUnits(u.data || []);
@@ -684,6 +690,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
       if (nextNumRes?.nextNumber) setNextAutoNumber(nextNumRes.nextNumber);
     }).catch(() => {
       // Offline — already loaded from cache above
+      setHsnLoading(false);
     });
 
     // Fetch bin docs for this voucher type (only for new docs, not edit)
@@ -1179,6 +1186,19 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     const parsedPartyId = parseInt(form.partyId, 10);
     if (!parsedPartyId || isNaN(parsedPartyId)) { setError("Please select a party"); return; }
     if (activeItems.length === 0) { setError("Please add at least one item"); return; }
+    // HSN must come from the master list — credit/debit notes inherit HSN from
+    // the referenced voucher so they're exempt; sales invoices and purchase
+    // bills must pick from the searchable master, no free-typed codes.
+    if (!isReturn) {
+      const hsnSet = new Set(hsnCodes.map(h => String(h.code).trim().toLowerCase()));
+      for (let i = 0; i < activeItems.length; i++) {
+        const code = (activeItems[i].hsnCode || "").trim();
+        if (code && !hsnSet.has(code.toLowerCase())) {
+          setError(`Row ${i + 1}: HSN "${code}" is not in the HSN master — select a code from the dropdown`);
+          return;
+        }
+      }
+    }
     setError("");
 
     const itemsToSend = activeItems.map(i => ({
@@ -1914,6 +1934,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
                           hsnList={hsnCodes}
                           value={item.hsnCode}
                           rowIdx={idx}
+                          loading={hsnLoading}
                           onChange={v => updateItem(idx, "hsnCode", v)}
                         />
                       </td>
