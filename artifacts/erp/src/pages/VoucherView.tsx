@@ -229,6 +229,9 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const isInterState = voucher.isInterState;
   const docTitle = DOC_TITLES[voucherType] || "INVOICE";
   const biz = business || {};
+  // Suggested filename for the browser's "Save as PDF" dialog — e.g. "BizCor-AdeenaHandloom-SI-1285".
+  const sanitizeForFileName = (s: string) => (s || "").replace(/[^a-zA-Z0-9-]/g, "");
+  const pdfFileName = `BizCor-${sanitizeForFileName(biz.name)}-${sanitizeForFileName(voucher.voucherNumber)}`;
 
   // ── helpers ──────────────────────────────────────────────────────────────
   const hasDiscount = (voucher.items || []).some((i: any) => Number(i.discount) > 0);
@@ -301,6 +304,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           <PrintPreviewModal
             printableId="printable"
             title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
+            pdfFileName={pdfFileName}
             onClose={() => setShowPrintPreview(false)}
             initialZoom={autoPrint ? 0.6 : undefined}
             shareText={voucher ? [
@@ -812,6 +816,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
         <PrintPreviewModal
           printableId="printable"
           title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
+          pdfFileName={pdfFileName}
           onClose={() => setShowPrintPreview(false)}
           initialZoom={autoPrint ? 0.6 : undefined}
           shareText={voucher ? [

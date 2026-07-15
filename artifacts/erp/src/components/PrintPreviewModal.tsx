@@ -43,7 +43,7 @@ function calcDefaultZoom(): number {
 }
 
 // ── Build srcdoc using DOM cloning — 100% reliable ───────────────────────────
-function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
+function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg, pdfFileName?: string): string {
   const el = document.getElementById(printableId);
   if (!el) return "<body><p style='color:#999;padding:2rem'>Preview unavailable</p></body>";
 
@@ -87,6 +87,7 @@ function buildSrcdoc(printableId: string, zoom: number, cfg: PrintCfg): string {
   const scaledWidthMm = Math.round(210 * zoom);
   return `<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
+${pdfFileName ? `<title>${pdfFileName}</title>` : ""}
 <style>
 *{box-sizing:border-box;}
 /* font-size on html so Tailwind rem classes (text-xs/sm/base…) scale correctly */
@@ -126,6 +127,8 @@ interface Props {
   title?: string;
   initialZoom?: number;
   shareText?: string;
+  /** Suggested filename for the browser's "Save as PDF" dialog, e.g. "BizCor-AdeenaHandloom-SI-1285". */
+  pdfFileName?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -135,6 +138,7 @@ export default function PrintPreviewModal({
   title = "Print Preview",
   initialZoom,
   shareText,
+  pdfFileName,
 }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [zoom, setZoom]         = useState(() => initialZoom ?? calcDefaultZoom());
@@ -144,9 +148,9 @@ export default function PrintPreviewModal({
 
   // Rebuild iframe whenever zoom or cfg changes
   useEffect(() => {
-    setSrcdoc(buildSrcdoc(printableId, zoom, cfg));
+    setSrcdoc(buildSrcdoc(printableId, zoom, cfg, pdfFileName));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [printableId, zoom, cfg.fontSize, cfg.headerLevel]);
+  }, [printableId, zoom, cfg.fontSize, cfg.headerLevel, pdfFileName]);
 
   const updateCfg = (patch: Partial<PrintCfg>) => {
     const next = { ...cfg, ...patch };
