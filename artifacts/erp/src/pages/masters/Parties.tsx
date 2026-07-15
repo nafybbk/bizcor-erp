@@ -10,10 +10,6 @@ import { useSort } from "@/lib/useSort";
 
 const emptyForm = { name: "", type: "customer" as "customer"|"supplier"|"both", gstin: "", pan: "", phone: "", email: "", address: "", city: "", state: "", stateCode: "", pincode: "", openingBalance: "", openingBalanceType: "debit" as "debit"|"credit", creditLimit: "", creditDays: "", pin: "", miniAppEnabled: true };
 
-function generatePin(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-
 interface Props { defaultType?: "customer" | "supplier" | "both" }
 
 export default function Parties({ defaultType }: Props) {
@@ -31,11 +27,25 @@ export default function Parties({ defaultType }: Props) {
   const [error, setError] = useState("");
   const [editCodes, setEditCodes] = useState<{ customerCode?: string; supplierCode?: string }>({});
   const [showPin, setShowPin] = useState(false);
+  const [pinGenerating, setPinGenerating] = useState(false);
   const [limit, setLimit] = useState(50);
 
   const changeLimit = (n: number) => { setLimit(n); setPage(1); };
 
   const pageTitle = defaultType === "customer" ? "Customers" : defaultType === "supplier" ? "Suppliers" : "Parties";
+
+  // PIN is never typed in — always server-generated, so two parties in the
+  // same business can never end up sharing one (a shared PIN made
+  // /mini-app/connect match whichever party the query happened to return).
+  const fetchGeneratedPin = async () => {
+    setPinGenerating(true);
+    try {
+      const { pin } = await api.get<{ pin: string }>("/parties/generate-pin");
+      setForm(f => ({ ...f, pin }));
+      setShowPin(true);
+    } catch { /* best-effort — admin can hit Regenerate again */ }
+    finally { setPinGenerating(false); }
+  };
 
   const load = () => {
     setLoading(true);
@@ -66,13 +76,16 @@ export default function Parties({ defaultType }: Props) {
     setForm({ ...emptyForm, type: (defaultType || "customer") as any });
     setShowPin(false);
     setError(""); setShowModal(true);
+    if (emptyForm.miniAppEnabled) void fetchGeneratedPin();
   };
   const openEdit = (p: any) => {
     setEditId(p.id);
     setEditCodes({ customerCode: p.customerCode || undefined, supplierCode: p.supplierCode || undefined });
-    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0), pin: p.pin||"", miniAppEnabled: p.miniAppEnabled !== false });
+    const enabled = p.miniAppEnabled !== false;
+    setForm({ name: p.name, type: p.type, gstin: p.gstin||"", pan: p.pan||"", phone: p.phone||"", email: p.email||"", address: p.address||"", city: p.city||"", state: p.state||"", stateCode: p.stateCode||"", pincode: p.pincode||"", openingBalance: String(p.openingBalance ?? "0"), openingBalanceType: p.openingBalanceType||"debit", creditLimit: String(p.creditLimit ?? "0"), creditDays: String(p.creditDays ?? 0), pin: p.pin||"", miniAppEnabled: enabled });
     setShowPin(false);
     setError(""); setShowModal(true);
+    if (enabled && !p.pin) void fetchGeneratedPin();
   };
 
   const [offlineSaved, setOfflineSaved] = useState(false);
@@ -338,36 +351,40 @@ export default function Parties({ defaultType }: Props) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setForm(f => ({ ...f, miniAppEnabled: !f.miniAppEnabled }))}
+                      onClick={() => {
+                        const next = !form.miniAppEnabled;
+                        setForm(f => ({ ...f, miniAppEnabled: next }));
+                        if (next && !form.pin) void fetchGeneratedPin();
+                      }}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.miniAppEnabled ? "bg-green-500" : "bg-gray-300"}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.miniAppEnabled ? "translate-x-6" : "translate-x-1"}`} />
                     </button>
                   </div>
 
-                  {/* PIN */}
+                  {/* PIN — always server-generated, never typed in (prevents two
+                      parties in the same business ever sharing one PIN) */}
                   <div>
                     <div className="text-xs text-gray-400 mb-2">Business code + yeh PIN customer ko do — mini app mein "Connect Supplier" ke liye use hoga.</div>
                     <div className="flex gap-2 max-w-xs">
                       <div className="relative flex-1">
                         <input
                           type={showPin ? "text" : "password"}
-                          className={inputCls + " pr-9"}
-                          value={form.pin}
-                          onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
-                          placeholder="e.g. 4821"
-                          maxLength={6}
+                          className={inputCls + " pr-9 bg-gray-50 cursor-not-allowed"}
+                          value={pinGenerating ? "..." : form.pin}
+                          readOnly
+                          placeholder="Toggle ON karein"
                         />
                         <button type="button" onClick={() => setShowPin(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" title={showPin ? "Hide" : "Show"}>
                           {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
-                      <button type="button" onClick={() => { setForm(f => ({ ...f, pin: generatePin() })); setShowPin(true); }}
-                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50" title="Generate random PIN">
-                        <RefreshCw className="w-3.5 h-3.5" /> Generate
+                      <button type="button" onClick={fetchGeneratedPin} disabled={pinGenerating}
+                        className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60" title="Regenerate PIN">
+                        <RefreshCw className={`w-3.5 h-3.5 ${pinGenerating ? "animate-spin" : ""}`} /> Regenerate
                       </button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">PIN tabhi badle jab manually change karo — toggle se nahi badlega.</p>
+                    <p className="text-xs text-gray-400 mt-1">PIN automatically generate hota hai — do parties kabhi ek jaisa PIN share nahi kar sakte.</p>
                   </div>
                 </div>
               )}

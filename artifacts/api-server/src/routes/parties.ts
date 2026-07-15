@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, like, or, sql, desc, isNotNull } from "drizzle-orm";
+import { eq, and, like, or, sql, desc, isNotNull, ne } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
 import { pushLanSyncParty, ensurePartyBackfill } from "../lib/lanSync";
@@ -64,10 +64,41 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Generates a PIN the caller doesn't type in themselves, so two parties in
+// the same business can never accidentally share one — a shared PIN makes
+// /mini-app/connect's (businessId, pin) lookup ambiguous, matching whichever
+// party the query happens to return, silently connecting a customer to the
+// wrong one (confirmed against a real account 2026-07-16).
+async function generateUniquePartyPin(businessId: number): Promise<string | null> {
+  for (let i = 0; i < 20; i++) {
+    const candidate = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+    const [clash] = await db.select({ id: partiesTable.id }).from(partiesTable)
+      .where(and(eq(partiesTable.businessId, businessId), eq(partiesTable.pin, candidate))).limit(1);
+    if (!clash) return candidate;
+  }
+  return null;
+}
+
+router.get("/generate-pin", async (req, res) => {
+  try {
+    const pin = await generateUniquePartyPin(req.user!.businessId!);
+    if (!pin) { res.status(500).json({ error: "PIN generate nahi ho saka, dobara try karein" }); return; }
+    res.json({ pin });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.post("/", async (req, res) => {
   try {
     const businessId = req.user!.businessId!;
     const { name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode, openingBalance, openingBalanceType, creditLimit, creditDays, customFields, pin } = req.body;
+    if (pin) {
+      const [clash] = await db.select({ id: partiesTable.id }).from(partiesTable)
+        .where(and(eq(partiesTable.businessId, businessId), eq(partiesTable.pin, pin))).limit(1);
+      if (clash) { res.status(400).json({ error: "Yeh PIN pehle se kisi aur party ke paas hai — Regenerate dabayein" }); return; }
+    }
     const { customerCode, supplierCode } = await generatePartyCodes(businessId, name, type);
     const [party] = await db.insert(partiesTable).values({
       businessId, name, type, gstin, pan, phone, email, address, city, state, stateCode, pincode,
@@ -116,6 +147,15 @@ router.patch("/:id", async (req, res) => {
     if (updateData.creditDays !== undefined) updateData.creditDays = updateData.creditDays === "" ? 0 : (Number(updateData.creditDays) || 0);
     // shippingAddresses is not a DB column — remove it from updateData to avoid Drizzle errors
     delete updateData.shippingAddresses;
+    if (updateData.pin) {
+      const [clash] = await db.select({ id: partiesTable.id }).from(partiesTable)
+        .where(and(
+          eq(partiesTable.businessId, req.user!.businessId!),
+          eq(partiesTable.pin, updateData.pin as string),
+          ne(partiesTable.id, Number(req.params.id))
+        )).limit(1);
+      if (clash) { res.status(400).json({ error: "Yeh PIN pehle se kisi aur party ke paas hai — Regenerate dabayein" }); return; }
+    }
     const [before] = await db.select().from(partiesTable)
       .where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!)));
     const [updated] = await db.update(partiesTable).set(updateData).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!))).returning();
