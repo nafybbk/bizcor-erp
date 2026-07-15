@@ -418,17 +418,25 @@ interface VoucherItem {
   customFields?: Record<string, any>;
 }
 
+// Rounds to the rate/amount columns' actual DB precision (2dp). Rounding the
+// rate BEFORE it's used in any calculation guarantees the same rate always
+// produces the same taxable/tax/total, however many times the voucher is
+// reopened and recalculated — matching the backend's identical round2/calcVoucher.
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
 function calcItem(item: VoucherItem, isInterState: boolean): VoucherItem {
-  const baseRate = item.rateIncludesGst && item.taxRate > 0
+  const baseRate = round2(item.rateIncludesGst && item.taxRate > 0
     ? item.rate / (1 + item.taxRate / 100)
-    : item.rate;
-  const gross = item.quantity * baseRate;
-  const discount = item.discountType === "percent" ? gross * (item.discount / 100) : item.discount;
-  const taxable = gross - discount;
-  const cgst = isInterState ? 0 : taxable * (item.taxRate / 2 / 100);
-  const sgst = isInterState ? 0 : taxable * (item.taxRate / 2 / 100);
-  const igst = isInterState ? taxable * (item.taxRate / 100) : 0;
-  return { ...item, taxableAmount: taxable, cgst, sgst, igst, total: taxable + cgst + sgst + igst };
+    : item.rate);
+  const gross = round2(item.quantity * baseRate);
+  const discount = round2(item.discountType === "percent" ? gross * (item.discount / 100) : item.discount);
+  const taxable = round2(gross - discount);
+  const cgst = round2(isInterState ? 0 : taxable * (item.taxRate / 2 / 100));
+  const sgst = round2(isInterState ? 0 : taxable * (item.taxRate / 2 / 100));
+  const igst = round2(isInterState ? taxable * (item.taxRate / 100) : 0);
+  return { ...item, taxableAmount: taxable, cgst, sgst, igst, total: round2(taxable + cgst + sgst + igst) };
 }
 
 function emptyItem(): VoucherItem {

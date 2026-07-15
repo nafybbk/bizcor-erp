@@ -16,6 +16,18 @@ router.use(requireBusiness);
 
 type VoucherType = "sales_invoice" | "credit_note" | "purchase_bill" | "debit_note";
 
+// Rounds to the same 2-decimal precision the `rate` DB column enforces (Postgres
+// numeric(15,2) silently truncates on write) — rounding rate BEFORE it's used in
+// any calculation guarantees the amounts computed now can never drift from the
+// amounts a later recompute (e.g. on edit) produces from that same stored rate.
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+// quantity's DB column allows 3 decimals (vs rate's 2) — round to match.
+function round3(n: number): number {
+  return Math.round((n + Number.EPSILON) * 1000) / 1000;
+}
+
 function calcVoucher(items: Array<{
   quantity: number; rate: number; discount: number; discountType: string;
   taxRate: number; isInterState: boolean;
@@ -23,24 +35,30 @@ function calcVoucher(items: Array<{
   let subTotal = 0, totalDiscount = 0, taxableAmount = 0;
   let totalCgst = 0, totalSgst = 0, totalIgst = 0;
   const processedItems = items.map(item => {
-    const gross = item.quantity * item.rate;
-    const discount = item.discountType === "percent"
+    const rate = round2(item.rate);
+    const quantity = round3(item.quantity);
+    const gross = round2(quantity * rate);
+    const discount = round2(item.discountType === "percent"
       ? gross * (item.discount / 100)
-      : item.discount;
-    const taxable = gross - discount;
-    const cgst = item.isInterState ? 0 : taxable * (item.taxRate / 2 / 100);
-    const sgst = item.isInterState ? 0 : taxable * (item.taxRate / 2 / 100);
-    const igst = item.isInterState ? taxable * (item.taxRate / 100) : 0;
-    const tax = cgst + sgst + igst;
+      : item.discount);
+    const taxable = round2(gross - discount);
+    const cgst = round2(item.isInterState ? 0 : taxable * (item.taxRate / 2 / 100));
+    const sgst = round2(item.isInterState ? 0 : taxable * (item.taxRate / 2 / 100));
+    const igst = round2(item.isInterState ? taxable * (item.taxRate / 100) : 0);
+    const tax = round2(cgst + sgst + igst);
     subTotal += gross;
     totalDiscount += discount;
     taxableAmount += taxable;
     totalCgst += cgst;
     totalSgst += sgst;
     totalIgst += igst;
-    return { ...item, gross, discount, taxable, cgst, sgst, igst, tax, total: taxable + tax };
+    return { ...item, rate, quantity, gross, discount, taxable, cgst, sgst, igst, tax, total: round2(taxable + tax) };
   });
-  return { processedItems, subTotal, totalDiscount, taxableAmount, totalCgst, totalSgst, totalIgst, totalTax: totalCgst + totalSgst + totalIgst };
+  return {
+    processedItems, subTotal: round2(subTotal), totalDiscount: round2(totalDiscount),
+    taxableAmount: round2(taxableAmount), totalCgst: round2(totalCgst), totalSgst: round2(totalSgst),
+    totalIgst: round2(totalIgst), totalTax: round2(totalCgst + totalSgst + totalIgst),
+  };
 }
 
 async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
@@ -239,8 +257,8 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
     const row: Record<string, any> = {
       voucherId: voucher.id, itemId: ri.itemId ? Number(ri.itemId) : null, itemName,
       description: ri.description || null, hsnCode: ri.hsnCode || null,
-      quantity: String(Number(ri.quantity) || 0),
-      unit: ri.unit || null, rate: String(Number(ri.rate) || 0),
+      quantity: String(pi.quantity),
+      unit: ri.unit || null, rate: String(pi.rate),
       discount: String(pi.discount), discountType: ri.discountType || "percent",
       taxableAmount: String(pi.taxable), taxRateId,
       taxRate: String(pi.taxRate), cgst: String(pi.cgst), sgst: String(pi.sgst),
@@ -347,8 +365,8 @@ async function updateVoucher(req: any, res: any) {
       voucherId: id, itemId: ri.itemId ? Number(ri.itemId) : null,
       itemName: ri.itemName || "Item",
       description: ri.description || null, hsnCode: ri.hsnCode || null,
-      quantity: String(Number(ri.quantity) || 0),
-      unit: ri.unit || null, rate: String(Number(ri.rate) || 0),
+      quantity: String(pi.quantity),
+      unit: ri.unit || null, rate: String(pi.rate),
       discount: String(pi.discount), discountType: ri.discountType || "percent",
       taxableAmount: String(pi.taxable), taxRateId,
       taxRate: String(pi.taxRate), cgst: String(pi.cgst), sgst: String(pi.sgst),
