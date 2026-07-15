@@ -797,6 +797,22 @@ router.post("/businesses/:id/patches", async (req, res) => {
     const biz = await db.query.businessesTable.findFirst({ where: eq(businessesTable.id, Number(req.params.id)) });
     if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
 
+    // Block a duplicate grant while a pending/active one already covers this
+    // module — otherwise nothing stops two "Customer Network" patches from
+    // both showing active for the same business at once.
+    const [existing] = await db.select().from(modulePatchesTable).where(and(
+      eq(modulePatchesTable.businessId, Number(req.params.id)),
+      eq(modulePatchesTable.module, module),
+      or(eq(modulePatchesTable.status, "pending"), eq(modulePatchesTable.status, "active"))
+    )).limit(1);
+    if (existing) {
+      const isExpired = existing.status === "active" && existing.expiresAt && new Date(existing.expiresAt) < new Date();
+      if (!isExpired) {
+        res.status(400).json({ error: `Is business ke paas ${module} ka pehle se ek ${existing.status} patch hai — pehle usay revoke karein.` });
+        return;
+      }
+    }
+
     const [patch] = await db.insert(modulePatchesTable).values({
       businessId: Number(req.params.id),
       module,

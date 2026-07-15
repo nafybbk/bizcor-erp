@@ -44,6 +44,7 @@ export default function AdminBusinesses() {
   const [newPatchValidityDays, setNewPatchValidityDays] = useState("30");
   const [newPatchNotes, setNewPatchNotes] = useState("");
   const [patchSaving, setPatchSaving] = useState(false);
+  const [patchError, setPatchError] = useState("");
 
   // Users modal state
   const [usersBiz, setUsersBiz] = useState<any>(null);
@@ -190,6 +191,7 @@ export default function AdminBusinesses() {
     setNewPatchDeviceLimit("1");
     setNewPatchValidityDays("30");
     setNewPatchNotes("");
+    setPatchError("");
     loadPatches(b.id);
   };
 
@@ -205,6 +207,7 @@ export default function AdminBusinesses() {
   const addPatch = async () => {
     if (!patchBiz) return;
     setPatchSaving(true);
+    setPatchError("");
     try {
       await api.post(`/super-admin/businesses/${patchBiz.id}/patches`, {
         module: newPatchModule,
@@ -214,6 +217,8 @@ export default function AdminBusinesses() {
       });
       setNewPatchNotes("");
       await loadPatches(patchBiz.id);
+    } catch (err: any) {
+      setPatchError(err?.message || "Patch grant nahi ho saka");
     } finally { setPatchSaving(false); }
   };
 
@@ -649,6 +654,7 @@ export default function AdminBusinesses() {
                   value={newPatchNotes}
                   onChange={e => setNewPatchNotes(e.target.value)}
                 />
+                {patchError && <p className="text-xs text-red-600">{patchError}</p>}
                 <button onClick={addPatch} disabled={patchSaving}
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
                   {patchSaving && <Loader2 className="w-4 h-4 animate-spin" />}
