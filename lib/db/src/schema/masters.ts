@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, numeric, pgEnum, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, numeric, pgEnum, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { businessesTable } from "./businesses";
@@ -96,8 +96,15 @@ export const partiesTable = pgTable("parties", {
   supplierCode: text("supplier_code"),
   pin: text("pin"),
   miniAppEnabled: boolean("mini_app_enabled").notNull().default(true),
+  // Set only on cloud mirror rows created by LAN-sync (see lanSync.ts) — holds
+  // the party's id in the LAN business's own local SQLite DB, so a re-push
+  // (edit) updates the same mirror row instead of creating a duplicate.
+  // Null for parties that belong to a pure-cloud business.
+  externalId: integer("external_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("parties_biz_ext_idx").on(t.businessId, t.externalId),
+]);
 
 export const itemsTable = pgTable("items", {
   id: serial("id").primaryKey(),

@@ -4,6 +4,7 @@ import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } f
 import { eq, and, like, or, sql, desc, isNotNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
+import { pushLanSyncParty, ensurePartyBackfill } from "../lib/lanSync";
 
 // Generate AC0001 / AS0001 style unique codes per business per first-letter group
 async function generatePartyCodes(businessId: number, name: string, type: string) {
@@ -40,6 +41,9 @@ async function generatePartyCodes(businessId: number, name: string, type: string
 
 const router = Router();
 router.use(requireBusiness);
+// Catch up parties that were created/edited before LAN-sync existed — cheap
+// no-op after the first hit each process (see ensurePartyBackfill).
+router.use((req, _res, next) => { ensurePartyBackfill(req); next(); });
 
 router.get("/", async (req, res) => {
   try {
@@ -73,6 +77,11 @@ router.post("/", async (req, res) => {
       creditDays: creditDays || 0, customFields,
       customerCode, supplierCode, pin: pin || null,
     }).returning();
+
+    pushLanSyncParty(req, {
+      externalId: party.id, name: party.name, type: party.type,
+      pin: party.pin, phone: party.phone, miniAppEnabled: (party as any).miniAppEnabled,
+    });
 
     logActivity(req, {
       action: "created", entityType: "party", entityId: party.id, entityLabel: party.name,
@@ -112,6 +121,11 @@ router.patch("/:id", async (req, res) => {
     const [updated] = await db.update(partiesTable).set(updateData).where(and(eq(partiesTable.id, Number(req.params.id)), eq(partiesTable.businessId, req.user!.businessId!))).returning();
 
     if (updated) {
+      pushLanSyncParty(req, {
+        externalId: updated.id, name: updated.name, type: updated.type,
+        pin: (updated as any).pin, phone: updated.phone, miniAppEnabled: (updated as any).miniAppEnabled,
+      });
+
       logActivity(req, {
         action: "edited", entityType: "party", entityId: updated.id, entityLabel: updated.name,
         summary: `Party "${updated.name}" edit kiya — ${Object.keys(updateData).join(", ")}`,

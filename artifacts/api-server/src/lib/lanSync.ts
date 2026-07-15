@@ -73,7 +73,7 @@ async function flushOutbox(): Promise<void> {
   finally { flushing = false; }
 }
 
-function enqueue(kind: "voucher" | "payment", payload: Record<string, unknown>, token: string): void {
+function enqueue(kind: "voucher" | "payment" | "party", payload: Record<string, unknown>, token: string): void {
   if (!sqlite) return;
   try {
     ensureOutboxTable();
@@ -103,6 +103,65 @@ async function miniAppParty(partyId: number | null | undefined) {
     .from(partiesTable).where(eq(partiesTable.id, Number(partyId))).limit(1);
   if (!(party as any)?.miniAppEnabled || !(party as any)?.pin) return null;
   return party as { miniAppEnabled: boolean; pin: string; name: string | null };
+}
+
+// Party sync — must run BEFORE voucher/payment sync for the same party, since
+// those look the party up on the cloud by pin and just 404 (silently dropped
+// forever, see flushOutbox) if it isn't there yet. Safe in practice: a voucher
+// can't be saved locally for a party that doesn't already exist locally, and
+// the outbox delivers rows in the order they were enqueued.
+export function pushLanSyncParty(req: any, p: {
+  externalId: number;
+  name: string;
+  type: string;
+  pin?: string | null;
+  phone?: string | null;
+  miniAppEnabled?: boolean;
+}): void {
+  if (!process.env.SQLITE_PATH) return;
+  if (!p.pin) return; // nothing on the cloud side to match a connect PIN against
+  enqueue("party", {
+    externalId: p.externalId,
+    name: p.name || "",
+    type: p.type,
+    pin: p.pin,
+    phone: p.phone || "",
+    miniAppEnabled: p.miniAppEnabled !== false,
+  }, bearerToken(req));
+}
+
+// One-time (per process) catch-up for parties that were created/edited before
+// this sync existed — otherwise only future creates/edits would ever reach
+// the cloud, leaving every already-configured customer permanently unsynced.
+let partyBackfillDone = false;
+export function ensurePartyBackfill(req: any): void {
+  if (!process.env.SQLITE_PATH || partyBackfillDone) return;
+  const token = bearerToken(req);
+  if (!token) return; // no token yet on this request — try again on the next one
+  partyBackfillDone = true;
+  void (async () => {
+    try {
+      const rows = await db.select({
+        id: partiesTable.id,
+        name: partiesTable.name,
+        type: partiesTable.type,
+        pin: partiesTable.pin,
+        phone: partiesTable.phone,
+        miniAppEnabled: partiesTable.miniAppEnabled,
+      }).from(partiesTable);
+      for (const p of rows as any[]) {
+        if (!p.pin) continue;
+        enqueue("party", {
+          externalId: p.id,
+          name: p.name || "",
+          type: p.type,
+          pin: p.pin,
+          phone: p.phone || "",
+          miniAppEnabled: p.miniAppEnabled !== false,
+        }, token);
+      }
+    } catch { partyBackfillDone = false; /* let the next request retry */ }
+  })();
 }
 
 export function pushLanSyncVoucher(req: any, v: {

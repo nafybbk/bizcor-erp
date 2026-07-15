@@ -76,6 +76,7 @@ export const partiesTable = sqliteTable("parties", {
   customerCode: text("customer_code"),
   supplierCode: text("supplier_code"),
   pin: text("pin"),
+  miniAppEnabled: integer("mini_app_enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(NOW),
 });
 

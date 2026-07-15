@@ -54,6 +54,10 @@ if (sqlitePath) {
     "ALTER TABLE parties ADD COLUMN customer_code TEXT",
     "ALTER TABLE parties ADD COLUMN supplier_code TEXT",
     "ALTER TABLE parties ADD COLUMN pin TEXT",
+    // Was already in the cloud Postgres schema but missing here — meant every
+    // LAN/desktop install's mini-app party+voucher+payment sync silently threw
+    // (selecting a column drizzle didn't know about) and never sent anything.
+    "ALTER TABLE parties ADD COLUMN mini_app_enabled INTEGER NOT NULL DEFAULT 1",
     `CREATE TABLE IF NOT EXISTS activation_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT NOT NULL,
@@ -118,6 +122,10 @@ if (sqlitePath) {
     "ALTER TABLE parties ADD COLUMN IF NOT EXISTS customer_code TEXT",
     "ALTER TABLE parties ADD COLUMN IF NOT EXISTS supplier_code TEXT",
     "ALTER TABLE parties ADD COLUMN IF NOT EXISTS pin TEXT",
+    // Lets a LAN/desktop business's local party rows be mirrored here (see
+    // lanSync.ts pushLanSyncParty) — externalId is that party's local SQLite id.
+    "ALTER TABLE parties ADD COLUMN IF NOT EXISTS external_id INTEGER",
+    "CREATE UNIQUE INDEX IF NOT EXISTS parties_biz_ext_idx ON parties (business_id, external_id)",
     `DO $$ BEGIN
       CREATE TYPE connection_status AS ENUM ('active', 'blocked');
     EXCEPTION WHEN duplicate_object THEN null; END $$`,

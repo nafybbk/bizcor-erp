@@ -706,6 +706,51 @@ function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload |
   return null;
 }
 
+// LAN business pushes a mirror of a mini-app-enabled party here so the cloud
+// `parties` row (which /mini-app/connect and the voucher/payment lan-sync
+// handlers below both look up by pin) actually exists. Without this, a
+// customer of a pure-LAN/desktop supplier could never connect at all — the
+// cloud partiesTable had no row for them regardless of code/PIN correctness.
+router.post("/mini-app/lan-sync/party", async (req, res) => {
+  try {
+    const payload = verifyBusinessJwt(req.headers.authorization);
+    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const [business] = await db.select({ id: businessesTable.id })
+      .from(businessesTable)
+      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
+      .limit(1);
+    if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+    const { externalId, name, type, pin, phone, miniAppEnabled } = req.body;
+    if (!externalId || !pin) { res.status(400).json({ error: "externalId and pin required" }); return; }
+    const partyType = (type === "supplier" || type === "both") ? type : "customer";
+
+    await db.insert(partiesTable).values({
+      businessId: business.id,
+      externalId: Number(externalId),
+      name: String(name || "Customer"),
+      type: partyType,
+      pin: String(pin),
+      phone: phone ? String(phone) : null,
+      miniAppEnabled: miniAppEnabled !== false,
+    }).onConflictDoUpdate({
+      target: [partiesTable.businessId, partiesTable.externalId],
+      set: {
+        name: String(name || "Customer"),
+        pin: String(pin),
+        phone: phone ? String(phone) : null,
+        miniAppEnabled: miniAppEnabled !== false,
+      },
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.post("/mini-app/lan-sync/voucher", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
