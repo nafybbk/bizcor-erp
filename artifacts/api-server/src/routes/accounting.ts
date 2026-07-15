@@ -44,7 +44,32 @@ router.get("/ledger/:partyId", async (req, res) => {
       amount: paymentsTable.amount,
     }).from(paymentsTable).where(and(...pConditions));
 
+    // Bill-wise allocations for these payments — which bill(s) each receipt/payment
+    // settled and how much, so the running-balance view can label them instead of
+    // leaving bill-wise payments looking identical to on-account ones.
+    const paymentIds = payments.map(p => p.id);
+    const allocRows = paymentIds.length > 0
+      ? await db.select({
+          paymentId: paymentAllocationsTable.paymentId,
+          voucherId: paymentAllocationsTable.voucherId,
+          allocatedAmount: paymentAllocationsTable.allocatedAmount,
+          voucherNumber: vouchersTable.voucherNumber,
+          voucherGrandTotal: vouchersTable.grandTotal,
+          voucherPaidAmount: vouchersTable.paidAmount,
+        }).from(paymentAllocationsTable)
+          .innerJoin(vouchersTable, eq(paymentAllocationsTable.voucherId, vouchersTable.id))
+          .where(inArray(paymentAllocationsTable.paymentId, paymentIds))
+      : [];
+    const allocsByPayment = new Map<number, typeof allocRows>();
+    for (const a of allocRows) {
+      if (!allocsByPayment.has(a.paymentId)) allocsByPayment.set(a.paymentId, []);
+      allocsByPayment.get(a.paymentId)!.push(a);
+    }
+
     // --- FIX: merge all entries first, sort by date, then calculate running balance ---
+    // Running balance itself never breaks or skips bill-wise payments — it's always
+    // one continuous chronological total. Bill-wise payments just carry extra
+    // billRefs metadata so the UI can label which bill(s) they settled.
     const rawEntries: any[] = [];
 
     for (const v of vouchers) {
@@ -54,7 +79,7 @@ router.get("/ledger/:partyId", async (req, res) => {
       else if (v.voucherType === "credit_note") { credit = amount; delta = -amount; }
       else if (v.voucherType === "purchase_bill") { credit = amount; delta = -amount; }
       else if (v.voucherType === "debit_note") { debit = amount; delta = amount; }
-      rawEntries.push({ date: v.date, voucherType: v.voucherType, voucherNumber: v.voucherNumber, debit, credit, delta });
+      rawEntries.push({ date: v.date, voucherType: v.voucherType, voucherNumber: v.voucherNumber, debit, credit, delta, billRefs: null, onAccountAmount: 0 });
     }
 
     for (const p of payments) {
@@ -62,7 +87,23 @@ router.get("/ledger/:partyId", async (req, res) => {
       let debit = 0, credit = 0, delta = 0;
       if (p.type === "receipt") { credit = amount; delta = -amount; }
       else { debit = amount; delta = amount; }
-      rawEntries.push({ date: p.date, voucherType: p.type, voucherNumber: p.paymentNumber, debit, credit, delta });
+      const allocs = allocsByPayment.get(p.id) || [];
+      const totalAllocated = allocs.reduce((s, a) => s + Number(a.allocatedAmount), 0);
+      const billRefs = allocs.map(a => {
+        const grandTotal = Number(a.voucherGrandTotal);
+        const paidSoFar = Number(a.voucherPaidAmount || 0);
+        return {
+          voucherNumber: a.voucherNumber,
+          amount: Number(a.allocatedAmount),
+          fullySettled: paidSoFar >= grandTotal - 0.01,
+          remainingOnBill: Math.max(0, grandTotal - paidSoFar),
+        };
+      });
+      rawEntries.push({
+        date: p.date, voucherType: p.type, voucherNumber: p.paymentNumber, debit, credit, delta,
+        billRefs: billRefs.length ? billRefs : null,
+        onAccountAmount: Math.max(0, amount - totalAllocated),
+      });
     }
 
     // Sort all entries by date ascending
@@ -75,11 +116,14 @@ router.get("/ledger/:partyId", async (req, res) => {
 
     const entries = rawEntries.map(e => {
       balance += e.delta;
-      return { date: e.date, voucherType: e.voucherType, voucherNumber: e.voucherNumber, debit: e.debit, credit: e.credit, balance };
+      return { date: e.date, voucherType: e.voucherType, voucherNumber: e.voucherNumber, debit: e.debit, credit: e.credit, balance, billRefs: e.billRefs, onAccountAmount: e.onAccountAmount };
     });
 
-    // --- Bill-wise: FIFO distribution using ALL historical data (ignore date filter) ---
-    // Fetch ALL bills + payments + credit/debit notes for this party (no date filter) for correct FIFO
+    // --- Bill-wise: real allocations settle their specific bill directly; the
+    // remaining "on-account" pool (payment amount not tied to any bill via
+    // paymentAllocationsTable, plus credit/debit note adjustments) is applied
+    // FIFO — opening balance first (oldest debt), then bills oldest first.
+    // Uses ALL historical data (ignores the date filter) for correct FIFO.
     const allBillVouchers = await db.select({
       id: vouchersTable.id,
       voucherType: vouchersTable.voucherType,
@@ -114,37 +158,74 @@ router.get("/ledger/:partyId", async (req, res) => {
     }).from(paymentsTable).where(
       and(eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId), isNull(paymentsTable.deletedAt))
     );
+    const allPaymentIds = allPayments.map(p => p.id);
+    const allAllocRows = allPaymentIds.length > 0
+      ? await db.select({
+          voucherId: paymentAllocationsTable.voucherId,
+          allocatedAmount: paymentAllocationsTable.allocatedAmount,
+        }).from(paymentAllocationsTable).where(inArray(paymentAllocationsTable.paymentId, allPaymentIds))
+      : [];
+    const directAllocatedByBill = new Map<number, number>();
+    let totalDirectlyAllocated = 0;
+    for (const a of allAllocRows) {
+      const amt = Number(a.allocatedAmount);
+      directAllocatedByBill.set(a.voucherId, (directAllocatedByBill.get(a.voucherId) || 0) + amt);
+      totalDirectlyAllocated += amt;
+    }
 
-    // Sort bills and payments by date ascending (FIFO)
+    // Sort bills by date ascending (FIFO)
     const sortedBills = [...allBillVouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
-    const sortedPayments = [...allPayments].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
 
-    // Pool = cash received/paid + credit/debit note adjustments
-    // Credit notes (for sales) and debit notes (for purchases) reduce outstanding — include in pool
-    const totalCashReceived = sortedPayments.reduce((s, p) => s + Number(p.amount), 0);
+    // Pool = cash not already tied to a specific bill + credit/debit note adjustments
+    const totalCashReceived = allPayments.reduce((s, p) => s + Number(p.amount), 0);
     const totalCreditAdjustments = allCreditDebitVouchers.reduce((s, v) => s + Number(v.grandTotal), 0);
+    let poolRemaining = Math.max(0, totalCashReceived - totalDirectlyAllocated) + totalCreditAdjustments;
 
-    // FIFO: distribute (payments + credit/debit notes) across bills oldest first
-    let poolRemaining = totalCashReceived + totalCreditAdjustments;
-    const billResults = sortedBills.map(v => {
+    // Opening balance joins the FIFO queue first (oldest debt), but only when it's
+    // on the same side as the bills being tracked here (sales vs purchase ledger).
+    const isPurchaseSide = sortedBills.length > 0
+      ? sortedBills[0].voucherType === "purchase_bill"
+      : party.openingBalanceType === "credit";
+    const relevantOpeningType = isPurchaseSide ? "credit" : "debit";
+    const openingBal = Number(party.openingBalance || 0);
+    const openingCounts = openingBal > 0.001 && party.openingBalanceType === relevantOpeningType;
+
+    const billResults: any[] = [];
+    if (openingCounts) {
+      const paidNow = Math.min(poolRemaining, openingBal);
+      poolRemaining -= paidNow;
+      billResults.push({
+        voucherNumber: "Opening Balance",
+        voucherType: "opening_balance",
+        date: "",
+        billAmount: openingBal,
+        paidAmount: paidNow,
+        balance: openingBal - paidNow,
+        status: paidNow >= openingBal - 0.001 ? "paid" : paidNow > 0 ? "partial" : "posted",
+      });
+    }
+    for (const v of sortedBills) {
       const billAmount = Number(v.grandTotal);
-      const paidNow = Math.min(poolRemaining, billAmount);
-      poolRemaining = Math.max(0, poolRemaining - paidNow);
-      const balanceAmt = billAmount - paidNow;
-      const status = paidNow >= billAmount - 0.001 ? "paid" : paidNow > 0 ? "partial" : "posted";
-      return {
+      const directPaid = Math.min(billAmount, directAllocatedByBill.get(v.id) || 0);
+      const remainingAfterDirect = Math.max(0, billAmount - directPaid);
+      const poolApplied = Math.min(poolRemaining, remainingAfterDirect);
+      poolRemaining -= poolApplied;
+      const paidNow = directPaid + poolApplied;
+      billResults.push({
         voucherNumber: v.voucherNumber,
         voucherType: v.voucherType,
         date: v.date,
         billAmount,
         paidAmount: paidNow,
-        balance: balanceAmt,
-        status,
-      };
-    });
+        balance: billAmount - paidNow,
+        status: paidNow >= billAmount - 0.001 ? "paid" : paidNow > 0 ? "partial" : "posted",
+      });
+    }
 
-    // Only show bills in the date filter range for the bill-wise table
+    // Only show bills in the date filter range for the bill-wise table — opening
+    // balance is always shown (it has no date of its own) when it counts.
     const bills = billResults.filter(b => {
+      if (b.voucherType === "opening_balance") return true;
       if (fromDate && b.date < String(fromDate)) return false;
       if (toDate && b.date > String(toDate)) return false;
       return true;

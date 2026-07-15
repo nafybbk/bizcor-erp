@@ -430,7 +430,25 @@ export default function PartyLedger() {
                     <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
                       {show("date") && <td className="px-4 py-2.5 text-gray-600">{fmt.date(e.date)}</td>}
                       {show("type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
-                      {show("ref") && <td className="px-4 py-2.5 font-mono text-xs text-blue-600">{e.voucherNumber}</td>}
+                      {show("ref") && (
+                        <td className="px-4 py-2.5 font-mono text-xs text-blue-600">
+                          {e.voucherNumber}
+                          {e.billRefs && e.billRefs.length > 0 && (
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              {e.billRefs.map((br: any, bi: number) => (
+                                <span key={bi} className={`font-sans px-1.5 py-0.5 rounded-full text-[10px] font-medium ${br.fullySettled ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                                  Against {br.voucherNumber} ({fmt.currency(br.amount)}{br.fullySettled ? " — full" : ` — partial, ${fmt.currency(br.remainingOnBill)} due`})
+                                </span>
+                              ))}
+                              {e.onAccountAmount > 0 && (
+                                <span className="font-sans px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                                  On-account {fmt.currency(e.onAccountAmount)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
                       {show("debit") && <td className="px-4 py-2.5 text-right text-blue-700">{e.debit > 0 ? fmt.currency(e.debit) : ""}</td>}
                       {show("credit") && <td className="px-4 py-2.5 text-right text-green-700">{e.credit > 0 ? fmt.currency(e.credit) : ""}</td>}
                       {show("balance") && (
