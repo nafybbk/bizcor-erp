@@ -685,6 +685,7 @@ router.get("/mini-app/connections/:id/invoices/:source/:invoiceId", async (req, 
 
 interface BusinessJwtPayload {
   id?: number;
+  businessId?: number;
   businessCode?: string;
   role?: string;
 }
@@ -706,6 +707,23 @@ function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload |
   return null;
 }
 
+// The token forwarded here is just the LAN admin's own regular login JWT
+// (signToken() in auth.ts) — it carries `businessId`, never `businessCode`
+// (that field only exists on this interface for a future per-sync token that
+// was never actually issued). Every lan-sync push was therefore 401ing on
+// `!payload?.businessCode` regardless of a valid signature — resolve by
+// businessId (what's actually there), falling back to businessCode.
+async function resolveLanSyncBusiness(payload: BusinessJwtPayload | null): Promise<{ id: number } | null> {
+  if (!payload || (!payload.businessCode && !payload.businessId)) return null;
+  const [business] = await db.select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(payload.businessCode
+      ? eq(businessesTable.businessCode, payload.businessCode.toUpperCase())
+      : eq(businessesTable.id, payload.businessId!))
+    .limit(1);
+  return business || null;
+}
+
 // LAN business pushes a mirror of a mini-app-enabled party here so the cloud
 // `parties` row (which /mini-app/connect and the voucher/payment lan-sync
 // handlers below both look up by pin) actually exists. Without this, a
@@ -714,12 +732,8 @@ function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload |
 router.post("/mini-app/lan-sync/party", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-    const [business] = await db.select({ id: businessesTable.id })
-      .from(businessesTable)
-      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
-      .limit(1);
+    const business = await resolveLanSyncBusiness(payload);
+    if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
     const { externalId, name, type, pin, phone, miniAppEnabled } = req.body;
@@ -754,12 +768,8 @@ router.post("/mini-app/lan-sync/party", async (req, res) => {
 router.post("/mini-app/lan-sync/voucher", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-    const [business] = await db.select({ id: businessesTable.id })
-      .from(businessesTable)
-      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
-      .limit(1);
+    const business = await resolveLanSyncBusiness(payload);
+    if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
     const { partyPin, partyName, externalId, voucherType, voucherNumber, date, grandTotal, status, notes, items } = req.body;
@@ -809,12 +819,8 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
 router.post("/mini-app/lan-sync/payment", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    if (!payload?.businessCode) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-    const [business] = await db.select({ id: businessesTable.id })
-      .from(businessesTable)
-      .where(eq(businessesTable.businessCode, payload.businessCode.toUpperCase()))
-      .limit(1);
+    const business = await resolveLanSyncBusiness(payload);
+    if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
     const { partyPin, partyName, externalId, paymentType, paymentNumber, date, amount, paymentMode, notes } = req.body;
