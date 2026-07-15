@@ -39,6 +39,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useTabCache, timeAgo } from "@/hooks/useTabCache";
+import SyncRing from "@/components/SyncRing";
 
 type TabKey = "chat" | "invoices" | "payments" | "statement" | "gallery";
 
@@ -309,7 +310,7 @@ function InvoicesTab({
   const colors = useColors();
   const [refreshing, setRefreshing] = useState(false);
   const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppInvoice[]>(`inv_${connectionId}`);
-  const { data, isLoading, isError, refetch } = useMiniAppListInvoices(connectionId, {
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppListInvoices(connectionId, {
     query: {
       queryKey: getMiniAppListInvoicesQueryKey(connectionId),
       enabled: !!connectionId && permissions?.invoice !== false,
@@ -356,10 +357,15 @@ function InvoicesTab({
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       ListHeaderComponent={
-        lastUpdated ? (
-          <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
-            {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
-          </Text>
+        lastUpdated || isFetching ? (
+          <View style={styles.syncRow}>
+            {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+            {lastUpdated && (
+              <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+              </Text>
+            )}
+          </View>
         ) : null
       }
       ListEmptyComponent={
@@ -427,7 +433,7 @@ function PaymentsTab({
   const colors = useColors();
   const [refreshing, setRefreshing] = useState(false);
   const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppPayment[]>(`pay_${connectionId}`);
-  const { data, isLoading, isError, refetch } = useMiniAppListPayments(connectionId, {
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppListPayments(connectionId, {
     query: {
       queryKey: getMiniAppListPaymentsQueryKey(connectionId),
       enabled: !!connectionId && permissions?.payment !== false,
@@ -466,10 +472,15 @@ function PaymentsTab({
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       ListHeaderComponent={
-        lastUpdated ? (
-          <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
-            {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
-          </Text>
+        lastUpdated || isFetching ? (
+          <View style={styles.syncRow}>
+            {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+            {lastUpdated && (
+              <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+              </Text>
+            )}
+          </View>
         ) : null
       }
       ListEmptyComponent={
@@ -536,7 +547,7 @@ function StatementTab({
   const colors = useColors();
   const [refreshing, setRefreshing] = useState(false);
   const { cachedData, lastUpdated, saveCache } = useTabCache<StatementData>(`stmt_${connectionId}`);
-  const { data, isLoading, isError, refetch } = useMiniAppGetStatement(connectionId, {
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppGetStatement(connectionId, {
     query: {
       queryKey: getMiniAppGetStatementQueryKey(connectionId),
       enabled: !!connectionId && permissions?.statement !== false,
@@ -578,10 +589,15 @@ function StatementTab({
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       ListHeaderComponent={
         <>
-          {lastUpdated ? (
-            <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
-              {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
-            </Text>
+          {lastUpdated || isFetching ? (
+            <View style={styles.syncRow}>
+              {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+              {lastUpdated && (
+                <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                  {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+                </Text>
+              )}
+            </View>
           ) : null}
           {entries.length > 0 ? (
             <View style={[styles.statementHeader, { backgroundColor: closing > 0 ? "#fef9c3" : "#dcfce7", borderColor: closing > 0 ? "#fde047" : "#86efac" }]}>
@@ -666,7 +682,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginTop: 4 },
   emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
-  syncLabel: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", paddingVertical: 6, opacity: 0.7 },
+  syncRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 6 },
+  syncLabel: { fontSize: 11, fontFamily: "Inter_400Regular", opacity: 0.7 },
   chatContent: { padding: 16, gap: 10, flexGrow: 1 },
   bubbleRow: { flexDirection: "row" },
   bubble: { maxWidth: "78%", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },

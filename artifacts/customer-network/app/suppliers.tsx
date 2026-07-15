@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useMiniAppListConnections, MiniAppConnection, customFetch } from "@workspace/api-client-react";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useTabCache } from "@/hooks/useTabCache";
+import SyncRing from "@/components/SyncRing";
 
 type Conn = MiniAppConnection & {
   customerPaused?: boolean;
@@ -194,8 +196,15 @@ export default function SuppliersScreen() {
   const { customer, logout } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useMiniAppListConnections();
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppListConnections();
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+
+  // Shows the existing list instantly on app open instead of a blank
+  // skeleton every time — the ring (not this) is what signals a fresh
+  // background sync is in progress.
+  const { cachedData, saveCache } = useTabCache<MiniAppConnection[]>("connections_list");
+  useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
+  const displayData = data ?? cachedData ?? [];
 
   // Reload on focus so badges clear right after visiting a supplier
   useFocusEffect(useCallback(() => {
@@ -225,13 +234,16 @@ export default function SuppliersScreen() {
           },
         ]}
       >
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.primaryForeground }]}>
-            My Suppliers
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: "rgba(255,255,255,0.75)" }]}>
-            {customer?.mobile} · v{Constants.expoConfig?.version ?? "?"}
-          </Text>
+        <View style={styles.headerTitleRow}>
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.primaryForeground }]}>
+              My Suppliers
+            </Text>
+            <Text style={[styles.headerSubtitle, { color: "rgba(255,255,255,0.75)" }]}>
+              {customer?.mobile} · v{Constants.expoConfig?.version ?? "?"}
+            </Text>
+          </View>
+          {isFetching && <SyncRing size={16} backgroundColor={colors.primary} />}
         </View>
         <Pressable
           onPress={handleLogout}
@@ -244,11 +256,11 @@ export default function SuppliersScreen() {
         </Pressable>
       </View>
 
-      {isLoading ? (
+      {isLoading && !cachedData ? (
         <View style={styles.centerFill}>
           <SkeletonList />
         </View>
-      ) : isError ? (
+      ) : isError && displayData.length === 0 ? (
         <View style={styles.centerFill}>
           <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
@@ -266,7 +278,7 @@ export default function SuppliersScreen() {
         </View>
       ) : (
         <FlatList
-          data={data ?? []}
+          data={displayData}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => {
             const c = item as Conn;
@@ -277,7 +289,7 @@ export default function SuppliersScreen() {
             styles.listContent,
             { paddingBottom: Math.max(insets.bottom, 24) + 90 },
           ]}
-          scrollEnabled={!!data && data.length > 0}
+          scrollEnabled={displayData.length > 0}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
@@ -343,6 +355,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
     elevation: 4,
   },
+  headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
   headerSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   chip: {
