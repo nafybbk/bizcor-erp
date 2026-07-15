@@ -10,7 +10,7 @@
 // retries every couple of minutes — the customer's app catches up silently as
 // soon as connectivity returns. Rows are deleted once delivered.
 import { db, sqlite } from "@workspace/db";
-import { partiesTable, voucherItemsTable } from "@workspace/db";
+import { partiesTable, voucherItemsTable, businessesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const CLOUD_URL = () => process.env.CLOUD_API_URL || "https://erp.naewtgroup.com";
@@ -105,6 +105,21 @@ async function miniAppParty(partyId: number | null | undefined) {
   return party as { miniAppEnabled: boolean; pin: string; name: string | null };
 }
 
+// The local business's own row id has no relationship to its id in the cloud
+// Postgres database (two independent auto-increment sequences) — a LAN
+// install's businessId can never be trusted to resolve the right business on
+// the cloud side. businessCode is the one identifier assigned once and
+// shared correctly between both, so every push resolves the cloud business
+// by this instead of by raw id.
+async function localBusinessCode(businessId: number | null | undefined): Promise<string | null> {
+  if (!businessId) return null;
+  try {
+    const [biz] = await db.select({ businessCode: businessesTable.businessCode })
+      .from(businessesTable).where(eq(businessesTable.id, Number(businessId))).limit(1);
+    return biz?.businessCode || null;
+  } catch { return null; }
+}
+
 // Party sync — must run BEFORE voucher/payment sync for the same party, since
 // those look the party up on the cloud by pin and just 404 (silently dropped
 // forever, see flushOutbox) if it isn't there yet. Safe in practice: a voucher
@@ -120,14 +135,19 @@ export function pushLanSyncParty(req: any, p: {
 }): void {
   if (!process.env.SQLITE_PATH) return;
   if (!p.pin) return; // nothing on the cloud side to match a connect PIN against
-  enqueue("party", {
-    externalId: p.externalId,
-    name: p.name || "",
-    type: p.type,
-    pin: p.pin,
-    phone: p.phone || "",
-    miniAppEnabled: p.miniAppEnabled !== false,
-  }, bearerToken(req));
+  const token = bearerToken(req);
+  void (async () => {
+    const businessCode = await localBusinessCode(req.user?.businessId);
+    enqueue("party", {
+      externalId: p.externalId,
+      name: p.name || "",
+      type: p.type,
+      pin: p.pin,
+      phone: p.phone || "",
+      miniAppEnabled: p.miniAppEnabled !== false,
+      businessCode,
+    }, token);
+  })();
 }
 
 // One-time (per process) catch-up for parties that were created/edited before
@@ -141,6 +161,8 @@ export function ensurePartyBackfill(req: any): void {
   partyBackfillDone = true;
   void (async () => {
     try {
+      const businessId = req.user?.businessId;
+      const businessCode = await localBusinessCode(businessId);
       const rows = await db.select({
         id: partiesTable.id,
         name: partiesTable.name,
@@ -148,7 +170,7 @@ export function ensurePartyBackfill(req: any): void {
         pin: partiesTable.pin,
         phone: partiesTable.phone,
         miniAppEnabled: partiesTable.miniAppEnabled,
-      }).from(partiesTable);
+      }).from(partiesTable).where(eq(partiesTable.businessId, Number(businessId)));
       for (const p of rows as any[]) {
         if (!p.pin) continue;
         enqueue("party", {
@@ -158,6 +180,7 @@ export function ensurePartyBackfill(req: any): void {
           pin: p.pin,
           phone: p.phone || "",
           miniAppEnabled: p.miniAppEnabled !== false,
+          businessCode,
         }, token);
       }
     } catch { partyBackfillDone = false; /* let the next request retry */ }
@@ -202,6 +225,7 @@ export function pushLanSyncVoucher(req: any, v: {
         } catch { /* items are best-effort — header still syncs */ }
       }
 
+      const businessCode = await localBusinessCode(req.user?.businessId);
       enqueue("voucher", {
         partyPin: party.pin,
         partyName: party.name || "",
@@ -213,6 +237,7 @@ export function pushLanSyncVoucher(req: any, v: {
         status: v.status,
         notes: v.notes || "",
         items,
+        businessCode,
       }, bearerToken(req));
     } catch { /* fire-and-forget — errors silently ignored */ }
   })();
@@ -234,6 +259,7 @@ export function pushLanSyncPayment(req: any, p: {
     try {
       const party = await miniAppParty(p.partyId);
       if (!party) return;
+      const businessCode = await localBusinessCode(req.user?.businessId);
       enqueue("payment", {
         partyPin: party.pin,
         partyName: party.name || "",
@@ -245,6 +271,7 @@ export function pushLanSyncPayment(req: any, p: {
         paymentMode: p.paymentMode || "cash",
         status: p.status,
         notes: p.notes || "",
+        businessCode,
       }, bearerToken(req));
     } catch { /* fire-and-forget — errors silently ignored */ }
   })();

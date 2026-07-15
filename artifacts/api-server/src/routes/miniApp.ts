@@ -710,18 +710,28 @@ function verifyBusinessJwt(authHeader: string | undefined): BusinessJwtPayload |
 // The token forwarded here is just the LAN admin's own regular login JWT
 // (signToken() in auth.ts) — it carries `businessId`, never `businessCode`
 // (that field only exists on this interface for a future per-sync token that
-// was never actually issued). Every lan-sync push was therefore 401ing on
-// `!payload?.businessCode` regardless of a valid signature — resolve by
-// businessId (what's actually there), falling back to businessCode.
-async function resolveLanSyncBusiness(payload: BusinessJwtPayload | null): Promise<{ id: number } | null> {
-  if (!payload || (!payload.businessCode && !payload.businessId)) return null;
-  const [business] = await db.select({ id: businessesTable.id })
-    .from(businessesTable)
-    .where(payload.businessCode
-      ? eq(businessesTable.businessCode, payload.businessCode.toUpperCase())
-      : eq(businessesTable.id, payload.businessId!))
-    .limit(1);
-  return business || null;
+// was never actually issued). That businessId is also useless on its own: a
+// LAN install's local SQLite row id has no relationship to this same
+// business's row id in the cloud Postgres database (two independent
+// auto-increment sequences) — resolving by it can silently match the wrong
+// business or nothing at all. lanSync.ts now looks up the LAN business's own
+// businessCode locally and sends it explicitly in every push payload — use
+// that (authoritative, shared between both sides), falling back to the JWT's
+// businessCode/businessId only for older EXEs that predate this field.
+async function resolveLanSyncBusiness(payload: BusinessJwtPayload | null, bodyBusinessCode?: string): Promise<{ id: number } | null> {
+  if (!payload) return null;
+  const code = bodyBusinessCode || payload.businessCode;
+  if (code) {
+    const [business] = await db.select({ id: businessesTable.id })
+      .from(businessesTable).where(eq(businessesTable.businessCode, code.toUpperCase())).limit(1);
+    return business || null;
+  }
+  if (payload.businessId) {
+    const [business] = await db.select({ id: businessesTable.id })
+      .from(businessesTable).where(eq(businessesTable.id, payload.businessId)).limit(1);
+    return business || null;
+  }
+  return null;
 }
 
 // LAN business pushes a mirror of a mini-app-enabled party here so the cloud
@@ -732,7 +742,7 @@ async function resolveLanSyncBusiness(payload: BusinessJwtPayload | null): Promi
 router.post("/mini-app/lan-sync/party", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    const business = await resolveLanSyncBusiness(payload);
+    const business = await resolveLanSyncBusiness(payload, req.body?.businessCode);
     if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
@@ -768,7 +778,7 @@ router.post("/mini-app/lan-sync/party", async (req, res) => {
 router.post("/mini-app/lan-sync/voucher", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    const business = await resolveLanSyncBusiness(payload);
+    const business = await resolveLanSyncBusiness(payload, req.body?.businessCode);
     if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
@@ -819,7 +829,7 @@ router.post("/mini-app/lan-sync/voucher", async (req, res) => {
 router.post("/mini-app/lan-sync/payment", async (req, res) => {
   try {
     const payload = verifyBusinessJwt(req.headers.authorization);
-    const business = await resolveLanSyncBusiness(payload);
+    const business = await resolveLanSyncBusiness(payload, req.body?.businessCode);
     if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
