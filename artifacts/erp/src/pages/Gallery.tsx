@@ -39,6 +39,31 @@ async function sha256Hex(base64: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Resizes to a max 1920px side + re-encodes as JPEG at the chosen quality,
+// before hashing/upload — cuts both upload bandwidth and Cloudinary storage.
+// Always outputs JPEG (product photos never need alpha transparency).
+async function compressImage(base64: string, mime: string, quality: number, maxDim = 1920): Promise<{ base64: string; mime: string }> {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Image load failed"));
+    img.src = `data:${mime};base64,${base64}`;
+  });
+  let width = img.naturalWidth;
+  let height = img.naturalHeight;
+  if (Math.max(width, height) > maxDim) {
+    const scale = maxDim / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+  const outDataUrl = canvas.toDataURL("image/jpeg", quality / 100);
+  return { base64: outDataUrl.split(",")[1] || "", mime: "image/jpeg" };
+}
+
 // Tick icon matching the WhatsApp-style trail: sent-only (single), delivered
 // (double), viewed (blue) — same signal the supplier uses to see if a shared
 // photo actually reached/was opened by the customer.
@@ -69,6 +94,11 @@ export default function Gallery() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isDesktop = localStorage.getItem("erp_app_mode") === "desktop";
+  const [quality, setQuality] = useState<number>(() => {
+    const saved = Number(localStorage.getItem("gallery_compress_quality"));
+    return saved >= 60 && saved <= 100 ? saved : 80;
+  });
+  useEffect(() => { localStorage.setItem("gallery_compress_quality", String(quality)); }, [quality]);
 
   const loadImages = () => {
     setLoading(true);
@@ -99,14 +129,15 @@ export default function Gallery() {
   // Uploads one file's bytes: hash locally, ask the server if it already
   // has this content (dedup), only actually upload if it doesn't.
   const uploadOne = async (base64: string, filename: string, mime: string) => {
-    const hash = await sha256Hex(base64);
+    const compressed = await compressImage(base64, mime, quality);
+    const hash = await sha256Hex(compressed.base64);
     const check = await galleryApi.post<{ exists: boolean }>("/gallery/check-hash", { hash });
     if (check.exists) return;
-    const byteChars = atob(base64);
+    const byteChars = atob(compressed.base64);
     const bytes = new Uint8Array(byteChars.length);
     for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([bytes], { type: mime });
-    await galleryApi.uploadImage(blob, filename);
+    const blob = new Blob([bytes], { type: compressed.mime });
+    await galleryApi.uploadImage(blob, filename.replace(/\.\w+$/, ".jpg"));
   };
 
   const handlePickFolder = async () => {
@@ -242,6 +273,13 @@ export default function Gallery() {
                 {uploadProgress && (
                   <span className="text-sm text-gray-500">{uploadProgress.done}/{uploadProgress.total} upload ho rahi hain…</span>
                 )}
+                <div className="flex items-center gap-2 text-xs text-gray-500 pl-2 border-l border-gray-200">
+                  <span>Quality</span>
+                  <input type="range" min={60} max={100} step={5} value={quality}
+                    onChange={e => setQuality(Number(e.target.value))}
+                    className="w-24 accent-violet-600" title={`${quality}%`} />
+                  <span className="w-9">{quality}%</span>
+                </div>
               </div>
               {selected.size > 0 && (
                 <button onClick={() => setShareOpen(true)}
