@@ -28,6 +28,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -40,8 +41,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import ZoomableImage from "@/components/ZoomableImage";
 
 import { useColors } from "@/hooks/useColors";
 import { useTabCache, timeAgo } from "@/hooks/useTabCache";
@@ -752,18 +756,23 @@ function GalleryImageViewer({ connectionId, shareId, onClose }: { connectionId: 
   const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, shareId);
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)" }}>
-        <Pressable onPress={onClose} style={{ position: "absolute", top: 50, right: 20, zIndex: 1, padding: 8 }}>
-          <Feather name="x" size={26} color="#fff" />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          {isLoading || !data?.url ? (
-            <ActivityIndicator color={colors.primary} size="large" />
-          ) : (
-            <Image source={{ uri: data.url }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
-          )}
+      {/* Modal content renders in its own native window on Android/iOS —
+          outside the app root's GestureHandlerRootView — so gesture-handler
+          needs its own instance in here or pinch/pan/tap never register. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)" }}>
+          <Pressable onPress={onClose} style={{ position: "absolute", top: 50, right: 20, zIndex: 1, padding: 8 }}>
+            <Feather name="x" size={26} color="#fff" />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            {isLoading || !data?.url ? (
+              <ActivityIndicator color={colors.primary} size="large" />
+            ) : (
+              <ZoomableImage uri={data.url} width={Dimensions.get("window").width} height={Dimensions.get("window").height * 0.8} />
+            )}
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
