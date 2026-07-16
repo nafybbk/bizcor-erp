@@ -53,6 +53,7 @@ import ActivityLog from "@/pages/settings/ActivityLog";
 import ConnectCustomers from "@/pages/settings/ConnectCustomers";
 import ImportData from "@/pages/settings/ImportData";
 import BackupSettings from "@/pages/settings/BackupSettings";
+import Gallery from "@/pages/Gallery";
 import FirmProfile from "@/pages/FirmProfile";
 import OfflineDrafts from "@/pages/OfflineDrafts";
 import VoucherBin from "@/pages/VoucherBin";
@@ -138,6 +139,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <Layout><ErrorBoundary>{children}</ErrorBoundary></Layout>;
 }
 
+// Gallery opens in its own separate Electron window (not a tab inside the
+// main app), so it needs auth but deliberately skips the Layout chrome
+// (sidebar/nav) — it's meant to feel like its own app, not a page of the ERP.
+function StandaloneRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Redirect to={isTechDomain() ? "/tech-login" : "/login"} />;
+  return <ErrorBoundary>{children}</ErrorBoundary>;
+}
+
 const isTechDomain = () => window.location.hostname === "erpa.naewtgroup.com";
 
 function AppRoutes() {
@@ -150,6 +160,9 @@ function AppRoutes() {
       </Route>
       <Route path="/tech-login" component={TechLogin} />
       <Route path="/register" component={Register} />
+      <Route path="/gallery">
+        <StandaloneRoute><Gallery /></StandaloneRoute>
+      </Route>
 
       <Route path="/">
         <ProtectedRoute>

@@ -12,8 +12,9 @@ import {
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
   UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive, LayoutTemplate,
-  History as HistoryIcon, Smartphone,
+  History as HistoryIcon, Smartphone, Images,
 } from "lucide-react";
+import { galleryApi } from "@/lib/galleryApi";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
 import FloatingActionButton from "@/components/FloatingActionButton";
@@ -160,6 +161,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(
     () => (localStorage.getItem("erp_app_mode") as "desktop" | "cloud" | null) || null
   );
+  // Gallery is desktop-EXE-only for now (P1) — "Coming Soon" for every
+  // business except the ones the tech panel has granted the "gallery"
+  // module patch to (same gate Chat/Customer Network already use).
+  const [galleryActive, setGalleryActive] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const [chatEnabled, setChatEnabled] = useState(
@@ -218,6 +223,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (appMode !== "desktop") return;
+    galleryApi.get<{ active: boolean }>("/gallery/module-status")
+      .then(r => setGalleryActive(!!r.active))
+      .catch(() => setGalleryActive(false));
+  }, [appMode]);
 
   useEffect(() => {
     loadLogo();
@@ -564,6 +576,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span>BizCor Connect</span>
                   </a>
                 </Link>
+              )}
+              {user?.role === "business_admin" && appMode === "desktop" && (
+                <button
+                  type="button"
+                  disabled={!galleryActive}
+                  title={galleryActive ? "BizCor Gallery kholein" : "Gallery — Coming Soon"}
+                  onClick={() => (window as any).bizcorDesktop?.gallery?.openWindow()}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${galleryActive ? "text-slate-400 hover:text-white hover:bg-slate-700" : "text-slate-600 cursor-not-allowed"}`}
+                >
+                  <Images className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>BizCor Gallery</span>
+                  {!galleryActive && <span className="ml-auto text-[9px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">Soon</span>}
+                </button>
               )}
               {hasPerm("settings") && (
                 <Link href="/settings/business">

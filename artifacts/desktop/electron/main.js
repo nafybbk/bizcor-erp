@@ -120,6 +120,68 @@ function openMainWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
+// ─── Gallery Window ───────────────────────────────────────────────────────────
+// A separate, non-modal window (not a route inside mainWindow) so the
+// supplier can keep working in the ERP while Gallery sits minimized/behind —
+// neither blocks the other. Same preload + same origin as mainWindow, so the
+// ERP's login session (localStorage) carries over with no extra plumbing.
+
+let galleryWindow = null;
+function openGalleryWindow() {
+  if (galleryWindow) { galleryWindow.show(); galleryWindow.focus(); return; }
+
+  galleryWindow = new BrowserWindow({
+    width: 1200, height: 800, minWidth: 800, minHeight: 560,
+    title: "BizCor Gallery",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false, contextIsolation: true,
+    },
+  });
+  galleryWindow.setMenuBarVisibility(false);
+  galleryWindow.loadURL(`http://localhost:${server.getServerPort()}/gallery`);
+  galleryWindow.on("closed", () => { galleryWindow = null; });
+}
+
+ipcMain.handle("gallery:open-window", () => { openGalleryWindow(); });
+
+ipcMain.handle("gallery:choose-folder", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: "Gallery Folder Chunein",
+    properties: ["openDirectory"],
+  });
+  if (canceled || !filePaths[0]) return { canceled: true };
+  return { canceled: false, path: filePaths[0] };
+});
+
+const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
+
+ipcMain.handle("gallery:list-images", async (_event, folderPath) => {
+  const fs = require("fs");
+  try {
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    return entries
+      .filter(e => e.isFile() && IMAGE_EXTENSIONS.includes(path.extname(e.name).toLowerCase()))
+      .map(e => {
+        const fullPath = path.join(folderPath, e.name);
+        const stat = fs.statSync(fullPath);
+        return { name: e.name, path: fullPath, size: stat.size };
+      });
+  } catch (err) {
+    return { error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle("gallery:read-image", async (_event, filePath) => {
+  const fs = require("fs");
+  try {
+    const buffer = fs.readFileSync(filePath);
+    return { base64: buffer.toString("base64") };
+  } catch (err) {
+    return { error: err.message || String(err) };
+  }
+});
+
 // ─── QR Window ───────────────────────────────────────────────────────────────
 
 let qrWindow = null;

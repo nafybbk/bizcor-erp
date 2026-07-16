@@ -27,6 +27,7 @@ import templateFilesRouter from "./templateFiles";
 import printServerRouter from "./print-server";
 import activationRequestsRouter from "./activationRequests";
 import miniAppRouter from "./miniApp";
+import galleryRouter from "./gallery";
 
 const router: IRouter = Router();
 
@@ -347,6 +348,7 @@ router.use("/auth/webauthn", webauthnRouter);
 router.use(supportChatRouter);
 router.use(activationRequestsRouter);
 router.use(miniAppRouter);
+router.use(galleryRouter);
 router.use("/super-admin", superAdminRouter);
 router.use("/super-admin", importDataRouter);
 

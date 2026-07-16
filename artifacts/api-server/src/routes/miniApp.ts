@@ -13,6 +13,8 @@ import {
   appSettingsTable,
   lanSyncVouchersTable,
   lanSyncPaymentsTable,
+  galleryImagesTable,
+  gallerySharesTable,
 } from "@workspace/db";
 import { eq, and, gt, asc, desc, isNull, sql, inArray } from "drizzle-orm";
 import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
@@ -598,6 +600,80 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
     ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
     res.json(merged);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/gallery — thumbnails shared with this
+// customer specifically (not the supplier's whole gallery). First fetch of
+// each share stamps deliveredAt (double tick, from the supplier's side).
+router.get("/mini-app/connections/:id/gallery", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { gallery?: boolean } | null) || {};
+    if (permissions.gallery !== true) {
+      res.status(403).json({ error: "Gallery dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const rows = await db.select({
+      shareId: gallerySharesTable.id,
+      thumbnailUrl: galleryImagesTable.thumbnailUrl,
+      sharedAt: gallerySharesTable.sharedAt,
+      deliveredAt: gallerySharesTable.deliveredAt,
+      viewedAt: gallerySharesTable.viewedAt,
+    }).from(gallerySharesTable)
+      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
+      .where(and(eq(gallerySharesTable.businessId, connection.businessId), eq(gallerySharesTable.partyId, connection.partyId)))
+      .orderBy(desc(gallerySharesTable.sharedAt));
+
+    const undelivered = rows.filter(r => !r.deliveredAt).map(r => r.shareId);
+    if (undelivered.length) {
+      await db.update(gallerySharesTable).set({ deliveredAt: new Date() }).where(inArray(gallerySharesTable.id, undelivered));
+    }
+
+    res.json(rows);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /mini-app/connections/:id/gallery/:shareId/full — full-size image, only
+// fetched on tap. Stamps viewedAt (blue tick) the first time.
+router.get("/mini-app/connections/:id/gallery/:shareId/full", async (req, res) => {
+  try {
+    const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
+    if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
+
+    const permissions = (connection.permissions as { gallery?: boolean } | null) || {};
+    if (permissions.gallery !== true) {
+      res.status(403).json({ error: "Gallery dekhne ki permission nahi hai" });
+      return;
+    }
+
+    const [row] = await db.select({
+      shareId: gallerySharesTable.id,
+      url: galleryImagesTable.url,
+      viewedAt: gallerySharesTable.viewedAt,
+    }).from(gallerySharesTable)
+      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
+      .where(and(
+        eq(gallerySharesTable.id, Number(req.params.shareId)),
+        eq(gallerySharesTable.businessId, connection.businessId),
+        eq(gallerySharesTable.partyId, connection.partyId),
+      )).limit(1);
+    if (!row) { res.status(404).json({ error: "Image nahi mili" }); return; }
+
+    if (!row.viewedAt) {
+      await db.update(gallerySharesTable).set({ viewedAt: new Date() }).where(eq(gallerySharesTable.id, row.shareId));
+    }
+
+    res.json({ url: row.url });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

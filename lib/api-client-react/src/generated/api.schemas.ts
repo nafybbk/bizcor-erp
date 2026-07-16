@@ -1033,6 +1033,14 @@ export interface MiniAppStatementEntry {
   balance: number;
 }
 
+export interface MiniAppGalleryShare {
+  shareId: number;
+  thumbnailUrl: string;
+  sharedAt: string;
+  deliveredAt?: string | null;
+  viewedAt?: string | null;
+}
+
 export type ListAllBusinessesParams = {
   page?: number;
   limit?: number;
@@ -1267,4 +1275,8 @@ export type MiniAppPollMessagesParams = {
 export type MiniAppGetStatement200 = {
   entries: MiniAppStatementEntry[];
   closingBalance: number;
+};
+
+export type MiniAppGetGalleryFull200 = {
+  url: string;
 };

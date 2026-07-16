@@ -149,6 +149,26 @@ if (sqlitePath) {
       status connection_status NOT NULL DEFAULT 'active',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    `CREATE TABLE IF NOT EXISTS gallery_images (
+      id SERIAL PRIMARY KEY,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      content_hash TEXT NOT NULL,
+      cloudinary_public_id TEXT NOT NULL,
+      url TEXT NOT NULL,
+      thumbnail_url TEXT NOT NULL,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS gallery_images_biz_hash_idx ON gallery_images (business_id, content_hash)`,
+    `CREATE TABLE IF NOT EXISTS gallery_shares (
+      id SERIAL PRIMARY KEY,
+      image_id INTEGER NOT NULL REFERENCES gallery_images(id),
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      party_id INTEGER NOT NULL REFERENCES parties(id),
+      shared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      delivered_at TIMESTAMPTZ,
+      viewed_at TIMESTAMPTZ
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS gallery_shares_image_party_idx ON gallery_shares (image_id, party_id)`,
     `CREATE TABLE IF NOT EXISTS mini_app_chat_messages (
       id SERIAL PRIMARY KEY,
       connection_id INTEGER NOT NULL REFERENCES mini_app_connections(id),
@@ -268,6 +288,8 @@ export const lanSyncVouchersTable = s.lanSyncVouchersTable;
 export const lanSyncPaymentsTable = s.lanSyncPaymentsTable;
 export const modulePatchesTable = s.modulePatchesTable;
 export const activityLogsTable = s.activityLogsTable;
+export const galleryImagesTable = s.galleryImagesTable;
+export const gallerySharesTable = s.gallerySharesTable;
 
 // Re-export PG types for TypeScript consumers (routes, etc.)
 export type * from "./schema";

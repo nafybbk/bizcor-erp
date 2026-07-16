@@ -3,16 +3,20 @@ import {
   getMiniAppListInvoicesQueryKey,
   getMiniAppListPaymentsQueryKey,
   getMiniAppGetStatementQueryKey,
+  getMiniAppListGalleryQueryKey,
   getMiniAppPollMessagesQueryKey,
   getMiniAppRecentMessagesQueryKey,
   MiniAppChatMessage,
   MiniAppInvoice,
   MiniAppPayment,
   MiniAppStatementEntry,
+  MiniAppGalleryShare,
   useMiniAppListConnections,
   useMiniAppListInvoices,
   useMiniAppListPayments,
   useMiniAppGetStatement,
+  useMiniAppListGallery,
+  useMiniAppGetGalleryFull,
   useMiniAppPollMessages,
   useMiniAppRecentMessages,
   useMiniAppSendMessage,
@@ -25,6 +29,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -125,7 +131,9 @@ export default function SupplierDetailScreen() {
       {tab === "statement" && (
         <StatementTab connectionId={connectionId} permissions={connection?.permissions} />
       )}
-      {tab === "gallery" && <GalleryTab />}
+      {tab === "gallery" && (
+        <GalleryTab connectionId={connectionId} permissions={connection?.permissions} />
+      )}
     </View>
   );
 }
@@ -643,18 +651,120 @@ function StatementTab({
   );
 }
 
-function GalleryTab() {
+function GalleryTab({
+  connectionId,
+  permissions,
+}: {
+  connectionId: number;
+  permissions?: { gallery?: boolean } | null;
+}) {
   const colors = useColors();
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewerShareId, setViewerShareId] = useState<number | null>(null);
+  const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppGalleryShare[]>(`gallery_${connectionId}`);
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppListGallery(connectionId, {
+    query: {
+      queryKey: getMiniAppListGalleryQueryKey(connectionId),
+      enabled: !!connectionId && permissions?.gallery === true,
+    },
+  });
+
+  useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
+  if (permissions?.gallery !== true) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="lock" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+          Not shared with you
+        </Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          This supplier hasn&apos;t enabled gallery sharing.
+        </Text>
+      </View>
+    );
+  }
+
+  if (isLoading && !cachedData) {
+    return (
+      <View style={styles.centerFill}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const displayData = (data ?? cachedData ?? []) as MiniAppGalleryShare[];
+
   return (
-    <View style={styles.centerFill}>
-      <Feather name="image" size={30} color={colors.mutedForeground} />
-      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-        Gallery coming soon
-      </Text>
-      <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-        Your supplier will be able to share product photos here.
-      </Text>
-    </View>
+    <>
+      <FlatList
+        data={displayData}
+        keyExtractor={(item) => String(item.shareId)}
+        numColumns={3}
+        scrollEnabled={displayData.length > 0}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
+        ListHeaderComponent={
+          lastUpdated || isFetching ? (
+            <View style={styles.syncRow}>
+              {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+              {lastUpdated && (
+                <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                  {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+                </Text>
+              )}
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <Pressable onPress={() => setViewerShareId(item.shareId)} style={{ flex: 1 / 3, aspectRatio: 1, padding: 2 }}>
+            <Image source={{ uri: item.thumbnailUrl }} style={{ flex: 1, borderRadius: 8 }} resizeMode="cover" />
+          </Pressable>
+        )}
+        ListEmptyComponent={
+          <View style={styles.centerFill}>
+            <Feather name="image" size={30} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              Abhi koi photo share nahi hui
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Your supplier will share product photos here.
+            </Text>
+          </View>
+        }
+      />
+      {viewerShareId != null && (
+        <GalleryImageViewer connectionId={connectionId} shareId={viewerShareId} onClose={() => setViewerShareId(null)} />
+      )}
+    </>
+  );
+}
+
+// Full-size image only downloads on tap, not upfront with the thumbnail list.
+function GalleryImageViewer({ connectionId, shareId, onClose }: { connectionId: number; shareId: number; onClose: () => void }) {
+  const colors = useColors();
+  const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, shareId);
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)" }}>
+        <Pressable onPress={onClose} style={{ position: "absolute", top: 50, right: 20, zIndex: 1, padding: 8 }}>
+          <Feather name="x" size={26} color="#fff" />
+        </Pressable>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          {isLoading || !data?.url ? (
+            <ActivityIndicator color={colors.primary} size="large" />
+          ) : (
+            <Image source={{ uri: data.url }} style={{ width: "100%", height: "80%" }} resizeMode="contain" />
+          )}
+        </View>
+      </View>
+    </Modal>
   );
 }
 

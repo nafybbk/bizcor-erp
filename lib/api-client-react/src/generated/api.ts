@@ -74,6 +74,8 @@ import type {
   MiniAppConnectBody,
   MiniAppConnectResponse,
   MiniAppConnection,
+  MiniAppGalleryShare,
+  MiniAppGetGalleryFull200,
   MiniAppGetStatement200,
   MiniAppInvoice,
   MiniAppLoginBody,
@@ -7338,6 +7340,195 @@ export function useMiniAppGetStatement<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getMiniAppGetStatementQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Thumbnails shared with this customer by the connected supplier
+ */
+export const getMiniAppListGalleryUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/gallery`;
+};
+
+export const miniAppListGallery = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppGalleryShare[]> => {
+  return customFetch<MiniAppGalleryShare[]>(getMiniAppListGalleryUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppListGalleryQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/gallery`] as const;
+};
+
+export const getMiniAppListGalleryQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppListGallery>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListGallery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppListGalleryQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppListGallery>>
+  > = ({ signal }) => miniAppListGallery(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListGallery>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppListGalleryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppListGallery>>
+>;
+export type MiniAppListGalleryQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Thumbnails shared with this customer by the connected supplier
+ */
+
+export function useMiniAppListGallery<
+  TData = Awaited<ReturnType<typeof miniAppListGallery>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListGallery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppListGalleryQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Full-size image for a shared gallery item, fetched only on tap
+ */
+export const getMiniAppGetGalleryFullUrl = (id: number, shareId: number) => {
+  return `/api/mini-app/connections/${id}/gallery/${shareId}/full`;
+};
+
+export const miniAppGetGalleryFull = async (
+  id: number,
+  shareId: number,
+  options?: RequestInit,
+): Promise<MiniAppGetGalleryFull200> => {
+  return customFetch<MiniAppGetGalleryFull200>(
+    getMiniAppGetGalleryFullUrl(id, shareId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getMiniAppGetGalleryFullQueryKey = (
+  id: number,
+  shareId: number,
+) => {
+  return [`/api/mini-app/connections/${id}/gallery/${shareId}/full`] as const;
+};
+
+export const getMiniAppGetGalleryFullQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  shareId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getMiniAppGetGalleryFullQueryKey(id, shareId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppGetGalleryFull>>
+  > = ({ signal }) =>
+    miniAppGetGalleryFull(id, shareId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && shareId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppGetGalleryFullQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppGetGalleryFull>>
+>;
+export type MiniAppGetGalleryFullQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Full-size image for a shared gallery item, fetched only on tap
+ */
+
+export function useMiniAppGetGalleryFull<
+  TData = Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  shareId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppGetGalleryFullQueryOptions(
+    id,
+    shareId,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
