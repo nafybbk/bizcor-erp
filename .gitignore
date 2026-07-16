@@ -64,3 +64,6 @@ attached_assets/Pasted-*.txt
 # Manual backup exports — not source code, shouldn't live in git
 bizcor-erp-backup.zip
 *-backup.zip
+
+.vercel
+.env*
