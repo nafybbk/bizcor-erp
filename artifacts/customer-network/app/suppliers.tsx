@@ -8,10 +8,12 @@ import {
   Alert,
   FlatList,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,11 +66,15 @@ function StatusChip({ status, paused }: { status?: string; paused: boolean }) {
   );
 }
 
-function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () => void; hasNew: boolean }) {
+function SupplierCard({ item, onChanged, hasNew, showSupplierRealName }: { item: Conn; onChanged: () => void; hasNew: boolean; showSupplierRealName: boolean }) {
   const colors = useColors();
-  const initial = item.businessName?.charAt(0)?.toUpperCase() ?? "?";
+  const displayName = (!showSupplierRealName && item.customLabel) || item.businessName;
+  const initial = displayName?.charAt(0)?.toUpperCase() ?? "?";
   const paused = item.customerPaused === true;
   const docCount = (item.invoiceCount || 0) + (item.paymentCount || 0);
+
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(item.customLabel || "");
 
   const setPaused = async (value: boolean) => {
     try {
@@ -82,10 +88,23 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
     }
   };
 
+  const saveLabel = async () => {
+    try {
+      await customFetch(`/api/mini-app/connections/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ customLabel: labelDraft.trim() }),
+      });
+      setRenameOpen(false);
+      onChanged();
+    } catch {
+      Alert.alert("Error", "Naam save nahi hua. Dobara try karein.");
+    }
+  };
+
   const remove = () => {
     Alert.alert(
       "Remove supplier?",
-      `${item.businessName} aapki app se hat jayega (chat bhi delete hogi). Wapas judne ke liye business code + PIN dobara daalna hoga.`,
+      `${displayName} aapki app se hat jayega (chat bhi delete hogi). Wapas judne ke liye business code + PIN dobara daalna hoga.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -105,10 +124,11 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
   };
 
   const openMenu = () => {
-    Alert.alert(item.businessName ?? "Supplier", undefined, [
+    Alert.alert(displayName ?? "Supplier", undefined, [
       paused
         ? { text: "▶  Resume", onPress: () => setPaused(false) }
         : { text: "⏸  Pause", onPress: () => setPaused(true) },
+      { text: "✏️  Naam badlein", onPress: () => { setLabelDraft(item.customLabel || ""); setRenameOpen(true); } },
       { text: "🗑  Remove", style: "destructive", onPress: remove },
       { text: "Cancel", style: "cancel" },
     ]);
@@ -119,7 +139,7 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
     if (paused) {
       Alert.alert(
         "Paused hai",
-        `${item.businessName} paused hai — data dekhne ke liye resume karein.`,
+        `${displayName} paused hai — data dekhne ke liye resume karein.`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Resume", onPress: () => setPaused(false) },
@@ -149,7 +169,7 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
       {item.businessLogo ? (
         <Image source={{ uri: item.businessLogo }} style={styles.avatarImg} />
       ) : (
-        <View style={[styles.avatar, { backgroundColor: avatarColor(item.businessName) }]}>
+        <View style={[styles.avatar, { backgroundColor: avatarColor(displayName) }]}>
           <Text style={[styles.avatarText, { color: "#ffffff" }]}>
             {initial}
           </Text>
@@ -157,7 +177,7 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
       )}
       <View style={styles.cardBody}>
         <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
-          {item.businessName}
+          {displayName}
         </Text>
         {item.partyName ? (
           <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
@@ -186,6 +206,34 @@ function SupplierCard({ item, onChanged, hasNew }: { item: Conn; onChanged: () =
       >
         <Feather name="more-vertical" size={20} color={colors.mutedForeground} />
       </Pressable>
+
+      <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={() => setRenameOpen(false)}>
+        <View style={styles.renameOverlay}>
+          <View style={[styles.renameBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.renameTitle, { color: colors.foreground }]}>Is supplier ka naam badlein</Text>
+            <Text style={[styles.renameHint, { color: colors.mutedForeground }]}>
+              Khaali chhod dein to asli business naam wapas dikhega.
+            </Text>
+            <TextInput
+              style={[styles.renameInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
+              value={labelDraft}
+              onChangeText={setLabelDraft}
+              placeholder={item.businessName}
+              placeholderTextColor={colors.mutedForeground}
+              maxLength={60}
+              autoFocus
+            />
+            <View style={styles.renameActions}>
+              <Pressable onPress={() => setRenameOpen(false)} style={styles.renameCancelBtn}>
+                <Text style={{ color: colors.mutedForeground, fontFamily: "Inter_500Medium" }}>Cancel</Text>
+              </Pressable>
+              <Pressable onPress={saveLabel} style={[styles.renameSaveBtn, { backgroundColor: colors.primary }]}>
+                <Text style={{ color: colors.primaryForeground, fontFamily: "Inter_600SemiBold" }}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Pressable>
   );
 }
@@ -245,15 +293,26 @@ export default function SuppliersScreen() {
           </View>
           {isFetching && <SyncRing size={16} backgroundColor={colors.primary} />}
         </View>
-        <Pressable
-          onPress={handleLogout}
-          hitSlop={10}
-          testID="logout-button"
-          android_ripple={{ color: "rgba(255,255,255,0.3)", borderless: true, radius: 24 }}
-          style={[styles.iconButton, { backgroundColor: "rgba(255,255,255,0.18)" }]}
-        >
-          <Feather name="log-out" size={18} color={colors.primaryForeground} />
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() => router.push("/profile")}
+            hitSlop={10}
+            testID="profile-button"
+            android_ripple={{ color: "rgba(255,255,255,0.3)", borderless: true, radius: 24 }}
+            style={[styles.iconButton, { backgroundColor: "rgba(255,255,255,0.18)" }]}
+          >
+            <Feather name="user" size={18} color={colors.primaryForeground} />
+          </Pressable>
+          <Pressable
+            onPress={handleLogout}
+            hitSlop={10}
+            testID="logout-button"
+            android_ripple={{ color: "rgba(255,255,255,0.3)", borderless: true, radius: 24 }}
+            style={[styles.iconButton, { backgroundColor: "rgba(255,255,255,0.18)" }]}
+          >
+            <Feather name="log-out" size={18} color={colors.primaryForeground} />
+          </Pressable>
+        </View>
       </View>
 
       {isLoading && !cachedData ? (
@@ -283,7 +342,7 @@ export default function SuppliersScreen() {
           renderItem={({ item }) => {
             const c = item as Conn;
             const hasNew = !!(c.lastDocDate && c.lastDocDate > (seenMap[String(c.id)] || "")) && c.status !== "blocked";
-            return <SupplierCard item={c} onChanged={() => refetch()} hasNew={hasNew} />;
+            return <SupplierCard item={c} onChanged={() => refetch()} hasNew={hasNew} showSupplierRealName={customer?.showSupplierRealName !== false} />;
           }}
           contentContainerStyle={[
             styles.listContent,
@@ -345,6 +404,14 @@ function SkeletonList() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  renameOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: 24 },
+  renameBox: { width: "100%", maxWidth: 360, borderRadius: 16, padding: 20, gap: 6 },
+  renameTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  renameHint: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 8 },
+  renameInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 46, fontSize: 15, fontFamily: "Inter_400Regular" },
+  renameActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 16 },
+  renameCancelBtn: { paddingVertical: 10, paddingHorizontal: 14 },
+  renameSaveBtn: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 8 },
   header: {
     flexDirection: "row",
     alignItems: "center",

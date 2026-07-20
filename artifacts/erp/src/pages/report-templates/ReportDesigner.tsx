@@ -38,7 +38,7 @@ export interface DesignerBandsState {
 let _uid = 2000;
 function uid(): string { return `el_${++_uid}_${Date.now().toString(36)}`; }
 
-const DEFAULT_MARGIN = { top: 10, right: 10, bottom: 10, left: 10 };
+export const DEFAULT_MARGIN = { top: 10, right: 10, bottom: 10, left: 10 };
 
 function defaultBands(contentW: number): DesignerBandsState {
   return {
@@ -134,7 +134,174 @@ function defaultBands(contentW: number): DesignerBandsState {
   };
 }
 
-function bandsToLayout(bands: DesignerBandsState, margin: typeof DEFAULT_MARGIN): TemplateLayout {
+// Faithful recreation of the CURRENT hardcoded Sales Invoice print layout
+// (VoucherView.tsx) — used to seed the auto-created, locked "Default" row so
+// a business's first template starts from what they already print today,
+// not a generic layout. Known gap: the HSN/SAC summary table isn't
+// recreated here (it needs a computed, HSN-grouped data source the designer
+// doesn't support yet) — everything else (19 font-size-customizable fields
+// on the live invoice) has an equivalent element below.
+function salesInvoiceLiveSeed(contentW: number): DesignerBandsState {
+  return {
+    pageHeader: {
+      height: 32, visible: true,
+      elements: [
+        { id: uid(), type: 'image', x: 0, y: 0, width: 20, height: 20, source: 'company_logo', objectFit: 'contain' },
+        { id: uid(), type: 'field', x: 23, y: 0, width: contentW - 63, height: 6, field: 'company_name',
+          style: { fontSize: 13, fontWeight: 'bold', color: '#111' } },
+        { id: uid(), type: 'field', x: 23, y: 6, width: contentW - 63, height: 5, field: 'company_address',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'field', x: 23, y: 11, width: contentW - 63, height: 5, field: 'company_phone',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'field', x: 23, y: 16, width: contentW - 63, height: 5, field: 'company_email',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'field', x: 23, y: 21, width: contentW - 63, height: 5, field: 'company_gstin',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'field', x: 23, y: 26, width: contentW - 63, height: 5, field: 'company_pan',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'text', x: contentW - 40, y: 0, width: 40, height: 6, content: 'TAX INVOICE',
+          style: { fontSize: 13, fontWeight: 'bold', textAlign: 'right', color: '#111' } },
+        { id: uid(), type: 'text', x: contentW - 40, y: 7, width: 40, height: 5, content: 'ORIGINAL FOR RECIPIENT',
+          style: { fontSize: 7, textAlign: 'right', color: '#555' } },
+      ],
+    },
+    documentHeader: {
+      height: 56, visible: true,
+      elements: [
+        { id: uid(), type: 'line', x: 0, y: 0, width: contentW, height: 0.5, direction: 'horizontal', color: '#000', thickness: 0.5 },
+        { id: uid(), type: 'text', x: 0, y: 3, width: contentW / 2 - 2, height: 4, content: 'Customer Details:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: 0, y: 8, width: contentW / 2 - 2, height: 5, field: 'party_name',
+          style: { fontSize: 10, fontWeight: 'bold' } },
+        { id: uid(), type: 'field', x: 0, y: 13, width: contentW / 2 - 2, height: 4, field: 'party_gstin',
+          style: { fontSize: 8 }, nullText: '' },
+        { id: uid(), type: 'field', x: 0, y: 18, width: contentW / 2 - 2, height: 18, field: 'party_address',
+          style: { fontSize: 8, color: '#333' } },
+        { id: uid(), type: 'text', x: contentW / 2 + 2, y: 3, width: 30, height: 4, content: 'Invoice #:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW / 2 + 33, y: 3, width: contentW / 2 - 35, height: 4, field: 'invoice_number',
+          style: { fontSize: 8, fontWeight: 'bold' } },
+        { id: uid(), type: 'text', x: contentW / 2 + 2, y: 9, width: 30, height: 4, content: 'Date:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW / 2 + 33, y: 9, width: contentW / 2 - 35, height: 4, field: 'invoice_date',
+          format: 'DD-MM-YYYY', style: { fontSize: 8, fontWeight: 'bold' } },
+        { id: uid(), type: 'text', x: contentW / 2 + 2, y: 15, width: 30, height: 4, content: 'Place of Supply:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW / 2 + 33, y: 15, width: contentW / 2 - 35, height: 4, field: 'place_of_supply',
+          style: { fontSize: 8, fontWeight: 'bold' } },
+        { id: uid(), type: 'text', x: contentW / 2 + 2, y: 21, width: 30, height: 4, content: 'Due Date:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW / 2 + 33, y: 21, width: contentW / 2 - 35, height: 4, field: 'due_date',
+          format: 'DD-MM-YYYY', style: { fontSize: 8, fontWeight: 'bold' }, nullText: '—' },
+        { id: uid(), type: 'text', x: contentW / 2 + 2, y: 27, width: 30, height: 4, content: 'Reference:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW / 2 + 33, y: 27, width: contentW / 2 - 35, height: 8, field: 'reference_number',
+          style: { fontSize: 8 }, nullText: '' },
+      ],
+    },
+    detail: {
+      visible: true, designerHeight: 70,
+      elements: [{
+        id: uid(), type: 'table', x: 0, y: 0, width: contentW, height: 70,
+        dataSource: 'items', showHeader: true, headerHeight: 8, rowHeight: 8, emptyRows: 0,
+        columns: [
+          { id: uid(), field: 'sr_no',         label: 'S.No',   width: 10,             align: 'center' },
+          { id: uid(), field: 'item_name',     label: 'Particulars', width: contentW - 96, align: 'left' },
+          { id: uid(), field: 'hsn_code',      label: 'HSN',    width: 16,             align: 'center' },
+          { id: uid(), field: 'unit',          label: 'Unit',   width: 14,             align: 'center' },
+          { id: uid(), field: 'quantity',      label: 'Qty',    width: 14,             align: 'right'  },
+          { id: uid(), field: 'rate',          label: 'Rate',   width: 16,             align: 'right'  },
+          { id: uid(), field: 'tax_amount',    label: 'Tax',    width: 16,             align: 'right'  },
+          { id: uid(), field: 'total',         label: 'Amount', width: 20,             align: 'right'  },
+        ],
+      }],
+    },
+    documentFooter: {
+      height: 88, visible: true,
+      elements: [
+        { id: uid(), type: 'line', x: 0, y: 0, width: contentW, height: 0.5, direction: 'horizontal', color: '#000', thickness: 0.5 },
+        // Left column: amount in words, bank details, notes
+        { id: uid(), type: 'text',  x: 0, y: 3,  width: 40, height: 4, content: 'Amount in Words:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: 0, y: 8,  width: contentW / 2 - 2, height: 8, field: 'amount_in_words',
+          style: { fontSize: 8, fontStyle: 'italic' } },
+        { id: uid(), type: 'text',  x: 0, y: 17, width: 40, height: 4, content: 'Bank Details:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: 0, y: 22, width: contentW / 2 - 2, height: 4, field: 'bank_name', nullText: '' },
+        { id: uid(), type: 'field', x: 0, y: 26, width: contentW / 2 - 2, height: 4, field: 'bank_account', nullText: '' },
+        { id: uid(), type: 'field', x: 0, y: 30, width: contentW / 2 - 2, height: 4, field: 'bank_ifsc', nullText: '' },
+        { id: uid(), type: 'field', x: 0, y: 34, width: contentW / 2 - 2, height: 4, field: 'bank_branch', nullText: '' },
+        { id: uid(), type: 'text',  x: 0, y: 40, width: 40, height: 4, content: 'Notes:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: 0, y: 45, width: contentW / 2 - 2, height: 8, field: 'notes', nullText: '' },
+        // Right column: totals table
+        { id: uid(), type: 'text',  x: contentW - 65, y: 3, width: 35, height: 4, content: 'Taxable Amount:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 3, width: 28, height: 4, field: 'taxable_amount',
+          style: { fontSize: 8, textAlign: 'right' } },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 8, width: 35, height: 4, content: 'CGST / SGST:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 8, width: 28, height: 4, field: 'total_cgst',
+          style: { fontSize: 8, textAlign: 'right' } },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 13, width: 35, height: 4, content: 'IGST:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 13, width: 28, height: 4, field: 'total_igst',
+          style: { fontSize: 8, textAlign: 'right' } },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 18, width: 35, height: 4, content: 'Round Off:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 18, width: 28, height: 4, field: 'round_off',
+          style: { fontSize: 8, textAlign: 'right' } },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 23, width: 35, height: 4, content: 'Transport:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 23, width: 28, height: 4, field: 'transport_charges',
+          style: { fontSize: 8, textAlign: 'right' }, nullText: '' },
+        { id: uid(), type: 'line',  x: contentW - 65, y: 29, width: 65, height: 0.5, direction: 'horizontal', color: '#000', thickness: 0.5 },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 31, width: 35, height: 6, content: 'Net Total Payable:',
+          style: { fontSize: 10, fontWeight: 'bold', textAlign: 'right' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 31, width: 28, height: 6, field: 'grand_total',
+          style: { fontSize: 10, fontWeight: 'bold', textAlign: 'right' } },
+        { id: uid(), type: 'text',  x: contentW - 65, y: 38, width: 35, height: 4, content: 'Paid:',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+        { id: uid(), type: 'field', x: contentW - 28, y: 38, width: 28, height: 4, field: 'paid_amount',
+          style: { fontSize: 8, textAlign: 'right' }, nullText: '' },
+        // Bottom strip: terms/declaration (left) + signatory (right)
+        { id: uid(), type: 'line',  x: 0, y: 55, width: contentW, height: 0.5, direction: 'horizontal', color: '#000', thickness: 0.5 },
+        { id: uid(), type: 'text',  x: 0, y: 58, width: 40, height: 4, content: 'Terms & Conditions:',
+          style: { fontSize: 8, fontWeight: 'bold', color: '#333' } },
+        { id: uid(), type: 'field', x: 0, y: 63, width: contentW / 2 - 2, height: 10, field: 'terms_and_conditions',
+          style: { fontSize: 8 }, nullText: '' },
+        { id: uid(), type: 'text',  x: 0, y: 74, width: contentW / 2 - 2, height: 8, content:
+          'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.',
+          style: { fontSize: 7, fontStyle: 'italic', color: '#555' } },
+        { id: uid(), type: 'text',  x: contentW - 45, y: 58, width: 45, height: 4, content: 'For (Business Name)',
+          style: { fontSize: 8, fontWeight: 'bold', textAlign: 'right' } },
+        { id: uid(), type: 'field', x: contentW - 45, y: 63, width: 45, height: 4, field: 'signatory_name',
+          style: { fontSize: 8, textAlign: 'right' }, nullText: '' },
+        { id: uid(), type: 'text',  x: contentW - 45, y: 76, width: 45, height: 5, content: 'Authorised Signatory',
+          style: { fontSize: 8, textAlign: 'right', color: '#333' } },
+      ],
+    },
+    pageFooter: {
+      height: 8, visible: true,
+      elements: [
+        { id: uid(), type: 'line',    x: 0, y: 0, width: contentW, height: 0.5, direction: 'horizontal', color: '#ccc', thickness: 0.3 },
+        { id: uid(), type: 'text',   x: 0, y: 2, width: contentW / 2, height: 5, content: 'BizCor ERP — info@naewtgroup.com',
+          style: { fontSize: 7, color: '#aaa' } },
+        { id: uid(), type: 'formula', x: contentW - 30, y: 2, width: 30, height: 5, formula: '"Page " & {page_number} & " of " & {total_pages}',
+          style: { fontSize: 7, color: '#aaa', textAlign: 'right' } },
+      ],
+    },
+  };
+}
+
+// Dispatcher: sales_invoice gets the faithful live-layout recreation above;
+// every other report type falls back to the existing generic starter.
+export function seedBandsFor(reportType: string, contentW: number): DesignerBandsState {
+  if (reportType === 'sales_invoice') return salesInvoiceLiveSeed(contentW);
+  return defaultBands(contentW);
+}
+
+export function bandsToLayout(bands: DesignerBandsState, margin: typeof DEFAULT_MARGIN): TemplateLayout {
   return {
     margin,
     bands: {
@@ -195,11 +362,11 @@ export default function ReportDesigner() {
     (!business?.isTrial && !!business?.planExpiresAt && new Date(business.planExpiresAt) > new Date());
 
   // Meta
-  const [name,        setName]        = useState('New Template');
+  const [name,        setName]        = useState('Not saved yet');
   const [reportType,  setReportType]  = useState(REPORT_TYPES[0].key);
   const [paperSize,   setPaperSize]   = useState<PaperSize>('A4');
   const [orientation, setOrientation] = useState<Orientation>('portrait');
-  const [margin]                      = useState(DEFAULT_MARGIN);
+  const [margin, setMargin]           = useState(DEFAULT_MARGIN);
 
   // Snap
   const [snapToGrid, setSnapToGrid] = useState(true);
@@ -220,8 +387,6 @@ export default function ReportDesigner() {
   // UI
   const [zoom,    setZoom]    = useState(0.75);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSavingToFile, setIsSavingToFile] = useState(false);
-  const [fileTemplateActive, setFileTemplateActive] = useState(false);
   const [isDirty,  setIsDirty]  = useState(false);
   const [savedId,  setSavedId]  = useState<number | null>(null);
 
@@ -237,6 +402,11 @@ export default function ReportDesigner() {
     queryFn: () => api.get<SavedTemplate>(`/report-templates/${id}`),
     enabled: !isNew && hasAccess,
   });
+
+  // Locked = a frozen SIT../"Default" row — Save (overwrite) is unavailable;
+  // only "Save As Template" (freeze current canvas as a new SIT) and
+  // "Use as New" (fork into a fresh editable SI..) are.
+  const locked = !isNew && !!template?.locked;
 
   // ─── Plan Gate — AFTER all hooks ────────────────────────────────────────
   if (user && !hasAccess) {
@@ -266,12 +436,15 @@ export default function ReportDesigner() {
       setPaperSize(template.paperSize);
       setOrientation(template.orientation);
       setSavedId(template.id);
+      if (template.layoutJson?.margin) {
+        setMargin({ ...DEFAULT_MARGIN, ...template.layoutJson.margin });
+      }
       if (template.layoutJson) {
         setBands(layoutToBands(template.layoutJson));
       } else {
         const dims = getPaperDimensions(template.paperSize, template.orientation);
         const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
-        setBands(defaultBands(cw));
+        setBands(seedBandsFor(template.reportType, cw));
       }
     }
   }, [template]);
@@ -289,13 +462,13 @@ export default function ReportDesigner() {
         } else {
           const dims = getPaperDimensions(paperSize, orientation);
           const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
-          setBands(defaultBands(cw));
+          setBands(seedBandsFor(reportType, cw));
         }
       })
       .catch(() => {
         const dims = getPaperDimensions(paperSize, orientation);
         const cw = dims.width - DEFAULT_MARGIN.left - DEFAULT_MARGIN.right;
-        setBands(defaultBands(cw));
+        setBands(seedBandsFor(reportType, cw));
       });
   }, [isNew]);
 
@@ -433,21 +606,23 @@ export default function ReportDesigner() {
     : [];
 
   // ─── Save ─────────────────────────────────────────────────────────────────
+  // Normal Save: only for unlocked working reports (SI.. or a brand-new one —
+  // first save auto-names it SI01/SI02/.. server-side). Overwrites in place.
   async function handleSave() {
-    if (!bands) return;
+    if (!bands || locked) return;
     setIsSaving(true);
     try {
       const layoutJson = bandsToLayout(bands, margin);
-      const payload = { name, reportType, paperSize, orientation, layoutJson };
+      const payload = { reportType, paperSize, orientation, layoutJson };
 
       if (savedId) {
-        await api.put<SavedTemplate>(`/report-templates/${savedId}`, payload);
-        toast({ title: 'Saved!', description: `"${name}" update ho gaya` });
+        const updated = await api.put<SavedTemplate>(`/report-templates/${savedId}`, payload);
+        toast({ title: 'Saved!', description: `"${updated.name}" update ho gaya` });
       } else {
         const created = await api.post<SavedTemplate>('/report-templates', payload);
         setSavedId(created.id);
         navigate(`/report-templates/${created.id}/edit`);
-        toast({ title: 'Saved!', description: `"${name}" create ho gaya` });
+        toast({ title: 'Saved!', description: `"${created.name}" create ho gaya` });
       }
       setIsDirty(false);
       qc.invalidateQueries({ queryKey: ['report-templates'] });
@@ -458,26 +633,45 @@ export default function ReportDesigner() {
     }
   }
 
-  async function handleSaveToFile() {
+  // "Save As Template": freezes the LIVE canvas (including unsaved edits) as
+  // a brand-new, immutable SIT.. row — available regardless of whether the
+  // currently loaded report is locked or not, and never touches it.
+  async function handleSaveAsTemplate() {
     if (!bands) return;
-    setIsSavingToFile(true);
+    setIsSaving(true);
     try {
       const layoutJson = bandsToLayout(bands, margin);
-      const payload = { name, reportType, paperSize, orientation, layoutJson };
-      await api.put(`/template-files/${reportType}`, payload);
-      setFileTemplateActive(true);
-      toast({ title: '📁 File Save Ho Gayi!', description: `templates/<businessId>/${reportType}.json — Print ab yahi file use karega` });
+      const created = await api.post<SavedTemplate>('/report-templates', {
+        reportType, paperSize, orientation, layoutJson, asTemplate: true,
+      });
+      qc.invalidateQueries({ queryKey: ['report-templates'] });
+      toast({ title: 'Template Saved!', description: `"${created.name}" ban gaya — ab yeh kabhi edit/overwrite nahi hoga` });
+      navigate(`/report-templates/${created.id}/edit`);
     } catch (err: any) {
-      toast({ title: 'File save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+      toast({ title: 'Save failed', description: err?.message || 'Unknown error', variant: 'destructive' });
     } finally {
-      setIsSavingToFile(false);
+      setIsSaving(false);
     }
   }
 
-  // Check on load if file template already exists for this reportType
-  useEffect(() => {
-    api.get(`/template-files/${reportType}`).then(() => setFileTemplateActive(true)).catch(() => setFileTemplateActive(false));
-  }, [reportType]);
+  // "Use as New": forks the CURRENTLY-SAVED (locked) row's persisted content
+  // into a fresh, unlocked, auto-named SI.. — only meaningful for an
+  // already-saved row, since a locked row's canvas always mirrors its DB
+  // content exactly (Save is unavailable, so there's never unsaved drift).
+  async function handleUseAsNew() {
+    if (!savedId) return;
+    setIsSaving(true);
+    try {
+      const created = await api.post<SavedTemplate>(`/report-templates/${savedId}/duplicate`, {});
+      qc.invalidateQueries({ queryKey: ['report-templates'] });
+      toast({ title: 'Copy Ready!', description: `"${created.name}" ban gaya — ab isko edit kar sakte ho` });
+      navigate(`/report-templates/${created.id}/edit`);
+    } catch (err: any) {
+      toast({ title: 'Copy failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
   if ((!isNew && isLoading) || !bands) {
@@ -492,6 +686,7 @@ export default function ReportDesigner() {
     <div className="flex flex-col h-screen overflow-hidden bg-gray-900">
       <DesignerToolbar
         name={name}
+        locked={locked}
         reportType={reportType}
         paperSize={paperSize}
         orientation={orientation}
@@ -499,19 +694,19 @@ export default function ReportDesigner() {
         snapToGrid={snapToGrid}
         gridSize={gridSize}
         isSaving={isSaving}
-        isSavingToFile={isSavingToFile}
-        fileTemplateActive={fileTemplateActive}
         isDirty={isDirty}
         templateId={savedId}
-        onNameChange={setName}
         onReportTypeChange={setReportType}
         onPaperSizeChange={p => { setPaperSize(p); setIsDirty(true); }}
         onOrientationChange={o => { setOrientation(o); setIsDirty(true); }}
+        margin={margin}
+        onMarginChange={m => { setMargin(m); setIsDirty(true); }}
         onZoomChange={setZoom}
         onSnapToggle={() => setSnapToGrid(s => !s)}
         onGridSizeChange={setGridSize}
         onSave={handleSave}
-        onSaveToFile={handleSaveToFile}
+        onSaveAsTemplate={handleSaveAsTemplate}
+        onUseAsNew={handleUseAsNew}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}
       />

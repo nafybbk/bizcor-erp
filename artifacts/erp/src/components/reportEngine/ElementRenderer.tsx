@@ -145,7 +145,11 @@ function RenderBox({ el, scale }: { el: BoxElement; scale: number }) {
 }
 
 // ─── Table Element ────────────────────────────────────────────────────────────
-function RenderTable({ el, context, scale }: { el: TableElement; context: ReportContext; scale: number }) {
+// `stretch`: fill ALL vertical space handed to the table (the detail band's
+// flex area) — data rows keep their fixed height and a filler block absorbs
+// the leftover, extending the column separator lines down to the footer, so
+// a 1-item invoice occupies exactly as much page as a 10-item one.
+export function RenderTable({ el, context, scale, stretch = false }: { el: TableElement; context: ReportContext; scale: number; stretch?: boolean }) {
   const items = (context[el.dataSource] as Record<string, unknown>[] | undefined) || [];
   const rowHeight = mmToPx(el.rowHeight || 7) * scale;
   const headerHeight = mmToPx(el.headerHeight || 7) * scale;
@@ -159,6 +163,7 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
     ...toReactStyle(el.headerStyle, scale),
     display: 'flex',
     height: `${headerHeight}px`,
+    flexShrink: 0,
     fontWeight: 'bold',
     backgroundColor: el.headerStyle?.backgroundColor || '#f8f9fa',
     borderBottom: el.headerStyle?.borderBottom || '1px solid #dee2e6',
@@ -169,6 +174,7 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
     ...toReactStyle(el.rowStyle, scale),
     display: 'flex',
     height: `${rowHeight}px`,
+    flexShrink: 0,
     borderBottom: el.rowStyle?.borderBottom || '1px solid #e9ecef',
     boxSizing: 'border-box',
   };
@@ -180,7 +186,11 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
   const totalWidth = visibleColumns.reduce((sum, col) => sum + col.width, 0) || 100;
 
   return (
-    <div style={{ width: '100%', overflow: 'hidden' }}>
+    <div style={{
+      width: '100%',
+      overflow: 'hidden',
+      ...(stretch ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}),
+    }}>
       {/* Header */}
       {el.showHeader !== false && (
         <div style={headerStyle}>
@@ -197,8 +207,12 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
                 alignItems: 'center',
                 justifyContent: col.headerAlign === 'right' ? 'flex-end' : col.headerAlign === 'center' ? 'center' : 'flex-start',
                 borderRight: '1px solid #dee2e6',
+                // Default size comes from the table's own style (settable in
+                // the designer) — placed BEFORE the column spread so a
+                // per-column override still wins. The old code hardcoded 8pt
+                // AFTER the spread, silently ignoring every font setting.
+                fontSize: `${(el.headerStyle?.fontSize ?? el.style?.fontSize ?? 8) * scale}pt`,
                 ...toReactStyle(col.headerStyle, scale),
-                fontSize: `${8 * scale}pt`,
               }}
             >
               {col.label}
@@ -225,8 +239,8 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
                   alignItems: 'center',
                   justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start',
                   borderRight: '1px solid #e9ecef',
+                  fontSize: `${(el.rowStyle?.fontSize ?? el.style?.fontSize ?? 8) * scale}pt`,
                   ...toReactStyle(col.style, scale),
-                  fontSize: `${8 * scale}pt`,
                 }}
               >
                 {value}
@@ -236,14 +250,26 @@ function RenderTable({ el, context, scale }: { el: TableElement; context: Report
         </div>
       ))}
 
-      {/* Empty rows */}
-      {el.emptyRows && items.length < el.emptyRows && Array.from({ length: el.emptyRows - items.length }).map((_, i) => (
+      {/* Empty rows — !! guard: emptyRows of 0 would otherwise render a
+          literal "0" under the table (React prints falsy numbers) */}
+      {!!el.emptyRows && items.length < el.emptyRows && Array.from({ length: el.emptyRows - items.length }).map((_, i) => (
         <div key={`empty-${i}`} style={rowStyle}>
           {visibleColumns.map(col => (
             <div key={col.id} style={{ width: `${(col.width / totalWidth) * 100}%`, borderRight: '1px solid #e9ecef' }} />
           ))}
         </div>
       ))}
+
+      {/* Stretch filler — soaks up all remaining page space inside the item
+          area (column lines continue down), keeping the footer pinned at the
+          bottom margin no matter how few items there are. */}
+      {stretch && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          {visibleColumns.map(col => (
+            <div key={col.id} style={{ width: `${(col.width / totalWidth) * 100}%`, borderRight: '1px solid #e9ecef' }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

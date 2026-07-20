@@ -57,6 +57,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="supplier/[id]" options={{ title: "" }} />
       <Stack.Screen name="invoice-detail" options={{ title: "Invoice" }} />
+      <Stack.Screen name="profile" options={{ title: "Profile" }} />
     </Stack>
   );
 }

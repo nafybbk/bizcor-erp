@@ -1,34 +1,37 @@
 import { Link } from "wouter";
 import {
   ArrowLeft, Save, Eye, ZoomIn, ZoomOut, RotateCcw,
-  FileBarChart2, Loader2, Grid3X3, Maximize2, FolderDown,
+  FileBarChart2, Loader2, Grid3X3, Maximize2, Lock, Copy, BookmarkPlus,
 } from "lucide-react";
 import type { PaperSize, Orientation } from "@/lib/reportEngine/types";
 import { REPORT_TYPES } from "@/lib/reportEngine/types";
 import { PAPER_SIZES } from "@/lib/reportEngine/paperSizes";
 
+type Margin = { top: number; right: number; bottom: number; left: number };
+
 interface Props {
   name: string;
+  locked: boolean;
   reportType: string;
   paperSize: PaperSize;
   orientation: Orientation;
+  margin: Margin;
   zoom: number;
   snapToGrid: boolean;
   gridSize: number;
   isSaving: boolean;
-  isSavingToFile: boolean;
-  fileTemplateActive: boolean;
   isDirty: boolean;
   templateId: number | null;
-  onNameChange: (v: string) => void;
   onReportTypeChange: (v: string) => void;
   onPaperSizeChange: (v: PaperSize) => void;
   onOrientationChange: (v: Orientation) => void;
+  onMarginChange: (m: Margin) => void;
   onZoomChange: (v: number) => void;
   onSnapToggle: () => void;
   onGridSizeChange: (v: number) => void;
   onSave: () => void;
-  onSaveToFile: () => void;
+  onSaveAsTemplate: () => void;
+  onUseAsNew: () => void;
   onUndo: () => void;
   canUndo: boolean;
 }
@@ -40,13 +43,13 @@ const GRID_SIZES = [
 ];
 
 export default function DesignerToolbar({
-  name, reportType, paperSize, orientation, zoom,
+  name, locked, reportType, paperSize, orientation, margin, zoom,
   snapToGrid, gridSize,
-  isSaving, isSavingToFile, fileTemplateActive, isDirty, templateId,
-  onNameChange, onReportTypeChange, onPaperSizeChange,
-  onOrientationChange, onZoomChange,
+  isSaving, isDirty, templateId,
+  onReportTypeChange, onPaperSizeChange,
+  onOrientationChange, onMarginChange, onZoomChange,
   onSnapToggle, onGridSizeChange,
-  onSave, onSaveToFile, onUndo, canUndo,
+  onSave, onSaveAsTemplate, onUseAsNew, onUndo, canUndo,
 }: Props) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white border-b border-gray-700 min-h-[48px] flex-shrink-0 flex-wrap">
@@ -60,15 +63,14 @@ export default function DesignerToolbar({
       <div className="w-px h-5 bg-gray-700 shrink-0" />
       <FileBarChart2 className="w-4 h-4 text-blue-400 shrink-0" />
 
-      {/* Name */}
-      <input
-        value={name}
-        onChange={e => onNameChange(e.target.value)}
-        placeholder="Template name..."
-        className="bg-gray-800 text-white text-sm px-2 py-1 rounded-md border border-gray-700 focus:border-blue-500 focus:outline-none w-44"
-      />
+      {/* Name — auto-assigned server-side (SI../SIT../Default), never editable */}
+      <span className="flex items-center gap-1.5 bg-gray-800 text-white text-sm px-2.5 py-1 rounded-md border border-gray-700 font-mono">
+        {name}
+        {locked && <Lock className="w-3 h-3 text-amber-400" />}
+      </span>
 
-      {isDirty && <span className="text-[10px] text-amber-400 font-medium shrink-0">● Unsaved</span>}
+      {isDirty && !locked && <span className="text-[10px] text-amber-400 font-medium shrink-0">● Unsaved</span>}
+      {locked && <span className="text-[10px] text-amber-400 font-medium shrink-0">Locked — edit karke Save As Template ya Use as New karo</span>}
 
       <div className="w-px h-5 bg-gray-700 shrink-0" />
 
@@ -111,6 +113,24 @@ export default function DesignerToolbar({
           </button>
         </div>
       )}
+
+      {/* Print margins (mm) — saved with the template; the printed page always
+          fills exactly up to these, leftover space absorbed by the item area */}
+      <div className="flex items-center gap-1" title="Print margins (mm) — Top / Right / Bottom / Left">
+        <span className="text-[10px] uppercase tracking-wide text-gray-500">Margin</span>
+        {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+          <div key={side} className="flex items-center">
+            <span className="text-[9px] text-gray-500 uppercase pr-0.5">{side[0]}</span>
+            <input
+              type="number" min={0} max={40} step={1}
+              value={margin[side]}
+              title={`${side} margin (mm)`}
+              onChange={e => onMarginChange({ ...margin, [side]: Math.min(40, Math.max(0, Number(e.target.value) || 0)) })}
+              className="w-10 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-xs text-gray-200 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+        ))}
+      </div>
 
       <div className="flex-1" />
 
@@ -191,30 +211,41 @@ export default function DesignerToolbar({
         </Link>
       )}
 
-      {/* Save to File */}
+      {/* Use as New — only meaningful when viewing a locked (SIT../Default) row */}
+      {locked && templateId && (
+        <button
+          onClick={onUseAsNew}
+          disabled={isSaving}
+          title="Iski content se ek naya editable SI.. bana lo"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Copy className="w-3.5 h-3.5" />}
+          Use as New
+        </button>
+      )}
+
+      {/* Save As Template — freezes the live canvas as a new, immutable SIT.. */}
       <button
-        onClick={onSaveToFile}
-        disabled={isSavingToFile || isSaving}
-        title={`File mein save karo: templates/<businessId>/${reportType}.json`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-60 ${
-          fileTemplateActive
-            ? "bg-green-600 hover:bg-green-700 text-white"
-            : "bg-gray-700 hover:bg-gray-600 text-green-300 border border-green-700"
-        }`}
+        onClick={onSaveAsTemplate}
+        disabled={isSaving}
+        title="Isko permanent, kabhi-na-badalne-wala template bana do (naya SIT.. banega)"
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-60"
       >
-        {isSavingToFile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderDown className="w-3.5 h-3.5" />}
-        {fileTemplateActive ? "File ✓" : "File Save"}
+        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookmarkPlus className="w-3.5 h-3.5" />}
+        Save As Template
       </button>
 
-      {/* Save to DB */}
-      <button
-        onClick={onSave}
-        disabled={isSaving}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
-      >
-        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-        Save
-      </button>
+      {/* Save to DB — only for unlocked working reports */}
+      {!locked && (
+        <button
+          onClick={onSave}
+          disabled={isSaving}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+        >
+          {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          Save
+        </button>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
-import type { SavedTemplate, TemplateLayout, ReportContext } from '@/lib/reportEngine/types';
+import type { SavedTemplate, TemplateLayout, TableElement, ReportContext } from '@/lib/reportEngine/types';
 import { getPaperDimensions, mmToPx } from '@/lib/reportEngine/paperSizes';
 import BandRenderer from './BandRenderer';
-import ElementRenderer from './ElementRenderer';
+import ElementRenderer, { RenderTable } from './ElementRenderer';
 
 interface ReportRendererProps {
   template: SavedTemplate;
@@ -154,12 +154,20 @@ interface DetailSectionProps {
 }
 
 function DetailSection({ band, context, designMode, scale, contentWidth }: DetailSectionProps) {
+  // Tables stretch to absorb every free millimetre between the header and
+  // footer bands (page always fills right up to the print margins — leftover
+  // space lives INSIDE the item area, like the classic hardcoded invoice);
+  // any non-table detail elements keep their absolute designed positions.
+  const tables = band.elements.filter(el => el.type === 'table');
+  const others = band.elements.filter(el => el.type !== 'table');
   return (
     <div
       style={{
         position: 'relative',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
         width: `${mmToPx(contentWidth) * scale}px`,
-        overflow: 'hidden',
       }}
     >
       {designMode && (
@@ -179,7 +187,22 @@ function DetailSection({ band, context, designMode, scale, contentWidth }: Detai
           <span style={{ fontSize: '9px', color: '#10b981', padding: '1px 4px' }}>Detail</span>
         </div>
       )}
-      {band.elements.map(el => (
+      {tables.map(el => (
+        <div
+          key={el.id}
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            marginLeft: `${mmToPx(el.x) * scale}px`,
+            width: `${mmToPx(el.width) * scale}px`,
+            minHeight: `${mmToPx(el.height) * scale}px`,
+          }}
+        >
+          <RenderTable el={el as TableElement} context={context} scale={scale} stretch />
+        </div>
+      ))}
+      {others.map(el => (
         <ElementRenderer
           key={el.id}
           element={el}

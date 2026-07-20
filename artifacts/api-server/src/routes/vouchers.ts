@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { vouchersTable, voucherItemsTable, partiesTable, itemsTable, taxRatesTable, businessesTable } from "@workspace/db";
-import { eq, and, sql, desc, gte, lte, isNull, isNotNull, like, or } from "drizzle-orm";
+import { eq, and, sql, desc, gte, lte, isNull, isNotNull, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { pushLanSyncVoucher } from "../lib/lanSync";
 import { logActivity } from "../lib/activityLog";
+import { ilike } from "../lib/search";
 
 const VOUCHER_TYPE_LABEL: Record<string, string> = {
   sales_invoice: "Sales Invoice", credit_note: "Credit Note",
@@ -74,7 +75,7 @@ async function getVoucherList(req: any, res: any, voucherType: VoucherType) {
     if (fromDate) conditions.push(gte(vouchersTable.date, String(fromDate)));
     if (toDate) conditions.push(lte(vouchersTable.date, String(toDate)));
     if (status) conditions.push(eq(vouchersTable.status, status as any));
-    if (search) conditions.push(or(like(vouchersTable.voucherNumber, `%${search}%`), like(partiesTable.name, `%${search}%`))!);
+    if (search) conditions.push(or(ilike(vouchersTable.voucherNumber, String(search)), ilike(partiesTable.name, String(search)))!);
     const vouchers = await db.select({
       id: vouchersTable.id, voucherType: vouchersTable.voucherType, voucherNumber: vouchersTable.voucherNumber,
       date: vouchersTable.date, partyId: vouchersTable.partyId, partyName: partiesTable.name,
@@ -171,7 +172,7 @@ async function getNextVoucherNumber(businessId: number, voucherType: VoucherType
 
 async function createVoucher(req: any, res: any, voucherType: VoucherType) {
   const businessId = req.user!.businessId!;
-  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber, referenceNumber, dueDate } = req.body;
+  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, voucherNumber: customNumber, referenceNumber, supplierInvoiceDate, dueDate } = req.body;
 
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
@@ -243,6 +244,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
     linkedVoucherId: linkedVoucherId || null, isInterState,
     placeOfSupply: placeOfSupply || party?.stateCode || null,
     referenceNumber: referenceNumber || null,
+    supplierInvoiceDate: supplierInvoiceDate || null,
     dueDate: dueDate || null,
   };
   if (customFields && typeof customFields === "object" && Object.keys(customFields).length > 0) {
@@ -289,7 +291,7 @@ async function createVoucher(req: any, res: any, voucherType: VoucherType) {
 async function updateVoucher(req: any, res: any) {
   const businessId = req.user!.businessId!;
   const id = Number(req.params.id);
-  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, referenceNumber, dueDate } = req.body;
+  const { date, partyId, billingAddress, useShippingAddress, shippingAddress, items: rawItems, transportCharges, transportName, roundOff, notes, termsAndConditions, linkedVoucherId, placeOfSupply, customFields, status, referenceNumber, supplierInvoiceDate, dueDate } = req.body;
 
   const parsedPartyId = parseInt(String(partyId), 10);
   if (!parsedPartyId || isNaN(parsedPartyId)) {
@@ -337,6 +339,7 @@ async function updateVoucher(req: any, res: any) {
     linkedVoucherId: linkedVoucherId || null, isInterState,
     placeOfSupply: placeOfSupply || party?.stateCode || null,
     referenceNumber: referenceNumber || null,
+    supplierInvoiceDate: supplierInvoiceDate || null,
     dueDate: dueDate || null,
     deletedAt: null,
   };

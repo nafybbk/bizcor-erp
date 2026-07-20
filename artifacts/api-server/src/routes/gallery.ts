@@ -6,7 +6,7 @@ import { createHash } from "crypto";
 import { Readable } from "stream";
 import { db } from "@workspace/db";
 import { businessesTable, partiesTable, galleryImagesTable, gallerySharesTable } from "@workspace/db";
-import { eq, and, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, inArray, desc, sql, isNull } from "drizzle-orm";
 import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
 
 // BizCor Gallery — supplier-side management (upload, share, per-party view).
@@ -131,11 +131,14 @@ router.post("/gallery/check-hash", async (req, res) => {
 
 // POST /gallery/upload — multipart image + businessCode field. Dedupes by
 // content hash server-side too (defensive — check-hash is only advisory).
+// `originalSize` (pre-compression byte count) can only come from the client,
+// since the server never sees the file before it's compressed; `uploadedSize`
+// is trusted from the actual buffer we received, not the client's say-so.
 router.post("/gallery/upload", upload.single("image"), async (req, res) => {
   try {
     const businessId = await requireGalleryBusiness(req, res);
     if (!businessId) return;
-    const file = (req as any).file as { buffer: Buffer } | undefined;
+    const file = (req as any).file as { buffer: Buffer; originalname?: string } | undefined;
     if (!file) { res.status(400).json({ error: "image file required" }); return; }
 
     const hash = createHash("sha256").update(file.buffer).digest("hex");
@@ -144,8 +147,12 @@ router.post("/gallery/upload", upload.single("image"), async (req, res) => {
     if (existing) { res.json(existing); return; }
 
     const { publicId, url, thumbnailUrl } = await uploadToCloudinary(file.buffer, `${businessId}_${hash.slice(0, 16)}`);
+    const originalSizeRaw = Number(req.body?.originalSize);
     const [image] = await db.insert(galleryImagesTable).values({
       businessId, contentHash: hash, cloudinaryPublicId: publicId, url, thumbnailUrl,
+      name: file.originalname || null,
+      originalSize: Number.isFinite(originalSizeRaw) && originalSizeRaw > 0 ? originalSizeRaw : file.buffer.length,
+      uploadedSize: file.buffer.length,
     }).returning();
     res.status(201).json(image);
   } catch (err) {
@@ -160,9 +167,70 @@ router.get("/gallery/images", async (req, res) => {
     const businessId = await requireGalleryBusiness(req, res);
     if (!businessId) return;
     const images = await db.select().from(galleryImagesTable)
-      .where(eq(galleryImagesTable.businessId, businessId))
+      .where(and(eq(galleryImagesTable.businessId, businessId), isNull(galleryImagesTable.archivedAt)))
       .orderBy(desc(galleryImagesTable.uploadedAt));
     res.json(images);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /gallery/images/:id — { name } — rename
+router.patch("/gallery/images/:id", async (req, res) => {
+  try {
+    const businessId = await requireGalleryBusiness(req, res);
+    if (!businessId) return;
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!name) { res.status(400).json({ error: "name required" }); return; }
+    const [updated] = await db.update(galleryImagesTable)
+      .set({ name })
+      .where(and(eq(galleryImagesTable.id, Number(req.params.id)), eq(galleryImagesTable.businessId, businessId)))
+      .returning();
+    if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(updated);
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Stub — there's no Order/Invoice entity linking images yet (that's a future
+// phase). Once it exists, wire this to a real lookup; until then nothing is
+// ever "referenced" so deletes below are always hard deletes, never archived.
+async function isImageReferencedInOrders(_imageId: number): Promise<boolean> {
+  return false;
+}
+
+// POST /gallery/images/delete — { imageIds: number[] }. Works for a single
+// image or a whole rubber-band selection alike. An image referenced by a real
+// order/invoice is archived (kept, hidden) instead of destroyed so the audit
+// trail survives; everything else is actually removed from Cloudinary.
+router.post("/gallery/images/delete", async (req, res) => {
+  try {
+    const businessId = await requireGalleryBusiness(req, res);
+    if (!businessId) return;
+    const { imageIds } = req.body || {};
+    if (!Array.isArray(imageIds) || !imageIds.length) {
+      res.status(400).json({ error: "imageIds (non-empty array) required" });
+      return;
+    }
+    const images = await db.select().from(galleryImagesTable)
+      .where(and(eq(galleryImagesTable.businessId, businessId), inArray(galleryImagesTable.id, imageIds.map(Number))));
+
+    let deleted = 0, archived = 0;
+    for (const img of images) {
+      if (await isImageReferencedInOrders(img.id)) {
+        await db.update(galleryImagesTable).set({ archivedAt: new Date() }).where(eq(galleryImagesTable.id, img.id));
+        archived++;
+      } else {
+        await db.delete(gallerySharesTable).where(eq(gallerySharesTable.imageId, img.id));
+        await db.delete(galleryImagesTable).where(eq(galleryImagesTable.id, img.id));
+        try { await cloudinary.uploader.destroy(img.cloudinaryPublicId); } catch { /* best-effort */ }
+        deleted++;
+      }
+    }
+    res.json({ ok: true, deleted, archived });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -242,7 +310,11 @@ router.get("/gallery/parties/:partyId/images", async (req, res) => {
       viewedAt: gallerySharesTable.viewedAt,
     }).from(gallerySharesTable)
       .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
-      .where(and(eq(gallerySharesTable.businessId, businessId), eq(gallerySharesTable.partyId, partyId)))
+      .where(and(
+        eq(gallerySharesTable.businessId, businessId),
+        eq(gallerySharesTable.partyId, partyId),
+        isNull(galleryImagesTable.archivedAt),
+      ))
       .orderBy(desc(gallerySharesTable.sharedAt));
     res.json(rows);
   } catch (err) {

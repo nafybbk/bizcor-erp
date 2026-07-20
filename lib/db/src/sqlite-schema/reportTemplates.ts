@@ -12,6 +12,7 @@ export const reportTemplatesTable = sqliteTable("report_templates", {
   orientation: text("orientation").notNull().default("portrait"),
   version: integer("version").notNull().default(1),
   isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+  locked: integer("locked", { mode: "boolean" }).notNull().default(false),
   layoutJson: text("layout_json", { mode: "json" }),
   createdByUserId: integer("created_by_user_id"),
   createdAt: text("created_at").notNull().default(NOW),

@@ -113,8 +113,9 @@ function SingleElementProperties({ element, onUpdate, onDelete }: {
         {element.type === 'table'   && <TableProps   el={element as TableElement}   onUpdate={onUpdate} />}
         {element.type === 'qrcode'  && <QrProps      el={element as QrCodeElement}  onUpdate={onUpdate} />}
 
-        {/* Style */}
-        {!['line', 'image', 'qrcode', 'table'].includes(element.type) && (
+        {/* Style — tables included: their style.fontSize drives the default
+            header/row text size in print (per-column styles still override) */}
+        {!['line', 'image', 'qrcode'].includes(element.type) && (
           <StyleProps style={element.style} onChange={s => onUpdate({ ...element, style: s })} />
         )}
       </div>

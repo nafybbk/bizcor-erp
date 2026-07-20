@@ -19,6 +19,15 @@ export const customersTable = pgTable("mini_app_customers", {
   mobile: text("mobile").notNull().unique(),
   pin: text("pin").notNull().default("1234"),
   name: text("name"),
+  // Customer's own firm/business name (not the supplier's) — self-entered
+  // in their Connect app profile, purely informational.
+  businessName: text("business_name"),
+  // Customer's own profile picture (Cloudinary URL) — shown in the app and
+  // on the login/lock screen before re-authenticating.
+  avatarUrl: text("avatar_url"),
+  // When false, suppliers show the connection's `customLabel` (if set)
+  // instead of their real business name everywhere in the app.
+  showSupplierRealName: boolean("show_supplier_real_name").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -31,6 +40,9 @@ export const connectionsTable = pgTable("mini_app_connections", {
   status: connectionStatusEnum("status").notNull().default("active"),
   // Customer-side pause (supplier-side blocking uses `status`)
   customerPaused: boolean("customer_paused").notNull().default(false),
+  // Customer's own private label for this supplier (shown instead of the
+  // real business name when customersTable.showSupplierRealName is off).
+  customLabel: text("custom_label"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

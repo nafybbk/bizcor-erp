@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { partiesTable, vouchersTable, paymentsTable, paymentAllocationsTable } from "@workspace/db";
-import { eq, and, like, or, sql, desc, isNotNull, ne } from "drizzle-orm";
+import { eq, and, or, sql, desc, isNotNull, ne } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
 import { pushLanSyncParty, ensurePartyBackfill } from "../lib/lanSync";
+import { ilike } from "../lib/search";
 
 // Generate AC0001 / AS0001 style unique codes per business per first-letter group
 async function generatePartyCodes(businessId: number, name: string, type: string) {
@@ -51,7 +52,7 @@ router.get("/", async (req, res) => {
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(partiesTable.businessId, businessId)];
     if (type && type !== "both") conditions.push(or(eq(partiesTable.type, type as "customer" | "supplier" | "both"), eq(partiesTable.type, "both"))!);
-    if (search) conditions.push(or(like(partiesTable.name, `%${search}%`), like(partiesTable.gstin, `%${search}%`))!);
+    if (search) conditions.push(or(ilike(partiesTable.name, String(search)), ilike(partiesTable.gstin, String(search)))!);
     let q = db.select().from(partiesTable).where(and(...conditions)).orderBy(partiesTable.name);
     const lim = limit ? Number(limit) : null;
     const pg = Number(page);

@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
 import { activityLogsTable, businessesTable } from "@workspace/db";
-import { eq, and, gte, lte, desc, sql, inArray, or, like } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, inArray, or } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { ilike } from "../lib/search";
 
 // Activity trail — the malik's own record of who did what in his shop.
 // View AND clear are business_admin only: staff must never see it (half the
@@ -48,8 +49,8 @@ router.get("/", async (req, res) => {
     if (entityType) conditions.push(eq(activityLogsTable.entityType, String(entityType)));
     if (action) conditions.push(eq(activityLogsTable.action, String(action)));
     if (search) conditions.push(or(
-      like(activityLogsTable.summary, `%${search}%`),
-      like(activityLogsTable.entityLabel, `%${search}%`),
+      ilike(activityLogsTable.summary, String(search)),
+      ilike(activityLogsTable.entityLabel, String(search)),
     )!);
 
     const lim = Math.min(Number(limit) || 50, 200);

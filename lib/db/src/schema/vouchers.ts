@@ -35,6 +35,10 @@ export const vouchersTable = pgTable("vouchers", {
   isInterState: boolean("is_inter_state").default(false),
   placeOfSupply: text("place_of_supply"),
   referenceNumber: text("reference_number"),
+  // Purchase Bill / Debit Note only: the supplier's own invoice date, distinct
+  // from `date` (our entry/voucher date) — needed since the two can differ,
+  // and GST return filing (GSTR-2B matching) needs the supplier's actual date.
+  supplierInvoiceDate: text("supplier_invoice_date"),
   dueDate: text("due_date"),
   customFields: jsonb("custom_fields"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

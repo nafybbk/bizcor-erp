@@ -47,6 +47,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ZoomableImage from "@/components/ZoomableImage";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useTabCache, timeAgo } from "@/hooks/useTabCache";
 import SyncRing from "@/components/SyncRing";
@@ -67,16 +68,20 @@ export default function SupplierDetailScreen() {
   const colors = useColors();
   const [tab, setTab] = useState<TabKey>("chat");
 
+  const { customer } = useAuth();
   const { data: connections } = useMiniAppListConnections();
   const connection = useMemo(
     () => connections?.find((c) => c.id === connectionId),
     [connections, connectionId],
   );
+  // Respect the customer's own privacy toggle — a custom label (if set)
+  // stands in for the supplier's real business name everywhere in the app.
+  const displayName = (customer?.showSupplierRealName === false && connection?.customLabel) || connection?.businessName || "Supplier";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{
-        title: connection?.businessName ?? "Supplier",
+        title: displayName,
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: colors.primaryForeground,
         headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
@@ -655,6 +660,18 @@ function StatementTab({
   );
 }
 
+function GalleryGrid({ items, onPress }: { items: MiniAppGalleryShare[]; onPress: (imageId: number) => void }) {
+  return (
+    <View style={styles.galleryGrid}>
+      {items.map((item) => (
+        <Pressable key={item.imageId} onPress={() => onPress(item.imageId)} style={styles.galleryCell}>
+          <Image source={{ uri: item.thumbnailUrl }} style={{ flex: 1, borderRadius: 8 }} resizeMode="cover" />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function GalleryTab({
   connectionId,
   permissions,
@@ -664,7 +681,7 @@ function GalleryTab({
 }) {
   const colors = useColors();
   const [refreshing, setRefreshing] = useState(false);
-  const [viewerShareId, setViewerShareId] = useState<number | null>(null);
+  const [viewerImageId, setViewerImageId] = useState<number | null>(null);
   const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppGalleryShare[]>(`gallery_${connectionId}`);
   const { data, isLoading, isFetching, isError, refetch } = useMiniAppListGallery(connectionId, {
     query: {
@@ -704,56 +721,68 @@ function GalleryTab({
   }
 
   const displayData = (data ?? cachedData ?? []) as MiniAppGalleryShare[];
+  const sharedItems = displayData.filter((i) => i.shared);
+  const otherItems = displayData.filter((i) => !i.shared);
 
   return (
     <>
-      <FlatList
-        data={displayData}
-        keyExtractor={(item) => String(item.shareId)}
-        numColumns={3}
-        scrollEnabled={displayData.length > 0}
+      <ScrollView
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-        ListHeaderComponent={
-          lastUpdated || isFetching ? (
-            <View style={styles.syncRow}>
-              {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
-              {lastUpdated && (
-                <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
-                  {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
-                </Text>
-              )}
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <Pressable onPress={() => setViewerShareId(item.shareId)} style={{ flex: 1 / 3, aspectRatio: 1, padding: 2 }}>
-            <Image source={{ uri: item.thumbnailUrl }} style={{ flex: 1, borderRadius: 8 }} resizeMode="cover" />
-          </Pressable>
+      >
+        {(lastUpdated || isFetching) && (
+          <View style={styles.syncRow}>
+            {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+            {lastUpdated && (
+              <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+              </Text>
+            )}
+          </View>
         )}
-        ListEmptyComponent={
+
+        {displayData.length === 0 ? (
           <View style={styles.centerFill}>
             <Feather name="image" size={30} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              Abhi koi photo share nahi hui
+              Abhi koi photo nahi hai
             </Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Your supplier will share product photos here.
+              Your supplier will add product photos here.
             </Text>
           </View>
-        }
-      />
-      {viewerShareId != null && (
-        <GalleryImageViewer connectionId={connectionId} shareId={viewerShareId} onClose={() => setViewerShareId(null)} />
+        ) : (
+          <>
+            {sharedItems.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
+                  Aapko bheji gayi ({sharedItems.length})
+                </Text>
+                <GalleryGrid items={sharedItems} onPress={setViewerImageId} />
+              </View>
+            )}
+            {otherItems.length > 0 && (
+              <View>
+                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
+                  Is supplier ki aur photos ({otherItems.length})
+                </Text>
+                <GalleryGrid items={otherItems} onPress={setViewerImageId} />
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+      {viewerImageId != null && (
+        <GalleryImageViewer connectionId={connectionId} imageId={viewerImageId} onClose={() => setViewerImageId(null)} />
       )}
     </>
   );
 }
 
 // Full-size image only downloads on tap, not upfront with the thumbnail list.
-function GalleryImageViewer({ connectionId, shareId, onClose }: { connectionId: number; shareId: number; onClose: () => void }) {
+function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: number; imageId: number; onClose: () => void }) {
   const colors = useColors();
-  const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, shareId);
+  const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, imageId);
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
       {/* Modal content renders in its own native window on Android/iOS —
@@ -833,6 +862,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   listContent: { padding: 16, gap: 10, flexGrow: 1 },
+  gallerySectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 8 },
+  galleryGrid: { flexDirection: "row", flexWrap: "wrap" },
+  galleryCell: { width: "33.333%", aspectRatio: 1, padding: 2 },
   invoiceCard: {
     flexDirection: "row",
     alignItems: "center",

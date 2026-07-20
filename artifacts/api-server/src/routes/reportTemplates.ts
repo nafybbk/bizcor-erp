@@ -3,6 +3,31 @@ import { requireAuth } from "../middlewares/auth";
 
 const router = Router();
 
+// SI01/SI02/... (editable working reports) and SIT01/SIT02/... (frozen,
+// "Save As Template" snapshots) are auto-named server-side — the client never
+// picks a name, so there's never a naming collision or confusion about which
+// is which. Prefix is per reportType; unlisted types fall back to initials.
+const REPORT_PREFIX: Record<string, string> = {
+  sales_invoice: "SI", purchase_bill: "PB", credit_note: "CN", debit_note: "DN",
+  receipt: "RC", payment: "PY", quotation: "QT", delivery_challan: "DC",
+};
+function prefixFor(reportType: string): string {
+  return REPORT_PREFIX[reportType] || reportType.split("_").map(w => w[0]?.toUpperCase() || "").join("").slice(0, 3) || "RT";
+}
+
+async function nextName(db: any, reportTemplatesTable: any, and: any, eq: any, businessId: number, reportType: string, asTemplate: boolean): Promise<string> {
+  const prefix = prefixFor(reportType) + (asTemplate ? "T" : "");
+  const rows = await db.select({ name: reportTemplatesTable.name }).from(reportTemplatesTable)
+    .where(and(eq(reportTemplatesTable.businessId, businessId), eq(reportTemplatesTable.reportType, reportType)));
+  const re = new RegExp(`^${prefix}(\\d{2})$`);
+  let max = 0;
+  for (const r of rows as { name: string }[]) {
+    const m = re.exec(r.name);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${prefix}${String(max + 1).padStart(2, "0")}`;
+}
+
 // ─── List templates for business ──────────────────────────────────────────────
 router.get("/report-templates", requireAuth, async (req, res) => {
   try {
@@ -59,10 +84,13 @@ router.post("/report-templates", requireAuth, async (req, res) => {
     const { db, reportTemplatesTable } = await import("@workspace/db");
     const { eq, and } = await import("drizzle-orm");
     const businessId = req.user!.businessId!;
-    const { name, reportType, paperSize, orientation, isDefault, layoutJson } = req.body;
+    // `name` is intentionally NOT accepted from the client — every template is
+    // auto-named SI{nn}/SIT{nn} server-side so there's a single source of
+    // truth for numbering. `asTemplate`/`isSystemDefault` control naming+lock.
+    const { reportType, paperSize, orientation, isDefault, layoutJson, asTemplate, isSystemDefault } = req.body;
 
-    if (!name || !reportType) {
-      res.status(400).json({ error: "name aur reportType required hain" });
+    if (!reportType) {
+      res.status(400).json({ error: "reportType required hai" });
       return;
     }
 
@@ -74,6 +102,8 @@ router.post("/report-templates", requireAuth, async (req, res) => {
         .where(and(eq(reportTemplatesTable.businessId, businessId), eq(reportTemplatesTable.reportType, reportType)));
     }
 
+    const name = isSystemDefault ? "Default" : await nextName(db, reportTemplatesTable, and, eq, businessId, reportType, !!asTemplate);
+
     const [created] = await db
       .insert(reportTemplatesTable)
       .values({
@@ -84,6 +114,7 @@ router.post("/report-templates", requireAuth, async (req, res) => {
         orientation: orientation || "portrait",
         version: 1,
         isDefault: !!isDefault,
+        locked: !!asTemplate || !!isSystemDefault,
         layoutJson: layoutJson || null,
         createdByUserId: req.user!.id,
       })
@@ -115,8 +146,12 @@ router.put("/report-templates/:id", requireAuth, async (req, res) => {
       .limit(1);
 
     if (!existing) { res.status(404).json({ error: "Template nahi mila" }); return; }
+    if (existing.locked) {
+      res.status(403).json({ error: "Yeh template locked hai — isse edit nahi kar sakte. 'Use as New' se ek naya editable copy bana lo." });
+      return;
+    }
 
-    const { name, paperSize, orientation, isDefault, layoutJson } = req.body;
+    const { paperSize, orientation, isDefault, layoutJson } = req.body;
 
     // If setting as default, unset others for this reportType
     if (isDefault) {
@@ -129,7 +164,6 @@ router.put("/report-templates/:id", requireAuth, async (req, res) => {
     const [updated] = await db
       .update(reportTemplatesTable)
       .set({
-        name: name ?? existing.name,
         paperSize: paperSize ?? existing.paperSize,
         orientation: orientation ?? existing.orientation,
         isDefault: isDefault !== undefined ? !!isDefault : existing.isDefault,
@@ -217,7 +251,9 @@ router.post("/report-templates/:id/set-default", requireAuth, async (req, res) =
   }
 });
 
-// ─── Duplicate template (Admin only) ──────────────────────────────────────────
+// ─── Duplicate / "Use as New" (Admin only) — forks ANY row (SI, SIT, or the
+// system Default) into a brand-new, unlocked, auto-named SI so it can be
+// freely edited — the source row itself is never touched. ────────────────────
 router.post("/report-templates/:id/duplicate", requireAuth, async (req, res) => {
   try {
     if (req.user!.role === "staff") {
@@ -237,16 +273,18 @@ router.post("/report-templates/:id/duplicate", requireAuth, async (req, res) => 
 
     if (!existing) { res.status(404).json({ error: "Template nahi mila" }); return; }
 
+    const name = await nextName(db, reportTemplatesTable, and, eq, businessId, existing.reportType, false);
     const [copy] = await db
       .insert(reportTemplatesTable)
       .values({
         businessId,
-        name: `${existing.name} (Copy)`,
+        name,
         reportType: existing.reportType,
         paperSize: existing.paperSize,
         orientation: existing.orientation,
         version: 1,
         isDefault: false,
+        locked: false,
         layoutJson: existing.layoutJson,
         createdByUserId: req.user!.id,
       })

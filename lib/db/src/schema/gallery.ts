@@ -17,7 +17,14 @@ export const galleryImagesTable = pgTable("gallery_images", {
   cloudinaryPublicId: text("cloudinary_public_id").notNull(),
   url: text("url").notNull(),
   thumbnailUrl: text("thumbnail_url").notNull(),
+  name: text("name"),
+  originalSize: integer("original_size"),
+  uploadedSize: integer("uploaded_size"),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  // Soft-delete: an image tied to a real order/invoice (future feature) gets
+  // archived instead of hard-deleted so the audit trail survives; everything
+  // else is actually removed. Null = active/visible everywhere.
+  archivedAt: timestamp("archived_at"),
 }, (t) => [
   uniqueIndex("gallery_images_biz_hash_idx").on(t.businessId, t.contentHash),
 ]);

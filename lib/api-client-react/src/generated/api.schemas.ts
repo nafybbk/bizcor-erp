@@ -932,6 +932,8 @@ export interface MiniAppCustomer {
   customerId: string;
   mobile: string;
   name?: string | null;
+  businessName?: string | null;
+  showSupplierRealName?: boolean;
 }
 
 export interface MiniAppSettingsResponse {
@@ -948,6 +950,17 @@ export interface MiniAppLoginResponse {
 export interface MiniAppConnectBody {
   businessCode: string;
   pin: string;
+}
+
+export interface MiniAppUpdateProfileBody {
+  name?: string;
+  businessName?: string;
+  showSupplierRealName?: boolean;
+}
+
+export interface MiniAppChangePinBody {
+  oldPin: string;
+  newPin: string;
 }
 
 export interface MiniAppConnectionPermissions {
@@ -975,6 +988,7 @@ export interface MiniAppConnection {
   status: string;
   businessName: string;
   businessLogo?: string | null;
+  customLabel?: string | null;
   createdAt: string;
 }
 
@@ -1034,9 +1048,10 @@ export interface MiniAppStatementEntry {
 }
 
 export interface MiniAppGalleryShare {
-  shareId: number;
+  imageId: number;
   thumbnailUrl: string;
-  sharedAt: string;
+  shared: boolean;
+  sharedAt?: string | null;
   deliveredAt?: string | null;
   viewedAt?: string | null;
 }
@@ -1267,6 +1282,10 @@ export const GetTopPartiesType = {
   customer: "customer",
   supplier: "supplier",
 } as const;
+
+export type MiniAppChangePin200 = {
+  success: boolean;
+};
 
 export type MiniAppPollMessagesParams = {
   since?: number;

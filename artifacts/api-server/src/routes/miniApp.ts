@@ -1,5 +1,8 @@
 import { Router, Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { Readable } from "stream";
 import { db } from "@workspace/db";
 import {
   customersTable,
@@ -21,6 +24,16 @@ import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
 
 const router = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
+const AVATAR_CLOUDINARY_FOLDER = "bizcor-customer-avatars";
+const AVATAR_MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: AVATAR_MAX_FILE_SIZE } });
 
 // ─── Simple in-memory rate limiter (per key, sliding window) ─────────────────
 // Test-pass scope: PINs (login + connect) are short & persistent, so throttle
@@ -134,7 +147,17 @@ router.post("/mini-app/login", async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    res.json({ token, customer: { customerId: customer.customerId, mobile: customer.mobile, name: customer.name } });
+    res.json({
+      token,
+      customer: {
+        customerId: customer.customerId,
+        mobile: customer.mobile,
+        name: customer.name,
+        businessName: customer.businessName,
+        showSupplierRealName: customer.showSupplierRealName,
+        avatarUrl: customer.avatarUrl,
+      },
+    });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -148,6 +171,116 @@ router.post("/mini-app/login", async (req, res) => {
 router.use("/mini-app", (req, res, next) => {
   if (req.path.startsWith("/lan-sync")) { next(); return; }
   requireCustomerAuth(req, res, next);
+});
+
+// GET /mini-app/customer/profile — own profile details (name, business name, prefs)
+router.get("/mini-app/customer/profile", async (req, res) => {
+  try {
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, req.customer!.customerDbId)).limit(1);
+    if (!customer) { res.status(404).json({ error: "Customer nahi mila" }); return; }
+    res.json({
+      customerId: customer.customerId,
+      mobile: customer.mobile,
+      name: customer.name,
+      businessName: customer.businessName,
+      showSupplierRealName: customer.showSupplierRealName,
+      avatarUrl: customer.avatarUrl,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /mini-app/customer/profile — update own name/business name/privacy pref
+router.patch("/mini-app/customer/profile", async (req, res) => {
+  try {
+    const { name, businessName, showSupplierRealName } = req.body || {};
+    const updates: Partial<typeof customersTable.$inferInsert> = {};
+    if (typeof name === "string") updates.name = name.trim().slice(0, 100) || null;
+    if (typeof businessName === "string") updates.businessName = businessName.trim().slice(0, 150) || null;
+    if (typeof showSupplierRealName === "boolean") updates.showSupplierRealName = showSupplierRealName;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "Kuch bhi update nahi kiya gaya" });
+      return;
+    }
+
+    const [updated] = await db.update(customersTable).set(updates)
+      .where(eq(customersTable.id, req.customer!.customerDbId)).returning();
+    res.json({
+      customerId: updated.customerId,
+      mobile: updated.mobile,
+      name: updated.name,
+      businessName: updated.businessName,
+      showSupplierRealName: updated.showSupplierRealName,
+      avatarUrl: updated.avatarUrl,
+    });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /mini-app/customer/profile/avatar — upload/replace own profile picture
+router.post("/mini-app/customer/profile/avatar", avatarUpload.single("image"), async (req, res) => {
+  try {
+    const file = (req as any).file as { buffer: Buffer } | undefined;
+    if (!file) { res.status(400).json({ error: "image file required" }); return; }
+
+    const customerDbId = req.customer!.customerDbId;
+    const url = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: AVATAR_CLOUDINARY_FOLDER, resource_type: "image", public_id: `customer_${customerDbId}`, overwrite: true, invalidate: true },
+        (err, result) => {
+          if (err || !result) return reject(err || new Error("Cloudinary upload failed"));
+          resolve(result.secure_url.replace("/upload/", "/upload/c_fill,w_300,h_300,q_auto/"));
+        }
+      );
+      Readable.from(file.buffer).pipe(stream);
+    });
+
+    const [updated] = await db.update(customersTable).set({ avatarUrl: url })
+      .where(eq(customersTable.id, customerDbId)).returning();
+    res.json({ avatarUrl: updated.avatarUrl });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// PATCH /mini-app/customer/pin — change own PIN (must know the current one).
+// This is the SAME pin used for login — the app also caches it locally on
+// the device for offline unlock, so any change here must be entered while
+// online; the freshly-changed PIN then replaces the cached one client-side.
+router.patch("/mini-app/customer/pin", async (req, res) => {
+  try {
+    const customerDbId = req.customer!.customerDbId;
+    const { oldPin, newPin } = req.body || {};
+    if (!oldPin?.trim() || !newPin?.trim()) {
+      res.status(400).json({ error: "Purana aur naya PIN dono zaroori hain" });
+      return;
+    }
+    if (newPin.trim().length < 4) {
+      res.status(400).json({ error: "Naya PIN kam se kam 4 digit ka hona chahiye" });
+      return;
+    }
+    if (isRateLimited(`pinchange:${customerDbId}`, 8, 15 * 60 * 1000)) {
+      res.status(429).json({ error: "Bahut zyada attempts. Kuch der baad try karein." });
+      return;
+    }
+
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerDbId)).limit(1);
+    if (!customer || customer.pin !== oldPin.trim()) {
+      res.status(401).json({ error: "Purana PIN galat hai" });
+      return;
+    }
+
+    await db.update(customersTable).set({ pin: newPin.trim() }).where(eq(customersTable.id, customerDbId));
+    res.json({ success: true });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 // POST /mini-app/connect — businessCode + per-customer PIN (from supplier's Party master)
@@ -235,6 +368,7 @@ router.get("/mini-app/connections", async (req, res) => {
       permissions: connectionsTable.permissions,
       status: connectionsTable.status,
       customerPaused: connectionsTable.customerPaused,
+      customLabel: connectionsTable.customLabel,
       businessName: businessesTable.name,
       businessLogo: businessesTable.logo,
       // Supplier's own name for this customer (their Party master entry) —
@@ -250,8 +384,8 @@ router.get("/mini-app/connections", async (req, res) => {
     // Per-card document counts + latest doc date, so the app can show
     // "12 invoices · 5 receipts", flag empty cards, and badge new activity.
     // 4 grouped queries total, regardless of how many connections.
-    const bizIds = [...new Set(rows.map(r => r.businessId))];
-    const partyIds = [...new Set(rows.map(r => r.partyId))];
+    const bizIds = [...new Set(rows.map(r => r.businessId))] as number[];
+    const partyIds = [...new Set(rows.map(r => r.partyId))] as number[];
     const statMaps = { inv: new Map<string, { n: number; last: string }>(), pay: new Map<string, { n: number; last: string }>() };
     if (rows.length > 0) {
       const key = (b: number, p: number | null) => `${b}|${p}`;
@@ -301,23 +435,28 @@ router.get("/mini-app/connections", async (req, res) => {
   }
 });
 
-// PATCH /mini-app/connections/:id — customer-side pause/resume
+// PATCH /mini-app/connections/:id — customer-side pause/resume, or set a
+// private label for this supplier (shown instead of their real name when
+// the customer's showSupplierRealName preference is off)
 router.patch("/mini-app/connections/:id", async (req, res) => {
   try {
     const customerDbId = req.customer!.customerDbId;
-    const { paused } = req.body || {};
-    if (typeof paused !== "boolean") {
-      res.status(400).json({ error: "paused (true/false) zaroori hai" });
+    const { paused, customLabel } = req.body || {};
+    const updates: { customerPaused?: boolean; customLabel?: string | null } = {};
+    if (typeof paused === "boolean") updates.customerPaused = paused;
+    if (typeof customLabel === "string") updates.customLabel = customLabel.trim().slice(0, 60) || null;
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "paused ya customLabel mein se kam se kam ek zaroori hai" });
       return;
     }
     const [updated] = await db.update(connectionsTable)
-      .set({ customerPaused: paused })
+      .set(updates)
       .where(and(
         eq(connectionsTable.id, Number(req.params.id)),
         eq(connectionsTable.customerId, customerDbId)
       )).returning();
     if (!updated) { res.status(404).json({ error: "Connection nahi mili" }); return; }
-    res.json({ success: true, customerPaused: updated.customerPaused });
+    res.json({ success: true, customerPaused: updated.customerPaused, customLabel: updated.customLabel });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -606,9 +745,13 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
   }
 });
 
-// GET /mini-app/connections/:id/gallery — thumbnails shared with this
-// customer specifically (not the supplier's whole gallery). First fetch of
-// each share stamps deliveredAt (double tick, from the supplier's side).
+// GET /mini-app/connections/:id/gallery — the supplier's ENTIRE common
+// gallery (not just images shared with this customer) — connected + gallery
+// permission on is the only gate now. Each row is flagged `shared` (+ tick
+// trail) when a share row exists for this party, so the app can split
+// "shared with you" from "more from this supplier". First fetch of an
+// existing share stamps deliveredAt (double tick); rows with no share yet
+// have nothing to stamp.
 router.get("/mini-app/connections/:id/gallery", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
@@ -621,31 +764,45 @@ router.get("/mini-app/connections/:id/gallery", async (req, res) => {
     }
 
     const rows = await db.select({
-      shareId: gallerySharesTable.id,
+      imageId: galleryImagesTable.id,
       thumbnailUrl: galleryImagesTable.thumbnailUrl,
+      uploadedAt: galleryImagesTable.uploadedAt,
+      shareId: gallerySharesTable.id,
       sharedAt: gallerySharesTable.sharedAt,
       deliveredAt: gallerySharesTable.deliveredAt,
       viewedAt: gallerySharesTable.viewedAt,
-    }).from(gallerySharesTable)
-      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
-      .where(and(eq(gallerySharesTable.businessId, connection.businessId), eq(gallerySharesTable.partyId, connection.partyId)))
-      .orderBy(desc(gallerySharesTable.sharedAt));
+    }).from(galleryImagesTable)
+      .leftJoin(gallerySharesTable, and(
+        eq(gallerySharesTable.imageId, galleryImagesTable.id),
+        eq(gallerySharesTable.partyId, connection.partyId),
+      ))
+      .where(and(eq(galleryImagesTable.businessId, connection.businessId), isNull(galleryImagesTable.archivedAt)))
+      .orderBy(desc(sql`coalesce(${gallerySharesTable.sharedAt}, ${galleryImagesTable.uploadedAt})`));
 
-    const undelivered = rows.filter(r => !r.deliveredAt).map(r => r.shareId);
-    if (undelivered.length) {
-      await db.update(gallerySharesTable).set({ deliveredAt: new Date() }).where(inArray(gallerySharesTable.id, undelivered));
+    const undeliveredShareIds = rows.filter(r => r.shareId && !r.deliveredAt).map(r => r.shareId!);
+    if (undeliveredShareIds.length) {
+      await db.update(gallerySharesTable).set({ deliveredAt: new Date() }).where(inArray(gallerySharesTable.id, undeliveredShareIds));
     }
 
-    res.json(rows);
+    res.json(rows.map(r => ({
+      imageId: r.imageId,
+      thumbnailUrl: r.thumbnailUrl,
+      shared: r.shareId != null,
+      sharedAt: r.sharedAt,
+      deliveredAt: r.deliveredAt,
+      viewedAt: r.viewedAt,
+    })));
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// GET /mini-app/connections/:id/gallery/:shareId/full — full-size image, only
-// fetched on tap. Stamps viewedAt (blue tick) the first time.
-router.get("/mini-app/connections/:id/gallery/:shareId/full", async (req, res) => {
+// GET /mini-app/connections/:id/gallery/:imageId/full — full-size image, only
+// fetched on tap. Keyed by imageId (not shareId) since an image is now
+// browsable even before it's been explicitly shared. Stamps viewedAt (blue
+// tick) on the matching share row the first time, only if one exists.
+router.get("/mini-app/connections/:id/gallery/:imageId/full", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
@@ -656,24 +813,19 @@ router.get("/mini-app/connections/:id/gallery/:shareId/full", async (req, res) =
       return;
     }
 
-    const [row] = await db.select({
-      shareId: gallerySharesTable.id,
-      url: galleryImagesTable.url,
-      viewedAt: gallerySharesTable.viewedAt,
-    }).from(gallerySharesTable)
-      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
-      .where(and(
-        eq(gallerySharesTable.id, Number(req.params.shareId)),
-        eq(gallerySharesTable.businessId, connection.businessId),
-        eq(gallerySharesTable.partyId, connection.partyId),
-      )).limit(1);
-    if (!row) { res.status(404).json({ error: "Image nahi mili" }); return; }
+    const imageId = Number(req.params.imageId);
+    const [image] = await db.select({ url: galleryImagesTable.url }).from(galleryImagesTable)
+      .where(and(eq(galleryImagesTable.id, imageId), eq(galleryImagesTable.businessId, connection.businessId), isNull(galleryImagesTable.archivedAt))).limit(1);
+    if (!image) { res.status(404).json({ error: "Image nahi mili" }); return; }
 
-    if (!row.viewedAt) {
-      await db.update(gallerySharesTable).set({ viewedAt: new Date() }).where(eq(gallerySharesTable.id, row.shareId));
+    const [share] = await db.select({ id: gallerySharesTable.id, viewedAt: gallerySharesTable.viewedAt })
+      .from(gallerySharesTable)
+      .where(and(eq(gallerySharesTable.imageId, imageId), eq(gallerySharesTable.partyId, connection.partyId))).limit(1);
+    if (share && !share.viewedAt) {
+      await db.update(gallerySharesTable).set({ viewedAt: new Date() }).where(eq(gallerySharesTable.id, share.id));
     }
 
-    res.json({ url: row.url });
+    res.json({ url: image.url });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

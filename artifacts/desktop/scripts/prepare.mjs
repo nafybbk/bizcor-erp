@@ -40,7 +40,7 @@ copyDir(serverSrc, serverDest);
 // 2. Build ERP frontend with DESKTOP_MODE
 console.log("2/3  Building ERP frontend...");
 run("pnpm --filter @workspace/erp run build", repoRoot);
-const frontendSrc = resolve(repoRoot, "artifacts/erp/dist");
+const frontendSrc = resolve(repoRoot, "artifacts/erp/dist/public");
 const frontendDest = join(desktopDir, "frontend-dist");
 copyDir(frontendSrc, frontendDest);
 

@@ -65,6 +65,15 @@ export const galleryApi = {
     });
     return handleResponse<T>(res);
   },
+  patch: async <T>(path: string, body: Record<string, unknown>): Promise<T> => {
+    const token = getToken();
+    const res = await fetch(`${base()}${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify(withBusinessCode(body)),
+    });
+    return handleResponse<T>(res);
+  },
   delete: async <T>(path: string): Promise<T> => {
     const token = getToken();
     const code = myBusinessCode();
@@ -76,10 +85,11 @@ export const galleryApi = {
     return handleResponse<T>(res);
   },
   // Multipart upload — image bytes + businessCode as form fields
-  uploadImage: async <T>(blob: Blob, filename: string): Promise<T> => {
+  uploadImage: async <T>(blob: Blob, filename: string, originalSize?: number): Promise<T> => {
     const token = getToken();
     const form = new FormData();
     form.append("image", blob, filename);
+    if (originalSize) form.append("originalSize", String(originalSize));
     const code = myBusinessCode();
     if (code) form.append("businessCode", code);
     const res = await fetch(`${base()}/gallery/upload`, {

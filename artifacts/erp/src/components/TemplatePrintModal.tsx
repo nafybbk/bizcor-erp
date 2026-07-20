@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { buildVoucherContext } from "@/lib/reportEngine/contextBuilder";
 import ReportRenderer from "@/components/reportEngine/ReportRenderer";
 import type { SavedTemplate } from "@/lib/reportEngine/types";
-import { Loader2, Printer, FileDown, Star, Check, ChevronDown, X, LayoutTemplate, Wand2 } from "lucide-react";
+import { Loader2, Printer, Star, Check, X, LayoutTemplate } from "lucide-react";
 
 // ─── voucherType → reportType mapping ────────────────────────────────────────
 const VOUCHER_TO_REPORT: Record<string, string> = {
@@ -24,82 +25,46 @@ interface Props {
   onFallback: () => void; // called if user wants old-style print
 }
 
-const REPORT_TYPE_LABELS: Record<string, string> = {
-  sales_invoice: "Sales Invoice",
-  credit_note: "Credit Note",
-  purchase_bill: "Purchase Bill",
-  debit_note: "Debit Note",
-};
-
-function makeDefaultLayout() {
-  return {
-    bands: {
-      pageHeader:     { height: 0,  elements: [] },
-      documentHeader: { height: 80, elements: [] },
-      detail:         { height: 8,  columns: [], elements: [] },
-      documentFooter: { height: 60, elements: [] },
-      pageFooter:     { height: 10, elements: [] },
-    },
-  };
-}
-
 export default function TemplatePrintModal({ voucherType, voucher, business, onClose, onFallback }: Props) {
   const reportType = VOUCHER_TO_REPORT[voucherType] || "sales_invoice";
   const lsKey = LS_KEY(voucherType);
-  const qc = useQueryClient();
 
-  const [selectedId, setSelectedId] = useState<number | null>(() => {
+  // "Default" is NOT a DB template: it's the app's original built-in invoice
+  // (the exact layout every live install prints today), routed through the
+  // classic print path — so it can never drift, never be edited, never be
+  // deleted, and always matches the cloud/EXE release pixel-for-pixel.
+  const ORIGINAL = "original";
+
+  const [selectedId, setSelectedId] = useState<number | typeof ORIGINAL>(() => {
     const saved = localStorage.getItem(lsKey);
-    return saved ? Number(saved) : null;
+    if (!saved || saved === ORIGINAL) return ORIGINAL;
+    const n = Number(saved);
+    return Number.isFinite(n) && n > 0 ? n : ORIGINAL;
   });
   const [printing, setPrinting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
-  // ── File-based template check (priority over DB) ───────────────────────────
-  const { data: fileTemplate } = useQuery<SavedTemplate | null>({
-    queryKey: ["template-file", reportType],
-    queryFn: async () => {
-      try { return await api.get<SavedTemplate>(`/template-files/${reportType}`); }
-      catch { return null; }
-    },
-    retry: false,
-    staleTime: 30_000,
-  });
-
-  const { data: templates = [], isLoading } = useQuery<SavedTemplate[]>({
+  // Custom DB templates (SI / SIT) — any legacy row literally named "Default"
+  // is hidden, that slot belongs to the built-in original. Always fetched
+  // fresh: templates get edited in the designer's popup window, whose
+  // cache-invalidations never reach this window.
+  const { data: allTemplates = [], isLoading } = useQuery<SavedTemplate[]>({
     queryKey: ["report-templates", reportType],
     queryFn: () => api.get<SavedTemplate[]>(`/report-templates?report_type=${reportType}`),
-    enabled: !fileTemplate, // Skip DB query if file template exists
+    staleTime: 0,
+    refetchOnWindowFocus: "always",
   });
+  const templates = allTemplates.filter(t => t.name !== "Default");
 
-  const createDefault = useMutation({
-    mutationFn: () =>
-      api.post<SavedTemplate>("/report-templates", {
-        name: `Basic ${REPORT_TYPE_LABELS[reportType] ?? "Invoice"}`,
-        reportType,
-        paperSize: "A4",
-        orientation: "portrait",
-        isDefault: true,
-        layoutJson: makeDefaultLayout(),
-      }),
-    onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: ["report-templates", reportType] });
-      setSelectedId(created.id);
-      localStorage.setItem(lsKey, String(created.id));
-    },
-  });
-
-  // Auto-select: saved > default > first
+  // Saved selection points to a template that no longer exists → back to Default
   useEffect(() => {
-    if (templates.length === 0) return;
-    if (selectedId && templates.find(t => t.id === selectedId)) return;
-    const def = templates.find(t => t.isDefault);
-    setSelectedId(def ? def.id : templates[0].id);
-  }, [templates]);
+    if (selectedId !== ORIGINAL && !isLoading && !templates.find(t => t.id === selectedId)) {
+      setSelectedId(ORIGINAL);
+    }
+  }, [templates, isLoading, selectedId]);
 
-  // File template takes priority; falls back to DB selected
-  const selected: SavedTemplate | null = fileTemplate || templates.find(t => t.id === selectedId) || null;
+  const selected: SavedTemplate | null = selectedId === ORIGINAL ? null : templates.find(t => t.id === selectedId) || null;
 
   function handleSelect(t: SavedTemplate) {
     setSelectedId(t.id);
@@ -107,8 +72,12 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
   }
 
   function handlePrint() {
+    localStorage.setItem(lsKey, String(selectedId));
+    if (selectedId === ORIGINAL) {
+      onFallback(); // classic built-in invoice — the original, untouched
+      return;
+    }
     if (!selected) return;
-    if (!fileTemplate && selected.id) localStorage.setItem(lsKey, String(selected.id));
     setShowPreview(true);
     setPrinting(true);
     setTimeout(() => {
@@ -190,8 +159,11 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
   ) : null;
 
   // ─── Print mode — full screen renderer ────────────────────────────────────
+  // Portaled to <body>: the overlay CSS hides every OTHER direct child of
+  // body (i.e. #root) during preview/print — rendered inside #root it would
+  // hide itself too, printing a blank page.
   if (showPreview && selected && context) {
-    return (
+    return createPortal(
       <>
         <style>{`
           @media screen {
@@ -200,10 +172,14 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
             #template-print-overlay .print-toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
           }
           @media print {
-            body > *:not(#template-print-overlay) { display: none !important; }
-            #template-print-overlay { position: fixed; inset: 0; }
+            /* Same visibility+absolute pattern the classic voucher print uses —
+               position:fixed prints as a blank page in Chromium (the document
+               itself has zero height once everything else is display:none). */
+            body * { visibility: hidden !important; }
+            #template-print-overlay, #template-print-overlay * { visibility: visible !important; }
+            #template-print-overlay { position: absolute !important; inset: auto !important; top: 0 !important; left: 0 !important; right: 0 !important; overflow: visible !important; padding: 0 !important; display: block !important; background: white !important; }
             #template-print-overlay .print-toolbar { display: none !important; }
-            #template-print-overlay .report-scale-wrap { transform: none !important; width: 100% !important; }
+            #template-print-overlay .report-scale-wrap { transform: none !important; }
           }
         `}</style>
         <div id="template-print-overlay">
@@ -229,7 +205,8 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
             />
           </div>
         </div>
-      </>
+      </>,
+      document.body
     );
   }
 
@@ -251,41 +228,41 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
           </button>
         </div>
 
-        {/* File template active banner */}
-        {fileTemplate && (
-          <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium">
-            <span>📁</span>
-            <span>File Template Active — <code className="font-mono">{reportType}.json</code> use ho rahi hai</span>
-          </div>
-        )}
-
-        {/* Template list — only shown when no file template */}
+        {/* Template list — built-in Default first, then custom SI / SIT */}
         <div className="px-4 py-3 max-h-72 overflow-y-auto space-y-1.5">
-          {fileTemplate ? (
-            <div className="text-center py-4 text-sm text-gray-500">
-              File template se print hoga. DB templates override nahi kar sakte jab tak file nahi hatao.
+          <button
+            onClick={() => { setSelectedId(ORIGINAL); localStorage.setItem(lsKey, ORIGINAL); }}
+            className={`w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
+              selectedId === ORIGINAL
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+              selectedId === ORIGINAL ? "border-blue-500 bg-blue-500" : "border-gray-300"
+            }`}>
+              {selectedId === ORIGINAL && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
             </div>
-          ) : isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-gray-900">Default</span>
+                <span className="flex items-center gap-0.5 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                  <Star className="w-2.5 h-2.5 fill-current" /> Original
+                </span>
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                App ki asli built-in invoice — kabhi change nahi hoti
+              </div>
+            </div>
+          </button>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
             </div>
           ) : templates.length === 0 ? (
-            <div className="text-center py-6">
-              <LayoutTemplate className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-500 font-medium">Koi template nahi mili</p>
-              <p className="text-xs text-gray-400 mt-1 mb-4">Ek basic template auto-banao ya Report Designer se design karo</p>
-              <button
-                onClick={() => createDefault.mutate()}
-                disabled={createDefault.isPending}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
-              >
-                {createDefault.isPending
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Bana raha hai…</>
-                  : <><Wand2 className="w-4 h-4" /> Basic Template Auto-Banao</>}
-              </button>
-              {createDefault.isError && (
-                <p className="text-xs text-red-500 mt-2">Error — dobara try karo</p>
-              )}
+            <div className="text-center py-3 text-xs text-gray-400">
+              Koi custom template nahi — Report Designer se banao (SI01, SIT01...)
             </div>
           ) : (
             templates.map(t => (
@@ -305,10 +282,10 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium text-gray-900 truncate">{t.name}</span>
+                    <span className="text-sm font-medium text-gray-900 truncate font-mono">{t.name}</span>
                     {t.isDefault && (
                       <span className="flex items-center gap-0.5 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-                        <Star className="w-2.5 h-2.5 fill-current" /> Default
+                        <Star className="w-2.5 h-2.5 fill-current" /> Active
                       </span>
                     )}
                   </div>
@@ -322,34 +299,15 @@ export default function TemplatePrintModal({ voucherType, voucher, business, onC
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2">
-          {(fileTemplate || templates.length > 0) ? (
-            <>
-              {!fileTemplate && (
-                <button
-                  onClick={onFallback}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  <FileDown className="w-4 h-4" /> Purana Style
-                </button>
-              )}
-              <button
-                onClick={handlePrint}
-                disabled={!selected || printing}
-                className="flex-2 flex items-center justify-center gap-1.5 px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                Print Karo
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={onFallback}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <FileDown className="w-4 h-4" /> Default Print Karo
-            </button>
-          )}
+        <div className="px-4 py-3 border-t border-gray-100">
+          <button
+            onClick={handlePrint}
+            disabled={printing || (selectedId !== ORIGINAL && !selected)}
+            className="w-full flex items-center justify-center gap-1.5 px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {printing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+            Print Karo
+          </button>
         </div>
       </div>
     </div>
