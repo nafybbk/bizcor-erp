@@ -32,14 +32,17 @@ const configOrigins = process.env.CORS_ORIGIN
   : [];
 
 // Always allow all naewtgroup.com subdomains + any explicitly configured origins
+// + localhost (the desktop EXE's own bundled server, which talks to this cloud
+// API directly for cloud-only features like Gallery — see routes/gallery.ts).
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     const isNaewtgroup = /^https?:\/\/([a-z0-9-]+\.)?naewtgroup\.com$/.test(origin);
-    if (isNaewtgroup || configOrigins.length === 0 || configOrigins.includes(origin)) {
+    const isLocalhost = /^http:\/\/localhost(:\d+)?$/.test(origin);
+    if (isNaewtgroup || isLocalhost || configOrigins.length === 0 || configOrigins.includes(origin)) {
       return callback(null, origin);
     }
-    return callback(new Error("Not allowed by CORS"));
+    return callback(null, false);
   },
   credentials: true,
 }));
