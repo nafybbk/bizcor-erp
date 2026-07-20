@@ -36,7 +36,9 @@ export const connectionsTable = pgTable("mini_app_connections", {
   customerId: integer("customer_id").notNull().references(() => customersTable.id),
   businessId: integer("business_id").notNull().references(() => businessesTable.id),
   partyId: integer("party_id").notNull().references(() => partiesTable.id),
-  permissions: jsonb("permissions").notNull().default({ invoice: true, payment: true, statement: true, gallery: false }),
+  // All 4 default on — there's no per-feature toggle UI anymore (Settings ->
+  // BizCor Connect), so a new connection should just work fully immediately.
+  permissions: jsonb("permissions").notNull().default({ invoice: true, payment: true, statement: true, gallery: true }),
   status: connectionStatusEnum("status").notNull().default("active"),
   // Customer-side pause (supplier-side blocking uses `status`)
   customerPaused: boolean("customer_paused").notNull().default(false),

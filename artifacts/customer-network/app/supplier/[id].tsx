@@ -686,7 +686,7 @@ function GalleryTab({
   const { data, isLoading, isFetching, isError, refetch } = useMiniAppListGallery(connectionId, {
     query: {
       queryKey: getMiniAppListGalleryQueryKey(connectionId),
-      enabled: !!connectionId && permissions?.gallery === true,
+      enabled: !!connectionId && permissions?.gallery !== false,
     },
   });
 
@@ -698,7 +698,7 @@ function GalleryTab({
     setRefreshing(false);
   };
 
-  if (permissions?.gallery !== true) {
+  if (permissions?.gallery === false) {
     return (
       <View style={styles.centerFill}>
         <Feather name="lock" size={30} color={colors.mutedForeground} />

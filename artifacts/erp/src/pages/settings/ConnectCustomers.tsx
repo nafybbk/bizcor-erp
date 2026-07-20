@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { galleryApi } from "@/lib/galleryApi";
 import { useAuth } from "@/lib/auth";
 import { Loader2, Smartphone, ShieldAlert, Unplug, Ban, CheckCircle2, KeyRound } from "lucide-react";
 
@@ -28,14 +28,14 @@ export default function ConnectCustomers() {
   const isAdmin = user?.role === "business_admin" || user?.role === "super_admin";
 
   const load = () => {
-    api.get<Conn[]>("/connect/connections").then(setRows).catch(() => setRows([]));
-    api.get<Invited[]>("/connect/invited").then(setInvited).catch(() => setInvited([]));
+    galleryApi.get<Conn[]>("/connect/connections").then(setRows).catch(() => setRows([]));
+    galleryApi.get<Invited[]>("/connect/invited").then(setInvited).catch(() => setInvited([]));
   };
   useEffect(() => { if (isAdmin) load(); }, [isAdmin]);
 
   const updateConn = async (id: number, body: Record<string, unknown>) => {
     setSaving(id);
-    try { await api.patch(`/connect/connections/${id}`, body); load(); }
+    try { await galleryApi.patch(`/connect/connections/${id}`, body); load(); }
     catch { alert("Save nahi hua. Dobara try karo."); }
     finally { setSaving(null); }
   };
@@ -43,7 +43,7 @@ export default function ConnectCustomers() {
   const disconnect = async (c: Conn) => {
     if (!window.confirm(`"${c.partyName}" ko disconnect karein?\n\nUnki app se aapka business hat jayega (chat bhi delete hogi). Wapas connect karne ke liye unhe phir se business code + PIN daalna hoga.`)) return;
     setSaving(c.id);
-    try { await api.delete(`/connect/connections/${c.id}`); load(); }
+    try { await galleryApi.delete(`/connect/connections/${c.id}`); load(); }
     catch { alert("Disconnect nahi hua. Dobara try karo."); }
     finally { setSaving(null); }
   };

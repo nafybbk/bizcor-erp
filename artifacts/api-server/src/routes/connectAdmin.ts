@@ -1,21 +1,60 @@
 import { Router } from "express";
+import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
-import { connectionsTable, customersTable, partiesTable, customerChatMessagesTable } from "@workspace/db";
+import { connectionsTable, customersTable, partiesTable, customerChatMessagesTable, businessesTable } from "@workspace/db";
 import { eq, and, desc, isNotNull, ne } from "drizzle-orm";
-import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
 
 // Supplier-side management of BizCor Connect (mini app) connections.
 // Deliberately low-key: one Settings screen, no badges or dashboards — the
 // supplier's ERP must keep feeling offline. Sharing is something the supplier
 // DID (gave a PIN), and this is the one place they see and control it.
+//
+// Connect data (like Gallery) only ever lives in the CLOUD Postgres DB — a
+// desktop/LAN business's own local businessId has no relation to its cloud
+// id, so trusting req.user.businessId here silently returns nothing for
+// every LAN business (this was the actual cause of a connected customer
+// like "Aashu Collection" never showing up in this screen even though their
+// invoice was visible in their own Connect app). Resolve by businessCode
+// instead, same dual-secret JWT pattern as routes/gallery.ts.
+const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
+const LAN_DESKTOP_SECRET = "BizCorDesktop2025!SecretKey#LAN";
+
+function verifyBusinessToken(authHeader: string | undefined): { businessId?: number; businessCode?: string } | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7);
+  for (const secret of [JWT_SECRET, LAN_DESKTOP_SECRET]) {
+    try { return jwt.verify(token, secret) as { businessId?: number; businessCode?: string }; } catch { /* try next */ }
+  }
+  return null;
+}
+
+async function requireConnectBusiness(req: any, res: any, next: any): Promise<void> {
+  const payload = verifyBusinessToken(req.headers.authorization);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const code = (req.body?.businessCode || req.query?.businessCode) as string | undefined;
+  let business: { id: number } | null = null;
+  if (code) {
+    const [row] = await db.select({ id: businessesTable.id }).from(businessesTable)
+      .where(eq(businessesTable.businessCode, code.toUpperCase())).limit(1);
+    business = row || null;
+  } else if (payload.businessId) {
+    const [row] = await db.select({ id: businessesTable.id }).from(businessesTable)
+      .where(eq(businessesTable.id, payload.businessId)).limit(1);
+    business = row || null;
+  }
+  if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+  req.connectBusinessId = business.id;
+  next();
+}
+
 const router = Router();
-router.use(requireBusiness);
+router.use(requireConnectBusiness);
 
 // GET /connect/connections — who is connected to this business
 router.get("/connections", async (req, res) => {
   try {
-    const businessId = req.user!.businessId!;
+    const businessId = (req as any).connectBusinessId as number;
     const rows = await db.select({
       id: connectionsTable.id,
       partyId: connectionsTable.partyId,
@@ -42,7 +81,7 @@ router.get("/connections", async (req, res) => {
 // this the supplier can only see who connected, not who they invited.
 router.get("/invited", async (req, res) => {
   try {
-    const businessId = req.user!.businessId!;
+    const businessId = (req as any).connectBusinessId as number;
     const parties = await db.select({
       partyId: partiesTable.id,
       name: partiesTable.name,
@@ -71,7 +110,7 @@ router.get("/invited", async (req, res) => {
 // PATCH /connect/connections/:id — permissions and/or status (active | blocked)
 router.patch("/connections/:id", async (req, res) => {
   try {
-    const businessId = req.user!.businessId!;
+    const businessId = (req as any).connectBusinessId as number;
     const id = Number(req.params.id);
     const { permissions, status } = req.body || {};
 
@@ -110,7 +149,7 @@ router.patch("/connections/:id", async (req, res) => {
 // DELETE /connect/connections/:id — disconnect (removes chat too)
 router.delete("/connections/:id", async (req, res) => {
   try {
-    const businessId = req.user!.businessId!;
+    const businessId = (req as any).connectBusinessId as number;
     const id = Number(req.params.id);
     const [conn] = await db.select().from(connectionsTable)
       .where(and(eq(connectionsTable.id, id), eq(connectionsTable.businessId, businessId)));
