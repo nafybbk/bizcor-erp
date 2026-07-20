@@ -62,7 +62,7 @@ interface FolderImage {
   viewedAt: string | null;
 }
 
-interface Party { id: number; name: string; }
+interface Party { id: number; name: string; type?: string; miniAppEnabled?: boolean; }
 
 // A locally-picked image sitting in the left "staging" panel — not on
 // Cloudinary yet, so it can still be renamed or dropped before Upload is
@@ -291,8 +291,13 @@ export default function Gallery() {
       .catch(() => {});
   };
 
+  // Share picker always shows the FULL local ERP customer list — nothing
+  // gets pushed to the cloud just for browsing/searching it. A party's name
+  // only reaches the cloud at the moment it's actually shared with (see
+  // resolveCloudPartyIds), so parties that never receive a share never
+  // leave this machine.
   const loadParties = () => {
-    galleryApi.get<Party[]>("/gallery/customer-parties").then(r => setParties(r || [])).catch(() => setParties([]));
+    api.get<{ data: Party[] }>("/parties?type=customer&limit=1000").then(r => setParties(r.data || [])).catch(() => setParties([]));
   };
 
   useEffect(() => {
@@ -300,16 +305,6 @@ export default function Gallery() {
     loadFolders();
     loadModuleStatus();
     loadParties();
-    // Desktop/LAN businesses keep their real party master locally — the cloud
-    // only has whatever the mini-app's PIN-based sync happened to push
-    // (a much smaller set). Mirror the full local customer list into the
-    // cloud once per page load so the share picker isn't missing names.
-    if (isDesktop) {
-      api.get<{ data: Party[] }>("/parties?type=customer&limit=1000")
-        .then(r => galleryApi.post("/gallery/sync-parties", { parties: r.data || [] }))
-        .then(() => loadParties())
-        .catch(() => {});
-    }
   }, []);
 
   useEffect(() => {
@@ -510,13 +505,30 @@ export default function Gallery() {
     setPendingSelected(prev => { const next = new Set(prev); next.delete(tempId); return next; });
   };
 
+  // The picker's party ids are local (this machine's) ids. On a desktop/LAN
+  // install those don't exist in the cloud Postgres parties table at all —
+  // resolve/create the cloud mirror row for just these parties (the ones
+  // actually being shared with, nothing else) and swap in the returned
+  // cloud ids before calling /gallery/share.
+  const resolveCloudPartyIds = async (picked: Party[]): Promise<number[]> => {
+    if (!isDesktop) return picked.map(p => p.id);
+    const resp = await galleryApi.post<{ mapping: { externalId: number; cloudId: number }[] }>(
+      "/gallery/sync-parties",
+      { parties: picked.map(p => ({ id: p.id, name: p.name, type: p.type })) }
+    );
+    const map = new Map(resp.mapping.map(m => [m.externalId, m.cloudId]));
+    return picked.map(p => map.get(p.id)).filter((id): id is number => !!id);
+  };
+
   const doShare = async () => {
     if (!selected.size || !sharePartyIds.length) return;
     setSharing(true);
     try {
+      const partyIds = await resolveCloudPartyIds(sharePartyIds);
+      if (!partyIds.length) return;
       await galleryApi.post("/gallery/share", {
         imageIds: Array.from(selected),
-        partyIds: sharePartyIds.map(p => p.id),
+        partyIds,
       });
       setShareOpen(false);
       setSelected(new Set());
@@ -1065,12 +1077,16 @@ export default function Gallery() {
                 value={partySearch}
                 onSelect={(p) => { setSharePartyIds(prev => [...prev, p as Party]); setPartySearch(""); }}
                 placeholder="Customer dhoondein..."
+                showConnectStatus
               />
               {sharePartyIds.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {sharePartyIds.map(p => (
                     <span key={p.id} className="flex items-center gap-1.5 bg-violet-50 text-violet-700 text-sm px-2.5 py-1 rounded-full">
                       {p.name}
+                      {p.miniAppEnabled === false && (
+                        <span className="text-[9px] font-semibold bg-gray-200 text-gray-500 px-1 rounded-full">OFF</span>
+                      )}
                       <button onClick={() => setSharePartyIds(prev => prev.filter(x => x.id !== p.id))}><X className="w-3 h-3" /></button>
                     </span>
                   ))}

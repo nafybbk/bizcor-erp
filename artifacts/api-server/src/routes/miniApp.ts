@@ -559,12 +559,6 @@ router.get("/mini-app/connections/:id/payments", async (req, res) => {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
 
-    const permissions = (connection.permissions as { payment?: boolean } | null) || {};
-    if (permissions.payment === false) {
-      res.status(403).json({ error: "Payment dekhne ki permission nahi hai" });
-      return;
-    }
-
     const cloudPayRows = await db.select({
       id: paymentsTable.id,
       paymentNumber: paymentsTable.paymentNumber,
@@ -614,12 +608,6 @@ router.get("/mini-app/connections/:id/statement", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
-
-    const permissions = (connection.permissions as { statement?: boolean } | null) || {};
-    if (permissions.statement === false) {
-      res.status(403).json({ error: "Statement dekhne ki permission nahi hai" });
-      return;
-    }
 
     const invoices = await db.select({
       id: vouchersTable.id,
@@ -699,12 +687,6 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
 
-    const permissions = (connection.permissions as { invoice?: boolean } | null) || {};
-    if (permissions.invoice === false) {
-      res.status(403).json({ error: "Invoice dekhne ki permission nahi hai" });
-      return;
-    }
-
     const cloudRows = await db.select({
       id: vouchersTable.id,
       voucherNumber: vouchersTable.voucherNumber,
@@ -746,22 +728,16 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
 });
 
 // GET /mini-app/connections/:id/gallery — the supplier's ENTIRE common
-// gallery (not just images shared with this customer) — connected + gallery
-// permission on is the only gate now. Each row is flagged `shared` (+ tick
-// trail) when a share row exists for this party, so the app can split
-// "shared with you" from "more from this supplier". First fetch of an
-// existing share stamps deliveredAt (double tick); rows with no share yet
-// have nothing to stamp.
+// gallery (not just images shared with this customer) — being connected is
+// the only gate (no separate per-feature toggle; see ConnectCustomers.tsx).
+// Each row is flagged `shared` (+ tick trail) when a share row exists for
+// this party, so the app can split "shared with you" from "more from this
+// supplier". First fetch of an existing share stamps deliveredAt (double
+// tick); rows with no share yet have nothing to stamp.
 router.get("/mini-app/connections/:id/gallery", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
-
-    const permissions = (connection.permissions as { gallery?: boolean } | null) || {};
-    if (permissions.gallery !== true) {
-      res.status(403).json({ error: "Gallery dekhne ki permission nahi hai" });
-      return;
-    }
 
     const rows = await db.select({
       imageId: galleryImagesTable.id,
@@ -807,12 +783,6 @@ router.get("/mini-app/connections/:id/gallery/:imageId/full", async (req, res) =
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
 
-    const permissions = (connection.permissions as { gallery?: boolean } | null) || {};
-    if (permissions.gallery !== true) {
-      res.status(403).json({ error: "Gallery dekhne ki permission nahi hai" });
-      return;
-    }
-
     const imageId = Number(req.params.imageId);
     const [image] = await db.select({ url: galleryImagesTable.url }).from(galleryImagesTable)
       .where(and(eq(galleryImagesTable.id, imageId), eq(galleryImagesTable.businessId, connection.businessId), isNull(galleryImagesTable.archivedAt))).limit(1);
@@ -839,12 +809,6 @@ router.get("/mini-app/connections/:id/invoices/:source/:invoiceId", async (req, 
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
-
-    const permissions = (connection.permissions as { invoice?: boolean } | null) || {};
-    if (permissions.invoice === false) {
-      res.status(403).json({ error: "Invoice dekhne ki permission nahi hai" });
-      return;
-    }
 
     const invoiceId = Number(req.params.invoiceId);
     const source = req.params.source;

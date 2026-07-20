@@ -32,7 +32,11 @@ interface AuthCtx {
   isPlanExpired: () => boolean;
 }
 
-export type GraceStatus = "active" | "grace_trial" | "grace_admin" | "grace_readonly" | "expired";
+// Mirrors the backend's grace system (middlewares/auth.ts, GRACE_DAYS +
+// READONLY_DAYS): 0-30 days past expiry = grace (server+admin, full
+// access), 30-60 = readonly (view only, no writes/export/backup for
+// anyone), 60+ = expired (total lock, only plan activation works).
+export type GraceStatus = "active" | "grace" | "readonly" | "expired";
 
 export function getGraceStatus(): GraceStatus {
   try {
@@ -47,9 +51,8 @@ export function getGraceStatus(): GraceStatus {
   const now = new Date();
   if (exp > now) return "active";
   const daysPast = Math.floor((now.getTime() - exp.getTime()) / (24 * 60 * 60 * 1000));
-  if (daysPast <= 30) return "grace_trial";
-  if (daysPast <= 50) return "grace_admin";
-  if (daysPast <= 60) return "grace_readonly";
+  if (daysPast <= 30) return "grace";
+  if (daysPast <= 60) return "readonly";
   return "expired";
 }
 

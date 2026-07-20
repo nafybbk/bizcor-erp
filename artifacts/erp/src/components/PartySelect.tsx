@@ -17,6 +17,10 @@ interface PartySelectProps {
   placeholder?: string;
   className?: string;
   showDetails?: boolean;
+  // Shows a color-coded "Connect: ON/OFF" badge per row using p.miniAppEnabled
+  // — lets a user see upfront why sharing to a party might not reach them
+  // (Connect app access off), without hiding that party from the list.
+  showConnectStatus?: boolean;
   onAddNew?: (name: string) => void;
   addNewLabel?: string;
   required?: boolean;
@@ -30,6 +34,7 @@ export default function PartySelect({
   placeholder = "Search party...",
   className,
   showDetails = false,
+  showConnectStatus = false,
   onAddNew,
   addNewLabel = "Add new",
   required,
@@ -166,9 +171,23 @@ export default function PartySelect({
               onMouseDown={e => e.preventDefault()}
               onMouseEnter={() => setHighlightedIndex(idx)}
               onClick={() => handleSelect(p)}
-              className={`px-3 py-2.5 cursor-pointer text-sm border-b border-gray-50 last:border-0 ${highlightedIndex === idx ? "bg-blue-50" : "hover:bg-blue-50"}`}
+              className={`px-3 py-2.5 cursor-pointer text-sm border-b border-gray-50 last:border-0 ${
+                showConnectStatus && p.miniAppEnabled === false ? "bg-gray-50" : ""
+              } ${highlightedIndex === idx ? "bg-blue-50" : "hover:bg-blue-50"}`}
             >
-              <div className="font-medium text-gray-800">{p.name}</div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-800">{p.name}</span>
+                {showConnectStatus && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    p.miniAppEnabled === false ? "bg-gray-200 text-gray-500" : "bg-emerald-100 text-emerald-700"
+                  }`}>
+                    Connect: {p.miniAppEnabled === false ? "OFF" : "ON"}
+                  </span>
+                )}
+              </div>
+              {showConnectStatus && p.miniAppEnabled === false && (
+                <div className="text-[10px] text-gray-400 mt-0.5">Isko Connect app se dekhne ke liye pehle party form mein toggle ON karein</div>
+              )}
               {showDetails && (
                 <div className="flex flex-wrap gap-3 mt-0.5">
                   {p.gstin && (

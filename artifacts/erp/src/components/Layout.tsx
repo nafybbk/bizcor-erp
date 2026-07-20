@@ -91,15 +91,13 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Plan Expire Ho Gaya</h2>
           <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-            60 din ka grace period khatam ho gaya. Nayi license activate karein.
+            30 din grace + 30 din view-only — dono khatam ho gaye. Nayi license activate karein.
           </p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-1">
           <div className="text-xs font-semibold text-amber-800">Kya band hai:</div>
-          <div className="text-xs text-amber-700">• Invoices, bills, credit notes banana</div>
-          <div className="text-xs text-amber-700">• Customers, suppliers, items add karna</div>
-          <div className="text-xs text-amber-700">• Reports dekhna</div>
-          <div className="text-xs text-amber-700">• Data download/export karna</div>
+          <div className="text-xs text-amber-700">• Poora ERP — kuch bhi dekhna ya karna nahi</div>
+          <div className="text-xs text-amber-700">• Data download/export/backup bhi nahi</div>
         </div>
         <div className="text-xs text-gray-400">
           License voucher milne par Settings → Activate License mein daalo.
@@ -116,28 +114,18 @@ function PlanExpiredLock({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function GraceBanner({ grace, isAdmin }: { grace: "grace_trial" | "grace_admin" | "grace_readonly"; isAdmin: boolean }) {
+function GraceBanner({ grace, isAdmin }: { grace: "grace" | "readonly"; isAdmin: boolean }) {
   const expiry = localStorage.getItem("erp_plan_expires_at");
-  const daysLeft = expiry
-    ? Math.max(0, 60 - Math.floor((Date.now() - new Date(expiry).getTime()) / (24 * 60 * 60 * 1000)))
-    : 0;
+  const daysPast = expiry ? Math.floor((Date.now() - new Date(expiry).getTime()) / (24 * 60 * 60 * 1000)) : 0;
+  // Days left in the CURRENT stage, not the whole 60-day window.
+  const daysLeft = grace === "grace" ? Math.max(0, 30 - daysPast) : Math.max(0, 60 - daysPast);
 
-  if (grace === "grace_trial") {
+  if (grace === "grace") {
     return (
       <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs flex-shrink-0">
         <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
         <span className="font-semibold">Grace Period:</span>
-        <span>Plan expire ho gaya hai — abhi {daysLeft} din bacha hai. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se plan activate karwao."}</span>
-      </div>
-    );
-  }
-
-  if (grace === "grace_admin") {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border-b border-red-300 text-red-800 text-xs flex-shrink-0">
-        <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 text-red-600" />
-        <span className="font-bold text-red-700">⚠ Urgent:</span>
-        <span>Sirf {daysLeft} din bacha hai! {isAdmin ? "Abhi plan activate karo: Settings → Activate License" : "Sirf Admin kaam kar sakta hai. Admin se contact karo."}</span>
+        <span>Plan expire ho gaya hai — {daysLeft} din baad sirf view-only mode chalu ho jayega. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se plan activate karwao."}</span>
       </div>
     );
   }
@@ -146,7 +134,7 @@ function GraceBanner({ grace, isAdmin }: { grace: "grace_trial" | "grace_admin" 
     <div className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-xs flex-shrink-0">
       <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
       <span className="font-bold">VIEW ONLY MODE —</span>
-      <span>Sirf {daysLeft} din bacha hai! Data sirf dekh sakte hain. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se contact karo."}</span>
+      <span>{daysLeft} din baad poori tarah lock ho jayega! Data sirf dekh sakte hain, export/backup bhi nahi. {isAdmin ? "Plan activate karo: Settings → Activate License" : "Admin se contact karo."}</span>
     </div>
   );
 }
@@ -701,7 +689,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.103</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.104</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
@@ -727,7 +715,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Grace period banner */}
         {!isSuperAdmin() && (() => {
           const grace = getGraceStatus();
-          if (grace === "grace_trial" || grace === "grace_admin" || grace === "grace_readonly") {
+          if (grace === "grace" || grace === "readonly") {
             return <GraceBanner grace={grace} isAdmin={user?.role === "business_admin"} />;
           }
           return null;

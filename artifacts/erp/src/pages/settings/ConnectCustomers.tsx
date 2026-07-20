@@ -19,13 +19,6 @@ type Invited = {
   pin: string | null; miniAppEnabled: boolean; connected: boolean;
 };
 
-const PERMS = [
-  ["invoice", "Invoices"],
-  ["payment", "Payments"],
-  ["statement", "Statement"],
-  ["gallery", "Gallery"],
-] as const;
-
 export default function ConnectCustomers() {
   const { user } = useAuth();
   const [rows, setRows] = useState<Conn[] | null>(null);
@@ -87,7 +80,6 @@ export default function ConnectCustomers() {
       ) : (
         <div className="space-y-3">
           {rows.map(c => {
-            const p = c.permissions || {};
             const busy = saving === c.id;
             return (
               <div key={c.id} className={`bg-white rounded-xl border p-4 ${c.status === "blocked" ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}>
@@ -119,23 +111,6 @@ export default function ConnectCustomers() {
                       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unplug className="w-3.5 h-3.5" />} Disconnect
                     </button>
                   </div>
-                </div>
-                {/* Permission toggles */}
-                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 flex-wrap">
-                  <span className="text-xs text-gray-400">Customer app mein dikhega:</span>
-                  {PERMS.map(([key, label]) => {
-                    const on = key === "gallery" ? p[key] === true : p[key] !== false;
-                    return (
-                      <button key={key} disabled={busy}
-                        onClick={() => updateConn(c.id, { permissions: { ...p, [key]: !on } })}
-                        className="flex items-center gap-1.5 text-xs disabled:opacity-40">
-                        <span className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${on ? "bg-green-500" : "bg-gray-300"}`}>
-                          <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${on ? "translate-x-4" : "translate-x-0.5"}`} />
-                        </span>
-                        <span className={on ? "text-gray-700 font-medium" : "text-gray-400"}>{label}</span>
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             );

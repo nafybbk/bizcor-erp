@@ -8,6 +8,7 @@ const JWT_SECRET = process.env.SESSION_SECRET || "erp-secret-key";
 
 export const TRIAL_DAYS = 30;
 export const GRACE_DAYS = 30;
+export const READONLY_DAYS = 30; // on top of GRACE_DAYS — 30-60 days past expiry
 
 export interface AuthUser {
   id: number;
@@ -103,12 +104,14 @@ export function requireBusiness(req: Request, res: Response, next: NextFunction)
 }
 
 // ─── Grace System ─────────────────────────────────────────────────────────────
-// Trial  : 30 days full access from registration (planExpiresAt = createdAt + 30d)
-// Grace  : 30 days after plan/trial expires — ONLY server PC + ONLY admin
-// Expired: after 30 grace days — full lock, nothing works
+// Trial   : 30 days full access from registration (planExpiresAt = createdAt + 30d)
+// Grace   : 30 days after plan/trial expires — ONLY server PC + ONLY admin, full access
+// Readonly: next 30 days (30-60 days past expiry) — anyone can VIEW, no writes,
+//           no export/backup/download
+// Expired : after 60 days total — full lock, only the plan-activation form works
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type GraceStatus = "active" | "grace" | "expired";
+export type GraceStatus = "active" | "grace" | "readonly" | "expired";
 
 export function getGraceStatus(planExpiresAt: string | Date | null | undefined): GraceStatus {
   if (!planExpiresAt) return "active";
@@ -117,8 +120,14 @@ export function getGraceStatus(planExpiresAt: string | Date | null | undefined):
   if (expiry > now) return "active";
   const daysPast = Math.floor((now.getTime() - expiry.getTime()) / (24 * 60 * 60 * 1000));
   if (daysPast <= GRACE_DAYS) return "grace";
+  if (daysPast <= GRACE_DAYS + READONLY_DAYS) return "readonly";
   return "expired";
 }
+
+// Endpoints that must stay blocked in "readonly" even though they're GET
+// requests — exporting/downloading/backing up data is exactly what this
+// stage disallows (only on-screen viewing is allowed).
+const EXPORT_PATH_RE = /export|backup|download/i;
 
 function isServerPc(req: Request): boolean {
   const ip = req.ip || req.socket?.remoteAddress || "";
@@ -134,8 +143,20 @@ export function requireActivePlan(req: Request, res: Response, next: NextFunctio
   if (grace === "expired") {
     res.status(402).json({
       error: "PLAN_EXPIRED",
-      message: `Aapka plan expire ho gaya hai (${GRACE_DAYS}+ din). Nayi license lijiye.`,
+      message: `Aapka plan expire ho gaya hai (${GRACE_DAYS + READONLY_DAYS}+ din). Nayi license lijiye.`,
     });
+    return;
+  }
+
+  if (grace === "readonly") {
+    if (req.method !== "GET" || EXPORT_PATH_RE.test(req.path)) {
+      res.status(402).json({
+        error: "VIEW_ONLY_MODE",
+        message: "Plan expire ho chuka hai — sirf dekh sakte hain, koi naya kaam ya export/backup nahi ho sakta. Plan activate karo.",
+      });
+      return;
+    }
+    next();
     return;
   }
 
