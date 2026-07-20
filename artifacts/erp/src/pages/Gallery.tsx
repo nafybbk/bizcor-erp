@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Images, FolderOpen, Users, Upload, Loader2, Check, X, Share2, Grid2x2, Grid3x3, LayoutGrid, Search, Trash2, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
+import { Images, FolderOpen, Users, Upload, Loader2, Check, X, Share2, Grid2x2, Grid3x3, LayoutGrid, Search, Trash2, ArrowDownWideNarrow, ArrowUpNarrowWide, Pencil, Crown } from "lucide-react";
 import { galleryApi } from "@/lib/galleryApi";
-import { api } from "@/lib/api";
 import PartySelect from "@/components/PartySelect";
 import VirtualPhotoGrid from "@/components/VirtualPhotoGrid";
 import ExplorerContextMenu, { type MenuEntry } from "@/components/ExplorerContextMenu";
@@ -62,6 +61,17 @@ interface FolderImage {
 }
 
 interface Party { id: number; name: string; }
+
+// A locally-picked image sitting in the left "staging" panel — not on
+// Cloudinary yet, so it can still be renamed or dropped before Upload is
+// clicked. Identified by a client-only tempId (no server id exists yet).
+interface PendingItem {
+  tempId: string;
+  name: string;
+  base64: string;
+  mime: string;
+  previewUrl: string;
+}
 
 async function sha256Hex(base64: string): Promise<string> {
   const binary = atob(base64);
@@ -216,6 +226,34 @@ export default function Gallery() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Left "staging" panel — images picked but not yet uploaded to Cloudinary.
+  // Lets a user rename/drop photos before they become live in Common Gallery.
+  const [pending, setPending] = useState<PendingItem[]>([]);
+  const [pendingSelected, setPendingSelected] = useState<Set<string>>(new Set());
+  const [pendingRenamingId, setPendingRenamingId] = useState<string | null>(null);
+  const [pendingRenameValue, setPendingRenameValue] = useState("");
+  const [uploadingPending, setUploadingPending] = useState(false);
+
+  // Draggable divider between the staging (left) and uploaded (right) panels.
+  const [leftPct, setLeftPct] = useState(38);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const dragDivider = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = splitRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const onMove = (ev: MouseEvent) => {
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      setLeftPct(Math.min(65, Math.max(22, pct)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   const loadImages = () => {
     setLoading(true);
     galleryApi.get<GalleryImage[]>("/gallery/images").then(setImages).catch(() => setImages([])).finally(() => setLoading(false));
@@ -226,10 +264,25 @@ export default function Gallery() {
     galleryApi.get<PartyFolder[]>("/gallery/parties").then(setFolders).catch(() => setFolders([])).finally(() => setFoldersLoading(false));
   };
 
+  // Free-tier limits (tech panel controlled) — caps the compression quality
+  // slider and tells the staging panel when the per-business image cap is hit.
+  const [freeLimits, setFreeLimits] = useState({ maxImages: 200, maxQuality: 40, maxKb: 200 });
+  const [imageCount, setImageCount] = useState(0);
+  const loadModuleStatus = () => {
+    galleryApi.get<{ freeLimits: typeof freeLimits; imageCount: number }>("/gallery/module-status")
+      .then(r => {
+        if (r.freeLimits) setFreeLimits(r.freeLimits);
+        setImageCount(r.imageCount || 0);
+        setQuality(q => Math.min(q, r.freeLimits?.maxQuality ?? q));
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     loadImages();
     loadFolders();
-    api.get<{ data: Party[] }>("/parties?type=customer&limit=1000").then(r => setParties(r.data || [])).catch(() => setParties([]));
+    loadModuleStatus();
+    galleryApi.get<Party[]>("/gallery/customer-parties").then(r => setParties(r || [])).catch(() => setParties([]));
   }, []);
 
   useEffect(() => {
@@ -305,9 +358,23 @@ export default function Gallery() {
 
   // Uploads one file's bytes: hash locally, ask the server if it already
   // has this content (dedup), only actually upload if it doesn't.
+  // Compresses towards the free-tier's quality + size caps — starts at the
+  // (already-capped) slider quality, then steps quality/dimensions down
+  // further if the result still exceeds maxKb (server enforces the same
+  // cap independently, so this is about avoiding a wasted round-trip).
   const uploadOne = async (base64: string, filename: string, mime: string) => {
     const originalSize = atob(base64).length;
-    const compressed = await compressImage(base64, mime, quality);
+    let q = Math.min(quality, freeLimits.maxQuality);
+    let maxDim = 1920;
+    let compressed = await compressImage(base64, mime, q, maxDim);
+    const targetBytes = freeLimits.maxKb * 1024;
+    let attempts = 0;
+    while (atob(compressed.base64).length > targetBytes && attempts < 5) {
+      q = Math.max(10, q - 10);
+      maxDim = Math.max(500, Math.round(maxDim * 0.85));
+      compressed = await compressImage(base64, mime, q, maxDim);
+      attempts++;
+    }
     const hash = await sha256Hex(compressed.base64);
     const check = await galleryApi.post<{ exists: boolean }>("/gallery/check-hash", { hash });
     if (check.exists) return;
@@ -316,6 +383,13 @@ export default function Gallery() {
     for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
     const blob = new Blob([bytes], { type: compressed.mime });
     await galleryApi.uploadImage(blob, filename.replace(/\.\w+$/, ".jpg"), originalSize);
+  };
+
+  // Adds one picked file to the left staging panel — nothing touches the
+  // network here; the file only leaves this machine once Upload is clicked.
+  const addPending = (base64: string, name: string, mime: string) => {
+    const tempId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    setPending(prev => [...prev, { tempId, name, base64, mime, previewUrl: `data:${mime};base64,${base64}` }]);
   };
 
   const handlePickFolder = async () => {
@@ -335,14 +409,13 @@ export default function Gallery() {
         if (read.base64) {
           const ext = f.name.split(".").pop()?.toLowerCase();
           const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-          await uploadOne(read.base64, f.name, mime);
+          addPending(read.base64, f.name, mime);
         }
       } catch { /* skip this one, continue with the rest */ }
       setUploadProgress({ done: i + 1, total: files.length });
     }
     setUploading(false);
     setUploadProgress(null);
-    loadImages();
   };
 
   const handleBrowserFilePick = async (fileList: FileList | null) => {
@@ -359,13 +432,55 @@ export default function Gallery() {
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
-        await uploadOne(base64, file.name, file.type || "image/jpeg");
+        addPending(base64, file.name, file.type || "image/jpeg");
       } catch { /* skip, continue */ }
       setUploadProgress({ done: i + 1, total: files.length });
     }
     setUploading(false);
     setUploadProgress(null);
+  };
+
+  // Uploads the selected staged photos to Cloudinary; successful ones leave
+  // the staging panel and appear in the uploaded (right) panel.
+  const uploadSelectedPending = async () => {
+    const ids = Array.from(pendingSelected);
+    if (!ids.length) return;
+    setUploadingPending(true);
+    setUploadProgress({ done: 0, total: ids.length });
+    const uploaded: string[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const item = pending.find(p => p.tempId === ids[i]);
+      if (item) {
+        try { await uploadOne(item.base64, item.name, item.mime); uploaded.push(item.tempId); }
+        catch { /* leave it in staging so the user can retry */ }
+      }
+      setUploadProgress({ done: i + 1, total: ids.length });
+    }
+    setPending(prev => prev.filter(p => !uploaded.includes(p.tempId)));
+    setPendingSelected(new Set());
+    setUploadingPending(false);
+    setUploadProgress(null);
     loadImages();
+    loadModuleStatus();
+  };
+
+  const startPendingRename = (tempId: string) => {
+    const item = pending.find(p => p.tempId === tempId);
+    setPendingRenamingId(tempId);
+    setPendingRenameValue(item?.name || "");
+  };
+
+  const commitPendingRename = () => {
+    const id = pendingRenamingId;
+    const value = pendingRenameValue.trim();
+    setPendingRenamingId(null);
+    if (id == null || !value) return;
+    setPending(prev => prev.map(p => (p.tempId === id ? { ...p, name: value } : p)));
+  };
+
+  const removePending = (tempId: string) => {
+    setPending(prev => prev.filter(p => p.tempId !== tempId));
+    setPendingSelected(prev => { const next = new Set(prev); next.delete(tempId); return next; });
   };
 
   const doShare = async () => {
@@ -418,6 +533,7 @@ export default function Gallery() {
       setSelected(new Set());
       setDeleteConfirmOpen(false);
       loadImages();
+      loadModuleStatus();
     } finally {
       setDeleting(false);
     }
@@ -485,8 +601,15 @@ export default function Gallery() {
         <div className="relative px-8 py-8">
           <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
             <Images className="w-8 h-8" /> BizCor Gallery
+            <span
+              title="Premium Feature — filhaal sabke liye FREE hai. *T&C Applied"
+              className="flex items-center gap-1 bg-amber-400 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full"
+            >
+              <Crown className="w-3.5 h-3.5" /> Premium — FREE
+            </span>
           </h1>
           <p className="text-violet-100 text-sm mt-1">Apni product photos share karein — customers ko unki apni gallery mein dikhengi</p>
+          <p className="text-violet-200/80 text-xs mt-1">*T&C Applied — image-share par free-tier limit lagu hai</p>
         </div>
 
         <div className="relative flex gap-2 px-8 pb-4">
@@ -517,146 +640,230 @@ export default function Gallery() {
 
       <div className="p-8">
         {view === "common" ? (
-          <>
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                {isDesktop ? (
-                  <button onClick={handlePickFolder} disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    Folder se Photos Add Karein
-                  </button>
-                ) : (
-                  <>
-                    <input ref={fileInputRef} type="file" accept="image/*" multiple hidden
-                      onChange={e => handleBrowserFilePick(e.target.files)} />
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-medium disabled:opacity-60">
-                      {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                      Photos Add Karein
-                    </button>
-                  </>
-                )}
-                {uploadProgress && (
-                  <span className="text-sm text-gray-500">{uploadProgress.done}/{uploadProgress.total} upload ho rahi hain…</span>
-                )}
-                <div className="flex items-center gap-2 text-xs text-gray-500 pl-2 border-l border-gray-200">
-                  <span>Quality</span>
-                  <input type="range" min={60} max={100} step={5} value={quality}
-                    onChange={e => setQuality(Number(e.target.value))}
-                    className="w-24 accent-violet-600" title={`${quality}%`} />
-                  <span className="w-9">{quality}%</span>
-                </div>
-                <span className="text-xs text-gray-400 pl-2 border-l border-gray-200">Right-click for view/sort options</span>
+          <div ref={splitRef} className="flex" style={{ height: "calc(100vh - 280px)" }}>
+            {/* ─── Left: staging panel — add/review/rename before upload ─── */}
+            <div style={{ width: `${leftPct}%` }} className="flex flex-col min-w-0 pr-4">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-semibold text-gray-700">Add Image / Folder</h3>
+                <button onClick={uploadSelectedPending} disabled={!pendingSelected.size || uploadingPending || imageCount >= freeLimits.maxImages}
+                  className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold disabled:opacity-40">
+                  {uploadingPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  UPLOAD{pendingSelected.size > 0 ? ` (${pendingSelected.size})` : ""}
+                </button>
               </div>
-              {selected.size > 0 && (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setDeleteConfirmOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
-                    <Trash2 className="w-4 h-4" /> Delete
+              <div className="text-xs text-gray-400 mb-2">
+                {imageCount}/{freeLimits.maxImages} images used (Free tier — *T&C Applied)
+                {imageCount >= freeLimits.maxImages && <span className="text-red-500 font-medium"> — limit poori ho gayi hai</span>}
+              </div>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {isDesktop && (
+                  <button onClick={handlePickFolder} disabled={uploading || imageCount >= freeLimits.maxImages}
+                    className="flex items-center gap-2 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-medium disabled:opacity-60">
+                    {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    Folder Add Karein
                   </button>
-                  <button onClick={() => setShareOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
-                    <Share2 className="w-4 h-4" /> {selected.size} Photo{selected.size > 1 ? "s" : ""} Share Karein
-                  </button>
+                )}
+                <input ref={fileInputRef} type="file" accept="image/*" multiple hidden
+                  onChange={e => handleBrowserFilePick(e.target.files)} />
+                <button onClick={() => fileInputRef.current?.click()} disabled={uploading || imageCount >= freeLimits.maxImages}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-60 ${isDesktop ? "bg-white border border-violet-300 text-violet-700 hover:bg-violet-50" : "bg-violet-600 hover:bg-violet-700 text-white"}`}>
+                  {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  Photo Add Karein
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                {uploadProgress && (
+                  <span>{uploadProgress.done}/{uploadProgress.total} {uploadingPending ? "upload ho rahi hain" : "add ho rahi hain"}…</span>
+                )}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span>Quality (free tier max {freeLimits.maxQuality}%)</span>
+                  <input type="range" min={10} max={freeLimits.maxQuality} step={5} value={quality}
+                    onChange={e => setQuality(Number(e.target.value))}
+                    className="w-20 accent-violet-600" title={`${quality}%`} />
+                  <span className="w-8">{quality}%</span>
                 </div>
+              </div>
+              {pending.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-center text-gray-400 text-sm px-6 border-2 border-dashed border-gray-200 rounded-xl">
+                  Yahan photos add karein — rename/review karein, phir UPLOAD dabayein
+                </div>
+              ) : (
+                <VirtualPhotoGrid
+                  items={pending}
+                  getKey={p => p.tempId}
+                  cardPx={140}
+                  extraRowHeight={20}
+                  height="calc(100vh - 400px)"
+                  selectable
+                  selected={pendingSelected}
+                  onSelectionChange={setPendingSelected}
+                  renderCard={(item, isSelected) => (
+                    <div className="flex flex-col gap-1 h-full select-none cursor-pointer group">
+                      <div className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
+                        <img src={item.previewUrl} alt="" draggable={false} className="w-full h-full object-cover" />
+                        {isSelected && (
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                            <Check className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
+                        <button
+                          onMouseDown={e => e.stopPropagation()}
+                          onClick={e => { e.stopPropagation(); startPendingRename(item.tempId); }}
+                          className="absolute top-1.5 left-1.5 w-5 h-5 bg-black/50 hover:bg-violet-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Rename">
+                          <Pencil className="w-3 h-3 text-white" />
+                        </button>
+                        <button
+                          onMouseDown={e => e.stopPropagation()}
+                          onClick={e => { e.stopPropagation(); removePending(item.tempId); }}
+                          className="absolute bottom-1.5 left-1.5 w-5 h-5 bg-black/50 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Common Gallery se hata dein">
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                      {pendingRenamingId === item.tempId ? (
+                        <input
+                          autoFocus
+                          value={pendingRenameValue}
+                          onChange={e => setPendingRenameValue(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          onMouseDown={e => e.stopPropagation()}
+                          onBlur={commitPendingRename}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") { e.preventDefault(); commitPendingRename(); }
+                            if (e.key === "Escape") { e.preventDefault(); setPendingRenamingId(null); }
+                          }}
+                          className="min-w-0 text-xs px-1 py-0.5 border border-violet-400 rounded outline-none text-gray-800"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-600 text-center truncate px-1">{item.name}</span>
+                      )}
+                    </div>
+                  )}
+                />
               )}
             </div>
 
-            {loading ? (
-              <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-violet-500" /></div>
-            ) : images.length === 0 ? (
-              <div className="text-center py-16 text-gray-400">
-                <Images className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                Abhi koi photo nahi hai — upar se folder select karein
-              </div>
-            ) : (
-              <div onContextMenu={e => openContextMenu(e, null)}>
-                {viewMode === "details" && (
-                  <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-200">
-                    <span className="w-7 flex-shrink-0" />
-                    <span className="flex-1 min-w-0">Name</span>
-                    <span className="w-40 flex-shrink-0">Uploaded</span>
-                    <span className="w-24 flex-shrink-0 text-right">Original Size</span>
-                    <span className="w-24 flex-shrink-0 text-right">Uploaded Size</span>
+            {/* ─── Draggable divider ─── */}
+            <div
+              onMouseDown={dragDivider}
+              className="w-1.5 flex-shrink-0 cursor-col-resize bg-gray-200 hover:bg-violet-400 rounded-full mx-0.5 transition-colors"
+              title="Drag to resize"
+            />
+
+            {/* ─── Right: uploaded Common Gallery ─── */}
+            <div className="flex flex-col min-w-0 flex-1 pl-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-gray-400">Right-click for view/sort options</span>
+                {selected.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setDeleteConfirmOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                    <button onClick={() => setShareOpen(true)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+                      <Share2 className="w-4 h-4" /> {selected.size} Photo{selected.size > 1 ? "s" : ""} Share Karein
+                    </button>
                   </div>
                 )}
-                {viewMode === "icons" ? (
-                  <VirtualPhotoGrid
-                    items={displayImages}
-                    getKey={img => img.id}
-                    cardPx={CARD_PX_ICON[iconSize]}
-                    extraRowHeight={20}
-                    height="calc(100vh - 280px)"
-                    selectable
-                    selected={selected}
-                    onSelectionChange={setSelected}
-                    renderCard={(img, isSelected) => (
-                      <div
-                        onContextMenu={e => openContextMenu(e, img.id)}
-                        className="flex flex-col gap-1 h-full select-none cursor-pointer"
-                      >
-                        <div className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
-                          <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover" />
-                          {isSelected && (
-                            <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
-                              <Check className="w-3.5 h-3.5 text-white" />
-                            </div>
-                          )}
-                        </div>
-                        {renderName(img, "text-xs text-gray-600 text-center truncate px-1")}
-                      </div>
-                    )}
-                  />
-                ) : viewMode === "list" ? (
-                  <VirtualPhotoGrid
-                    items={displayImages}
-                    getKey={img => img.id}
-                    cardPx={LIST_ROW_HEIGHT}
-                    gap={2}
-                    forceColumns={1}
-                    height="calc(100vh - 280px)"
-                    selectable
-                    selected={selected}
-                    onSelectionChange={setSelected}
-                    renderCard={(img, isSelected) => (
-                      <div
-                        onContextMenu={e => openContextMenu(e, img.id)}
-                        className={`flex items-center gap-2.5 px-2 h-full rounded-lg select-none cursor-pointer ${isSelected ? "bg-violet-100" : "hover:bg-gray-50"}`}
-                      >
-                        <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-7 h-7 rounded object-cover flex-shrink-0" />
-                        {renderName(img, "flex-1 min-w-0 truncate text-sm text-gray-700")}
-                      </div>
-                    )}
-                  />
-                ) : (
-                  <VirtualPhotoGrid
-                    items={displayImages}
-                    getKey={img => img.id}
-                    cardPx={DETAILS_ROW_HEIGHT}
-                    gap={2}
-                    forceColumns={1}
-                    height="calc(100vh - 315px)"
-                    selectable
-                    selected={selected}
-                    onSelectionChange={setSelected}
-                    renderCard={(img, isSelected) => (
-                      <div
-                        onContextMenu={e => openContextMenu(e, img.id)}
-                        className={`flex items-center gap-2.5 px-2 h-full text-sm select-none cursor-pointer ${isSelected ? "bg-violet-100" : "hover:bg-gray-50"}`}
-                      >
-                        <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-7 h-7 rounded object-cover flex-shrink-0" />
-                        {renderName(img, "flex-1 min-w-0 truncate text-gray-700")}
-                        <span className="w-40 flex-shrink-0 text-xs text-gray-500">{formatDate(img.uploadedAt)}</span>
-                        <span className="w-24 flex-shrink-0 text-right text-xs text-gray-500">{formatBytes(img.originalSize)}</span>
-                        <span className="w-24 flex-shrink-0 text-right text-xs text-gray-500">{formatBytes(img.uploadedSize)}</span>
-                      </div>
-                    )}
-                  />
-                )}
               </div>
-            )}
-          </>
+
+              {loading ? (
+                <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-violet-500" /></div>
+              ) : images.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <Images className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                  Abhi koi photo upload nahi hui — left side se add karein
+                </div>
+              ) : (
+                <div onContextMenu={e => openContextMenu(e, null)}>
+                  {viewMode === "details" && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-gray-500 border-b border-gray-200">
+                      <span className="w-7 flex-shrink-0" />
+                      <span className="flex-1 min-w-0">Name</span>
+                      <span className="w-40 flex-shrink-0">Uploaded</span>
+                      <span className="w-24 flex-shrink-0 text-right">Original Size</span>
+                      <span className="w-24 flex-shrink-0 text-right">Uploaded Size</span>
+                    </div>
+                  )}
+                  {viewMode === "icons" ? (
+                    <VirtualPhotoGrid
+                      items={displayImages}
+                      getKey={img => img.id}
+                      cardPx={CARD_PX_ICON[iconSize]}
+                      extraRowHeight={20}
+                      height="calc(100vh - 340px)"
+                      selectable
+                      selected={selected}
+                      onSelectionChange={setSelected}
+                      renderCard={(img, isSelected) => (
+                        <div
+                          onContextMenu={e => openContextMenu(e, img.id)}
+                          className="flex flex-col gap-1 h-full select-none cursor-pointer"
+                        >
+                          <div className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
+                            <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover" />
+                            {isSelected && (
+                              <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
+                                <Check className="w-3.5 h-3.5 text-white" />
+                              </div>
+                            )}
+                          </div>
+                          {renderName(img, "text-xs text-gray-600 text-center truncate px-1")}
+                        </div>
+                      )}
+                    />
+                  ) : viewMode === "list" ? (
+                    <VirtualPhotoGrid
+                      items={displayImages}
+                      getKey={img => img.id}
+                      cardPx={LIST_ROW_HEIGHT}
+                      gap={2}
+                      forceColumns={1}
+                      height="calc(100vh - 340px)"
+                      selectable
+                      selected={selected}
+                      onSelectionChange={setSelected}
+                      renderCard={(img, isSelected) => (
+                        <div
+                          onContextMenu={e => openContextMenu(e, img.id)}
+                          className={`flex items-center gap-2.5 px-2 h-full rounded-lg select-none cursor-pointer ${isSelected ? "bg-violet-100" : "hover:bg-gray-50"}`}
+                        >
+                          <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                          {renderName(img, "flex-1 min-w-0 truncate text-sm text-gray-700")}
+                        </div>
+                      )}
+                    />
+                  ) : (
+                    <VirtualPhotoGrid
+                      items={displayImages}
+                      getKey={img => img.id}
+                      cardPx={DETAILS_ROW_HEIGHT}
+                      gap={2}
+                      forceColumns={1}
+                      height="calc(100vh - 375px)"
+                      selectable
+                      selected={selected}
+                      onSelectionChange={setSelected}
+                      renderCard={(img, isSelected) => (
+                        <div
+                          onContextMenu={e => openContextMenu(e, img.id)}
+                          className={`flex items-center gap-2.5 px-2 h-full text-sm select-none cursor-pointer ${isSelected ? "bg-violet-100" : "hover:bg-gray-50"}`}
+                        >
+                          <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                          {renderName(img, "flex-1 min-w-0 truncate text-gray-700")}
+                          <span className="w-40 flex-shrink-0 text-xs text-gray-500">{formatDate(img.uploadedAt)}</span>
+                          <span className="w-24 flex-shrink-0 text-right text-xs text-gray-500">{formatBytes(img.originalSize)}</span>
+                          <span className="w-24 flex-shrink-0 text-right text-xs text-gray-500">{formatBytes(img.uploadedSize)}</span>
+                        </div>
+                      )}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         ) : foldersLoading ? (
           <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-violet-500" /></div>
         ) : folders.length === 0 ? (

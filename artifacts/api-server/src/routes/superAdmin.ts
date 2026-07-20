@@ -83,14 +83,14 @@ router.get("/settings", async (req, res) => {
     const rows = await db.select().from(appSettingsTable);
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value || "";
-    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", supportPhoneVisible: "false", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "" };
+    const defaults = { softwareName: "BizERP", supportEmail: "", supportPhone: "", supportPhoneVisible: "false", logoUrl: "", primaryColor: "#2563eb", footerText: "Powered by BizERP", printFooterText: "", printFooterLogo: "", galleryFreeMaxImages: "200", galleryFreeMaxQuality: "40", galleryFreeMaxKb: "200" };
     res.json({ ...defaults, ...settings });
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 router.post("/settings", async (req, res) => {
   try {
-    const allowed = ["softwareName", "supportEmail", "supportPhone", "supportPhoneVisible", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo", "whatsappVerification", "adminWhatsappNumber"];
+    const allowed = ["softwareName", "supportEmail", "supportPhone", "supportPhoneVisible", "logoUrl", "primaryColor", "footerText", "printFooterText", "printFooterLogo", "whatsappVerification", "adminWhatsappNumber", "galleryFreeMaxImages", "galleryFreeMaxQuality", "galleryFreeMaxKb"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         await db.insert(appSettingsTable).values({ key, value: String(req.body[key]) })

@@ -12,9 +12,8 @@ import {
   Building2, Menu, X, ShieldCheck, Receipt, Wallet,
   TrendingUp, BarChart3, ClipboardList, Wifi, WifiOff, Headphones, Download,
   UserCircle, CloudOff, Ticket, ShoppingBag, MapPin, Loader2, CheckCircle2, FolderOpen, Trash2, Banknote, DatabaseZap, MessageSquare, HardDrive, LayoutTemplate,
-  History as HistoryIcon, Smartphone, Images,
+  History as HistoryIcon, Smartphone, Images, Crown,
 } from "lucide-react";
-import { galleryApi } from "@/lib/galleryApi";
 import { BizCorIcon, BusinessInitialsIcon } from "@/components/BizCorLogo";
 import LocationModal from "@/components/LocationModal";
 import FloatingActionButton from "@/components/FloatingActionButton";
@@ -165,10 +164,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [appMode, setAppMode] = useState<"desktop" | "cloud" | null>(
     () => (localStorage.getItem("erp_app_mode") as "desktop" | "cloud" | null) || null
   );
-  // Gallery is desktop-EXE-only for now (P1) — "Coming Soon" for every
-  // business except the ones the tech panel has granted the "gallery"
-  // module patch to (same gate Chat/Customer Network already use).
-  const [galleryActive, setGalleryActive] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
   const [chatEnabled, setChatEnabled] = useState(
@@ -227,13 +222,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     const t = setInterval(check, 30000);
     return () => clearInterval(t);
   }, []);
-
-  useEffect(() => {
-    if (appMode !== "desktop") return;
-    galleryApi.get<{ active: boolean }>("/gallery/module-status")
-      .then(r => setGalleryActive(!!r.active))
-      .catch(() => setGalleryActive(false));
-  }, [appMode]);
 
   useEffect(() => {
     loadLogo();
@@ -713,7 +701,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.101</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.102</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}
@@ -799,18 +787,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {!isSuperAdmin() && user?.role === "business_admin" && appMode === "desktop" && (
             <button
               onClick={() => (window as any).bizcorDesktop?.gallery?.openWindow()}
-              disabled={!galleryActive}
-              title={galleryActive ? "BizCor Gallery kholein" : "Gallery — Coming Soon"}
-              className={`relative flex items-center justify-center w-6 h-6 rounded-md text-white transition-all flex-shrink-0 ${
-                galleryActive ? "bg-violet-600 hover:bg-violet-700" : "bg-gray-300 cursor-not-allowed"
-              }`}
-              style={galleryActive ? { animation: "biz-gallery-breathe 2.2s ease-in-out infinite" } : undefined}
+              title="BizCor Gallery — Premium Feature, filhaal sabke liye FREE hai. *T&C Applied — image-share par limit lagu hai"
+              className="relative flex items-center justify-center w-6 h-6 rounded-md text-white bg-violet-600 hover:bg-violet-700 transition-all flex-shrink-0 group"
+              style={{ animation: "biz-gallery-breathe 2.2s ease-in-out infinite" }}
             >
               <style>{`@keyframes biz-gallery-breathe{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.55)}50%{box-shadow:0 0 0 6px rgba(124,58,237,0)}}`}</style>
               <Images className="w-3.5 h-3.5" />
-              {!galleryActive && (
-                <span className="absolute -bottom-1 -right-1.5 text-[7px] bg-gray-500 text-white px-1 rounded-full leading-tight">Soon</span>
-              )}
+              <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Crown className="w-2.5 h-2.5 text-amber-900" />
+              </span>
             </button>
           )}
 

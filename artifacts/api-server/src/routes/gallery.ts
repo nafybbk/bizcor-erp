@@ -5,9 +5,9 @@ import { v2 as cloudinary } from "cloudinary";
 import { createHash } from "crypto";
 import { Readable } from "stream";
 import { db } from "@workspace/db";
-import { businessesTable, partiesTable, galleryImagesTable, gallerySharesTable } from "@workspace/db";
+import { businessesTable, partiesTable, galleryImagesTable, gallerySharesTable, appSettingsTable } from "@workspace/db";
 import { eq, and, inArray, desc, sql, isNull } from "drizzle-orm";
-import { hasActiveModule, activatePendingPatches } from "../lib/modulePatches";
+import { activatePendingPatches } from "../lib/modulePatches";
 
 // BizCor Gallery — supplier-side management (upload, share, per-party view).
 // Cloud-only, same reasoning as the mini-app tables: images must be reachable
@@ -65,19 +65,38 @@ async function resolveGalleryBusiness(payload: GalleryJwtPayload | null, bodyBus
   return null;
 }
 
-// Every route needs the resolved businessId + the gallery module gate —
-// small shared helper so each handler stays a one-liner for this part.
+// Every route needs the resolved businessId — small shared helper so each
+// handler stays a one-liner for this part. Gallery is a free-for-everyone
+// feature for now (business decision, not a technical limitation) — the
+// hasActiveModule/module_patches paywall gate below is deliberately NOT
+// enforced here anymore; re-add `if (!(await hasActiveModule(...)))` when
+// the future paid "order model" tier needs to gate it again. Free usage is
+// still bounded by the image-count + compression limits in getGalleryFreeLimits().
 async function requireGalleryBusiness(req: any, res: any): Promise<number | null> {
   const payload = verifyGalleryJwt(req.headers.authorization);
   const business = await resolveGalleryBusiness(payload, req.body?.businessCode || req.query?.businessCode);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return null; }
   if (!business) { res.status(404).json({ error: "Business not found" }); return null; }
   try { await activatePendingPatches(business.id); } catch { /* non-critical */ }
-  if (!(await hasActiveModule(business.id, "gallery"))) {
-    res.status(403).json({ error: "Gallery abhi is business ke liye available nahi hai" });
-    return null;
-  }
   return business.id;
+}
+
+// Free-tier limits — configurable from the tech panel (App Settings). Applies
+// to every business until a paid Gallery tier exists; see comment above.
+interface GalleryFreeLimits { maxImages: number; maxQuality: number; maxKb: number }
+async function getGalleryFreeLimits(): Promise<GalleryFreeLimits> {
+  const rows = await db.select().from(appSettingsTable);
+  const settings: Record<string, string> = {};
+  for (const row of rows) settings[row.key] = row.value || "";
+  const num = (key: string, def: number) => {
+    const n = Number(settings[key]);
+    return Number.isFinite(n) && n > 0 ? n : def;
+  };
+  return {
+    maxImages: num("galleryFreeMaxImages", 200),
+    maxQuality: num("galleryFreeMaxQuality", 40),
+    maxKb: num("galleryFreeMaxKb", 200),
+  };
 }
 
 function uploadToCloudinary(buffer: Buffer, publicIdSeed: string): Promise<{ publicId: string; url: string; thumbnailUrl: string }> {
@@ -94,9 +113,10 @@ function uploadToCloudinary(buffer: Buffer, publicIdSeed: string): Promise<{ pub
   });
 }
 
-// GET /gallery/module-status — lets the ERP's Gallery button know whether to
-// show "Coming Soon" or the real thing, without erroring when it's inactive
-// (unlike the other routes here, which 403 — this one IS the status check).
+// GET /gallery/module-status — lets the ERP's Gallery button know it's
+// available, plus the current free-tier limits + usage so the client can
+// cap compression and show a "150/200 used" style indicator. Gallery is
+// free for every business right now (see requireGalleryBusiness comment).
 router.get("/gallery/module-status", async (req, res) => {
   try {
     const payload = verifyGalleryJwt(req.headers.authorization);
@@ -104,8 +124,10 @@ router.get("/gallery/module-status", async (req, res) => {
     if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (!business) { res.status(404).json({ error: "Business not found" }); return; }
     try { await activatePendingPatches(business.id); } catch { /* non-critical */ }
-    const active = await hasActiveModule(business.id, "gallery");
-    res.json({ active });
+    const limits = await getGalleryFreeLimits();
+    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(galleryImagesTable)
+      .where(and(eq(galleryImagesTable.businessId, business.id), isNull(galleryImagesTable.archivedAt)));
+    res.json({ active: true, premium: true, freeLimits: limits, imageCount: Number(count) || 0 });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });
@@ -145,6 +167,21 @@ router.post("/gallery/upload", upload.single("image"), async (req, res) => {
     const [existing] = await db.select().from(galleryImagesTable)
       .where(and(eq(galleryImagesTable.businessId, businessId), eq(galleryImagesTable.contentHash, hash))).limit(1);
     if (existing) { res.json(existing); return; }
+
+    // Free-tier limits — count-cap and a hard file-size ceiling (client
+    // compresses towards this too, but a modified client shouldn't be able
+    // to bypass it). 15% slack over the configured KB cap for JPEG variance.
+    const limits = await getGalleryFreeLimits();
+    if (file.buffer.length > limits.maxKb * 1024 * 1.15) {
+      res.status(400).json({ error: `Image ${limits.maxKb}KB se zyada compressed hai — free tier limit hai` });
+      return;
+    }
+    const [{ count: currentCount }] = await db.select({ count: sql<number>`count(*)` }).from(galleryImagesTable)
+      .where(and(eq(galleryImagesTable.businessId, businessId), isNull(galleryImagesTable.archivedAt)));
+    if (Number(currentCount) >= limits.maxImages) {
+      res.status(400).json({ error: `Free tier mein maximum ${limits.maxImages} images ki limit hai` });
+      return;
+    }
 
     const { publicId, url, thumbnailUrl } = await uploadToCloudinary(file.buffer, `${businessId}_${hash.slice(0, 16)}`);
     const originalSizeRaw = Number(req.body?.originalSize);
@@ -265,6 +302,31 @@ router.post("/gallery/share", async (req, res) => {
       }
     }
     res.json({ ok: true, sharesCreated: created });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /gallery/customer-parties — full customer list for the share picker.
+// Cloud-scoped (like every other route here): the desktop app's regular
+// /parties call hits its own LOCAL server, whose party IDs have no relation
+// to this cloud business's Postgres party rows — sharing with an ID from
+// the wrong DB silently matches nothing. This gives the picker cloud IDs
+// that /gallery/share can actually resolve.
+router.get("/gallery/customer-parties", async (req, res) => {
+  try {
+    const businessId = await requireGalleryBusiness(req, res);
+    if (!businessId) return;
+    const rows = await db.select({ id: partiesTable.id, name: partiesTable.name })
+      .from(partiesTable)
+      .where(and(
+        eq(partiesTable.businessId, businessId),
+        eq(partiesTable.isActive, true),
+        inArray(partiesTable.type, ["customer", "both"]),
+      ))
+      .orderBy(partiesTable.name);
+    res.json(rows);
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2, FileText } from "lucide-react";
+import { Loader2, Save, Settings, Globe, Phone, Mail, Palette, Type, Lock, Smartphone, Upload, X, UserCircle, Fingerprint, CheckCircle2, FileText, Crown } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { useLang } from "@/lib/langHook";
 import { t } from "@/lib/lang";
@@ -18,6 +18,9 @@ export default function AdminSettings() {
     printFooterLogo: "",
     whatsappVerification: "false",
     adminWhatsappNumber: "",
+    galleryFreeMaxImages: "200",
+    galleryFreeMaxQuality: "40",
+    galleryFreeMaxKb: "200",
   });
   const printLogoInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -357,6 +360,34 @@ export default function AdminSettings() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Gallery Free-Tier Limits ── */}
+      <div className="bg-white rounded-xl border border-amber-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-700 text-sm border-b border-amber-100 pb-2 flex items-center gap-2">
+          <Crown className="w-4 h-4 text-amber-500" /> BizCor Gallery — Free-Tier Limits
+        </h3>
+        <p className="text-xs text-gray-500">
+          Gallery filhaal sabhi businesses ke liye free hai (Premium badge ke saath). Ye limits abuse rokte hain
+          jab tak paid "order model" tier nahi aata — us waqt ye free-tier bound bhi update kiya ja sakta hai.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Max Images (per business)</label>
+            <input type="number" min={1} className={inputCls} value={form.galleryFreeMaxImages}
+              onChange={e => setForm(f => ({ ...f, galleryFreeMaxImages: e.target.value }))} placeholder="200" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Max Compression Quality (%)</label>
+            <input type="number" min={10} max={100} className={inputCls} value={form.galleryFreeMaxQuality}
+              onChange={e => setForm(f => ({ ...f, galleryFreeMaxQuality: e.target.value }))} placeholder="40" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Max Size per Image (KB)</label>
+            <input type="number" min={10} className={inputCls} value={form.galleryFreeMaxKb}
+              onChange={e => setForm(f => ({ ...f, galleryFreeMaxKb: e.target.value }))} placeholder="200" />
+          </div>
+        </div>
       </div>
 
       {/* ── WhatsApp Verification ── */}
