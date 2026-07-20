@@ -308,6 +308,40 @@ router.post("/gallery/share", async (req, res) => {
   }
 });
 
+// POST /gallery/sync-parties — mirrors a desktop/LAN business's LOCAL party
+// list into the cloud (upsert by businessId+externalId = the party's own
+// local id), purely so /gallery/customer-parties has something to show.
+// The existing mini-app lan-sync only pushes parties that have a Connect
+// PIN set (see lanSync.ts) — a much smaller set than "every customer this
+// business has" — which is why the Gallery share picker only ever showed a
+// handful of names. This is a lighter, PIN-independent mirror for that.
+router.post("/gallery/sync-parties", async (req, res) => {
+  try {
+    const businessId = await requireGalleryBusiness(req, res);
+    if (!businessId) return;
+    const parties = req.body?.parties;
+    if (!Array.isArray(parties) || !parties.length) { res.json({ ok: true, synced: 0 }); return; }
+    let synced = 0;
+    for (const p of parties.slice(0, 2000)) {
+      const externalId = Number(p?.id);
+      const name = String(p?.name || "").trim();
+      if (!externalId || !name) continue;
+      const partyType = p?.type === "supplier" || p?.type === "both" ? p.type : "customer";
+      await db.insert(partiesTable).values({
+        businessId, externalId, name, type: partyType, isActive: true,
+      }).onConflictDoUpdate({
+        target: [partiesTable.businessId, partiesTable.externalId],
+        set: { name, type: partyType },
+      });
+      synced++;
+    }
+    res.json({ ok: true, synced });
+  } catch (err) {
+    req.log.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /gallery/customer-parties — full customer list for the share picker.
 // Cloud-scoped (like every other route here): the desktop app's regular
 // /parties call hits its own LOCAL server, whose party IDs have no relation

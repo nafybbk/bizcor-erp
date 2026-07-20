@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Images, FolderOpen, Users, Upload, Loader2, Check, X, Share2, Grid2x2, Grid3x3, LayoutGrid, Search, Trash2, ArrowDownWideNarrow, ArrowUpNarrowWide, Pencil, Crown } from "lucide-react";
 import { galleryApi } from "@/lib/galleryApi";
+import { api } from "@/lib/api";
+import { loadStagingItems, saveStagingItems } from "@/lib/galleryStaging";
 import PartySelect from "@/components/PartySelect";
 import VirtualPhotoGrid from "@/components/VirtualPhotoGrid";
 import ExplorerContextMenu, { type MenuEntry } from "@/components/ExplorerContextMenu";
@@ -228,11 +230,22 @@ export default function Gallery() {
 
   // Left "staging" panel — images picked but not yet uploaded to Cloudinary.
   // Lets a user rename/drop photos before they become live in Common Gallery.
+  // Persisted to IndexedDB (see galleryStaging.ts) so an app/system restart
+  // doesn't silently wipe photos the user hasn't uploaded yet.
   const [pending, setPending] = useState<PendingItem[]>([]);
+  const [pendingLoaded, setPendingLoaded] = useState(false);
   const [pendingSelected, setPendingSelected] = useState<Set<string>>(new Set());
   const [pendingRenamingId, setPendingRenamingId] = useState<string | null>(null);
   const [pendingRenameValue, setPendingRenameValue] = useState("");
   const [uploadingPending, setUploadingPending] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadStagingItems<PendingItem>().then(items => { setPending(items); setPendingLoaded(true); });
+  }, []);
+  useEffect(() => {
+    if (pendingLoaded) saveStagingItems(pending);
+  }, [pending, pendingLoaded]);
 
   // Draggable divider between the staging (left) and uploaded (right) panels.
   const [leftPct, setLeftPct] = useState(38);
@@ -278,11 +291,25 @@ export default function Gallery() {
       .catch(() => {});
   };
 
+  const loadParties = () => {
+    galleryApi.get<Party[]>("/gallery/customer-parties").then(r => setParties(r || [])).catch(() => setParties([]));
+  };
+
   useEffect(() => {
     loadImages();
     loadFolders();
     loadModuleStatus();
-    galleryApi.get<Party[]>("/gallery/customer-parties").then(r => setParties(r || [])).catch(() => setParties([]));
+    loadParties();
+    // Desktop/LAN businesses keep their real party master locally — the cloud
+    // only has whatever the mini-app's PIN-based sync happened to push
+    // (a much smaller set). Mirror the full local customer list into the
+    // cloud once per page load so the share picker isn't missing names.
+    if (isDesktop) {
+      api.get<{ data: Party[] }>("/parties?type=customer&limit=1000")
+        .then(r => galleryApi.post("/gallery/sync-parties", { parties: r.data || [] }))
+        .then(() => loadParties())
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -699,7 +726,9 @@ export default function Gallery() {
                   onSelectionChange={setPendingSelected}
                   renderCard={(item, isSelected) => (
                     <div className="flex flex-col gap-1 h-full select-none cursor-pointer group">
-                      <div className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
+                      <div
+                        onDoubleClick={() => setPreviewUrl(item.previewUrl)}
+                        className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
                         <img src={item.previewUrl} alt="" draggable={false} className="w-full h-full object-cover" />
                         {isSelected && (
                           <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
@@ -802,7 +831,9 @@ export default function Gallery() {
                           onContextMenu={e => openContextMenu(e, img.id)}
                           className="flex flex-col gap-1 h-full select-none cursor-pointer"
                         >
-                          <div className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
+                          <div
+                            onDoubleClick={() => setPreviewUrl(img.url)}
+                            className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
                             <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover" />
                             {isSelected && (
                               <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-violet-600 rounded-full flex items-center justify-center">
@@ -952,6 +983,7 @@ export default function Gallery() {
                         onSelectionChange={setFolderSelected}
                         renderCard={(img, isSelected) => (
                           <div
+                            onDoubleClick={() => setPreviewUrl(img.url)}
                             className={`relative w-full h-full rounded-lg overflow-hidden aspect-square border-2 transition-colors select-none cursor-pointer ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
                             <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover" />
                             {isSelected && (
@@ -996,6 +1028,7 @@ export default function Gallery() {
                         onSelectionChange={setRemoveSelected}
                         renderCard={(img, isSelected) => (
                           <div
+                            onDoubleClick={() => setPreviewUrl(img.url)}
                             className={`relative w-full h-full rounded-lg overflow-hidden aspect-square border-2 transition-colors select-none cursor-pointer bg-gray-100 ${isSelected ? "border-red-500" : "border-transparent"}`}>
                             <img src={img.thumbnailUrl} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover" />
                             <div className="absolute bottom-1 right-1 bg-black/50 rounded px-1 py-0.5">
@@ -1077,6 +1110,22 @@ export default function Gallery() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Full-resolution preview — double-click any thumbnail to open */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-6"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <button
+            onClick={() => setPreviewUrl(null)}
+            className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img src={previewUrl} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </div>
