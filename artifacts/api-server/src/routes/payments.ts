@@ -120,11 +120,12 @@ router.get("/outstanding", async (req, res) => {
     const totalReceived = allPayments.reduce((s, p) => s + Number(p.amount), 0);
     const sortedVouchers = [...vouchers].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
     let pool = totalReceived;
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     const outstanding = sortedVouchers.map(v => {
       const billAmount = Number(v.grandTotal);
       const paidNow = Math.min(pool, billAmount);
       pool = Math.max(0, pool - paidNow);
-      const balanceDue = billAmount - paidNow;
+      const balanceDue = round2(billAmount - paidNow);
       return { voucherId: v.id, voucherNumber: v.voucherNumber, date: v.date, originalAmount: billAmount, paidAmount: paidNow, balanceDue, daysOverdue: 0 };
     }).filter(b => b.balanceDue > 0.001);
     const totalOutstanding = outstanding.reduce((s, b) => s + b.balanceDue, 0);

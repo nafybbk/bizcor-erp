@@ -22,11 +22,16 @@ export default function ReportTemplatesList() {
   const [activeType, setActiveType] = useState<string>('');
   const [importError, setImportError] = useState('');
 
+  // Always fetched fresh — templates get saved from the designer's popup
+  // window, whose cache invalidations can't reach this window; with the
+  // app's global 5-min staleTime a fresh SI would stay invisible here.
   const { data: templates = [], isLoading } = useQuery<SavedTemplate[]>({
     queryKey: ['report-templates', activeType],
     queryFn: () => api.get<SavedTemplate[]>(
       activeType ? `/report-templates?report_type=${activeType}` : '/report-templates'
     ),
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
 
   const deleteMutation = useMutation({
@@ -43,6 +48,11 @@ export default function ReportTemplatesList() {
     mutationFn: (id: number) => api.post<{ success: boolean }>(`/report-templates/${id}/set-default`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['report-templates'] }),
   });
+
+  // "Default" is deliberately NOT a DB row here — it's the app's built-in
+  // original invoice (classic print path), shown as a fixed info card below.
+  // Any legacy auto-seeded row named "Default" is hidden from the list.
+  const visibleTemplates = templates.filter(t => t.name !== 'Default');
 
   async function handleExport(tmpl: SavedTemplate) {
     try {
@@ -78,7 +88,7 @@ export default function ReportTemplatesList() {
   }
 
   // Group by report type
-  const grouped = templates.reduce<Record<string, SavedTemplate[]>>((acc, t) => {
+  const grouped = visibleTemplates.reduce<Record<string, SavedTemplate[]>>((acc, t) => {
     if (!acc[t.reportType]) acc[t.reportType] = [];
     acc[t.reportType].push(t);
     return acc;
@@ -184,10 +194,24 @@ export default function ReportTemplatesList() {
         ))}
       </div>
 
+      {/* Built-in Default — the app's original invoice, printed via the
+          classic path; not a DB template, so it can never change or be
+          deleted. Custom SI/SIT templates are listed below it. */}
+      <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <Star className="w-4 h-4 text-amber-500 fill-current shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-gray-900">Default — Original Invoice</div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            App ki asli built-in invoice. Hamesha available, kabhi change/delete nahi hoti — print ke waqt select kar sakte ho.
+          </div>
+        </div>
+        <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+      </div>
+
       {/* List */}
       {isLoading ? (
         <div className="text-center py-12 text-gray-400 text-sm">Loading...</div>
-      ) : templates.length === 0 ? (
+      ) : visibleTemplates.length === 0 ? (
         <EmptyState isAdmin={isAdmin} />
       ) : (
         <div className="space-y-6">
@@ -242,10 +266,15 @@ function TemplateCard({ tmpl, isAdmin, onDelete, onDuplicate, onSetDefault, onEx
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <FileBarChart2 className="w-4 h-4 text-blue-500 shrink-0" />
-            <span className="font-medium text-gray-900 text-sm truncate">{tmpl.name}</span>
+            <span className="font-medium text-gray-900 text-sm truncate font-mono">{tmpl.name}</span>
+            {tmpl.locked && (
+              <span className="shrink-0 flex items-center gap-1 text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-medium">
+                <Lock className="w-2.5 h-2.5" /> Locked
+              </span>
+            )}
             {tmpl.isDefault && (
               <span className="shrink-0 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">
-                Default
+                Active (printing)
               </span>
             )}
           </div>
@@ -298,7 +327,7 @@ function TemplateCard({ tmpl, isAdmin, onDelete, onDuplicate, onSetDefault, onEx
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
                       <Copy className="w-4 h-4 text-blue-500" />
-                      Duplicate
+                      Use as New
                     </button>
                   )}
                   <button
@@ -308,7 +337,7 @@ function TemplateCard({ tmpl, isAdmin, onDelete, onDuplicate, onSetDefault, onEx
                     <Download className="w-4 h-4 text-green-500" />
                     Export JSON
                   </button>
-                  {isAdmin && (
+                  {isAdmin && tmpl.name !== 'Default' && (
                     <>
                       <div className="border-t border-gray-100 my-1" />
                       <button

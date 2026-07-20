@@ -24,7 +24,9 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+setBaseUrl(
+  process.env.EXPO_PUBLIC_API_BASE_URL || `https://${process.env.EXPO_PUBLIC_DOMAIN}`,
+);
 
 function RootLayoutNav() {
   const colors = useColors();
@@ -55,6 +57,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="supplier/[id]" options={{ title: "" }} />
       <Stack.Screen name="invoice-detail" options={{ title: "Invoice" }} />
+      <Stack.Screen name="profile" options={{ title: "Profile" }} />
     </Stack>
   );
 }

@@ -1637,6 +1637,83 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /mini-app/customer/profile:
+    get:
+      operationId: miniAppGetProfile
+      tags: [mini-app]
+      summary: Get the logged-in customer's own profile (name, business name, prefs)
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppCustomer"
+    patch:
+      operationId: miniAppUpdateProfile
+      tags: [mini-app]
+      summary: Update the logged-in customer's own name/business name/privacy pref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MiniAppUpdateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniAppCustomer"
+        "400":
+          description: Nothing to update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/customer/pin:
+    patch:
+      operationId: miniAppChangePin
+      tags: [mini-app]
+      summary: Change the logged-in customer's own login PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MiniAppChangePinBody"
+      responses:
+        "200":
+          description: PIN changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required: [success]
+        "400":
+          description: Missing/invalid fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Old PIN incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /mini-app/connect:
     post:
       operationId: miniAppConnect
@@ -1883,6 +1960,79 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections/{id}/gallery:
+    get:
+      operationId: miniAppListGallery
+      tags: [mini-app]
+      summary: The supplier's entire common gallery, flagged per-image whether it's been shared with this customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Common gallery thumbnails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MiniAppGalleryShare"
+        "403":
+          description: No gallery permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Connection not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mini-app/connections/{id}/gallery/{imageId}/full:
+    get:
+      operationId: miniAppGetGalleryFull
+      tags: [mini-app]
+      summary: Full-size image from the common gallery, fetched only on tap
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Full image URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                required: [url]
+        "403":
+          description: No gallery permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Image not found
           content:
             application/json:
               schema:
@@ -3238,6 +3388,11 @@ components:
         name:
           type: string
           nullable: true
+        businessName:
+          type: string
+          nullable: true
+        showSupplierRealName:
+          type: boolean
       required: [customerId, mobile]
 
     MiniAppSettingsResponse:
@@ -3268,6 +3423,25 @@ components:
         pin:
           type: string
       required: [businessCode, pin]
+
+    MiniAppUpdateProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+        businessName:
+          type: string
+        showSupplierRealName:
+          type: boolean
+
+    MiniAppChangePinBody:
+      type: object
+      properties:
+        oldPin:
+          type: string
+        newPin:
+          type: string
+      required: [oldPin, newPin]
 
     MiniAppConnectionPermissions:
       type: object
@@ -3316,6 +3490,9 @@ components:
         businessName:
           type: string
         businessLogo:
+          type: string
+          nullable: true
+        customLabel:
           type: string
           nullable: true
         createdAt:
@@ -3398,3 +3575,23 @@ components:
         balance:
           type: number
       required: [id, type, ref, date, debit, credit, balance]
+
+    MiniAppGalleryShare:
+      type: object
+      properties:
+        imageId:
+          type: integer
+        thumbnailUrl:
+          type: string
+        shared:
+          type: boolean
+        sharedAt:
+          type: string
+          nullable: true
+        deliveredAt:
+          type: string
+          nullable: true
+        viewedAt:
+          type: string
+          nullable: true
+      required: [imageId, thumbnailUrl, shared]

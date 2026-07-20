@@ -84,6 +84,13 @@ export default function VoucherView({ voucherType, listHref }: Props) {
   const [, navigate] = useLocation();
   const search = useSearch();
   const autoPrint = new URLSearchParams(search).get("print") === "1";
+  // embed=1: this page is loaded inside another screen's iframe overlay
+  // (e.g. Party Ledger's Doc No. click) purely to show the printable
+  // document — jump straight into the print preview, and closing it tells
+  // the parent to close the whole overlay instead of revealing the ERP
+  // shell inside the iframe.
+  const embedMode = new URLSearchParams(search).get("embed") === "1";
+  const closeEmbed = () => window.parent.postMessage({ type: "bizcor-embed-close" }, window.location.origin);
   const [voucher, setVoucher] = useState<any>(null);
   const [business, setBusiness] = useState<any>(null);
   const [printFooter, setPrintFooter] = useState<{ text: string; logo: string }>({ text: "", logo: "" });
@@ -189,6 +196,15 @@ export default function VoucherView({ voucherType, listHref }: Props) {
     return undefined;
   }, [autoPrint, loading, voucher]);
 
+  // Embed mode: open the preview the moment data is ready (no delay — the
+  // less time the raw page is visible inside the parent's iframe, the better)
+  useEffect(() => {
+    if (embedMode && !loading && voucher) setShowPrintPreview(true);
+  }, [embedMode, loading, voucher]);
+
+  // Straight to the classic print preview — no template chooser in the way.
+  // (Report Designer templates are a separate, parked feature; printing must
+  // stay exactly as released.)
   const handlePrint = () => {
     setShowPrintPreview(true);
   };
@@ -291,7 +307,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
         {showHistory && voucher && (
           <VoucherHistoryModal voucherId={Number(params.id)} onClose={() => setShowHistory(false)} />
         )}
-        {false && (
+        {showTemplateSelector && (
           <TemplatePrintModal
             voucherType={voucherType}
             voucher={voucher}
@@ -305,7 +321,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
             printableId="printable"
             title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
             pdfFileName={pdfFileName}
-            onClose={() => setShowPrintPreview(false)}
+            onClose={() => { if (embedMode) closeEmbed(); else setShowPrintPreview(false); }}
             initialZoom={autoPrint ? 0.6 : undefined}
             shareText={voucher ? [
               `*${voucher.voucherNumber}*`, `Party: ${voucher.partyName}`,
@@ -802,7 +818,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
 
   return (
     <>
-      {false && (
+      {showTemplateSelector && (
         <TemplatePrintModal
           voucherType={voucherType}
           voucher={voucher}
@@ -817,7 +833,7 @@ export default function VoucherView({ voucherType, listHref }: Props) {
           printableId="printable"
           title={`${DOC_TITLES[voucherType] || "Invoice"} — ${voucher?.voucherNumber || ""}`}
           pdfFileName={pdfFileName}
-          onClose={() => setShowPrintPreview(false)}
+          onClose={() => { if (embedMode) closeEmbed(); else setShowPrintPreview(false); }}
           initialZoom={autoPrint ? 0.6 : undefined}
           shareText={voucher ? [
             `*${voucher.voucherNumber}*`,

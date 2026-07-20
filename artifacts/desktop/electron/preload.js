@@ -26,4 +26,12 @@ contextBridge.exposeInMainWorld("bizcorDesktop", {
     chooseAndRestore: () => ipcRenderer.invoke("backup:choose-and-restore"),
     restore: (filePath, pin) => ipcRenderer.invoke("backup:restore", filePath, pin),
   },
+
+  // Gallery
+  gallery: {
+    openWindow: () => ipcRenderer.invoke("gallery:open-window"),
+    chooseFolder: () => ipcRenderer.invoke("gallery:choose-folder"),
+    listImages: (folderPath) => ipcRenderer.invoke("gallery:list-images", folderPath),
+    readImage: (filePath) => ipcRenderer.invoke("gallery:read-image", filePath),
+  },
 });

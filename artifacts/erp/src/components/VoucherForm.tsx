@@ -457,6 +457,10 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
   const { user } = useAuth();
   const isSales = voucherType.startsWith("sales");
   const partyTypeMemo = isSales ? "customer" : "supplier";
+  // Purchase Bill + Debit Note: "Reference No." means the supplier's own bill
+  // number (needed for GST reconciliation), not a generic PO/ref field like
+  // it is for Sales Invoice/Credit Note.
+  const isPurchaseSide = voucherType.startsWith("purchases");
 
   const handlePartySearch = useCallback(async (q: string) => {
     if (q.trim().length < 2) return;
@@ -589,6 +593,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
     shippingAddress: "",
     placeOfSupply: "",
     referenceNumber: "",
+    supplierInvoiceDate: "",
     dueDate: "",
     transportCharges: 0,
     transportName: "",
@@ -764,6 +769,7 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
         shippingAddress: initialData.shippingAddress || "",
         placeOfSupply: initialData.placeOfSupply || "",
         referenceNumber: initialData.referenceNumber || "",
+        supplierInvoiceDate: initialData.supplierInvoiceDate || "",
         dueDate: initialData.dueDate || "",
         transportCharges: Number(initialData.transportCharges || 0),
         transportName: initialData.transportName || "",
@@ -1644,9 +1650,18 @@ export default function VoucherForm({ voucherType, title, listHref, editId, init
             }} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Reference No.</label>
-            <input type="text" className={inputCls} value={form.referenceNumber} onChange={e => setForm(f => ({ ...f, referenceNumber: e.target.value }))} placeholder="PO / Ref number (optional)..." />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isPurchaseSide ? "Reference No. (Supplier Bill No.)" : "Reference No."}
+            </label>
+            <input type="text" className={inputCls} value={form.referenceNumber} onChange={e => setForm(f => ({ ...f, referenceNumber: e.target.value }))}
+              placeholder={isPurchaseSide ? "Supplier's own bill number..." : "PO / Ref number (optional)..."} />
           </div>
+          {isPurchaseSide && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Invoice Date</label>
+              <input type="date" className={inputCls} value={form.supplierInvoiceDate} onChange={e => setForm(f => ({ ...f, supplierInvoiceDate: e.target.value }))} />
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
             <input type="date" className={inputCls} value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />

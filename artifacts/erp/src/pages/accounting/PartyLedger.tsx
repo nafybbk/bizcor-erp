@@ -4,11 +4,13 @@ import { getVisibleCols, saveVisibleCols } from "@/lib/uiPrefs";
 import ColumnCustomizer, { type ColDef } from "@/components/ColumnCustomizer";
 import { Loader2, Printer, X } from "lucide-react";
 import PartySelect from "@/components/PartySelect";
+import VoucherQuickViewModal from "@/components/VoucherQuickViewModal";
 
 const ALL_COLS: ColDef[] = [
   { key: "date", label: "Date", required: true },
   { key: "type", label: "Type" },
-  { key: "ref", label: "Reference" },
+  { key: "doc", label: "Doc No." },
+  { key: "ref", label: "Ref. No." },
   { key: "debit", label: "Debit (Dr)" },
   { key: "credit", label: "Credit (Cr)" },
   { key: "balance", label: "Balance", required: true },
@@ -25,6 +27,41 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 
 function fmtCur(n: number) { return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function fmtDt(d: string) { if (!d) return ""; const dt = new Date(d); return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); }
+
+// Doc No. is always this row's OWN native voucher/payment number — the
+// identity of this record, same for every type, never mixed with anyone
+// else's number.
+function docNumber(e: any): string {
+  return e.voucherNumber || "";
+}
+
+// Vouchers open their REAL document page (print + PDF export included) in an
+// embedded overlay right on top of this screen — closing it lands back on the
+// exact same statement, nothing re-searched, and no second ERP shell visible
+// (the embedded page renders chrome-less via ?embed=1).
+const VOUCHER_EMBED_PATH: Record<string, string> = {
+  sales_invoice: "/sales/invoices",
+  credit_note: "/sales/credit-notes",
+  purchase_bill: "/purchases/bills",
+  debit_note: "/purchases/debit-notes",
+};
+
+// Receipts/payments have no printable document page — those get a light
+// same-page summary card instead.
+const QUICK_VIEW_TYPES = new Set(["receipt", "payment"]);
+
+// Ref. No. is always some OTHER document's number, brought in for
+// cross-reference — never this row's own Doc No. Purchase Bill/Sales
+// Invoice/Credit Note: whatever external ref was typed in (supplier bill no.
+// / customer PO no.). Debit Note linked to a Purchase Bill: that bill's own
+// Doc No. + its own Ref. No., since neither belongs natively to this Debit
+// Note. Unlinked Debit Note: its own typed-in Reference field.
+function referenceLabel(e: any): string {
+  if (e.voucherType === "debit_note" && e.linkedVoucherNumber) {
+    return e.linkedReferenceNumber ? `${e.linkedVoucherNumber} / ${e.linkedReferenceNumber}` : e.linkedVoucherNumber;
+  }
+  return e.referenceNumber || "";
+}
 
 type PartyTypeFilter = "all" | "customer" | "supplier";
 
@@ -44,6 +81,18 @@ export default function PartyLedger() {
   );
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [quickView, setQuickView] = useState<{ voucherType: string; id: number } | null>(null);
+  const [docView, setDocView] = useState<{ url: string; title: string } | null>(null);
+
+  // The embedded voucher page's print-preview close button posts this message
+  // instead of revealing the raw page inside the iframe.
+  useEffect(() => {
+    const onMsg = (ev: MessageEvent) => {
+      if (ev.origin === window.location.origin && ev.data?.type === "bizcor-embed-close") setDocView(null);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
 
   const bills: any[] = ledger?.bills || [];
   const totalBillAmount = bills.reduce((s: number, b: any) => s + b.billAmount, 0);
@@ -83,7 +132,8 @@ export default function PartyLedger() {
           <tr>
             <td>${fmtDt(e.date)}</td>
             <td>${e.voucherType?.replace(/_/g, " ") || ""}</td>
-            <td>${e.voucherNumber || ""}</td>
+            <td>${docNumber(e)}</td>
+            <td>${referenceLabel(e)}</td>
             <td class="num blue">${e.debit > 0 ? fmtCur(e.debit) : ""}</td>
             <td class="num green">${e.credit > 0 ? fmtCur(e.credit) : ""}</td>
             <td class="num"><b>${fmtCur(Math.abs(e.balance))} ${e.balance >= 0 ? "Dr" : "Cr"}</b></td>
@@ -102,7 +152,7 @@ export default function PartyLedger() {
 
     const openingRow = !billWise ? `
       <tr class="opening-row">
-        <td colspan="3"><b>Opening Balance</b></td>
+        <td colspan="4"><b>Opening Balance</b></td>
         <td class="num">${ledger.openingBalance >= 0 ? fmtCur(ledger.openingBalance) : ""}</td>
         <td class="num">${ledger.openingBalance < 0 ? fmtCur(-ledger.openingBalance) : ""}</td>
         <td class="num"><b>${fmtCur(Math.abs(ledger.openingBalance))} ${ledger.openingBalance >= 0 ? "Dr" : "Cr"}</b></td>
@@ -110,7 +160,7 @@ export default function PartyLedger() {
 
     const closingRow = !billWise ? `
       <tr class="total-row">
-        <td colspan="3"><b>Closing Balance</b></td>
+        <td colspan="4"><b>Closing Balance</b></td>
         <td class="num"><b>${ledger.closingBalance >= 0 ? fmtCur(ledger.closingBalance) : ""}</b></td>
         <td class="num"><b>${ledger.closingBalance < 0 ? fmtCur(-ledger.closingBalance) : ""}</b></td>
         <td class="num"><b>${fmtCur(Math.abs(ledger.closingBalance))} ${ledger.closingBalance >= 0 ? "Dr" : "Cr"}</b></td>
@@ -118,7 +168,7 @@ export default function PartyLedger() {
 
     const headers = billWise
       ? `<th>Date</th><th>Bill No.</th><th>Type</th><th class="num">Bill Amt</th><th class="num">Paid</th><th class="num">Balance</th><th class="center">Status</th>`
-      : `<th>Date</th><th>Type</th><th>Reference</th><th class="num">Debit (Dr)</th><th class="num">Credit (Cr)</th><th class="num">Balance</th>`;
+      : `<th>Date</th><th>Type</th><th>Doc No.</th><th>Ref. No.</th><th class="num">Debit (Dr)</th><th class="num">Credit (Cr)</th><th class="num">Balance</th>`;
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Party Statement - ${party?.name}</title>
     <style>
@@ -409,7 +459,8 @@ export default function PartyLedger() {
                   <tr>
                     {show("date") && <th className="text-left px-4 py-3 font-medium">Date</th>}
                     {show("type") && <th className="text-left px-4 py-3 font-medium">Type</th>}
-                    {show("ref") && <th className="text-left px-4 py-3 font-medium">Reference</th>}
+                    {show("doc") && <th className="text-left px-4 py-3 font-medium">Doc No.</th>}
+                    {show("ref") && <th className="text-left px-4 py-3 font-medium">Ref. No.</th>}
                     {show("debit") && <th className="text-right px-4 py-3 font-medium">Debit (Dr)</th>}
                     {show("credit") && <th className="text-right px-4 py-3 font-medium">Credit (Cr)</th>}
                     {show("balance") && <th className="text-right px-4 py-3 font-medium">Balance</th>}
@@ -417,7 +468,7 @@ export default function PartyLedger() {
                 </thead>
                 <tbody>
                   <tr className="bg-blue-50">
-                    <td className="px-4 py-2.5 text-gray-600" colSpan={Math.max(1, visibleCols.filter(c => ["date","type","ref"].includes(c)).length)}>Opening Balance</td>
+                    <td className="px-4 py-2.5 text-gray-600" colSpan={Math.max(1, visibleCols.filter(c => ["date","type","doc","ref"].includes(c)).length)}>Opening Balance</td>
                     {show("debit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance >= 0 ? fmt.currency(ledger.openingBalance) : ""}</td>}
                     {show("credit") && <td className="px-4 py-2.5 text-right font-medium">{ledger.openingBalance < 0 ? fmt.currency(-ledger.openingBalance) : ""}</td>}
                     {show("balance") && (
@@ -430,9 +481,20 @@ export default function PartyLedger() {
                     <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
                       {show("date") && <td className="px-4 py-2.5 text-gray-600">{fmt.date(e.date)}</td>}
                       {show("type") && <td className="px-4 py-2.5 capitalize text-xs text-gray-500">{e.voucherType?.replace(/_/g, " ")}</td>}
-                      {show("ref") && (
+                      {show("doc") && (
                         <td className="px-4 py-2.5 font-mono text-xs text-blue-600">
-                          {e.voucherNumber}
+                          {e.id && VOUCHER_EMBED_PATH[e.voucherType] ? (
+                            <button
+                              onClick={() => setDocView({ url: `${VOUCHER_EMBED_PATH[e.voucherType]}/${e.id}?embed=1`, title: `${e.voucherType.replace(/_/g, " ")} — ${docNumber(e)}` })}
+                              className="hover:underline hover:text-blue-800">
+                              {docNumber(e)}
+                            </button>
+                          ) : e.id && QUICK_VIEW_TYPES.has(e.voucherType) ? (
+                            <button onClick={() => setQuickView({ voucherType: e.voucherType, id: e.id })}
+                              className="hover:underline hover:text-blue-800">
+                              {docNumber(e)}
+                            </button>
+                          ) : docNumber(e)}
                           {e.billRefs && e.billRefs.length > 0 && (
                             <div className="mt-0.5 flex flex-wrap gap-1">
                               {e.billRefs.map((br: any, bi: number) => (
@@ -449,6 +511,7 @@ export default function PartyLedger() {
                           )}
                         </td>
                       )}
+                      {show("ref") && <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{referenceLabel(e)}</td>}
                       {show("debit") && <td className="px-4 py-2.5 text-right text-blue-700">{e.debit > 0 ? fmt.currency(e.debit) : ""}</td>}
                       {show("credit") && <td className="px-4 py-2.5 text-right text-green-700">{e.credit > 0 ? fmt.currency(e.credit) : ""}</td>}
                       {show("balance") && (
@@ -521,6 +584,31 @@ export default function PartyLedger() {
             sandbox="allow-same-origin allow-scripts allow-modals"
           />
         </div>
+      </div>
+    )}
+
+    {quickView && (
+      <VoucherQuickViewModal
+        voucherType={quickView.voucherType}
+        id={quickView.id}
+        onClose={() => setQuickView(null)}
+      />
+    )}
+
+    {/* ── Embedded original-document overlay (print + PDF inside) ─────── */}
+    {docView && (
+      <div className="fixed inset-0 z-[9999] flex flex-col bg-gray-700">
+        <div className="flex items-center justify-between px-4 h-11 bg-gray-900 text-white flex-shrink-0">
+          <span className="text-sm font-semibold capitalize">{docView.title}</span>
+          <button
+            onClick={() => setDocView(null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-700 rounded-lg text-gray-300 hover:text-white text-sm"
+            title="Band karke statement par wapas"
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+        </div>
+        <iframe src={docView.url} title="Document" className="flex-1 w-full border-none bg-white" />
       </div>
     )}
     </>

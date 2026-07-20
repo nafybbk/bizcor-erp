@@ -70,10 +70,15 @@ import type {
   ListUsers200,
   LoginBody,
   LoginResponse,
+  MiniAppChangePin200,
+  MiniAppChangePinBody,
   MiniAppChatMessage,
   MiniAppConnectBody,
   MiniAppConnectResponse,
   MiniAppConnection,
+  MiniAppCustomer,
+  MiniAppGalleryShare,
+  MiniAppGetGalleryFull200,
   MiniAppGetStatement200,
   MiniAppInvoice,
   MiniAppLoginBody,
@@ -82,6 +87,7 @@ import type {
   MiniAppPollMessagesParams,
   MiniAppSendMessageBody,
   MiniAppSettingsResponse,
+  MiniAppUpdateProfileBody,
   OutstandingResponse,
   OutstandingSummaryResponse,
   Party,
@@ -6633,6 +6639,254 @@ export const useMiniAppLogin = <
 };
 
 /**
+ * @summary Get the logged-in customer's own profile (name, business name, prefs)
+ */
+export const getMiniAppGetProfileUrl = () => {
+  return `/api/mini-app/customer/profile`;
+};
+
+export const miniAppGetProfile = async (
+  options?: RequestInit,
+): Promise<MiniAppCustomer> => {
+  return customFetch<MiniAppCustomer>(getMiniAppGetProfileUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppGetProfileQueryKey = () => {
+  return [`/api/mini-app/customer/profile`] as const;
+};
+
+export const getMiniAppGetProfileQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppGetProfile>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetProfile>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppGetProfileQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppGetProfile>>
+  > = ({ signal }) => miniAppGetProfile({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetProfile>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppGetProfileQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppGetProfile>>
+>;
+export type MiniAppGetProfileQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the logged-in customer's own profile (name, business name, prefs)
+ */
+
+export function useMiniAppGetProfile<
+  TData = Awaited<ReturnType<typeof miniAppGetProfile>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetProfile>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppGetProfileQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update the logged-in customer's own name/business name/privacy pref
+ */
+export const getMiniAppUpdateProfileUrl = () => {
+  return `/api/mini-app/customer/profile`;
+};
+
+export const miniAppUpdateProfile = async (
+  miniAppUpdateProfileBody: MiniAppUpdateProfileBody,
+  options?: RequestInit,
+): Promise<MiniAppCustomer> => {
+  return customFetch<MiniAppCustomer>(getMiniAppUpdateProfileUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(miniAppUpdateProfileBody),
+  });
+};
+
+export const getMiniAppUpdateProfileMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppUpdateProfile>>,
+    TError,
+    { data: BodyType<MiniAppUpdateProfileBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof miniAppUpdateProfile>>,
+  TError,
+  { data: BodyType<MiniAppUpdateProfileBody> },
+  TContext
+> => {
+  const mutationKey = ["miniAppUpdateProfile"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof miniAppUpdateProfile>>,
+    { data: BodyType<MiniAppUpdateProfileBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return miniAppUpdateProfile(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MiniAppUpdateProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppUpdateProfile>>
+>;
+export type MiniAppUpdateProfileMutationBody =
+  BodyType<MiniAppUpdateProfileBody>;
+export type MiniAppUpdateProfileMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update the logged-in customer's own name/business name/privacy pref
+ */
+export const useMiniAppUpdateProfile = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppUpdateProfile>>,
+    TError,
+    { data: BodyType<MiniAppUpdateProfileBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof miniAppUpdateProfile>>,
+  TError,
+  { data: BodyType<MiniAppUpdateProfileBody> },
+  TContext
+> => {
+  return useMutation(getMiniAppUpdateProfileMutationOptions(options));
+};
+
+/**
+ * @summary Change the logged-in customer's own login PIN
+ */
+export const getMiniAppChangePinUrl = () => {
+  return `/api/mini-app/customer/pin`;
+};
+
+export const miniAppChangePin = async (
+  miniAppChangePinBody: MiniAppChangePinBody,
+  options?: RequestInit,
+): Promise<MiniAppChangePin200> => {
+  return customFetch<MiniAppChangePin200>(getMiniAppChangePinUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(miniAppChangePinBody),
+  });
+};
+
+export const getMiniAppChangePinMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppChangePin>>,
+    TError,
+    { data: BodyType<MiniAppChangePinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof miniAppChangePin>>,
+  TError,
+  { data: BodyType<MiniAppChangePinBody> },
+  TContext
+> => {
+  const mutationKey = ["miniAppChangePin"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof miniAppChangePin>>,
+    { data: BodyType<MiniAppChangePinBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return miniAppChangePin(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MiniAppChangePinMutationResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppChangePin>>
+>;
+export type MiniAppChangePinMutationBody = BodyType<MiniAppChangePinBody>;
+export type MiniAppChangePinMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Change the logged-in customer's own login PIN
+ */
+export const useMiniAppChangePin = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof miniAppChangePin>>,
+    TError,
+    { data: BodyType<MiniAppChangePinBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof miniAppChangePin>>,
+  TError,
+  { data: BodyType<MiniAppChangePinBody> },
+  TContext
+> => {
+  return useMutation(getMiniAppChangePinMutationOptions(options));
+};
+
+/**
  * @summary Connect to a supplier using businessCode + party PIN
  */
 export const getMiniAppConnectUrl = () => {
@@ -7338,6 +7592,195 @@ export function useMiniAppGetStatement<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getMiniAppGetStatementQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary The supplier's entire common gallery, flagged per-image whether it's been shared with this customer
+ */
+export const getMiniAppListGalleryUrl = (id: number) => {
+  return `/api/mini-app/connections/${id}/gallery`;
+};
+
+export const miniAppListGallery = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MiniAppGalleryShare[]> => {
+  return customFetch<MiniAppGalleryShare[]>(getMiniAppListGalleryUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getMiniAppListGalleryQueryKey = (id: number) => {
+  return [`/api/mini-app/connections/${id}/gallery`] as const;
+};
+
+export const getMiniAppListGalleryQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppListGallery>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListGallery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getMiniAppListGalleryQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppListGallery>>
+  > = ({ signal }) => miniAppListGallery(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppListGallery>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppListGalleryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppListGallery>>
+>;
+export type MiniAppListGalleryQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary The supplier's entire common gallery, flagged per-image whether it's been shared with this customer
+ */
+
+export function useMiniAppListGallery<
+  TData = Awaited<ReturnType<typeof miniAppListGallery>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppListGallery>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppListGalleryQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Full-size image from the common gallery, fetched only on tap
+ */
+export const getMiniAppGetGalleryFullUrl = (id: number, imageId: number) => {
+  return `/api/mini-app/connections/${id}/gallery/${imageId}/full`;
+};
+
+export const miniAppGetGalleryFull = async (
+  id: number,
+  imageId: number,
+  options?: RequestInit,
+): Promise<MiniAppGetGalleryFull200> => {
+  return customFetch<MiniAppGetGalleryFull200>(
+    getMiniAppGetGalleryFullUrl(id, imageId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getMiniAppGetGalleryFullQueryKey = (
+  id: number,
+  imageId: number,
+) => {
+  return [`/api/mini-app/connections/${id}/gallery/${imageId}/full`] as const;
+};
+
+export const getMiniAppGetGalleryFullQueryOptions = <
+  TData = Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  imageId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getMiniAppGetGalleryFullQueryKey(id, imageId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof miniAppGetGalleryFull>>
+  > = ({ signal }) =>
+    miniAppGetGalleryFull(id, imageId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(id && imageId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type MiniAppGetGalleryFullQueryResult = NonNullable<
+  Awaited<ReturnType<typeof miniAppGetGalleryFull>>
+>;
+export type MiniAppGetGalleryFullQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Full-size image from the common gallery, fetched only on tap
+ */
+
+export function useMiniAppGetGalleryFull<
+  TData = Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  imageId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof miniAppGetGalleryFull>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getMiniAppGetGalleryFullQueryOptions(
+    id,
+    imageId,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

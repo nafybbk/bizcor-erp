@@ -619,7 +619,7 @@ router.get("/gstr1/export", async (req, res) => {
     // covers codes the directory doesn't have.
     try {
       // SQLite: 999-param limit, and raw prepare avoids dialect quirks
-      const usedCodes = [...new Set(allItems.map(i => (i.hsnCode || "").trim()).filter(Boolean))].slice(0, 900);
+      const usedCodes = ([...new Set(allItems.map(i => (i.hsnCode || "").trim()).filter(Boolean))] as string[]).slice(0, 900);
       if (usedCodes.length > 0) {
         let dirRows: { code: string; description: string | null }[];
         if (sqlite) {

@@ -169,6 +169,9 @@ export interface SavedTemplate {
   orientation: Orientation;
   version: number;
   isDefault: boolean;
+  // Frozen (name is SIT.. or "Default") — can't be overwritten, only forked
+  // into a new editable SI.. via "Use as New".
+  locked: boolean;
   layoutJson: TemplateLayout | null;
   createdByUserId: number | null;
   createdAt: string;

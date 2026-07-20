@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { itemsTable, voucherItemsTable, vouchersTable, partiesTable, unitsTable } from "@workspace/db";
-import { eq, and, sql, like, gte, lte, isNull } from "drizzle-orm";
+import { eq, and, sql, gte, lte, isNull } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
+import { ilike } from "../lib/search";
 
 const router = Router();
 router.use(requireBusiness);
@@ -12,7 +13,7 @@ router.get("/stock", async (req, res) => {
     const { search, page = "1", limit = "50" } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: any[] = [eq(itemsTable.businessId, businessId), eq(itemsTable.type, "goods")];
-    if (search) conditions.push(like(itemsTable.name, `%${search}%`));
+    if (search) conditions.push(ilike(itemsTable.name, String(search)));
     const items = await db.select({
       itemId: itemsTable.id, itemName: itemsTable.name, hsnCode: itemsTable.hsnCode,
       openingStock: itemsTable.openingStock, purchasePrice: itemsTable.purchasePrice,

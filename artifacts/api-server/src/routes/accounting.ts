@@ -31,7 +31,19 @@ router.get("/ledger/:partyId", async (req, res) => {
       voucherNumber: vouchersTable.voucherNumber,
       date: vouchersTable.date,
       grandTotal: vouchersTable.grandTotal,
+      referenceNumber: vouchersTable.referenceNumber,
+      linkedVoucherId: vouchersTable.linkedVoucherId,
     }).from(vouchersTable).where(and(...vConditions));
+
+    // Debit Notes raised against a Purchase Bill show that bill's own voucher
+    // number + supplier bill number as their ledger reference, not a generic
+    // free-text field — resolve the linked bill(s) in one extra query.
+    const linkedIds = vouchers.filter(v => v.voucherType === "debit_note" && v.linkedVoucherId).map(v => v.linkedVoucherId!);
+    const linkedRows: { id: number; voucherNumber: string; referenceNumber: string | null }[] = linkedIds.length
+      ? await db.select({ id: vouchersTable.id, voucherNumber: vouchersTable.voucherNumber, referenceNumber: vouchersTable.referenceNumber })
+          .from(vouchersTable).where(inArray(vouchersTable.id, linkedIds))
+      : [];
+    const linkedById = new Map(linkedRows.map(r => [r.id, r]));
 
     const pConditions: any[] = [eq(paymentsTable.businessId, businessId), eq(paymentsTable.partyId, partyId), isNull(paymentsTable.deletedAt)];
     if (fromDate) pConditions.push(gte(paymentsTable.date, String(fromDate)));
@@ -79,7 +91,13 @@ router.get("/ledger/:partyId", async (req, res) => {
       else if (v.voucherType === "credit_note") { credit = amount; delta = -amount; }
       else if (v.voucherType === "purchase_bill") { credit = amount; delta = -amount; }
       else if (v.voucherType === "debit_note") { debit = amount; delta = amount; }
-      rawEntries.push({ date: v.date, voucherType: v.voucherType, voucherNumber: v.voucherNumber, debit, credit, delta, billRefs: null, onAccountAmount: 0 });
+      const linked = v.voucherType === "debit_note" && v.linkedVoucherId ? linkedById.get(v.linkedVoucherId) : undefined;
+      rawEntries.push({
+        id: v.id, date: v.date, voucherType: v.voucherType, voucherNumber: v.voucherNumber, debit, credit, delta, billRefs: null, onAccountAmount: 0,
+        referenceNumber: v.referenceNumber || null,
+        linkedVoucherNumber: linked?.voucherNumber || null,
+        linkedReferenceNumber: linked?.referenceNumber || null,
+      });
     }
 
     for (const p of payments) {
@@ -100,7 +118,7 @@ router.get("/ledger/:partyId", async (req, res) => {
         };
       });
       rawEntries.push({
-        date: p.date, voucherType: p.type, voucherNumber: p.paymentNumber, debit, credit, delta,
+        id: p.id, date: p.date, voucherType: p.type, voucherNumber: p.paymentNumber, debit, credit, delta,
         billRefs: billRefs.length ? billRefs : null,
         onAccountAmount: Math.max(0, amount - totalAllocated),
       });
@@ -116,7 +134,12 @@ router.get("/ledger/:partyId", async (req, res) => {
 
     const entries = rawEntries.map(e => {
       balance += e.delta;
-      return { date: e.date, voucherType: e.voucherType, voucherNumber: e.voucherNumber, debit: e.debit, credit: e.credit, balance, billRefs: e.billRefs, onAccountAmount: e.onAccountAmount };
+      return {
+        id: e.id, date: e.date, voucherType: e.voucherType, voucherNumber: e.voucherNumber, debit: e.debit, credit: e.credit, balance, billRefs: e.billRefs, onAccountAmount: e.onAccountAmount,
+        referenceNumber: e.referenceNumber ?? null,
+        linkedVoucherNumber: e.linkedVoucherNumber ?? null,
+        linkedReferenceNumber: e.linkedReferenceNumber ?? null,
+      };
     });
 
     // --- Bill-wise: real allocations settle their specific bill directly; the

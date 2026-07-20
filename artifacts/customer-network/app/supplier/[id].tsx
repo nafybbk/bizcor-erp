@@ -3,16 +3,20 @@ import {
   getMiniAppListInvoicesQueryKey,
   getMiniAppListPaymentsQueryKey,
   getMiniAppGetStatementQueryKey,
+  getMiniAppListGalleryQueryKey,
   getMiniAppPollMessagesQueryKey,
   getMiniAppRecentMessagesQueryKey,
   MiniAppChatMessage,
   MiniAppInvoice,
   MiniAppPayment,
   MiniAppStatementEntry,
+  MiniAppGalleryShare,
   useMiniAppListConnections,
   useMiniAppListInvoices,
   useMiniAppListPayments,
   useMiniAppGetStatement,
+  useMiniAppListGallery,
+  useMiniAppGetGalleryFull,
   useMiniAppPollMessages,
   useMiniAppRecentMessages,
   useMiniAppSendMessage,
@@ -24,7 +28,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
+  Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -34,9 +41,13 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import ZoomableImage from "@/components/ZoomableImage";
+
+import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useTabCache, timeAgo } from "@/hooks/useTabCache";
 import SyncRing from "@/components/SyncRing";
@@ -57,16 +68,20 @@ export default function SupplierDetailScreen() {
   const colors = useColors();
   const [tab, setTab] = useState<TabKey>("chat");
 
+  const { customer } = useAuth();
   const { data: connections } = useMiniAppListConnections();
   const connection = useMemo(
     () => connections?.find((c) => c.id === connectionId),
     [connections, connectionId],
   );
+  // Respect the customer's own privacy toggle — a custom label (if set)
+  // stands in for the supplier's real business name everywhere in the app.
+  const displayName = (customer?.showSupplierRealName === false && connection?.customLabel) || connection?.businessName || "Supplier";
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{
-        title: connection?.businessName ?? "Supplier",
+        title: displayName,
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: colors.primaryForeground,
         headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
@@ -125,7 +140,9 @@ export default function SupplierDetailScreen() {
       {tab === "statement" && (
         <StatementTab connectionId={connectionId} permissions={connection?.permissions} />
       )}
-      {tab === "gallery" && <GalleryTab />}
+      {tab === "gallery" && (
+        <GalleryTab connectionId={connectionId} permissions={connection?.permissions} />
+      )}
     </View>
   );
 }
@@ -643,18 +660,149 @@ function StatementTab({
   );
 }
 
-function GalleryTab() {
-  const colors = useColors();
+function GalleryGrid({ items, onPress }: { items: MiniAppGalleryShare[]; onPress: (imageId: number) => void }) {
   return (
-    <View style={styles.centerFill}>
-      <Feather name="image" size={30} color={colors.mutedForeground} />
-      <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-        Gallery coming soon
-      </Text>
-      <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-        Your supplier will be able to share product photos here.
-      </Text>
+    <View style={styles.galleryGrid}>
+      {items.map((item) => (
+        <Pressable key={item.imageId} onPress={() => onPress(item.imageId)} style={styles.galleryCell}>
+          <Image source={{ uri: item.thumbnailUrl }} style={{ flex: 1, borderRadius: 8 }} resizeMode="cover" />
+        </Pressable>
+      ))}
     </View>
+  );
+}
+
+function GalleryTab({
+  connectionId,
+  permissions,
+}: {
+  connectionId: number;
+  permissions?: { gallery?: boolean } | null;
+}) {
+  const colors = useColors();
+  const [refreshing, setRefreshing] = useState(false);
+  const [viewerImageId, setViewerImageId] = useState<number | null>(null);
+  const { cachedData, lastUpdated, saveCache } = useTabCache<MiniAppGalleryShare[]>(`gallery_${connectionId}`);
+  const { data, isLoading, isFetching, isError, refetch } = useMiniAppListGallery(connectionId, {
+    query: {
+      queryKey: getMiniAppListGalleryQueryKey(connectionId),
+      enabled: !!connectionId && permissions?.gallery === true,
+    },
+  });
+
+  useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
+  if (permissions?.gallery !== true) {
+    return (
+      <View style={styles.centerFill}>
+        <Feather name="lock" size={30} color={colors.mutedForeground} />
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+          Not shared with you
+        </Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          This supplier hasn&apos;t enabled gallery sharing.
+        </Text>
+      </View>
+    );
+  }
+
+  if (isLoading && !cachedData) {
+    return (
+      <View style={styles.centerFill}>
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  const displayData = (data ?? cachedData ?? []) as MiniAppGalleryShare[];
+  const sharedItems = displayData.filter((i) => i.shared);
+  const otherItems = displayData.filter((i) => !i.shared);
+
+  return (
+    <>
+      <ScrollView
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
+      >
+        {(lastUpdated || isFetching) && (
+          <View style={styles.syncRow}>
+            {isFetching && <SyncRing size={14} backgroundColor={colors.background} />}
+            {lastUpdated && (
+              <Text style={[styles.syncLabel, { color: colors.mutedForeground }]}>
+                {isError ? "⚡ Offline · " : ""}Last synced {timeAgo(lastUpdated)}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {displayData.length === 0 ? (
+          <View style={styles.centerFill}>
+            <Feather name="image" size={30} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              Abhi koi photo nahi hai
+            </Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Your supplier will add product photos here.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {sharedItems.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
+                  Aapko bheji gayi ({sharedItems.length})
+                </Text>
+                <GalleryGrid items={sharedItems} onPress={setViewerImageId} />
+              </View>
+            )}
+            {otherItems.length > 0 && (
+              <View>
+                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
+                  Is supplier ki aur photos ({otherItems.length})
+                </Text>
+                <GalleryGrid items={otherItems} onPress={setViewerImageId} />
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+      {viewerImageId != null && (
+        <GalleryImageViewer connectionId={connectionId} imageId={viewerImageId} onClose={() => setViewerImageId(null)} />
+      )}
+    </>
+  );
+}
+
+// Full-size image only downloads on tap, not upfront with the thumbnail list.
+function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: number; imageId: number; onClose: () => void }) {
+  const colors = useColors();
+  const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, imageId);
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      {/* Modal content renders in its own native window on Android/iOS —
+          outside the app root's GestureHandlerRootView — so gesture-handler
+          needs its own instance in here or pinch/pan/tap never register. */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)" }}>
+          <Pressable onPress={onClose} style={{ position: "absolute", top: 50, right: 20, zIndex: 1, padding: 8 }}>
+            <Feather name="x" size={26} color="#fff" />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            {isLoading || !data?.url ? (
+              <ActivityIndicator color={colors.primary} size="large" />
+            ) : (
+              <ZoomableImage uri={data.url} width={Dimensions.get("window").width} height={Dimensions.get("window").height * 0.8} />
+            )}
+          </View>
+        </View>
+      </GestureHandlerRootView>
+    </Modal>
   );
 }
 
@@ -714,6 +862,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   listContent: { padding: 16, gap: 10, flexGrow: 1 },
+  gallerySectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginBottom: 8 },
+  galleryGrid: { flexDirection: "row", flexWrap: "wrap" },
+  galleryCell: { width: "33.333%", aspectRatio: 1, padding: 2 },
   invoiceCard: {
     flexDirection: "row",
     alignItems: "center",

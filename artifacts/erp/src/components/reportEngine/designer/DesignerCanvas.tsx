@@ -554,20 +554,49 @@ function ElementChip({ el, zoom, marginLeftPx, isSelected, isMultiSelected, onCl
       }}
     >
       {isLine ? (
-        <div
-          className="absolute"
-          style={{
-            backgroundColor: (el as any).color || '#000',
-            left: 0, right: 0,
-            top: '50%',
-            height: Math.max(1, ((el as any).thickness || 0.3) * MM_TO_PX * zoom),
-            transform: 'translateY(-50%)',
-          }}
-        />
+        (el as any).direction === 'vertical' ? (
+          <div
+            className="absolute"
+            style={{
+              backgroundColor: (el as any).color || '#000',
+              top: 0, bottom: 0,
+              left: '50%',
+              width: Math.max(1, ((el as any).thickness || 0.3) * MM_TO_PX * zoom),
+              transform: 'translateX(-50%)',
+            }}
+          />
+        ) : (
+          <div
+            className="absolute"
+            style={{
+              backgroundColor: (el as any).color || '#000',
+              left: 0, right: 0,
+              top: '50%',
+              height: Math.max(1, ((el as any).thickness || 0.3) * MM_TO_PX * zoom),
+              transform: 'translateY(-50%)',
+            }}
+          />
+        )
       ) : (
-        <div className="flex items-center gap-0.5 px-1 py-0.5 pointer-events-none h-full overflow-hidden">
+        <div
+          className="flex items-center gap-0.5 px-1 py-0.5 pointer-events-none h-full overflow-hidden"
+          style={{ justifyContent: (el as any).style?.textAlign === 'right' ? 'flex-end' : (el as any).style?.textAlign === 'center' ? 'center' : 'flex-start' }}
+        >
           <span className="text-blue-400 opacity-70 shrink-0" style={{ fontSize: Math.max(8, 10 * zoom) }}>{elementIcon(el.type)}</span>
-          <span className="text-gray-600 truncate leading-tight" style={{ fontSize: Math.max(8, 10 * zoom) }}>{elementLabel(el)}</span>
+          {/* Live style preview — the chip label reflects the element's actual
+              font size/weight/color so style edits are visible right on the
+              canvas instead of only in the final Preview (1pt ≈ 1.333px). */}
+          <span
+            className="truncate leading-tight"
+            style={{
+              fontSize: Math.max(6, ((el as any).style?.fontSize || 10) * 1.333 * zoom),
+              fontWeight: (el as any).style?.fontWeight,
+              fontStyle: (el as any).style?.fontStyle,
+              color: (el as any).style?.color || '#4b5563',
+            }}
+          >
+            {elementLabel(el)}
+          </span>
         </div>
       )}
 

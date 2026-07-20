@@ -148,7 +148,7 @@ export default function ReportPreview() {
         </button>
       </div>
 
-      {/* Preview */}
+      {/* Preview (screen only — zoomable) */}
       <div className="p-6 flex justify-center print:p-0">
         <ReportRenderer
           template={template}
@@ -157,10 +157,20 @@ export default function ReportPreview() {
         />
       </div>
 
+      {/* Print-only copy at 100% scale — the screen preview is zoom-scaled
+          and buried inside the app shell's overflow-hidden containers, which
+          prints as a blank page; this copy uses the same visibility trick the
+          voucher print already relies on. */}
+      <div id="report-print-area">
+        <ReportRenderer template={template} context={context} scale={1} />
+      </div>
+
       <style>{`
+        #report-print-area { display: none; }
         @media print {
-          .print\\:hidden { display: none !important; }
-          .print\\:p-0 { padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          #report-print-area, #report-print-area * { visibility: visible !important; }
+          #report-print-area { display: block !important; position: absolute; top: 0; left: 0; right: 0; background: white; }
           body { background: white; }
         }
       `}</style>

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db, sqlite } from "@workspace/db";
 import { itemsTable, unitsTable, taxRatesTable, voucherItemsTable, vouchersTable } from "@workspace/db";
-import { eq, and, like, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { requireBusiness } from "../middlewares/auth";
 import { logActivity } from "../lib/activityLog";
+import { ilike } from "../lib/search";
 
 const router = Router();
 router.use(requireBusiness);
@@ -13,7 +14,7 @@ router.get("/", async (req, res) => {
     const { search, page = "1", limit, type } = req.query;
     const businessId = req.user!.businessId!;
     const conditions: ReturnType<typeof eq>[] = [eq(itemsTable.businessId, businessId)];
-    if (search) conditions.push(like(itemsTable.name, `%${search}%`));
+    if (search) conditions.push(ilike(itemsTable.name, String(search)));
     if (type) conditions.push(eq(itemsTable.type, type as "goods" | "service"));
     const lim = limit ? Number(limit) : null;
     const pg = Number(page);

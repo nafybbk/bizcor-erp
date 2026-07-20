@@ -10,6 +10,11 @@ export const reportTemplatesTable = pgTable("report_templates", {
   orientation: text("orientation").notNull().default("portrait"),
   version: integer("version").notNull().default(1),
   isDefault: boolean("is_default").notNull().default(false),
+  // Frozen templates ("Save As Template", named SIT01/SIT02/... — plus the
+  // auto-seeded "Default") can never be overwritten in place; only unlocked
+  // working reports (SI01/SI02/...) can. Enforced server-side on PUT, not
+  // just hidden in the UI.
+  locked: boolean("locked").notNull().default(false),
   layoutJson: jsonb("layout_json"),
   createdByUserId: integer("created_by_user_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
