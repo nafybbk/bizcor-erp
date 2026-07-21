@@ -3,7 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useMiniAppListConnections, MiniAppConnection, customFetch } from "@workspace/api-client-react";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -26,6 +26,7 @@ import SyncRing from "@/components/SyncRing";
 type Conn = MiniAppConnection & {
   customerPaused?: boolean;
   partyName?: string | null;
+  businessCode?: string | null;
   invoiceCount?: number;
   paymentCount?: number;
   lastDocDate?: string | null;
@@ -52,18 +53,27 @@ function avatarColor(name?: string | null): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
+// Connected is the common case — just a small green dot, no label, so it
+// doesn't compete for space with the name/code. Blocked/Paused are the
+// exceptions worth a real label since the user needs to notice and act.
 function StatusChip({ status, paused }: { status?: string; paused: boolean }) {
-  const cfg = status === "blocked"
-    ? { bg: "#fee2e2", fg: "#dc2626", label: "Blocked" }
-    : paused
-      ? { bg: "#fef3c7", fg: "#b45309", label: "Paused" }
-      : { bg: "#dcfce7", fg: "#16a34a", label: "Connected" };
-  return (
-    <View style={[styles.chip, { backgroundColor: cfg.bg }]}>
-      <View style={[styles.chipDot, { backgroundColor: cfg.fg }]} />
-      <Text style={[styles.chipText, { color: cfg.fg }]}>{cfg.label}</Text>
-    </View>
-  );
+  if (status === "blocked") {
+    return (
+      <View style={[styles.chip, { backgroundColor: "#fee2e2" }]}>
+        <View style={[styles.chipDot, { backgroundColor: "#dc2626" }]} />
+        <Text style={[styles.chipText, { color: "#dc2626" }]}>Blocked</Text>
+      </View>
+    );
+  }
+  if (paused) {
+    return (
+      <View style={[styles.chip, { backgroundColor: "#fef3c7" }]}>
+        <View style={[styles.chipDot, { backgroundColor: "#b45309" }]} />
+        <Text style={[styles.chipText, { color: "#b45309" }]}>Paused</Text>
+      </View>
+    );
+  }
+  return <View style={[styles.chipDot, styles.connectedDot, { backgroundColor: "#16a34a" }]} />;
 }
 
 function SupplierCard({ item, onChanged, hasNew, showSupplierRealName }: { item: Conn; onChanged: () => void; hasNew: boolean; showSupplierRealName: boolean }) {
@@ -176,9 +186,17 @@ function SupplierCard({ item, onChanged, hasNew, showSupplierRealName }: { item:
         </View>
       )}
       <View style={styles.cardBody}>
-        <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
-          {displayName}
-        </Text>
+        <View style={styles.cardTitleRow}>
+          <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>
+            {displayName}
+          </Text>
+          {item.businessCode ? (
+            <View style={[styles.codeChip, { backgroundColor: colors.secondary }]}>
+              <Text style={[styles.codeChipText, { color: colors.mutedForeground }]}>{item.businessCode}</Text>
+            </View>
+          ) : null}
+          <StatusChip status={item.status} paused={paused} />
+        </View>
         {item.partyName ? (
           <Text style={[styles.cardSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
             {item.partyName}
@@ -190,7 +208,6 @@ function SupplierCard({ item, onChanged, hasNew, showSupplierRealName }: { item:
             : "Abhi koi document nahi"}
         </Text>
         <View style={styles.chipRow}>
-          <StatusChip status={item.status} paused={paused} />
           {hasNew && (
             <View style={styles.newBadge}>
               <Text style={styles.newBadgeText}>NEW</Text>
@@ -252,7 +269,16 @@ export default function SuppliersScreen() {
   // background sync is in progress.
   const { cachedData, saveCache } = useTabCache<MiniAppConnection[]>("connections_list");
   useEffect(() => { if (data) saveCache(data); }, [data, saveCache]);
-  const displayData = data ?? cachedData ?? [];
+  const allData = (data ?? cachedData ?? []) as Conn[];
+
+  const [search, setSearch] = useState("");
+  const displayData = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allData;
+    return allData.filter((c) =>
+      c.businessName?.toLowerCase().includes(q) || c.businessCode?.toLowerCase().includes(q)
+    );
+  }, [allData, search]);
 
   // Reload on focus so badges clear right after visiting a supplier
   useFocusEffect(useCallback(() => {
@@ -315,11 +341,28 @@ export default function SuppliersScreen() {
         </View>
       </View>
 
+      <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Feather name="search" size={16} color={colors.mutedForeground} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Code ya naam se dhoondein…"
+          placeholderTextColor={colors.mutedForeground}
+          style={[styles.searchInput, { color: colors.foreground }]}
+          autoCapitalize="characters"
+        />
+        {search.length > 0 && (
+          <Pressable onPress={() => setSearch("")} hitSlop={10}>
+            <Feather name="x" size={16} color={colors.mutedForeground} />
+          </Pressable>
+        )}
+      </View>
+
       {isLoading && !cachedData ? (
         <View style={styles.centerFill}>
           <SkeletonList />
         </View>
-      ) : isError && displayData.length === 0 ? (
+      ) : isError && allData.length === 0 ? (
         <View style={styles.centerFill}>
           <Feather name="wifi-off" size={32} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
@@ -356,10 +399,12 @@ export default function SuppliersScreen() {
             <View style={styles.centerFill}>
               <Feather name="briefcase" size={32} color={colors.mutedForeground} />
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-                No suppliers yet
+                {search ? "Koi match nahi mila" : "No suppliers yet"}
               </Text>
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                Connect to a supplier using their business code and PIN.
+                {search
+                  ? "Alag code ya naam try karein."
+                  : "Connect to a supplier using their business code and PIN."}
               </Text>
             </View>
           }
@@ -423,6 +468,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   headerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 12,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", padding: 0 },
   headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
   headerSubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 2 },
   chip: {
@@ -475,7 +532,11 @@ const styles = StyleSheet.create({
   avatarImg: { width: 46, height: 46, borderRadius: 12 },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   cardBody: { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  cardTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  cardTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
+  codeChip: { paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 999, flexShrink: 0 },
+  codeChipText: { fontSize: 10, fontFamily: "Inter_600SemiBold", letterSpacing: 0.3 },
+  connectedDot: { flexShrink: 0 },
   cardSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular" },
   centerFill: {
     flex: 1,

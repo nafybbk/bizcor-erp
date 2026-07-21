@@ -370,6 +370,7 @@ router.get("/mini-app/connections", async (req, res) => {
       customerPaused: connectionsTable.customerPaused,
       customLabel: connectionsTable.customLabel,
       businessName: businessesTable.name,
+      businessCode: businessesTable.businessCode,
       businessLogo: businessesTable.logo,
       // Supplier's own name for this customer (their Party master entry) —
       // tells a 2-business customer WHICH of their accounts this card is
