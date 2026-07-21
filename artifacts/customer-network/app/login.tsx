@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Image,
@@ -21,7 +22,7 @@ import * as SecureStore from "expo-secure-store";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAuth, credStore as authCredStore, getCachedCustomer, SAVED_MOBILE_KEY, SAVED_PIN_KEY, type MiniAppCustomerInfo } from "@/contexts/AuthContext";
+import { useAuth, credStore as authCredStore, getCachedCustomer, getOrCreateDeviceId, SAVED_MOBILE_KEY, SAVED_PIN_KEY, type MiniAppCustomerInfo } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 // Same storage object as AuthContext (SecureStore native / AsyncStorage web),
@@ -132,10 +133,11 @@ export default function LoginScreen() {
         }
       }
 
+      const deviceId = await getOrCreateDeviceId();
       // Cold cloud servers can take a while — never spin forever
       const res = await Promise.race([
         loginMutation.mutateAsync({
-          data: { mobile: mobile.trim(), pin: pin.trim() },
+          data: { mobile: mobile.trim(), pin: pin.trim(), deviceId },
         }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Server se jawab nahi aa raha. Kuch second baad dobara try karein.")), 30000)
@@ -151,6 +153,14 @@ export default function LoginScreen() {
       } catch { /* non-critical */ }
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      if (res.newDeviceWarning) {
+        Alert.alert(
+          "Naya device dikha",
+          "Ye account pehle kisi doosre phone/device par bhi use ho chuka hai. Agar ye number aapka nahi hai, ya aapko ye pasand nahi, to Profile mein jaake apna PIN turant badal dein.",
+          [{ text: "Theek hai", onPress: () => router.replace("/suppliers") }],
+        );
+        return;
       }
       router.replace("/suppliers");
     } catch (e: unknown) {

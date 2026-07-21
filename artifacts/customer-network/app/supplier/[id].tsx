@@ -7,6 +7,7 @@ import {
   getMiniAppPollMessagesQueryKey,
   getMiniAppRecentMessagesQueryKey,
   MiniAppChatMessage,
+  MiniAppConnection,
   MiniAppInvoice,
   MiniAppPayment,
   MiniAppStatementEntry,
@@ -69,7 +70,12 @@ export default function SupplierDetailScreen() {
   const [tab, setTab] = useState<TabKey>("chat");
 
   const { customer } = useAuth();
-  const { data: connections } = useMiniAppListConnections();
+  const { data: connectionsLive } = useMiniAppListConnections();
+  // Same cache the Suppliers list already warms (`connections_list`) — a slow
+  // or dropped connection here shouldn't blank out the header/permissions
+  // when the exact same data was already fetched moments ago to get here.
+  const { cachedData: connectionsCached } = useTabCache<MiniAppConnection[]>("connections_list");
+  const connections = connectionsLive ?? connectionsCached;
   const connection = useMemo(
     () => connections?.find((c) => c.id === connectionId),
     [connections, connectionId],
@@ -743,12 +749,14 @@ function GalleryTab({
 
         {displayData.length === 0 ? (
           <View style={styles.centerFill}>
-            <Feather name="image" size={30} color={colors.mutedForeground} />
+            <Feather name={isError ? "wifi-off" : "image"} size={30} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              Abhi koi photo nahi hai
+              {isError ? "Gallery load nahi hui" : "Abhi koi photo nahi hai"}
             </Text>
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Your supplier will add product photos here.
+              {isError
+                ? "Internet check karke neeche kheench kar phir try karein."
+                : "Your supplier will add product photos here."}
             </Text>
           </View>
         ) : (
@@ -782,7 +790,13 @@ function GalleryTab({
 // Full-size image only downloads on tap, not upfront with the thumbnail list.
 function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: number; imageId: number; onClose: () => void }) {
   const colors = useColors();
-  const { data, isLoading } = useMiniAppGetGalleryFull(connectionId, imageId);
+  // Once an image has been opened successfully, its URL should stay
+  // available offline forever after (the actual bytes are already cached
+  // on-device by <Image> the first time it renders).
+  const { cachedData, saveCache } = useTabCache<{ url: string }>(`gallery_full_${connectionId}_${imageId}`);
+  const { data, isLoading, isError } = useMiniAppGetGalleryFull(connectionId, imageId);
+  useEffect(() => { if (data?.url) saveCache(data); }, [data, saveCache]);
+  const displayData = data ?? cachedData;
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
       {/* Modal content renders in its own native window on Android/iOS —
@@ -794,10 +808,17 @@ function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: 
             <Feather name="x" size={26} color="#fff" />
           </Pressable>
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            {isLoading || !data?.url ? (
+            {!displayData?.url && isLoading ? (
               <ActivityIndicator color={colors.primary} size="large" />
+            ) : !displayData?.url ? (
+              <>
+                <Feather name={isError ? "wifi-off" : "image"} size={30} color="#fff" />
+                <Text style={{ color: "#fff", marginTop: 10, fontFamily: "Inter_500Medium" }}>
+                  Photo load nahi hui
+                </Text>
+              </>
             ) : (
-              <ZoomableImage uri={data.url} width={Dimensions.get("window").width} height={Dimensions.get("window").height * 0.8} />
+              <ZoomableImage uri={displayData.url} width={Dimensions.get("window").width} height={Dimensions.get("window").height * 0.8} />
             )}
           </View>
         </View>

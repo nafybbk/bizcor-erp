@@ -111,12 +111,13 @@ router.get("/mini-app/settings", async (req, res) => {
 // POST /mini-app/login — mobile + PIN. Auto-creates account on first login (default PIN 1234).
 router.post("/mini-app/login", async (req, res) => {
   try {
-    const { mobile, pin } = req.body || {};
+    const { mobile, pin, deviceId } = req.body || {};
     if (!mobile?.trim() || !pin?.trim()) {
       res.status(400).json({ error: "Mobile number aur PIN dono zaroori hain" });
       return;
     }
     const mobileNorm = mobile.trim();
+    const deviceIdNorm = typeof deviceId === "string" ? deviceId.trim().slice(0, 100) : null;
 
     if (isRateLimited(`login:${mobileNorm}`, 8, 15 * 60 * 1000)) {
       res.status(429).json({ error: "Bahut zyada attempts. Kuch der baad try karein." });
@@ -124,6 +125,7 @@ router.post("/mini-app/login", async (req, res) => {
     }
 
     let [customer] = await db.select().from(customersTable).where(eq(customersTable.mobile, mobileNorm)).limit(1);
+    let isNewCustomer = false;
 
     if (!customer) {
       let customerId = generateCustomerId();
@@ -134,11 +136,25 @@ router.post("/mini-app/login", async (req, res) => {
         mobile: mobileNorm,
         pin: "1234",
       }).returning();
+      isNewCustomer = true;
     }
 
     if (customer.pin !== pin.trim()) {
       res.status(401).json({ error: "Galat PIN" });
       return;
+    }
+
+    // Flag (to whoever is logging in right now, not a push alert to the
+    // original device — see schema comment) when this mobile number's
+    // account was last active on a DIFFERENT device. Doesn't apply to a
+    // brand-new account or when the app didn't send a device id at all.
+    const newDeviceWarning =
+      !isNewCustomer && !!deviceIdNorm && !!customer.lastDeviceId && customer.lastDeviceId !== deviceIdNorm;
+
+    if (deviceIdNorm && customer.lastDeviceId !== deviceIdNorm) {
+      await db.update(customersTable)
+        .set({ lastDeviceId: deviceIdNorm, lastDeviceSeenAt: new Date() })
+        .where(eq(customersTable.id, customer.id));
     }
 
     const token = jwt.sign(
@@ -149,6 +165,7 @@ router.post("/mini-app/login", async (req, res) => {
 
     res.json({
       token,
+      newDeviceWarning,
       customer: {
         customerId: customer.customerId,
         mobile: customer.mobile,

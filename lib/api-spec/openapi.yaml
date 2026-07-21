@@ -3376,6 +3376,9 @@ components:
           type: string
         pin:
           type: string
+        deviceId:
+          type: string
+          description: Random per-install id, used to flag a login from a device this account hasn't been seen on before.
       required: [mobile, pin]
 
     MiniAppCustomer:
@@ -3413,6 +3416,9 @@ components:
           type: string
         customer:
           $ref: "#/components/schemas/MiniAppCustomer"
+        newDeviceWarning:
+          type: boolean
+          description: True when this login is from a device different from the one last recorded for this account.
       required: [token, customer]
 
     MiniAppConnectBody:

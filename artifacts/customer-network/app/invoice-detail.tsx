@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useTabCache } from "@/hooks/useTabCache";
 
 type InvoiceItem = { name: string; qty: number; unit: string; rate: number; amount: number };
 type InvoiceDetail = {
@@ -32,6 +33,13 @@ export default function InvoiceDetailScreen() {
   }>();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  // Once a specific invoice has been opened successfully, it should stay
+  // available offline forever after — a supplier's own invoice doesn't
+  // change, so there's no reason a later network hiccup should ever hide
+  // something already seen once.
+  const { cachedData, saveCache } = useTabCache<InvoiceDetail>(
+    `invoice_${connectionId}_${source}_${invoiceId}`,
+  );
   const [data, setData] = useState<InvoiceDetail | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -44,29 +52,32 @@ export default function InvoiceDetailScreen() {
         `/api/mini-app/connections/${connectionId}/invoices/${source}/${invoiceId}`,
       );
       setData(d);
+      saveCache(d);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [connectionId, source, invoiceId]);
+  }, [connectionId, source, invoiceId, saveCache]);
 
   useEffect(() => { load(); }, [load]);
+
+  const displayData = data ?? cachedData;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen options={{
-        title: data?.voucherNumber ?? "Invoice",
+        title: displayData?.voucherNumber ?? "Invoice",
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: "#ffffff",
         headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
       }} />
 
-      {loading ? (
+      {loading && !displayData ? (
         <View style={styles.centerFill}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      ) : error || !data ? (
+      ) : !displayData ? (
         <View style={styles.centerFill}>
           <Feather name="wifi-off" size={30} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
@@ -91,39 +102,39 @@ export default function InvoiceDetailScreen() {
                 <Feather name="file-text" size={20} color={colors.accentForeground} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.docNumber, { color: colors.foreground }]}>{data.voucherNumber}</Text>
+                <Text style={[styles.docNumber, { color: colors.foreground }]}>{displayData.voucherNumber}</Text>
                 <Text style={[styles.docDate, { color: colors.mutedForeground }]}>
-                  {new Date(data.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  {new Date(displayData.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                 </Text>
               </View>
-              {data.status && data.status !== "posted" ? (
+              {displayData.status && displayData.status !== "posted" ? (
                 <Text style={[styles.statusChip, { backgroundColor: colors.secondary, color: colors.mutedForeground }]}>
-                  {data.status}
+                  {displayData.status}
                 </Text>
               ) : null}
             </View>
             <View style={[styles.totalRow, { borderColor: colors.border }]}>
               <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total</Text>
               <Text style={[styles.totalValue, { color: colors.foreground }]}>
-                ₹{data.grandTotal.toLocaleString("en-IN")}
+                ₹{displayData.grandTotal.toLocaleString("en-IN")}
               </Text>
             </View>
           </View>
 
           {/* Items */}
-          {data.items === null ? (
+          {displayData.items === null ? (
             <View style={[styles.noteBox, { backgroundColor: colors.secondary }]}>
               <Feather name="info" size={14} color={colors.mutedForeground} />
               <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
                 Item details supplier ke system se agli update pe milengi.
               </Text>
             </View>
-          ) : data.items.length === 0 ? null : (
+          ) : displayData.items.length === 0 ? null : (
             <View style={[styles.itemsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.itemsHeading, { color: colors.mutedForeground }]}>
-                ITEMS ({data.items.length})
+                ITEMS ({displayData.items.length})
               </Text>
-              {data.items.map((it, i) => (
+              {displayData.items.map((it, i) => (
                 <View
                   key={i}
                   style={[styles.itemRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border }]}
@@ -142,10 +153,10 @@ export default function InvoiceDetailScreen() {
             </View>
           )}
 
-          {data.notes ? (
+          {displayData.notes ? (
             <View style={[styles.noteBox, { backgroundColor: colors.secondary }]}>
               <Feather name="message-square" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.noteText, { color: colors.mutedForeground }]}>{data.notes}</Text>
+              <Text style={[styles.noteText, { color: colors.mutedForeground }]}>{displayData.notes}</Text>
             </View>
           ) : null}
         </ScrollView>

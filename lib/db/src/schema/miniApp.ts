@@ -28,6 +28,17 @@ export const customersTable = pgTable("mini_app_customers", {
   // When false, suppliers show the connection's `customLabel` (if set)
   // instead of their real business name everywhere in the app.
   showSupplierRealName: boolean("show_supplier_real_name").notNull().default(true),
+  // Anti-takeover check: since login only needs mobile+PIN (no OTP, and the
+  // PIN defaults to a well-known "1234" for any never-before-seen number),
+  // anyone who knows a real customer's number and hasn't changed the default
+  // PIN could otherwise log in as them undetected. `lastDeviceId` is a random
+  // ID the app generates once and persists locally (not a hardware
+  // identifier); a login from a DIFFERENT device than the one last recorded
+  // here flags `newDeviceWarning` in the login response, shown to whoever is
+  // logging in right now (not a real-time alert to the original device —
+  // that needs push notifications, not built yet).
+  lastDeviceId: text("last_device_id"),
+  lastDeviceSeenAt: timestamp("last_device_seen_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

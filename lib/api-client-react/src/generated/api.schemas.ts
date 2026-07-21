@@ -926,6 +926,8 @@ export interface GstDashboardSummary {
 export interface MiniAppLoginBody {
   mobile: string;
   pin: string;
+  /** Random per-install id, used to flag a login from a device this account hasn't been seen on before. */
+  deviceId?: string;
 }
 
 export interface MiniAppCustomer {
@@ -945,6 +947,8 @@ export interface MiniAppSettingsResponse {
 export interface MiniAppLoginResponse {
   token: string;
   customer: MiniAppCustomer;
+  /** True when this login is from a device different from the one last recorded for this account. */
+  newDeviceWarning?: boolean;
 }
 
 export interface MiniAppConnectBody {
