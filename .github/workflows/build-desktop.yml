@@ -58,7 +58,11 @@ jobs:
           }
           # better-sqlite3: native SQLite — compiled here with Node.js 22, matches bundled node.exe ABI
           # drizzle-orm: needed because drizzle-orm/better-sqlite3 is used at runtime
-          npm install better-sqlite3 drizzle-orm --save --legacy-peer-deps
+          # PINNED to 12.11.1 (not latest): v13.0.0/13.0.1 (published 2026-07-21) segfaults
+          # (STATUS_ACCESS_VIOLATION) on `new Database()` on Windows — verified locally with
+          # the exact bundled node.exe. Every fresh install crashed on first launch until this
+          # was pinned. Re-test before bumping past this version.
+          npm install better-sqlite3@12.11.1 drizzle-orm --save --legacy-peer-deps
           Write-Host "SQLite deps installed:"
           node -e "const p=require('./package.json');console.log(JSON.stringify(p.dependencies,null,2))"
           # Verify the native addon exists
