@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, sqlite, pool } from "@workspace/db";
-import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable, modulePatchesTable, hsnDirectoryTable } from "@workspace/db";
+import { superAdminsTable, businessesTable, plansTable, usersTable, appSettingsTable, vouchersTable, voucherItemsTable, partiesTable, itemsTable, paymentsTable, paymentAllocationsTable, licenseVouchersTable, loginLogsTable, unitsTable, taxRatesTable, modulePatchesTable, hsnDirectoryTable, customersTable, connectionsTable, miniAppLoginLogsTable, lanSyncVouchersTable, lanSyncPaymentsTable, gallerySharesTable } from "@workspace/db";
 import { eq, count, sql, and, or, desc, gte, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "../middlewares/auth";
 import { ilike } from "../lib/search";
@@ -1121,6 +1121,63 @@ router.get("/active-users", async (req, res) => {
       .leftJoin(businessesTable, eq(usersTable.businessId, businessesTable.id))
       .where(gte(usersTable.lastSeenAt, cutoff));
     res.json(users);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// ─── Connect App Activity ──────────────────────────────────────────────────
+// Kept separate from the ERP's own /login-logs + /active-users above: a
+// Connect customer is a global mobile-app account, not scoped to one
+// business (see mini_app_customers comment), so it doesn't belong in the
+// same per-business login activity view.
+
+router.get("/connect-activity/summary", async (req, res) => {
+  try {
+    const [{ count: totalCustomers }] = await db.select({ count: count() }).from(customersTable);
+    const [{ count: totalConnections }] = await db.select({ count: count() }).from(connectionsTable);
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [{ count: newDeviceEventsToday }] = await db.select({ count: count() }).from(miniAppLoginLogsTable)
+      .where(and(eq(miniAppLoginLogsTable.newDeviceWarning, true), gte(miniAppLoginLogsTable.createdAt, dayAgo)));
+    // "Shared" invoices/payments — a synced voucher/payment only becomes
+    // visible to a Connect customer once it's linked to a party (see LAN
+    // sync push), same idea as an explicit Gallery share.
+    const [{ count: sharedInvoices }] = await db.select({ count: count() }).from(lanSyncVouchersTable)
+      .where(sql`${lanSyncVouchersTable.partyId} IS NOT NULL`);
+    const [{ count: sharedPayments }] = await db.select({ count: count() }).from(lanSyncPaymentsTable)
+      .where(sql`${lanSyncPaymentsTable.partyId} IS NOT NULL`);
+    const [{ count: sharedImages }] = await db.select({ count: count() }).from(gallerySharesTable);
+    res.json({
+      totalCustomers: Number(totalCustomers) || 0,
+      totalConnections: Number(totalConnections) || 0,
+      newDeviceEventsToday: Number(newDeviceEventsToday) || 0,
+      sharedInvoices: Number(sharedInvoices) || 0,
+      sharedPayments: Number(sharedPayments) || 0,
+      sharedImages: Number(sharedImages) || 0,
+    });
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/connect-activity/logins", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string || "200"), 500);
+    const logs = await db.select().from(miniAppLoginLogsTable)
+      .orderBy(desc(miniAppLoginLogsTable.createdAt))
+      .limit(limit);
+    res.json(logs);
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+router.get("/connect-activity/active", async (req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000);
+    const customers = await db.select({
+      id: customersTable.id,
+      customerId: customersTable.customerId,
+      mobile: customersTable.mobile,
+      name: customersTable.name,
+      businessName: customersTable.businessName,
+      lastDeviceSeenAt: customersTable.lastDeviceSeenAt,
+    }).from(customersTable).where(gte(customersTable.lastDeviceSeenAt, cutoff));
+    res.json(customers);
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

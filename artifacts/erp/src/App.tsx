@@ -78,6 +78,7 @@ import AdminActivity from "@/pages/admin/AdminActivity";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminImport from "@/pages/admin/AdminImport";
 import AdminSupportMessages from "@/pages/admin/AdminSupportMessages";
+import AdminConnectActivity from "@/pages/admin/AdminConnectActivity";
 import ReportTemplatesList from "@/pages/report-templates/ReportTemplatesList";
 import ReportPreview from "@/pages/report-templates/ReportPreview";
 import ReportDesigner from "@/pages/report-templates/ReportDesigner";
@@ -391,6 +392,9 @@ function AppRoutes() {
       </Route>
       <Route path="/admin/support-messages">
         <ProtectedRoute><AdminSupportMessages /></ProtectedRoute>
+      </Route>
+      <Route path="/admin/connect-activity">
+        <ProtectedRoute><AdminConnectActivity /></ProtectedRoute>
       </Route>
 
       {/* Report Templates */}

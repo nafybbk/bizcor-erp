@@ -443,6 +443,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { label: L.appSettings, href: "/admin/settings", icon: <Settings className="w-4 h-4" /> },
     { label: "Import Data", href: "/admin/import", icon: <DatabaseZap className="w-4 h-4" /> },
     { label: "Support Messages", href: "/admin/support-messages", icon: <MessageSquare className="w-4 h-4" /> },
+    { label: "Connect Activity", href: "/admin/connect-activity", icon: <Smartphone className="w-4 h-4" /> },
   ];
 
   const navItems = isSuperAdmin() ? superAdminNav : businessNav;
@@ -689,7 +690,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             {/* App version */}
             <div className="px-2 pt-1 flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.105</span>
+              <span className="text-slate-400 text-[11px] font-semibold tracking-wide">v2.4.106</span>
               {appMode && (
                 <span className="text-slate-400 text-[11px] font-medium">{appMode === "desktop" ? "🖥 Desktop" : "☁ Cloud"}</span>
               )}

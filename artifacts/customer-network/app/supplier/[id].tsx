@@ -55,12 +55,15 @@ import SyncRing from "@/components/SyncRing";
 
 type TabKey = "chat" | "invoices" | "payments" | "statement" | "gallery";
 
-const TABS: { key: TabKey; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { key: "chat", label: "Chat", icon: "message-circle" },
-  { key: "invoices", label: "Invoices", icon: "file-text" },
-  { key: "payments", label: "Payments", icon: "credit-card" },
-  { key: "statement", label: "Statement", icon: "bar-chart-2" },
-  { key: "gallery", label: "Gallery", icon: "image" },
+// Each tab keeps its own fixed colour, active or not — so a customer who
+// doesn't read well can find "Gallery" (pink) or "Payments" (green) by
+// colour alone instead of the label, every time, not just once selected.
+const TABS: { key: TabKey; label: string; icon: keyof typeof Feather.glyphMap; color: string }[] = [
+  { key: "chat", label: "Chat", icon: "message-circle", color: "#7c3aed" },
+  { key: "invoices", label: "Invoice", icon: "file-text", color: "#2563eb" },
+  { key: "payments", label: "Payment", icon: "credit-card", color: "#16a34a" },
+  { key: "statement", label: "Statement", icon: "bar-chart-2", color: "#d97706" },
+  { key: "gallery", label: "Gallery", icon: "image", color: "#db2777" },
 ];
 
 export default function SupplierDetailScreen() {
@@ -93,10 +96,12 @@ export default function SupplierDetailScreen() {
         headerTitleStyle: { fontFamily: "Inter_600SemiBold" },
       }} />
 
-      {/* Material-style scrollable pill tabs — the old flex:1 row crushed
-          five labels into wrapping soup on phone widths */}
+      {/* All 5 tabs fixed on screen at once (no horizontal scroll — the old
+          scrollable row hid Statement/Gallery off-screen and people couldn't
+          find them). Equal-width, tightly spaced, each with its own colour
+          so a tab is recognisable by colour alone, active or not. */}
       <View style={[styles.tabBar, { borderColor: colors.border, backgroundColor: colors.background }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+        <View style={styles.tabRow}>
           {TABS.map((t) => {
             const active = tab === t.key;
             return (
@@ -112,19 +117,19 @@ export default function SupplierDetailScreen() {
                 <View
                   style={[
                     styles.tabPill,
-                    { backgroundColor: active ? colors.primary : colors.secondary },
+                    { backgroundColor: active ? t.color : `${t.color}1F` },
                   ]}
                 >
                   <Feather
                     name={t.icon}
-                    size={15}
-                    color={active ? "#ffffff" : "#64748b"}
+                    size={16}
+                    color={active ? "#ffffff" : t.color}
                   />
                   <Text
                     numberOfLines={1}
                     style={[
                       styles.tabLabel,
-                      { color: active ? "#ffffff" : "#64748b" },
+                      { color: active ? "#ffffff" : t.color },
                     ]}
                   >
                     {t.label}
@@ -133,7 +138,7 @@ export default function SupplierDetailScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
       {tab === "chat" && <ChatTab connectionId={connectionId} />}
@@ -727,8 +732,6 @@ function GalleryTab({
   }
 
   const displayData = (data ?? cachedData ?? []) as MiniAppGalleryShare[];
-  const sharedItems = displayData.filter((i) => i.shared);
-  const otherItems = displayData.filter((i) => !i.shared);
 
   return (
     <>
@@ -756,39 +759,28 @@ function GalleryTab({
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
               {isError
                 ? "Internet check karke neeche kheench kar phir try karein."
-                : "Your supplier will add product photos here."}
+                : "Your supplier will share product photos here."}
             </Text>
           </View>
         ) : (
-          <>
-            {sharedItems.length > 0 && (
-              <View style={{ marginBottom: 16 }}>
-                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
-                  Aapko bheji gayi ({sharedItems.length})
-                </Text>
-                <GalleryGrid items={sharedItems} onPress={setViewerImageId} />
-              </View>
-            )}
-            {otherItems.length > 0 && (
-              <View>
-                <Text style={[styles.gallerySectionTitle, { color: colors.foreground }]}>
-                  Is supplier ki aur photos ({otherItems.length})
-                </Text>
-                <GalleryGrid items={otherItems} onPress={setViewerImageId} />
-              </View>
-            )}
-          </>
+          <GalleryGrid items={displayData} onPress={setViewerImageId} />
         )}
       </ScrollView>
       {viewerImageId != null && (
-        <GalleryImageViewer connectionId={connectionId} imageId={viewerImageId} onClose={() => setViewerImageId(null)} />
+        <GalleryImageViewer
+          connectionId={connectionId}
+          items={displayData}
+          initialImageId={viewerImageId}
+          onClose={() => setViewerImageId(null)}
+        />
       )}
     </>
   );
 }
 
-// Full-size image only downloads on tap, not upfront with the thumbnail list.
-function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: number; imageId: number; onClose: () => void }) {
+// One page of the swipeable viewer below — full-size image only downloads
+// on tap/swipe-to, not upfront with the thumbnail list.
+function GalleryImagePage({ connectionId, imageId, pageWidth }: { connectionId: number; imageId: number; pageWidth: number }) {
   const colors = useColors();
   // Once an image has been opened successfully, its URL should stay
   // available offline forever after (the actual bytes are already cached
@@ -797,6 +789,42 @@ function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: 
   const { data, isLoading, isError } = useMiniAppGetGalleryFull(connectionId, imageId);
   useEffect(() => { if (data?.url) saveCache(data); }, [data, saveCache]);
   const displayData = data ?? cachedData;
+  return (
+    <View style={{ width: pageWidth, flex: 1, alignItems: "center", justifyContent: "center" }}>
+      {!displayData?.url && isLoading ? (
+        <ActivityIndicator color={colors.primary} size="large" />
+      ) : !displayData?.url ? (
+        <>
+          <Feather name={isError ? "wifi-off" : "image"} size={30} color="#fff" />
+          <Text style={{ color: "#fff", marginTop: 10, fontFamily: "Inter_500Medium" }}>
+            Photo load nahi hui
+          </Text>
+        </>
+      ) : (
+        <ZoomableImage uri={displayData.url} width={pageWidth} height={Dimensions.get("window").height * 0.8} />
+      )}
+    </View>
+  );
+}
+
+// Swipeable full-screen viewer — a horizontal pager over every image in the
+// current gallery list, so a customer can flip through photos left/right
+// without closing back to the grid and re-opening each one individually.
+function GalleryImageViewer({
+  connectionId,
+  items,
+  initialImageId,
+  onClose,
+}: {
+  connectionId: number;
+  items: MiniAppGalleryShare[];
+  initialImageId: number;
+  onClose: () => void;
+}) {
+  const pageWidth = Dimensions.get("window").width;
+  const listRef = useRef<FlatList<MiniAppGalleryShare>>(null);
+  const initialIndex = Math.max(0, items.findIndex((i) => i.imageId === initialImageId));
+
   return (
     <Modal visible animationType="fade" transparent onRequestClose={onClose}>
       {/* Modal content renders in its own native window on Android/iOS —
@@ -807,20 +835,19 @@ function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: 
           <Pressable onPress={onClose} style={{ position: "absolute", top: 50, right: 20, zIndex: 1, padding: 8 }}>
             <Feather name="x" size={26} color="#fff" />
           </Pressable>
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            {!displayData?.url && isLoading ? (
-              <ActivityIndicator color={colors.primary} size="large" />
-            ) : !displayData?.url ? (
-              <>
-                <Feather name={isError ? "wifi-off" : "image"} size={30} color="#fff" />
-                <Text style={{ color: "#fff", marginTop: 10, fontFamily: "Inter_500Medium" }}>
-                  Photo load nahi hui
-                </Text>
-              </>
-            ) : (
-              <ZoomableImage uri={displayData.url} width={Dimensions.get("window").width} height={Dimensions.get("window").height * 0.8} />
+          <FlatList
+            ref={listRef}
+            data={items}
+            keyExtractor={(item) => String(item.imageId)}
+            horizontal
+            pagingEnabled
+            initialScrollIndex={initialIndex}
+            getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <GalleryImagePage connectionId={connectionId} imageId={item.imageId} pageWidth={pageWidth} />
             )}
-          </View>
+          />
         </View>
       </GestureHandlerRootView>
     </Modal>
@@ -830,18 +857,19 @@ function GalleryImageViewer({ connectionId, imageId, onClose }: { connectionId: 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   tabBar: { borderBottomWidth: 1 },
-  tabScroll: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  tabPillOuter: { borderRadius: 999 },
+  tabRow: { flexDirection: "row", paddingHorizontal: 6, paddingVertical: 8, gap: 4 },
+  tabPillOuter: { flex: 1, borderRadius: 10 },
   tabPill: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    justifyContent: "center",
+    gap: 2,
+    paddingHorizontal: 2,
+    paddingVertical: 7,
+    borderRadius: 10,
     overflow: "hidden",
   },
-  tabLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  tabLabel: { fontSize: 10.5, fontFamily: "Inter_600SemiBold" },
   centerFill: {
     flex: 1,
     alignItems: "center",

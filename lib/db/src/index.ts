@@ -284,6 +284,7 @@ export const reportTemplatesTable = s.reportTemplatesTable;
 export const customersTable = s.customersTable;
 export const connectionsTable = s.connectionsTable;
 export const customerChatMessagesTable = s.customerChatMessagesTable;
+export const miniAppLoginLogsTable = s.miniAppLoginLogsTable;
 export const lanSyncVouchersTable = s.lanSyncVouchersTable;
 export const lanSyncPaymentsTable = s.lanSyncPaymentsTable;
 export const modulePatchesTable = s.modulePatchesTable;

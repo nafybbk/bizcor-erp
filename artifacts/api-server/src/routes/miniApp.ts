@@ -8,6 +8,7 @@ import {
   customersTable,
   connectionsTable,
   customerChatMessagesTable,
+  miniAppLoginLogsTable,
   businessesTable,
   partiesTable,
   vouchersTable,
@@ -156,6 +157,18 @@ router.post("/mini-app/login", async (req, res) => {
         .set({ lastDeviceId: deviceIdNorm, lastDeviceSeenAt: new Date() })
         .where(eq(customersTable.id, customer.id));
     }
+
+    try {
+      await db.insert(miniAppLoginLogsTable).values({
+        customerId: customer.id,
+        mobile: customer.mobile,
+        customerName: customer.name,
+        deviceId: deviceIdNorm,
+        newDeviceWarning,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"] || null,
+      });
+    } catch { /* non-critical — never block login on activity logging */ }
 
     const token = jwt.sign(
       { type: "customer", customerDbId: customer.id, customerId: customer.customerId, mobile: customer.mobile } satisfies CustomerAuthPayload,
@@ -745,13 +758,12 @@ router.get("/mini-app/connections/:id/invoices", async (req, res) => {
   }
 });
 
-// GET /mini-app/connections/:id/gallery — the supplier's ENTIRE common
-// gallery (not just images shared with this customer) — being connected is
-// the only gate (no separate per-feature toggle; see ConnectCustomers.tsx).
-// Each row is flagged `shared` (+ tick trail) when a share row exists for
-// this party, so the app can split "shared with you" from "more from this
-// supplier". First fetch of an existing share stamps deliveredAt (double
-// tick); rows with no share yet have nothing to stamp.
+// GET /mini-app/connections/:id/gallery — ONLY images actually shared with
+// this customer's party (not the supplier's whole common gallery — a
+// customer browsing photos the supplier never sent them was confusing, not
+// useful; see ERP's own Gallery.tsx, which already keeps "available" vs
+// "shared" strictly separate and never pushes unshared images to a
+// customer). First fetch of an existing share stamps deliveredAt (double tick).
 router.get("/mini-app/connections/:id/gallery", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
@@ -765,15 +777,16 @@ router.get("/mini-app/connections/:id/gallery", async (req, res) => {
       sharedAt: gallerySharesTable.sharedAt,
       deliveredAt: gallerySharesTable.deliveredAt,
       viewedAt: gallerySharesTable.viewedAt,
-    }).from(galleryImagesTable)
-      .leftJoin(gallerySharesTable, and(
-        eq(gallerySharesTable.imageId, galleryImagesTable.id),
+    }).from(gallerySharesTable)
+      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
+      .where(and(
         eq(gallerySharesTable.partyId, connection.partyId),
+        eq(galleryImagesTable.businessId, connection.businessId),
+        isNull(galleryImagesTable.archivedAt),
       ))
-      .where(and(eq(galleryImagesTable.businessId, connection.businessId), isNull(galleryImagesTable.archivedAt)))
-      .orderBy(desc(sql`coalesce(${gallerySharesTable.sharedAt}, ${galleryImagesTable.uploadedAt})`));
+      .orderBy(desc(gallerySharesTable.sharedAt));
 
-    const undeliveredShareIds = rows.filter(r => r.shareId && !r.deliveredAt).map(r => r.shareId!);
+    const undeliveredShareIds = rows.filter(r => !r.deliveredAt).map(r => r.shareId);
     if (undeliveredShareIds.length) {
       await db.update(gallerySharesTable).set({ deliveredAt: new Date() }).where(inArray(gallerySharesTable.id, undeliveredShareIds));
     }
@@ -781,7 +794,7 @@ router.get("/mini-app/connections/:id/gallery", async (req, res) => {
     res.json(rows.map(r => ({
       imageId: r.imageId,
       thumbnailUrl: r.thumbnailUrl,
-      shared: r.shareId != null,
+      shared: true,
       sharedAt: r.sharedAt,
       deliveredAt: r.deliveredAt,
       viewedAt: r.viewedAt,
@@ -793,27 +806,32 @@ router.get("/mini-app/connections/:id/gallery", async (req, res) => {
 });
 
 // GET /mini-app/connections/:id/gallery/:imageId/full — full-size image, only
-// fetched on tap. Keyed by imageId (not shareId) since an image is now
-// browsable even before it's been explicitly shared. Stamps viewedAt (blue
-// tick) on the matching share row the first time, only if one exists.
+// fetched on tap. Requires an actual share row for this party — matches the
+// list above, so a customer can never fetch a full image the supplier hasn't
+// explicitly shared with them, even by guessing an imageId directly.
+// Stamps viewedAt (blue tick) the first time.
 router.get("/mini-app/connections/:id/gallery/:imageId/full", async (req, res) => {
   try {
     const connection = await getOwnedConnection(req.customer!.customerDbId, Number(req.params.id));
     if (!connection) { res.status(404).json({ error: "Connection nahi mili" }); return; }
 
     const imageId = Number(req.params.imageId);
-    const [image] = await db.select({ url: galleryImagesTable.url }).from(galleryImagesTable)
-      .where(and(eq(galleryImagesTable.id, imageId), eq(galleryImagesTable.businessId, connection.businessId), isNull(galleryImagesTable.archivedAt))).limit(1);
-    if (!image) { res.status(404).json({ error: "Image nahi mili" }); return; }
-
-    const [share] = await db.select({ id: gallerySharesTable.id, viewedAt: gallerySharesTable.viewedAt })
+    const [row] = await db.select({ url: galleryImagesTable.url, shareId: gallerySharesTable.id, viewedAt: gallerySharesTable.viewedAt })
       .from(gallerySharesTable)
-      .where(and(eq(gallerySharesTable.imageId, imageId), eq(gallerySharesTable.partyId, connection.partyId))).limit(1);
-    if (share && !share.viewedAt) {
-      await db.update(gallerySharesTable).set({ viewedAt: new Date() }).where(eq(gallerySharesTable.id, share.id));
+      .innerJoin(galleryImagesTable, eq(gallerySharesTable.imageId, galleryImagesTable.id))
+      .where(and(
+        eq(gallerySharesTable.imageId, imageId),
+        eq(gallerySharesTable.partyId, connection.partyId),
+        eq(galleryImagesTable.businessId, connection.businessId),
+        isNull(galleryImagesTable.archivedAt),
+      )).limit(1);
+    if (!row) { res.status(404).json({ error: "Image nahi mili" }); return; }
+
+    if (!row.viewedAt) {
+      await db.update(gallerySharesTable).set({ viewedAt: new Date() }).where(eq(gallerySharesTable.id, row.shareId));
     }
 
-    res.json({ url: image.url });
+    res.json({ url: row.url });
   } catch (err) {
     req.log.error(err);
     res.status(500).json({ error: "Server error" });

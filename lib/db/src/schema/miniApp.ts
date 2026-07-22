@@ -59,6 +59,22 @@ export const connectionsTable = pgTable("mini_app_connections", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Tech panel's "Connect Activity" section reads this — a customer is global
+// (not scoped to one business, see comment above), so this log is kept
+// separate from the ERP's own per-business `login_logs` table rather than
+// merged into it. One row per successful /mini-app/login call.
+export const miniAppLoginLogsTable = pgTable("mini_app_login_logs", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull().references(() => customersTable.id),
+  mobile: text("mobile").notNull(),
+  customerName: text("customer_name"),
+  deviceId: text("device_id"),
+  newDeviceWarning: boolean("new_device_warning").notNull().default(false),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const customerChatMessagesTable = pgTable("mini_app_chat_messages", {
   id: serial("id").primaryKey(),
   connectionId: integer("connection_id").notNull().references(() => connectionsTable.id),
@@ -71,6 +87,7 @@ export const customerChatMessagesTable = pgTable("mini_app_chat_messages", {
 export type Customer = typeof customersTable.$inferSelect;
 export type Connection = typeof connectionsTable.$inferSelect;
 export type CustomerChatMessage = typeof customerChatMessagesTable.$inferSelect;
+export type MiniAppLoginLog = typeof miniAppLoginLogsTable.$inferSelect;
 
 export const insertCustomerSchema = createInsertSchema(customersTable).omit({ id: true, createdAt: true });
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;

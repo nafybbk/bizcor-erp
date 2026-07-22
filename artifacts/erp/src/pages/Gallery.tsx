@@ -73,6 +73,9 @@ interface PendingItem {
   base64: string;
   mime: string;
   previewUrl: string;
+  size: number;
+  importedAt: string;
+  sourcePath: string | null;
 }
 
 async function sha256Hex(base64: string): Promise<string> {
@@ -409,9 +412,12 @@ export default function Gallery() {
 
   // Adds one picked file to the left staging panel — nothing touches the
   // network here; the file only leaves this machine once Upload is clicked.
-  const addPending = (base64: string, name: string, mime: string) => {
+  const addPending = (base64: string, name: string, mime: string, sourcePath: string | null) => {
     const tempId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    setPending(prev => [...prev, { tempId, name, base64, mime, previewUrl: `data:${mime};base64,${base64}` }]);
+    setPending(prev => [...prev, {
+      tempId, name, base64, mime, previewUrl: `data:${mime};base64,${base64}`,
+      size: atob(base64).length, importedAt: new Date().toISOString(), sourcePath,
+    }]);
   };
 
   const handlePickFolder = async () => {
@@ -431,7 +437,7 @@ export default function Gallery() {
         if (read.base64) {
           const ext = f.name.split(".").pop()?.toLowerCase();
           const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
-          addPending(read.base64, f.name, mime);
+          addPending(read.base64, f.name, mime, f.path);
         }
       } catch { /* skip this one, continue with the rest */ }
       setUploadProgress({ done: i + 1, total: files.length });
@@ -454,7 +460,7 @@ export default function Gallery() {
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
-        addPending(base64, file.name, file.type || "image/jpeg");
+        addPending(base64, file.name, file.type || "image/jpeg", (file as any).path || null);
       } catch { /* skip, continue */ }
       setUploadProgress({ done: i + 1, total: files.length });
     }
@@ -737,7 +743,10 @@ export default function Gallery() {
                   selected={pendingSelected}
                   onSelectionChange={setPendingSelected}
                   renderCard={(item, isSelected) => (
-                    <div className="flex flex-col gap-1 h-full select-none cursor-pointer group">
+                    <div
+                      className="flex flex-col gap-1 h-full select-none cursor-pointer group"
+                      title={item.sourcePath ? `${item.sourcePath}\n${formatBytes(item.size)} • ${formatDate(item.importedAt)}` : `${formatBytes(item.size)} • ${formatDate(item.importedAt)}`}
+                    >
                       <div
                         onDoubleClick={() => setPreviewUrl(item.previewUrl)}
                         className={`relative flex-1 rounded-xl overflow-hidden aspect-square border-2 transition-colors ${isSelected ? "border-violet-600" : "border-transparent hover:border-gray-300"}`}>
@@ -779,6 +788,9 @@ export default function Gallery() {
                       ) : (
                         <span className="text-xs text-gray-600 text-center truncate px-1">{item.name}</span>
                       )}
+                      <span className="text-[10px] text-gray-400 text-center truncate px-1">
+                        {formatBytes(item.size)} • {formatDate(item.importedAt)}
+                      </span>
                     </div>
                   )}
                 />
