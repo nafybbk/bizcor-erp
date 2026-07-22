@@ -17,7 +17,13 @@ permissions:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    # Pinned (not windows-latest): GitHub moved windows-latest to a
+    # Windows Server 2025 + VS2026 image in July 2026, and node-gyp (bundled
+    # with Node 22) can't find a Visual Studio install on it yet — better-
+    # sqlite3's native build fails with "find-visualstudio.js" errors (broke
+    # v2.4.105/106). windows-2022 keeps the older, node-gyp-compatible VS2022
+    # image; nothing else in this workflow depends on 2025-specific behavior.
+    runs-on: windows-2022
 
     steps:
       - name: Checkout code
