@@ -1,7 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Smartphone, Users, Link2, ShieldAlert, RefreshCw, Loader2, Clock, Wifi, WifiOff, FileText, CreditCard, Images, Building2 } from "lucide-react";
+import { Smartphone, Users, Link2, ShieldAlert, RefreshCw, Loader2, Clock, Wifi, WifiOff, FileText, CreditCard, Images, Building2, ChevronDown, ChevronRight } from "lucide-react";
 import { useLang } from "@/lib/langHook";
+
+// Every list section collapses by default — the heading alone shows the
+// count so the page reads as a quick summary; clicking a heading expands
+// just that one section instead of always rendering every table at once.
+function Section({ icon, title, count, defaultOpen = false, children }: { icon: React.ReactNode; title: string; count: number; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-5 py-4 flex items-center gap-2 text-left hover:bg-gray-50"
+      >
+        {icon}
+        <h2 className="text-base font-semibold text-gray-800 flex-1">
+          {title} <span className="text-gray-400 font-normal">({count})</span>
+        </h2>
+        {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && <div className="border-t border-gray-100">{children}</div>}
+    </div>
+  );
+}
 
 interface ConnectSummary {
   totalCustomers: number;
@@ -166,48 +188,38 @@ export default function AdminConnectActivity() {
           </div>
 
           {/* Currently active */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-4">
-              <Wifi className="w-4 h-4 text-green-500" />
-              {lang === "hi" ? `Abhi Active (${active.length})` : `Currently Active (${active.length})`}
-              <span className="text-xs text-gray-400 font-normal">
-                {lang === "hi" ? "(last 15 min mein active)" : "(active in last 15 min)"}
-              </span>
-            </h2>
-            {active.length === 0 ? (
-              <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
-                <WifiOff className="w-4 h-4" />
-                {lang === "hi" ? "Koi bhi customer abhi online nahi hai" : "No customer is online right now"}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {active.map((c, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-green-100 bg-green-50">
-                    <div className="w-9 h-9 rounded-full bg-green-200 flex items-center justify-center text-green-800 font-bold text-sm flex-shrink-0">
-                      {(c.name || c.mobile || "?")[0].toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-medium text-sm text-gray-900 truncate">{c.name || c.mobile}</div>
-                      <div className="text-xs text-gray-500 truncate">{c.mobile}</div>
-                      <div className="text-xs text-green-600 mt-0.5 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
-                        {c.lastDeviceSeenAt ? formatTime(c.lastDeviceSeenAt) : "Active"}
+          <Section icon={<Wifi className="w-4 h-4 text-green-500" />} title={lang === "hi" ? "Abhi Active" : "Currently Active"} count={active.length}>
+            <div className="p-5">
+              <div className="text-xs text-gray-400 mb-3">{lang === "hi" ? "(last 15 min mein active)" : "(active in last 15 min)"}</div>
+              {active.length === 0 ? (
+                <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
+                  <WifiOff className="w-4 h-4" />
+                  {lang === "hi" ? "Koi bhi customer abhi online nahi hai" : "No customer is online right now"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {active.map((c, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-green-100 bg-green-50">
+                      <div className="w-9 h-9 rounded-full bg-green-200 flex items-center justify-center text-green-800 font-bold text-sm flex-shrink-0">
+                        {(c.name || c.mobile || "?")[0].toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm text-gray-900 truncate">{c.name || c.mobile}</div>
+                        <div className="text-xs text-gray-500 truncate">{c.mobile}</div>
+                        <div className="text-xs text-green-600 mt-0.5 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
+                          {c.lastDeviceSeenAt ? formatTime(c.lastDeviceSeenAt) : "Active"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Section>
 
           {/* Connect Businesses */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-gray-500" />
-              <h2 className="text-base font-semibold text-gray-800">
-                {lang === "hi" ? `Connect Businesses (${businesses.length})` : `Connect Businesses (${businesses.length})`}
-              </h2>
-            </div>
+          <Section icon={<Building2 className="w-4 h-4 text-gray-500" />} title="Connect Businesses" count={businesses.length}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -234,16 +246,10 @@ export default function AdminConnectActivity() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
 
           {/* Connect Customers */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Users className="w-4 h-4 text-gray-500" />
-              <h2 className="text-base font-semibold text-gray-800">
-                {lang === "hi" ? `Connect Customers (${customers.length})` : `Connect Customers (${customers.length})`}
-              </h2>
-            </div>
+          <Section icon={<Users className="w-4 h-4 text-gray-500" />} title="Connect Customers" count={customers.length}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -274,16 +280,10 @@ export default function AdminConnectActivity() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
 
           {/* Per customer × business movement detail */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-gray-500" />
-              <h2 className="text-base font-semibold text-gray-800">
-                {lang === "hi" ? `Connections — Data Movement Detail (${connections.length})` : `Connections — Data Movement Detail (${connections.length})`}
-              </h2>
-            </div>
+          <Section icon={<Link2 className="w-4 h-4 text-gray-500" />} title="Connections — Data Movement Detail" count={connections.length}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -317,16 +317,10 @@ export default function AdminConnectActivity() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
 
           {/* Login logs */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-500" />
-              <h2 className="text-base font-semibold text-gray-800">
-                {lang === "hi" ? `Recent Connect Logins (${logs.length})` : `Recent Connect Logins (${logs.length})`}
-              </h2>
-            </div>
+          <Section icon={<Clock className="w-4 h-4 text-gray-500" />} title="Recent Connect Logins" count={logs.length}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -370,7 +364,7 @@ export default function AdminConnectActivity() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </Section>
         </>
       )}
     </div>
