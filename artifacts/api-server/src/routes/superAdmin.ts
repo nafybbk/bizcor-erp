@@ -1181,6 +1181,79 @@ router.get("/connect-activity/active", async (req, res) => {
   } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// GET /connect-activity/connections — one row per (customer, business) pair
+// — the actual "who's connected to whom, and how much moved" detail. Real
+// counts only: an invoice/payment/image only counts once it's actually
+// linked to this customer's party (partyId set), matching what the
+// customer's own Connect app would show them.
+router.get("/connect-activity/connections", async (req, res) => {
+  try {
+    const rows = await db.select({
+      connectionId: connectionsTable.id,
+      customerId: customersTable.id,
+      customerCode: customersTable.customerId,
+      customerName: customersTable.name,
+      mobile: customersTable.mobile,
+      lastDeviceSeenAt: customersTable.lastDeviceSeenAt,
+      businessId: businessesTable.id,
+      businessName: businessesTable.name,
+      partyId: connectionsTable.partyId,
+      status: connectionsTable.status,
+      createdAt: connectionsTable.createdAt,
+    }).from(connectionsTable)
+      .innerJoin(customersTable, eq(connectionsTable.customerId, customersTable.id))
+      .innerJoin(businessesTable, eq(connectionsTable.businessId, businessesTable.id))
+      .orderBy(desc(connectionsTable.createdAt));
+
+    const invoiceCounts = await db.select({
+      businessId: lanSyncVouchersTable.businessId,
+      partyId: lanSyncVouchersTable.partyId,
+      cnt: count(),
+    }).from(lanSyncVouchersTable).where(sql`${lanSyncVouchersTable.partyId} IS NOT NULL`)
+      .groupBy(lanSyncVouchersTable.businessId, lanSyncVouchersTable.partyId);
+    const paymentCounts = await db.select({
+      businessId: lanSyncPaymentsTable.businessId,
+      partyId: lanSyncPaymentsTable.partyId,
+      cnt: count(),
+    }).from(lanSyncPaymentsTable).where(sql`${lanSyncPaymentsTable.partyId} IS NOT NULL`)
+      .groupBy(lanSyncPaymentsTable.businessId, lanSyncPaymentsTable.partyId);
+    const imageCounts = await db.select({
+      businessId: gallerySharesTable.businessId,
+      partyId: gallerySharesTable.partyId,
+      cnt: count(),
+      lastSharedAt: sql<string>`max(${gallerySharesTable.sharedAt})`,
+    }).from(gallerySharesTable).groupBy(gallerySharesTable.businessId, gallerySharesTable.partyId);
+
+    const key = (businessId: number, partyId: number) => `${businessId}_${partyId}`;
+    const invMap = new Map(invoiceCounts.map((r) => [key(r.businessId, r.partyId!), Number(r.cnt)]));
+    const payMap = new Map(paymentCounts.map((r) => [key(r.businessId, r.partyId!), Number(r.cnt)]));
+    const imgMap = new Map<string, { cnt: number; lastSharedAt: string }>(
+      imageCounts.map((r) => [key(r.businessId, r.partyId), { cnt: Number(r.cnt), lastSharedAt: r.lastSharedAt }]),
+    );
+
+    res.json(rows.map((r) => {
+      const k = key(r.businessId, r.partyId);
+      const img = imgMap.get(k);
+      return {
+        connectionId: r.connectionId,
+        customerId: r.customerId,
+        customerCode: r.customerCode,
+        customerName: r.customerName,
+        mobile: r.mobile,
+        lastDeviceSeenAt: r.lastDeviceSeenAt,
+        businessId: r.businessId,
+        businessName: r.businessName,
+        status: r.status,
+        connectedAt: r.createdAt,
+        invoicesShared: invMap.get(k) || 0,
+        paymentsShared: payMap.get(k) || 0,
+        imagesShared: img?.cnt || 0,
+        lastImageSharedAt: img?.lastSharedAt || null,
+      };
+    }));
+  } catch (err) { req.log.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── SMART ERP → BizCor Import ───────────────────────────────────────────────
 
 router.post("/import-data", async (req, res) => {

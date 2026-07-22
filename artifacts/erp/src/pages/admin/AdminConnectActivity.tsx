@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, fmt } from "@/lib/api";
-import { Smartphone, Users, Link2, ShieldAlert, RefreshCw, Loader2, Clock, Wifi, WifiOff, FileText, CreditCard, Images } from "lucide-react";
+import { Smartphone, Users, Link2, ShieldAlert, RefreshCw, Loader2, Clock, Wifi, WifiOff, FileText, CreditCard, Images, Building2 } from "lucide-react";
 import { useLang } from "@/lib/langHook";
 
 interface ConnectSummary {
@@ -12,30 +12,51 @@ interface ConnectSummary {
   sharedImages: number;
 }
 
+interface ConnectionRow {
+  connectionId: number;
+  customerId: number;
+  customerCode: string;
+  customerName: string | null;
+  mobile: string;
+  lastDeviceSeenAt: string | null;
+  businessId: number;
+  businessName: string;
+  status: string;
+  connectedAt: string;
+  invoicesShared: number;
+  paymentsShared: number;
+  imagesShared: number;
+  lastImageSharedAt: string | null;
+}
+
 export default function AdminConnectActivity() {
   const lang = useLang();
   const [summary, setSummary] = useState<ConnectSummary | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [active, setActive] = useState<any[]>([]);
+  const [connections, setConnections] = useState<ConnectionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [s, l, a] = await Promise.all([
+      const [s, l, a, c] = await Promise.all([
         api.get<any>("/super-admin/connect-activity/summary"),
         api.get<any[]>("/super-admin/connect-activity/logins"),
         api.get<any[]>("/super-admin/connect-activity/active"),
+        api.get<ConnectionRow[]>("/super-admin/connect-activity/connections"),
       ]);
       setSummary(s || null);
       setLogs(Array.isArray(l) ? l : []);
       setActive(Array.isArray(a) ? a : []);
+      setConnections(Array.isArray(c) ? c : []);
     } catch { } finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
 
-  const formatTime = (d: string) => {
+  const formatTime = (d: string | null) => {
+    if (!d) return "—";
     const date = new Date(d);
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
     const sfx = lang === "hi" ? "pehle" : "ago";
@@ -46,6 +67,35 @@ export default function AdminConnectActivity() {
   };
 
   const maskDevice = (id: string | null) => (id ? `${id.slice(0, 6)}…${id.slice(-4)}` : "—");
+
+  // Businesses and Customers lists are both derived from the same
+  // /connections rows (real data, no separate placeholder endpoint) —
+  // one grouped by business, one grouped by customer.
+  const businesses = useMemo(() => {
+    const map = new Map<number, { businessId: number; businessName: string; customers: Set<number>; invoices: number; payments: number; images: number }>();
+    for (const r of connections) {
+      let b = map.get(r.businessId);
+      if (!b) { b = { businessId: r.businessId, businessName: r.businessName, customers: new Set(), invoices: 0, payments: 0, images: 0 }; map.set(r.businessId, b); }
+      b.customers.add(r.customerId);
+      b.invoices += r.invoicesShared;
+      b.payments += r.paymentsShared;
+      b.images += r.imagesShared;
+    }
+    return Array.from(map.values()).sort((x, y) => y.customers.size - x.customers.size);
+  }, [connections]);
+
+  const customers = useMemo(() => {
+    const map = new Map<number, { customerId: number; customerName: string | null; mobile: string; lastDeviceSeenAt: string | null; businesses: Set<string>; invoices: number; payments: number; images: number }>();
+    for (const r of connections) {
+      let c = map.get(r.customerId);
+      if (!c) { c = { customerId: r.customerId, customerName: r.customerName, mobile: r.mobile, lastDeviceSeenAt: r.lastDeviceSeenAt, businesses: new Set(), invoices: 0, payments: 0, images: 0 }; map.set(r.customerId, c); }
+      c.businesses.add(r.businessName);
+      c.invoices += r.invoicesShared;
+      c.payments += r.paymentsShared;
+      c.images += r.imagesShared;
+    }
+    return Array.from(map.values()).sort((x, y) => (y.lastDeviceSeenAt || "").localeCompare(x.lastDeviceSeenAt || ""));
+  }, [connections]);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -138,7 +188,7 @@ export default function AdminConnectActivity() {
                     </div>
                     <div className="min-w-0">
                       <div className="font-medium text-sm text-gray-900 truncate">{c.name || c.mobile}</div>
-                      <div className="text-xs text-gray-500 truncate">{c.businessName || c.customerId}</div>
+                      <div className="text-xs text-gray-500 truncate">{c.mobile}</div>
                       <div className="text-xs text-green-600 mt-0.5 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
                         {c.lastDeviceSeenAt ? formatTime(c.lastDeviceSeenAt) : "Active"}
@@ -148,6 +198,125 @@ export default function AdminConnectActivity() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Connect Businesses */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-gray-500" />
+              <h2 className="text-base font-semibold text-gray-800">
+                {lang === "hi" ? `Connect Businesses (${businesses.length})` : `Connect Businesses (${businesses.length})`}
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Business</th>
+                    <th className="px-4 py-3 text-right">Customers</th>
+                    <th className="px-4 py-3 text-right">Invoices</th>
+                    <th className="px-4 py-3 text-right">Payments</th>
+                    <th className="px-4 py-3 text-right">Images</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {businesses.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center text-gray-400 py-8">{lang === "hi" ? "Abhi koi Connect business nahi" : "No Connect businesses yet"}</td></tr>
+                  ) : businesses.map((b) => (
+                    <tr key={b.businessId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">{b.businessName}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.customers.size}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.invoices}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.payments}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.images}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Connect Customers */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <Users className="w-4 h-4 text-gray-500" />
+              <h2 className="text-base font-semibold text-gray-800">
+                {lang === "hi" ? `Connect Customers (${customers.length})` : `Connect Customers (${customers.length})`}
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Customer</th>
+                    <th className="px-4 py-3 text-left">Mobile</th>
+                    <th className="px-4 py-3 text-right">Businesses</th>
+                    <th className="px-4 py-3 text-right">Invoices</th>
+                    <th className="px-4 py-3 text-right">Payments</th>
+                    <th className="px-4 py-3 text-right">Images</th>
+                    <th className="px-4 py-3 text-left">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {customers.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center text-gray-400 py-8">{lang === "hi" ? "Abhi koi Connect customer nahi" : "No Connect customers yet"}</td></tr>
+                  ) : customers.map((c) => (
+                    <tr key={c.customerId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900">{c.customerName || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.mobile}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{c.businesses.size}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{c.invoices}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{c.payments}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{c.images}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTime(c.lastDeviceSeenAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Per customer × business movement detail */}
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-gray-500" />
+              <h2 className="text-base font-semibold text-gray-800">
+                {lang === "hi" ? `Connections — Data Movement Detail (${connections.length})` : `Connections — Data Movement Detail (${connections.length})`}
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Customer</th>
+                    <th className="px-4 py-3 text-left">Business</th>
+                    <th className="px-4 py-3 text-right">Invoices</th>
+                    <th className="px-4 py-3 text-right">Payments</th>
+                    <th className="px-4 py-3 text-right">Images</th>
+                    <th className="px-4 py-3 text-left">Connected</th>
+                    <th className="px-4 py-3 text-left">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {connections.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center text-gray-400 py-8">{lang === "hi" ? "Abhi koi connection nahi" : "No connections yet"}</td></tr>
+                  ) : connections.map((r) => (
+                    <tr key={r.connectionId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900">{r.customerName || "—"}</div>
+                        <div className="text-xs text-gray-500 font-mono">{r.mobile}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">{r.businessName}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{r.invoicesShared}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{r.paymentsShared}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{r.imagesShared}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt.date(r.connectedAt)}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.lastDeviceSeenAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Login logs */}

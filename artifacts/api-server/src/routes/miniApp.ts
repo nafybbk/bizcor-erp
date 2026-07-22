@@ -81,6 +81,12 @@ function requireCustomerAuth(req: Request, res: Response, next: NextFunction): v
       return;
     }
     req.customer = decoded;
+    // Fire-and-forget "last seen" heartbeat — runs on every authenticated
+    // request (browsing invoices, gallery, chat, not just login), so the
+    // tech panel's "currently active" list reflects real usage instead of
+    // only the moment a customer typed their PIN in.
+    db.update(customersTable).set({ lastDeviceSeenAt: new Date() })
+      .where(eq(customersTable.id, decoded.customerDbId)).catch(() => {});
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized", message: "Invalid or expired token" });
