@@ -39,6 +39,7 @@ interface ConnectionRow {
   customerId: number;
   customerCode: string;
   customerName: string | null;
+  partyName: string;
   mobile: string;
   lastDeviceSeenAt: string | null;
   businessId: number;
@@ -107,11 +108,15 @@ export default function AdminConnectActivity() {
   }, [connections]);
 
   const customers = useMemo(() => {
-    const map = new Map<number, { customerId: number; customerName: string | null; mobile: string; lastDeviceSeenAt: string | null; businesses: Set<string>; invoices: number; payments: number; images: number }>();
+    // partyNames is a Set, not a single value, because each supplier names
+    // this customer independently in their own ERP — it can legitimately
+    // differ per business, unlike the customer's one self-entered app name.
+    const map = new Map<number, { customerId: number; customerName: string | null; mobile: string; lastDeviceSeenAt: string | null; businesses: Set<string>; partyNames: Set<string>; invoices: number; payments: number; images: number }>();
     for (const r of connections) {
       let c = map.get(r.customerId);
-      if (!c) { c = { customerId: r.customerId, customerName: r.customerName, mobile: r.mobile, lastDeviceSeenAt: r.lastDeviceSeenAt, businesses: new Set(), invoices: 0, payments: 0, images: 0 }; map.set(r.customerId, c); }
+      if (!c) { c = { customerId: r.customerId, customerName: r.customerName, mobile: r.mobile, lastDeviceSeenAt: r.lastDeviceSeenAt, businesses: new Set(), partyNames: new Set(), invoices: 0, payments: 0, images: 0 }; map.set(r.customerId, c); }
       c.businesses.add(r.businessName);
+      c.partyNames.add(r.partyName);
       c.invoices += r.invoicesShared;
       c.payments += r.paymentsShared;
       c.images += r.imagesShared;
@@ -254,7 +259,8 @@ export default function AdminConnectActivity() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                   <tr>
-                    <th className="px-4 py-3 text-left">Customer</th>
+                    <th className="px-4 py-3 text-left">App Profile Name</th>
+                    <th className="px-4 py-3 text-left">ERP Record Name(s)</th>
                     <th className="px-4 py-3 text-left">Mobile</th>
                     <th className="px-4 py-3 text-right">Businesses</th>
                     <th className="px-4 py-3 text-right">Invoices</th>
@@ -265,10 +271,11 @@ export default function AdminConnectActivity() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {customers.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center text-gray-400 py-8">{lang === "hi" ? "Abhi koi Connect customer nahi" : "No Connect customers yet"}</td></tr>
+                    <tr><td colSpan={8} className="text-center text-gray-400 py-8">{lang === "hi" ? "Abhi koi Connect customer nahi" : "No Connect customers yet"}</td></tr>
                   ) : customers.map((c) => (
                     <tr key={c.customerId} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{c.customerName || "—"}</td>
+                      <td className="px-4 py-3 text-gray-500">{c.customerName || "—"}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{Array.from(c.partyNames).join(", ")}</td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.mobile}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{c.businesses.size}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{c.invoices}</td>
@@ -288,7 +295,7 @@ export default function AdminConnectActivity() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                   <tr>
-                    <th className="px-4 py-3 text-left">Customer</th>
+                    <th className="px-4 py-3 text-left">Customer (ERP record)</th>
                     <th className="px-4 py-3 text-left">Business</th>
                     <th className="px-4 py-3 text-right">Invoices</th>
                     <th className="px-4 py-3 text-right">Payments</th>
@@ -303,8 +310,11 @@ export default function AdminConnectActivity() {
                   ) : connections.map((r) => (
                     <tr key={r.connectionId} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{r.customerName || "—"}</div>
+                        <div className="font-medium text-gray-900">{r.partyName}</div>
                         <div className="text-xs text-gray-500 font-mono">{r.mobile}</div>
+                        {r.customerName && r.customerName !== r.partyName && (
+                          <div className="text-xs text-gray-400">{lang === "hi" ? "App mein: " : "In app: "}{r.customerName}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-700">{r.businessName}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{r.invoicesShared}</td>

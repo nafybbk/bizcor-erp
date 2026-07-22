@@ -1186,6 +1186,13 @@ router.get("/connect-activity/active", async (req, res) => {
 // counts only: an invoice/payment/image only counts once it's actually
 // linked to this customer's party (partyId set), matching what the
 // customer's own Connect app would show them.
+//
+// Two different names are shown for a reason: `customerName` is self-entered
+// by the customer in their own Connect app profile — they can change it to
+// anything, anytime, so it's not a reliable identity. `partyName` is the
+// name THIS supplier typed in when they added the customer as a party in
+// their own ERP — that's the supplier's own record and doesn't change just
+// because the customer edits their app profile.
 router.get("/connect-activity/connections", async (req, res) => {
   try {
     const rows = await db.select({
@@ -1198,11 +1205,13 @@ router.get("/connect-activity/connections", async (req, res) => {
       businessId: businessesTable.id,
       businessName: businessesTable.name,
       partyId: connectionsTable.partyId,
+      partyName: partiesTable.name,
       status: connectionsTable.status,
       createdAt: connectionsTable.createdAt,
     }).from(connectionsTable)
       .innerJoin(customersTable, eq(connectionsTable.customerId, customersTable.id))
       .innerJoin(businessesTable, eq(connectionsTable.businessId, businessesTable.id))
+      .innerJoin(partiesTable, eq(connectionsTable.partyId, partiesTable.id))
       .orderBy(desc(connectionsTable.createdAt));
 
     const invoiceCounts = await db.select({
@@ -1239,6 +1248,7 @@ router.get("/connect-activity/connections", async (req, res) => {
         customerId: r.customerId,
         customerCode: r.customerCode,
         customerName: r.customerName,
+        partyName: r.partyName,
         mobile: r.mobile,
         lastDeviceSeenAt: r.lastDeviceSeenAt,
         businessId: r.businessId,
